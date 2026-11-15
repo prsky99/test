@@ -727,7 +727,7 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
     started = clock()
     day = time.strftime("%Y%m%d", time.localtime(now()))
     lines, details = [], []
-    done = passed = excluded = 0
+    done = passed = excluded = reused = 0
     contrast = CONTRAST.get(defn["slug"])
     exclude = TASK_EXCLUDE.get(defn["slug"]) or (lambda c: None)
     for case in cases:
@@ -741,7 +741,9 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             continue
         if pacer is not None:
             pacer.wait_for(requests_per_case(defn))
-        result = runner.Runner(caller, watch_state=watch_state, keep_raw=2000).run(defn, case["input"])
+        same_case = CaseAnswers(caller) if singles and contrast else None
+        result = runner.Runner(same_case.wrap() if same_case else caller, watch_state=watch_state,
+                               keep_raw=2000).run(defn, case["input"])
         verdict = grade(defn, case, result["output"])
         at = _iso(now())
         ours = not_measured(result["attempts"])
@@ -782,14 +784,16 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
                 one = single_definition(defn, slot_name, member)
                 if pacer is not None and member["kind"] == "external":
                     pacer.wait_for(2)
-                out = runner.Runner(caller).run(one, case["input"])
+                out = runner.Runner(same_case.wrap(reuse=True) if same_case else caller).run(one, case["input"])
+                reused_now = same_case.take_reused() if same_case else 0
                 task = TASK_GRADERS.get(defn["slug"])
                 ok = task(case, out["output"]) if task else GRADERS[contrast](case, out["output"].get(contrast))
                 if not ok and not_measured(out["attempts"]):
                     ok = None                             # not measured (R23): never a failure of the single member
                 lines.append({"type": "single", "slug": defn["slug"], "resource_id": member.get("resource_id"),
                               "agent_id": member.get("agent_id"), "kind": member["kind"], "tool": member["tool"],
-                              "case_id": case["case_id"], "at": at, "ok": ok})
+                              "case_id": case["case_id"], "at": at, "ok": ok, "reused": reused_now})
+                reused += reused_now
         done += 1
         passed += bool(verdict["ok"])
     retest = Path(root) / "retest" / f"{day}.jsonl"
@@ -804,7 +808,8 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True, default=str) + "\n")
     return {"slug": defn["slug"], "split": split, "cases": done, "passed": passed, "excluded": excluded,
             "of": len(cases),
-            "stopped_by_budget": done + excluded < len(cases), "seconds": round(clock() - started, 1)}
+            "stopped_by_budget": done + excluded < len(cases), "seconds": round(clock() - started, 1),
+            "single_answers_reused": reused}
 
 
 # PM 11:4x (11-15) decision 1: a live necklace retests 5 held-out cases a day and walks one held-out set of 30 in
@@ -818,6 +823,39 @@ def sample_window(now: float) -> tuple[str, int]:
     day = int(now // 86400)
     cycle, step = divmod(day, SAMPLE_DAYS)
     return ("holdout-r1" if cycle % 2 == 0 else "holdout-r2"), step * SAMPLE_PER_DAY
+
+
+class CaseAnswers:
+    """PM 16:25: a gate's single-member runs (the delta contrast) reuse the answer that member gave in the necklace run
+    of the same case moments before: same member, same tool, same arguments, within this one case, non-error answers
+    only. A slot whose arguments the necklace changes (a later stage reading an earlier one) has other arguments and
+    is called on its own as before. Each single line says how many answers it reused ("reused"); the delta still pairs
+    the same case on the same day."""
+
+    def __init__(self, caller):
+        self.caller, self.kept, self.reused = caller, {}, 0
+
+    @staticmethod
+    def _key(member, args):
+        return (member.get("resource_id"), member.get("tool"), json.dumps(args, sort_keys=True, default=str))
+
+    def wrap(self, reuse: bool = False):
+        def call(member, args, timeout_s):
+            if member.get("kind") != "external":
+                return self.caller(member, args, timeout_s)
+            key = self._key(member, args)
+            if reuse and key in self.kept:
+                self.reused += 1
+                return self.kept[key]
+            answer = self.caller(member, args, timeout_s)
+            if not reuse and not runner.is_error(runner.unwrap(answer)):
+                self.kept[key] = answer
+            return answer
+        return call
+
+    def take_reused(self) -> int:
+        reused, self.reused = self.reused, 0
+        return reused
 
 
 class SharedMemberCache:

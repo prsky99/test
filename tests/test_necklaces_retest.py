@@ -40,7 +40,7 @@ def test_run_set_writes_daily_lines_and_single_baselines(tmp_path):
                          clock=lambda: next(clock), now=lambda: 1_800_000_000)
     # c2 is a clean version, but 367249 lists an advisory for it: a wrong answer since R25 (passed 1 of 2)
     assert out == {"slug": "package-risk-audit", "split": "tuning", "cases": 2, "passed": 1, "excluded": 0, "of": 2,
-                   "stopped_by_budget": False, "seconds": out["seconds"]}
+                   "stopped_by_budget": False, "seconds": out["seconds"], "single_answers_reused": out["single_answers_reused"]}
     lines = [json.loads(l) for l in (tmp_path / "retest" / "20270115.jsonl").read_text().splitlines()]
     kinds = {l["type"] for l in lines}
     assert kinds == {"case", "member", "single"}
@@ -462,3 +462,32 @@ def test_relay_calls_never_hold_more_than_two_edge_slots():
     for w in workers:
         w.join()
     assert 1 <= peak[0] <= retest.RELAY_CONCURRENCY == 2
+
+
+def test_a_gate_single_reuses_the_answer_the_member_gave_in_the_same_case(tmp_path):
+    """PM 16:25: the single run of a member reuses its answer from the necklace run of the same case (same tool, same
+    arguments, non-error), halving the member's calls; a member that was not called, or failed, is called on its own."""
+    defn = package_defn()
+    cases = [pkg_case("c1", ["CVE-2021-23337"]), pkg_case("c2", ["CVE-2021-23337"])]
+    answers = {367249: "CVE-2021-23337", 286623: Fail(), 130453: "CVE-2021-23337", 47161: "nothing",
+               "package-registry": {"latest_version": "4.17.21"}}
+    inner = caller_from(answers)
+    calls = []
+
+    def counting(member, args, timeout_s):
+        calls.append(member.get("resource_id") or member.get("agent_id"))
+        return inner(member, args, timeout_s)
+    clock = iter(range(0, 1000, 1))
+    out = retest.run_set(defn, cases, counting, root=tmp_path, singles=True, clock=lambda: next(clock),
+                         now=lambda: 1_800_000_000)
+    assert calls.count(367249) == 2                          # once per case: the single reused the necklace's answer
+    assert out["single_answers_reused"] == 2
+    lines = [json.loads(l) for l in (tmp_path / "retest" / "20270115.jsonl").read_text().splitlines()]
+    singles = {(l["case_id"], l["resource_id"]): l for l in lines if l["type"] == "single"}
+    assert singles[("c1", 367249)]["reused"] == 1 and singles[("c1", 47161)]["reused"] == 0
+    assert singles[("c1", 367249)]["ok"] is True
+    # without singles nothing is kept or reused
+    calls.clear()
+    retest.run_set(defn, cases[:1], counting, root=tmp_path / "x", singles=False, clock=lambda: next(clock),
+                   now=lambda: 1_800_000_000)
+    assert calls.count(367249) == 1
