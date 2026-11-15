@@ -368,20 +368,46 @@ def check_fingerprints(path=None, now=None):
     return {'generated': generated, 'age_hours': age, 'problems': problems}
 
 
+SNAPSHOT_MAX_HOURS = 72    # agent_market/necklaces/judge.py SNAPSHOT_MAX_HOURS (read from there when present)
+
+
+def _source_value(path: Path, name: str):
+    """NAME = <literal> from a source file, as text: the watch runs on ops-llm-venv, which cannot import agent_market
+    (11-15 16:23-18:3x the import below stopped every watch round, so watch.jsonl got no line for two hours)."""
+    try:
+        found = re.search(rf'^{name}\s*=\s*([^#\n]+)', path.read_text(), re.M)
+    except OSError:
+        return None
+    return found.group(1).strip().strip('"\'') if found else None
+
+
 def check_verify_snapshot(path=None, now=None, official=None):
     """The pearl snapshot the necklace judge trusts (PM 11-15 16:17): on 11-15 it lacked evaluator_version from 10:22
     until 16:16, so the judge counted no pearl and no provisional member and nobody was told. The judge's own rule
     (agent_market.necklaces.judge.snapshot_problem): older than its limit, or graded by another evaluator than the
-    official one in scripts/report_v2.py."""
-    from agent_market.necklaces.judge import snapshot_problem, verify_snapshot_path
-    path = Path(path) if path else ROOT / verify_snapshot_path()
+    official one (gate_rules.EVALUATOR_VERSION). Read as text, no agent_market import (see _source_value)."""
+    path = Path(path) if path else ROOT / 'exports/pearls/verify-snapshot.json'
     try:
         data = json.loads(path.read_text())
     except (OSError, ValueError):
         return {'generated': None, 'evaluator_version': None, 'problems': ['verify_snapshot_unreadable']}
-    problem = snapshot_problem(data, now, official) if official else snapshot_problem(data, now)
+    hours = _source_value(ROOT / 'agent_market/necklaces/judge.py', 'SNAPSHOT_MAX_HOURS')
+    hours = float(hours) if hours and hours.replace('.', '', 1).isdigit() else SNAPSHOT_MAX_HOURS
+    official = official or _source_value(ROOT / 'agent_market/necklaces/gate_rules.py', 'EVALUATOR_VERSION')
+    try:
+        generated = datetime.fromisoformat(str(data.get('generated') or '').replace('Z', '+00:00')
+                                           .replace('+0900', '+09:00')).timestamp()
+    except ValueError:
+        generated = None
+    now = time.time() if now is None else now
+    if generated is None or now - generated > hours * 3600:
+        problem = 'snapshot_stale'
+    elif not official or data.get('evaluator_version') != official:
+        problem = 'snapshot_evaluator_version'
+    else:
+        problem = None
     return {'generated': data.get('generated'), 'evaluator_version': data.get('evaluator_version'),
-            'problems': [problem] if problem else []}
+            'official': official, 'problems': [problem] if problem else []}
 
 
 REFERENCE_FAILURES = ROOT / 'logs/ops/reference-failures.jsonl'
@@ -557,13 +583,37 @@ def check_core(jobs, ps_text=None):
     return down
 
 
+STEP_ERRORS: list = []
+TIME_CAP_S = 300   # ops_auto runs the watch every 600 s; a hung step must not hold the next round
+
+
+def step(name, fn, default):
+    """One watch check; a failure is recorded by name and the round still writes its line (11-15 18:25 PM: one
+    ModuleNotFoundError in one check stopped every line for two hours)."""
+    try:
+        return fn()
+    except Exception as error:  # noqa: BLE001
+        STEP_ERRORS.append(f'{name}: {type(error).__name__}: {str(error)[:120]}')
+        return default
+
+
 def main():
+    import signal
+    signal.signal(signal.SIGALRM, lambda *_: (_ for _ in ()).throw(TimeoutError(f'watch over {TIME_CAP_S}s')))
+    signal.alarm(TIME_CAP_S)
+    try:
+        return _main()
+    finally:
+        signal.alarm(0)
+
+
+def _main():
     anomalies = {}
-    site, site_path = check_site()
+    site, site_path = step('site', check_site, (None, None))
     if site:
         anomalies['site'] = site
     long_tests, stuck = [], []
-    for pid, seconds, args in processes():
+    for pid, seconds, args in step('processes', processes, []):
         if ('pytest' in args or 'release_gate' in args) and 'grep' not in args and seconds > 3600:
             long_tests.append({'pid': pid, 'minutes': seconds // 60, 'cmd': args[:100]})
         if 'scripts.service_deploy' in args and seconds > 1800:
@@ -572,47 +622,50 @@ def main():
         anomalies['long_tests'] = long_tests
     if stuck:
         anomalies['deploy_stuck'] = stuck
-    free = check_memory()
+    free = step('memory', check_memory, None)
     if free is not None and free < 15:
         anomalies['memory'] = {'free_percent': free}
-    swap = check_swap()
+    swap = step('swap', check_swap, None)
     if swap:
-        swap['trend_mb_per_h'] = swap_trend(swap['used_mb'], recent_records(OUT))
+        swap['trend_mb_per_h'] = step('swap_trend', lambda: swap_trend(swap['used_mb'], recent_records(OUT)), None)
         if (swap['total_mb'] and swap['used_mb'] >= SWAP_FULL * swap['total_mb']) or (swap['trend_mb_per_h'] or 0) >= SWAP_GROWTH_MB:
             anomalies['swap'] = dict(swap)
-    disk = check_disk()
+    disk = step('disk', check_disk, None)
     if disk and (disk['used_percent'] >= 85 or disk['free_gb'] < 60):
         anomalies['disk'] = disk
-    anomalies.update(check_board())
-    daemon = check_adcoin_daemon()
+    anomalies.update(step('board', check_board, {}))
+    daemon = step('adcoin_daemon', check_adcoin_daemon, {'problems': []})
     if daemon['problems']:
         anomalies['adcoin_daemon'] = daemon
-    jobs, failed_jobs = check_launchd()
+    jobs, failed_jobs = step('launchd', check_launchd, (None, None))
     if failed_jobs:
         anomalies['launchd_jobs'] = failed_jobs
-    backup = check_backup()
+    backup = step('backup', check_backup, {'problems': []})
     if backup['problems']:
         anomalies['backup'] = backup
-    fingerprints = check_fingerprints()
+    fingerprints = step('fingerprints', check_fingerprints, {'problems': []})
     if fingerprints['problems']:
         anomalies['fingerprints'] = fingerprints
-    pearl_snapshot = check_verify_snapshot()
+    pearl_snapshot = step('pearl_snapshot', check_verify_snapshot, {'problems': []})
     if pearl_snapshot['problems']:
         anomalies['pearl_snapshot'] = pearl_snapshot
-    references = check_reference_failures()
+    references = step('reference_failures', check_reference_failures, {'problems': []})
     if references['problems']:
         anomalies['reference_sources'] = references
-    necklace_runs = check_necklace_runs()
+    necklace_runs = step('necklace_runs', check_necklace_runs, {'problems': []})
     if necklace_runs['problems']:
         anomalies['necklace_checks'] = necklace_runs
-    down = check_core(jobs) if jobs else []
+    down = step('core', lambda: check_core(jobs), []) if jobs else []
     if down:
         anomalies['core_down'] = down
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'memory_free_percent': free,
-              'swap': swap, 'top_memory': top_memory(), 'adcoin_daemon': daemon,
-              'db_connections': db_connections(), 'launchd': jobs, 'backup': backup, 'fingerprints': fingerprints, 'pearl_snapshot': pearl_snapshot, 'necklace_runs': necklace_runs,
-              'substitutes': substitute_states(),
+              'swap': swap, 'top_memory': step('top_memory', top_memory, None), 'adcoin_daemon': daemon,
+              'db_connections': step('db_connections', db_connections, None), 'launchd': jobs, 'backup': backup, 'fingerprints': fingerprints, 'pearl_snapshot': pearl_snapshot, 'necklace_runs': necklace_runs,
+              'substitutes': step('substitutes', substitute_states, None),
               'anomalies': anomalies}
+    if STEP_ERRORS:
+        record['step_errors'] = list(STEP_ERRORS)
+        anomalies['watch_steps'] = list(STEP_ERRORS)
     if site_path:  # recorded, not alerted: the second fresh connection got 200 (see check_site)
         record['site_path'] = site_path
     OUT.parent.mkdir(parents=True, exist_ok=True)

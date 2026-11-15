@@ -480,3 +480,32 @@ def test_a_cleared_state_check_closes_its_board_line(tmp_path, monkeypatch):
     ops_auto.watch()
     row = next(l for l in board.read_text().splitlines() if '[fingerprints]' in l)
     assert '해결(자동' in row and not row.rstrip().endswith('| 대기 |')
+
+
+def test_verify_snapshot_is_judged_without_agent_market(tmp_path, monkeypatch):
+    """11-15 16:23-18:26: the ops-llm-venv python cannot import agent_market; the check reads the rules as text."""
+    import json as _json
+    import builtins
+    real_import = builtins.__import__
+
+    def no_agent_market(name, *a, **k):
+        if name.startswith('agent_market'):
+            raise ModuleNotFoundError(name)
+        return real_import(name, *a, **k)
+    monkeypatch.setattr(builtins, '__import__', no_agent_market)
+    snap = tmp_path / 's.json'
+    snap.write_text(_json.dumps({'generated': '2026-11-15T16:47:08+0900', 'evaluator_version': 'v1'}))
+    import datetime as _dt
+    now = _dt.datetime.fromisoformat('2026-11-15T18:00:00+09:00').timestamp()
+    assert ops_watch.check_verify_snapshot(snap, now, 'v1')['problems'] == []
+    assert ops_watch.check_verify_snapshot(snap, now, 'v2')['problems'] == ['snapshot_evaluator_version']
+    assert ops_watch.check_verify_snapshot(snap, now + 73 * 3600, 'v1')['problems'] == ['snapshot_stale']
+    official = ops_watch._source_value(ops_watch.ROOT / 'agent_market/necklaces/gate_rules.py', 'EVALUATOR_VERSION')
+    assert official and official.startswith('dq-')
+
+
+def test_a_failing_step_is_named_and_the_round_continues(monkeypatch):
+    monkeypatch.setattr(ops_watch, 'STEP_ERRORS', [])
+    assert ops_watch.step('boom', lambda: 1 / 0, 'default') == 'default'
+    assert ops_watch.step('fine', lambda: 7, None) == 7
+    assert ops_watch.STEP_ERRORS == ['boom: ZeroDivisionError: division by zero']
