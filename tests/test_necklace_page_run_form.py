@@ -66,10 +66,11 @@ def test_example_input_feeds_the_agent_examples():
 
 
 def test_free_for_now_is_said_only_when_the_snapshot_marks_it():
-    """11-15 user decision: necklaces run free for now; the judge marks it (free_event: true), no end date is promised."""
-    entry = {'slug': 'x', 'name': 'X', 'summary': 'S', 'free_event': True,
+    """11-15 user decision: necklaces run free for now; the judge marks it (pricing {"mode": "free"}), no end date."""
+    entry = {'slug': 'x', 'name': 'X', 'summary': 'S', 'pricing': {'mode': 'free'},
              'input_schema': {'type': 'object', 'required': ['q'], 'properties': {'q': {'type': 'string'}}}}
-    assert ns.free_now(entry) and not ns.free_now({**entry, 'free_event': 'yes'}) and not ns.free_now({'slug': 'x'})
+    assert ns.free_now(entry) and not ns.free_now({**entry, 'pricing': {'mode': 'paid'}}) and not ns.free_now({'slug': 'x'})
+    assert not ns.free_now({**entry, 'pricing': 'free'})
     assert 'for now' in ns.FREE_NOW and 'until' not in ns.FREE_NOW.lower()
 
 
@@ -77,7 +78,7 @@ def test_free_line_on_page_tools_skills_and_llms(site, monkeypatch):  # noqa: F8
     client, servers, data = site
     path = data / 'necklaces.json'
     snapshot = json.loads(path.read_text())
-    snapshot['necklaces'][0]['free_event'] = True
+    snapshot['necklaces'][0]['pricing'] = {'mode': 'free'}
     path.write_text(json.dumps(snapshot))
     page = client.get('/necklaces/advisory-brief', headers={'accept': 'text/html'}).text
     assert ns.FREE_NOW in page

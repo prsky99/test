@@ -436,13 +436,14 @@ def standing_line(entry, now=None):
             + ' retests with at most one failure' + (' (now ' + str(cases) + ').' if isinstance(cases, int) else '.'))
 
 
-# 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (free_event: true);
-# the words state the fact and promise no end date, only that a charge is announced first.
+# 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (pricing {"mode":
+# "free"}, workflow c5c0595f); the words state the fact and promise no end date, only that a charge is announced first.
 FREE_NOW = 'Free to run for now. If that changes, we will say so on this page first.'
 
 
 def free_now(entry):
-    return isinstance(entry, dict) and entry.get('free_event') is True
+    pricing = entry.get('pricing') if isinstance(entry, dict) else None
+    return isinstance(pricing, dict) and pricing.get('mode') == 'free'
 
 
 WEB_NOTICE = 'necklace-v1'   # the consent value agent_market.necklaces.service.NOTICE expects from the web form
