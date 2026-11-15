@@ -95,3 +95,29 @@ def test_front_app_keeps_the_public_headers_and_cookies_still_get_no_store(clien
         assert css.status_code == 200 and 'immutable' in css.headers['cache-control']
         signed = site.get('/customer/sign-in', headers={'Accept': 'text/html', 'Cookie': 'customer_session=x'})
         assert signed.status_code == 200 and signed.text == r.text
+
+
+def test_get_sets_no_cookie_and_a_cookie_setting_page_stays_private(client):  # noqa: F811
+    """PM 11-16 04:5x: a cookie set by GET would be handed to other visitors by the edge."""
+    from tests.test_direct_sign_in_links import published
+    from fastapi.responses import HTMLResponse
+    with published(client, True) as site:
+        for path in ('/customer/sign-in', '/customer/sign-in?next=/customer/plan'):
+            r = site.get(path, headers={'Accept': 'text/html'})
+            assert r.status_code == 200 and 'set-cookie' not in r.headers, (path, r.headers.get('set-cookie'))
+    marked = HTMLResponse('<html><head><style>a{}</style></head><body></body></html>', headers={'Cache-Control': 'no-store'})
+    marked.set_cookie('x', 'y')
+    assert sc.cacheable(marked) is marked                  # left as it was: no-store, never shared
+
+
+def test_an_earlier_release_digest_is_served_from_the_shared_folder(tmp_path, monkeypatch):
+    """PM 11-16 04:5x: yesterday's HTML at the edge names the previous release's stylesheet digest."""
+    monkeypatch.setattr(sc, 'shared_dir', lambda: tmp_path)
+    sc._keep_on_disk('a' * 16, 'body{color:red}')
+    sc._css.clear()
+    status, css = sc.stylesheet('a' * 16, lambda next_value=None: (_ for _ in ()).throw(AssertionError('no render')))
+    assert status == 200 and css == 'body{color:red}'
+    for i in range(sc.DISK_KEPT + 3):
+        sc._keep_on_disk(format(i, '016x'), 'x')
+    assert len(list(tmp_path.glob('*.css'))) == sc.DISK_KEPT
+    assert sc.stylesheet('f' * 16, lambda next_value=None: __import__('fastapi').responses.HTMLResponse('<html></html>'))[0] == 404

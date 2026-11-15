@@ -17,6 +17,7 @@ import collections
 import hashlib
 import re
 import threading
+from pathlib import Path
 
 CSS_PREFIX = '/customer/assets/sign-in.'   # + <16 hex digest> + '.css' (in the path: some layers drop query strings)
 CSS_ROUTE = CSS_PREFIX + '{version}.css'
@@ -34,17 +35,61 @@ def _digest(text):
     return hashlib.sha256(text.encode('utf-8')).hexdigest()[:16]
 
 
+def shared_dir():
+    """gateway-data/services/sign-in-css beside the releases folder, shared by every release; None elsewhere.
+    PM 11-16 04:5x: the edge may hand out yesterday's sign-in HTML for up to a day (stale-while-revalidate), naming the
+    stylesheet digest of the previous release; the new release never rendered it, so each digest is kept on disk."""
+    release = Path(__file__).resolve().parents[1]
+    return release.parent.parent / 'sign-in-css' if release.parent.name == 'releases' else None
+
+
+DISK_KEPT = 16
+
+
+def _keep_on_disk(version, css, folder=None):
+    folder = folder if folder is not None else shared_dir()
+    if folder is None:
+        return
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / (version + '.css')
+        if not path.exists():
+            tmp = folder / ('.' + version + '.tmp')
+            tmp.write_text(css, encoding='utf-8')
+            tmp.replace(path)
+        kept = sorted(folder.glob('*.css'), key=lambda p: p.stat().st_mtime, reverse=True)
+        for old in kept[DISK_KEPT:]:
+            old.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _from_disk(version, folder=None):
+    folder = folder if folder is not None else shared_dir()
+    if folder is None:
+        return None
+    try:
+        return (folder / (version + '.css')).read_text(encoding='utf-8')
+    except OSError:
+        return None
+
+
 def _keep(version, css):
     with _lock:
+        known = version in _css
         _css[version] = css
         _css.move_to_end(version)
         while len(_css) > 8:
             _css.popitem(last=False)
+    if not known:
+        _keep_on_disk(version, css)
 
 
 def cacheable(response):
     """The sign-in HTMLResponse with its styles linked, its scripts allowed by hash and public cache headers."""
     from fastapi.responses import HTMLResponse
+    if 'set-cookie' in response.headers:   # PM 11-16 04:5x: a page that sets a cookie is never made shareable
+        return response
     html = response.body.decode('utf-8')
     css = '\n'.join(STYLE_BLOCK.findall(html))
     version = _digest(css)
@@ -78,6 +123,8 @@ def stylesheet(version, render):
         return 404, None
     with _lock:
         css = _css.get(version)
+    if css is None:
+        css = _from_disk(version)          # a digest an earlier release rendered (edge-kept old HTML)
     if css is None:
         cacheable(render())
         with _lock:
