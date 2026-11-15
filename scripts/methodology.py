@@ -60,6 +60,8 @@ def build():
     roles = []
     for role in sorted(R.ROLES):
         case = V.case_for(role, day=0)
+        if case and case.get('rotating'):          # never publish this week's rotating check; the first fixed case
+            case = V.case_for(role, day=1)
         live = R.live_spec(role)
         roles.append({
             'role': role, 'field': V.domain_of(role),
@@ -101,7 +103,10 @@ def build():
         'final_pearl': {'rule': 'the top verified pearl of a role', 'one_place_per_registrable_domain_in_a_role': True,
                         'ranked_by': f'the pass rate of the role tasks given over the last {V.RECENT_DAYS} days, then the '
                                      'latest score',
-                        'min_recent_pass_rate': V.PEARL_PASS_RATE, 'reranked': 'daily'},
+                        'min_recent_pass_rate': V.PEARL_PASS_RATE,
+                        'stale_copy_rule': 'a role with a weekly rotating task (a CVE added to KEV in the last 30 days) asks '
+                                           'it every other day; a member whose newest answer to it is not accurate is no pearl',
+                        'reranked': 'daily'},
         'necklace_gate': _gate(),
         'roles': roles,
         'limits': ['One call per test with one input; a role is judged on a small number of tasks.',

@@ -346,3 +346,24 @@ def test_pm_1115_kev_flags_and_scores_are_read_under_their_usual_names():
     assert RT.number_for('epss', None, '{"epss_score":0.9997}') == 0.9997
     assert RT.number_for('cvss_score', {'cvss_v3': 8.8}, '') == 8.8
     assert DQ.freshness('cve.record.v1', 'CVE-2023-4863 heap overflow', NOW)[:2] == (10, 'fixed facts')
+
+
+def test_pm_1115_a_rotating_recent_kev_case_comes_every_other_day_and_a_stale_answer_is_no_pearl(monkeypatch):
+    """PM 11-15 10:24: the weekly recent-KEV case filters stale copies by accuracy."""
+    from agent_market.necklaces import role_tasks as RT
+    fixed = [{'case_id': f'kev-{i}', 'role': 'cve.exploited.v1'} for i in range(3)]
+    recent = {'case_id': 'kev-recent-cve-2026-1', 'role': 'cve.exploited.v1', 'rotating': 'weekly-recent-kev'}
+    monkeypatch.setattr(RT, 'by_role', lambda *a: {'cve.exploited.v1': fixed + [recent]})
+    assert V.case_for('cve.exploited.v1', day=320)['case_id'] == 'kev-recent-cve-2026-1'
+    assert V.case_for('cve.exploited.v1', day=321)['case_id'].startswith('kev-') and not V.case_for('cve.exploited.v1', day=321).get('rotating')
+    monkeypatch.setattr(V, 'success_days', lambda *a, **k: 2)
+    monkeypatch.setattr(V.time, 'time', lambda: NOW)
+    def version(case, accurate, days_ago, rotating=False):
+        v = {'resource_id': 9, 'role': 'cve.exploited.v1', 'tool': 'kev', 'case_id': case, 'evaluator_version': 'e',
+             'outcome': 'succeeded', 'registrable_domain': 'k.example', 'domain': 'security', 'tested': NOW - days_ago * V.DAY,
+             'quality': {'score': 90 if accurate else 60}, 'data_quality': {'accuracy': {'points': 25 if accurate else 0}}}
+        return {**v, 'case_rotating': 'weekly-recent-kev'} if rotating else v
+    history = [version('kev-0', True, 3), version('kev-1', True, 2), version('kev-2', True, 1), version('kev-recent-x', False, 0, True)]
+    monkeypatch.setattr(V, 'versions_of', lambda rid, role: history)
+    role = V.rank([history[-1]])['cve.exploited.v1']
+    assert role['members'][0]['stale'] and role['final_pearl'] is None and role['members'][0]['recent_pass_rate'] == 0.75

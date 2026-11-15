@@ -88,6 +88,7 @@
   "one_place_per_registrable_domain_in_a_role": true,
   "ranked_by": "the pass rate of the role tasks given over the last 7 days, then the latest score",
   "min_recent_pass_rate": 0.5,
+  "stale_copy_rule": "a role with a weekly rotating task (a CVE added to KEV in the last 30 days) asks it every other day; a member whose newest answer to it is not accurate is no pearl",
   "reranked": "daily"
  },
  "necklace_gate": {

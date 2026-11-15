@@ -148,7 +148,28 @@ def case_for(role, day=None):
     if not cases:
         return None
     day = int(time.strftime('%j')) if day is None else day
+    # A rotating case (PM 11-15 10:24: a CVE added to KEV in the last 30 days, replaced weekly) is asked every other
+    # day, so a stale copy meets it within two days; the fixed cases rotate on the days between.
+    rotating = [c for c in cases if c.get('rotating')]
+    fixed = [c for c in cases if not c.get('rotating')]
+    if rotating and fixed:
+        return rotating[(day // 2) % len(rotating)] if day % 2 == 0 else fixed[(day // 2) % len(fixed)]
     return cases[day % len(cases)]
+
+
+def rotating_case(v):
+    """True for a version tested on a rotating (weekly recent) case."""
+    return bool(v.get('case_rotating')) or str(v.get('case_id') or '').startswith('kev-recent-')
+
+
+def stale_answer(recent):
+    """PM 11-15 10:24: the newest rotating-case version among a member's recent tasks missed the accurate answer
+    (it does not know a recent KEV addition): a stale copy, never a pearl, whatever its other tasks."""
+    rot = [x for x in recent if rotating_case(x)]
+    if not rot:
+        return False
+    newest = max(rot, key=lambda x: float(x.get('tested') or 0))
+    return not ((newest.get('data_quality') or {}).get('accuracy') or {}).get('points')
 
 # The pearl's field comes from its role, not the catalog category (audit: a domain search filed under finance).
 ROLE_DOMAIN = {'papers.search': 'research', 'encyclopedia.summary': 'reference', 'news.search': 'news',
@@ -564,6 +585,8 @@ def save_version(result, now=None):
             {'rules': RULES, 'checks': [], 'passed': 0, 'total': 0}
         if case:
             r['case_id'] = case['case_id']
+            if case.get('rotating'):
+                r['case_rotating'] = case['rotating']
         assess(r, text, result.get('structured'), case)
         r['evaluator_version'] = EVALUATOR_VERSION
         r['answer_set'] = answer_set(r, case)
@@ -896,14 +919,16 @@ def rank(versions):
             entry['pearl_screen'] = bool(((v.get('data_quality') or {}).get('accuracy') or {}).get('points'))
             entry.update(score=v['quality']['score'], domain=v['domain'], tested=time.strftime('%Y-%m-%d %H:%M', time.localtime(v['tested'])),
                          success_days=success_days(v['resource_id'], role, v['tool'], now),
-                         recent_tasks=len(recent[id(v)]), recent_pass_rate=round(rate(v), 2), best_recent_score=best(v))
+                         recent_tasks=len(recent[id(v)]), recent_pass_rate=round(rate(v), 2), best_recent_score=best(v),
+                         stale=stale_answer(recent[id(v)]))
             usable = (v['outcome'] == 'succeeded' or rate(v) > 0) and v['registrable_domain'] not in seen
             entry['rank'] = len([e for e in ranked if e['rank']]) + 1 if usable else None
             if usable:
                 seen.add(v['registrable_domain'])
             ranked.append(entry)
         top = next((e for e in ranked if e['rank'] == 1), None)
-        good = bool(top and top['best_recent_score'] >= PASS_MARK and top['recent_pass_rate'] >= PEARL_PASS_RATE)
+        good = bool(top and top['best_recent_score'] >= PASS_MARK and top['recent_pass_rate'] >= PEARL_PASS_RATE
+                    and not top['stale'])
         out[role] = {'domain': domain_of(role), 'members': ranked,
                      'final_pearl': top['resource_id'] if good and top['success_days'] >= CONFIRM_DAYS else None,
                      'provisional_pearl': top['resource_id'] if good and 1 <= top['success_days'] < CONFIRM_DAYS else None,
