@@ -235,7 +235,11 @@ def fallback_depth(running: dict) -> dict:
     external members (then a failure of all of them stops the run, stage 4). Shown on the public page."""
     without = [s["slot"] for s in running["slots"] if s.get("required", True)
                and not any(m.get("kind") == "agentcon" for m in s["chain"])]
-    return {"depth": "external" if without else "agentvalcon", "slots_without_own": without}
+    # our own agent may cover part of the inputs only (census-geocode: US addresses), said per slot (PM 14:25)
+    limited = {s["slot"]: m["coverage"] for s in running["slots"] if s.get("required", True)
+               for m in s["chain"] if m.get("kind") == "agentcon" and m.get("coverage")}
+    return {"depth": "external" if without else "agentvalcon", "slots_without_own": without,
+            "own_coverage": limited}
 
 
 def terms_hold(defn: dict, running: dict) -> str | None:

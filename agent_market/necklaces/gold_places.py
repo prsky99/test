@@ -25,7 +25,7 @@ from .judge import DEFAULT_ROOT
 SLUG = "quakes-near-address"
 ANSWER_SET = "quakes-near-address-v1"
 RADIUS_KM, DAYS, MIN_MAGNITUDE = 1000, 7, 4.5
-TOLERANCE_KM = {"landmark": 3, "city": 25, "airport": 5}
+TOLERANCE_KM = {"landmark": 3, "city": 25, "airport": 5, "street": 1.5}
 WIKIDATA = "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&sites=enwiki&titles="
 
 # (address as a person types it, English Wikipedia title, kind, stratum)
@@ -223,6 +223,94 @@ def build_airports(root: Path = DEFAULT_ROOT, get=None, raw_dir: Path | None = N
     return {"manifest": manifest, "dropped": dropped}
 
 
+# census-geocode substitute (US addresses only, PM 14:25): US street addresses, a split of its own in the
+# quakes-near-address folder. Street address (P6375) and coordinates (P625) from Wikidata; city and state as typed.
+US_BUILDINGS = [
+    ("White House", "Washington, DC"), ("United States Capitol", "Washington, DC"),
+    ("Thomas Jefferson Building", "Washington, DC"), ("Empire State Building", "New York, NY"),
+    ("Chrysler Building", "New York, NY"), ("Flatiron Building", "New York, NY"),
+    ("Metropolitan Museum of Art", "New York, NY"), ("Solomon R. Guggenheim Museum", "New York, NY"),
+    ("Madison Square Garden", "New York, NY"), ("Willis Tower", "Chicago, IL"), ("Wrigley Field", "Chicago, IL"),
+    ("Art Institute of Chicago", "Chicago, IL"), ("Space Needle", "Seattle, WA"), ("Seattle Central Library", "Seattle, WA"),
+    ("Transamerica Pyramid", "San Francisco, CA"), ("Coit Tower", "San Francisco, CA"),
+    ("Griffith Observatory", "Los Angeles, CA"), ("Walt Disney Concert Hall", "Los Angeles, CA"),
+    ("Dodger Stadium", "Los Angeles, CA"), ("Hollywood Bowl", "Los Angeles, CA"), ("Getty Center", "Los Angeles, CA"),
+    ("Fenway Park", "Boston, MA"), ("Massachusetts State House", "Boston, MA"), ("Independence Hall", "Philadelphia, PA"),
+    ("Philadelphia Museum of Art", "Philadelphia, PA"), ("Gateway Arch", "St. Louis, MO"), ("Graceland", "Memphis, TN"),
+    ("Ryman Auditorium", "Nashville, TN"), ("Texas State Capitol", "Austin, TX"), ("Reunion Tower", "Dallas, TX"),
+    ("Colorado State Capitol", "Denver, CO"), ("Bellagio (resort)", "Las Vegas, NV"), ("ʻIolani Palace", "Honolulu, HI"),
+    ("Mall of America", "Bloomington, MN"), ("Lambeau Field", "Green Bay, WI"),
+    ("Rock and Roll Hall of Fame", "Cleveland, OH"), ("Biltmore Estate", "Asheville, NC"), ("Georgia Aquarium", "Atlanta, GA"),
+    ("Salt Lake Temple", "Salt Lake City, UT"), ("Hearst Castle", "San Simeon, CA"), ("Smithsonian Institution Building", "Washington, DC"),
+    ("Kennedy Space Center Visitor Complex", "Merritt Island, FL"), ("Fontainebleau Miami Beach", "Miami Beach, FL"),
+    ("Wisconsin State Capitol", "Madison, WI"), ("Oregon State Capitol", "Salem, OR"),
+]
+
+
+# Street addresses typed by the workflow team where Wikidata has none (P6375 on 12 of 45 on 11-15); the truth point is
+# still the building's Wikidata P625, and the tuning round shows any address that lands farther than the tolerance.
+TYPED_STREETS = {
+    "Empire State Building": "350 5th Ave", "Chrysler Building": "405 Lexington Ave", "Flatiron Building": "175 5th Ave",
+    "Metropolitan Museum of Art": "1000 5th Ave", "Solomon R. Guggenheim Museum": "1071 5th Ave",
+    "Willis Tower": "233 S Wacker Dr", "Wrigley Field": "1060 W Addison St", "Space Needle": "400 Broad St",
+    "Transamerica Pyramid": "600 Montgomery St", "Coit Tower": "1 Telegraph Hill Blvd",
+    "Griffith Observatory": "2800 E Observatory Rd", "Walt Disney Concert Hall": "111 S Grand Ave",
+    "Dodger Stadium": "1000 Vin Scully Ave", "Hollywood Bowl": "2301 N Highland Ave", "Getty Center": "1200 Getty Center Dr",
+    "Fenway Park": "4 Jersey St", "Massachusetts State House": "24 Beacon St", "Independence Hall": "520 Chestnut St",
+    "Philadelphia Museum of Art": "2600 Benjamin Franklin Pkwy", "Graceland": "3764 Elvis Presley Blvd",
+    "Ryman Auditorium": "116 5th Ave N", "Reunion Tower": "300 Reunion Blvd E", "Colorado State Capitol": "200 E Colfax Ave",
+    "Bellagio (resort)": "3600 S Las Vegas Blvd", "ʻIolani Palace": "364 S King St", "Mall of America": "60 E Broadway",
+    "Lambeau Field": "1265 Lombardi Ave", "Rock and Roll Hall of Fame": "1100 E 9th St",
+    "Georgia Aquarium": "225 Baltimore Ave NW", "Texas State Capitol": "1100 Congress Ave",
+    "Wisconsin State Capitol": "2 E Main St", "Oregon State Capitol": "900 Court St NE",
+}
+
+
+def street_address(entity: dict) -> str | None:
+    for claim in ((entity or {}).get("claims") or {}).get("P6375") or []:
+        value = ((claim.get("mainsnak") or {}).get("datavalue") or {}).get("value")
+        if isinstance(value, dict) and isinstance(value.get("text"), str) and value["text"][:1].isdigit():
+            return value["text"].strip()
+    return None
+
+
+def us_street_cases(f: Fetcher) -> tuple[list[dict], list[str]]:
+    cases, dropped = [], []
+    for title, city in US_BUILDINGS:
+        body = f.json(WIKIDATA + quote(title, safe="")) or {}
+        entity = next((e for qid, e in (body.get("entities") or {}).items() if not qid.startswith("-")), None)
+        where, street = coordinates(entity), street_address(entity) or TYPED_STREETS.get(title)
+        if where is None or not street:
+            dropped.append(title)
+            continue
+        street = street.split(",")[0].strip()
+        cases.append({"case_id": "street:" + title, "task_type": "whole_task", "stratum": "us-street",
+                      "input": {"address": f"{street}, {city}, USA"},
+                      "truth": {"lat": where[0], "lon": where[1], "qid": entity.get("id"), "kind": "street",
+                                "country": "US", "tolerance_km": TOLERANCE_KM["street"], "radius_km": RADIUS_KM,
+                                "days": DAYS, "min_magnitude": MIN_MAGNITUDE},
+                      "truth_sources": [{"name": "Wikidata P6375 (street address) and P625 (coordinates)",
+                                         "url": f"https://www.wikidata.org/wiki/{entity.get('id')}", "fetched_at": _now()}]})
+    return cases, dropped
+
+
+def build_us_streets(root: Path = DEFAULT_ROOT, fetcher: Fetcher | None = None) -> dict:
+    """Write gold/quakes-near-address/us-street.jsonl and its manifest entry (other splits stay as they are)."""
+    import hashlib
+    f = fetcher or Fetcher(spacing={"www.wikidata.org": 1.0})
+    cases, dropped = us_street_cases(f)
+    folder = Path(root) / "gold" / SLUG
+    text = "".join(json.dumps(c, ensure_ascii=False, sort_keys=True) + "\n" for c in cases)
+    (folder / "us-street.jsonl").write_text(text, encoding="utf-8")
+    manifest_path = folder / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.setdefault("files", {})["us-street"] = {"cases": len(cases), "strata": {"us-street": len(cases)},
+                                                     "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                                                     "for": "census-geocode substitute gate"}
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {"cases": len(cases), "dropped": dropped, "calls": f.calls}
+
+
 def build(root: Path = DEFAULT_ROOT, fetcher: Fetcher | None = None, raw_dir: Path | None = None) -> dict:
     f = fetcher or Fetcher(spacing={"www.wikidata.org": 1.0})
     cases = place_cases(f)
@@ -240,7 +328,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     parser.add_argument("--raw-dir", type=Path)
     parser.add_argument("--airports", action="store_true", help="build quakes-near-airport from OurAirports instead")
+    parser.add_argument("--us-streets", action="store_true", help="add the us-street split for census-geocode")
     args = parser.parse_args(argv)
+    if args.us_streets:
+        print(json.dumps(build_us_streets(args.root), ensure_ascii=False))
+        return 0
     if args.airports:
         print(json.dumps(build_airports(args.root, raw_dir=args.raw_dir), ensure_ascii=False))
         return 0

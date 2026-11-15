@@ -73,6 +73,29 @@
           "input_map": {
             "address": "{{input.address}}"
           }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "census-geocode",
+          "resource_id": null,
+          "tool": "geocode_us_address",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "us-census"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "address": "{{input.address}}"
+          },
+          "coverage": {
+            "country": [
+              "US"
+            ]
+          }
         }
       ]
     },
@@ -156,7 +179,7 @@
       ]
     }
   ],
-  "notes": "v1 candidate from the location hub (100-necklace plan 4-1, workflow 11-15). Leads are verified pearls 264482 (geocode.address) and 37322, 178542 (earthquake.feed) by the 11-15 verify snapshot; all three passed the relay check at 11:41-11:46. 37322's geocode is US Census (US addresses only) and stands second. Gaps before the gate: no AgentValCon fallback for geocode.address yet, and the usgs-quakes fallback takes no coordinates (asked of the agent team). Delta risk: 178542 accepts a place name by itself, so the task is graded as coordinates plus the strongest nearby quake together (retest.grade_quakes_task). 11-15: usgs-quakes (our USGS feed filtered by distance, agent team 82d1a98d) ends the quakes chain, planned until ops approves it.",
+  "notes": "v1 candidate from the location hub (100-necklace plan 4-1, workflow 11-15). Leads are verified pearls 264482 (geocode.address) and 37322, 178542 (earthquake.feed) by the 11-15 verify snapshot; all three passed the relay check at 11:41-11:46. 37322's geocode is US Census (US addresses only) and stands second. Gaps before the gate: no AgentValCon fallback for geocode.address yet, and the usgs-quakes fallback takes no coordinates (asked of the agent team). Delta risk: 178542 accepts a place name by itself, so the task is graded as coordinates plus the strongest nearby quake together (retest.grade_quakes_task). 11-15: usgs-quakes (our USGS feed filtered by distance, agent team 82d1a98d) ends the quakes chain, planned until ops approves it. 11-15: census-geocode (US Census, agent team 3a8c3775) ends the location chain for US addresses only (coverage country US), planned until ops approves it.",
   "min_pearls_answered": 2,
   "probe_input": {
     "address": "Tokyo Tower, Minato, Tokyo, Japan",

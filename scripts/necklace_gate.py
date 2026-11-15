@@ -215,6 +215,11 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
     need = defn.get("min_pearls_answered") or 2
     always = [s["slot"] for s in slots if s["slot"] in seated_pearl_slots and not s.get("requires_input")]
     warnings = shared_domain_warnings(defn, state)
+    for slot in defn["slots"]:            # PM 14:25: an own fallback that covers part of the inputs is said
+        for m in runtime_chain(slot, defn["slug"], state):
+            if m.get("kind") == "agentcon" and m.get("coverage"):
+                scope = "; ".join(f"{k} {', '.join(map(str, v))}" for k, v in m["coverage"].items())
+                warnings.append(f"slot {slot['slot']}: our fallback {m.get('agent_id')} covers {scope} only")
     for slot in defn["slots"]:            # PM 13:53: no own fallback does not block the gate, it is shown
         if slot.get("required", True) and not any(m.get("kind") == "agentcon" for m in runtime_chain(slot, defn["slug"], state)):
             warnings.append(f"slot {slot['slot']}: no AgentValCon fallback can run (falls back to external members "

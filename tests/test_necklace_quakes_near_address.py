@@ -220,3 +220,28 @@ def test_usgs_quakes_substitute_is_judged_like_the_necklace_quake_part(monkeypat
     assert gold_check.judge("usgs-quakes", CASE, far)["pass"] is False
     monkeypatch.setattr(retest, "quakes_reference", lambda truth, now=None, get=None: None)
     assert gold_check.judge("usgs-quakes", CASE, sentence)["pass"] is None
+
+
+def test_census_geocode_covers_us_addresses_and_says_so():
+    """PM 14:25 / agent team 3a8c3775: census-geocode ends the address location chain for US addresses only; its
+    coverage shows in the gate warnings and the snapshot, and its substitute verdict uses US street cases."""
+    from agent_market.fallback_agents import gold_check
+    from agent_market.necklaces import judge
+    from scripts import necklace_gate
+    defn = model.load("agent_market/necklaces/definitions/quakes-near-address.json")
+    location = next(s for s in defn["slots"] if s["slot"] == "location")
+    own = location["chain"][-1]
+    assert own["agent_id"] == "census-geocode" and own["coverage"] == {"country": ["US"]}
+    approved = {"substitutes": [["census-geocode", "geocode.address.v1"]]}
+    running = __import__("agent_market.necklaces.watch", fromlist=["x"]).runtime_definition(defn, approved)
+    assert judge.fallback_depth(running)["own_coverage"] == {"location": {"country": ["US"]}}
+    import httpx
+    out = necklace_gate.check(defn, httpx.Client(), "https://x.test", verified=set(), substitutes=approved["substitutes"],
+                              probe_fn=lambda *a: {"relay": "admitted"}, prints={"resources": {}})
+    assert "slot location: our fallback census-geocode covers country US only" in out["warnings"]
+    us = {"input": {"address": "350 5th Ave, New York, NY, USA"}, "truth": {"lat": 40.748, "lon": -73.9857,
+                                                                            "tolerance_km": 1.5, "country": "US"}}
+    assert gold_check.applies("census-geocode", us) and not gold_check.applies("census-geocode", CASE)
+    answer = {"answer": "350 5TH AVE, NEW YORK, NY, 10118: lat 40.748441 lon -73.985664, country code US."}
+    assert gold_check.judge("census-geocode", us, answer)["pass"] is True
+    assert gold_check.judge("census-geocode", us, {"answer": "lat 40.70 lon -74.01"})["pass"] is False   # 5 km off

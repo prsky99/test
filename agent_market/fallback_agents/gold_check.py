@@ -39,7 +39,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "rdap-domain": "website-trust-brief", "wiki-grounding": "topic-evidence-brief",
         "sec-filings": "company-due-diligence",                                          # ops 11-15 14:2x
         # one 30-case set is enough for a substitute verdict; the quake truth is the place, the quakes are live
-        "usgs-quakes": "quakes-near-address"}                                            # workflow 11-15
+        "usgs-quakes": "quakes-near-address",                                            # workflow 11-15
+        "census-geocode": "quakes-near-address"}   # split us-street: US street addresses (gold_places --us-streets)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -138,6 +139,8 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
         if retest.quakes_reference(truth) is None:
             return {"pass": None, "applicable": False, "why": "reference_unavailable"}
         return {"pass": retest.grade_quakes(case, result)}
+    if agent_id == "census-geocode":
+        return judge("airport-lookup", case, result)      # the same point check: lat/lon within the case tolerance
     if agent_id == "airport-lookup":
         # The airport's reference point within the case tolerance (5 km) of OurAirports, read from the answer's
         # "lat X lon Y" or structured lat/lon (workflow 11-15, the same truth quakes-near-airport grades with).
@@ -285,6 +288,8 @@ def applies(agent_id: str, case: dict) -> bool:
         return bool((case.get("truth") or {}).get("lei" if agent_id == "gleif-lei" else "cik"))
     if agent_id == "sec-filings":
         return bool((case.get("truth") or {}).get("cik"))
+    if agent_id == "census-geocode":                     # US addresses only (its coverage)
+        return (case.get("truth") or {}).get("country") == "US" or str(case["input"].get("address", "")).endswith("USA")
     if agent_id == "rdap-domain":
         return bool((case.get("truth") or {}).get("registered"))
     if agent_id == "wiki-grounding":

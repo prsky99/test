@@ -46,7 +46,9 @@ HUBS = {
         "chain": [_member("external", "geocode_address", {"query": "{{input.address}}"}, ["google-maps"], rid=264482,
                           domain="dmvtransit.com", pearl=True),
                   _member("external", "geocode", {"address": "{{input.address}}"}, ["us-census"], rid=37322,
-                          domain="datakoot.com")]},
+                          domain="datakoot.com"),
+                  dict(_member("agentcon", "geocode_us_address", {"address": "{{input.address}}"}, ["us-census"],
+                               agent_id="census-geocode"), coverage={"country": ["US"]})]},
     "ip": {
         "input": "ip", "schema": {"type": "string", "pattern": r"^(\d{1,3}\.){3}\d{1,3}$|^[0-9a-fA-F:]{3,39}$"},
         "help": "A public IPv4 or IPv6 address, for example 8.8.8.8.", "example": "8.8.8.8",
