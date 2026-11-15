@@ -162,7 +162,8 @@ def runtime_chain(slot: dict, slug: str, state: dict) -> list[dict]:
     approved = {tuple(x) for x in state.get("substitutes") or [] if isinstance(x, (list, tuple)) and len(x) == 2}
     usable = [_usable(m, slot, approved) for m in slot["chain"]]
     chain = [m for m in usable if m is not None
-             and not marks.get(member_key(slug, slot["slot"], m), {}).get("excluded")]
+             and not marks.get(member_key(slug, slot["slot"], m), {}).get("excluded")
+             and model.terms_status(m) != "prohibits"]          # terms forbid automated use (PM 12:27)
     out = []
     for kind in ("external", "agentcon"):
         group = [m for m in chain if m.get("kind") == kind]

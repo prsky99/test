@@ -141,26 +141,38 @@ def _member_errors(slot_id: str, idx: int, m: dict) -> list[str]:
         errors.append(f"{where}: input_map must map tool arguments from the necklace input")
     terms = m.get("terms")
     if terms is not None and (not isinstance(terms, dict) or terms.get("status") not in TERMS_STATES
-                              or (terms["status"] == "confirmed" and not str(terms.get("source", "")).startswith("https://"))):
-        errors.append(f"{where}: terms is {{status: confirmed|unknown, source: https URL when confirmed, checked_at}}")
+                              or (terms["status"] != "unknown"
+                                  and not (str(terms.get("source", "")).startswith("https://")
+                                           and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(terms.get("checked_at", "")))))):
+        errors.append(f"{where}: terms is {{status: allowed|silent|prohibits|unknown, source: https URL and "
+                      f"checked_at YYYY-MM-DD unless unknown}}")
     return errors
 
 
-# Terms of use per member (PM 13:0x, 11-15): a member's terms are 'confirmed' when someone read the provider's terms
-# (an https source and the day it was checked) or, for an AgentValCon fallback, when every public source in its
-# catalogue entry names its licence or terms; anything else is 'unknown'. Counted first; the PM decides how unknown
-# closes (holding every unknown member today would stop every necklace).
-TERMS_STATES = ("confirmed", "unknown")
+# Terms of use per member (PM 12:27, 11-15). terms = {status, source, checked_at}; status is
+#   allowed    the provider's terms allow automated calls and reuse of the answer
+#   silent     terms found but saying nothing on automated calls or reuse, or no terms page (checked): allowed
+#              with its source
+#   prohibits  the terms forbid it: the member leaves every chain (watch.runtime_chain)
+#   unknown    nobody checked yet
+# A necklace whose members were checked (definition terms_reviewed_at) is not offered while a required slot's lead
+# is unknown (judge: terms_unknown). The agent team checks: the 11-17 gate candidates and company-due-diligence by
+# 11-19, the rest when their turn to open comes. An AgentValCon fallback is allowed when every public source in its
+# catalogue entry names its licence or terms.
+TERMS_STATES = ("allowed", "silent", "prohibits", "unknown")
+USABLE_TERMS = ("allowed", "silent")
 
 
 def terms_status(member: dict) -> str:
     if member.get("kind") == "agentcon":
         from ..fallback_agents.catalog import SPECS
         sources = (SPECS.get(member.get("agent_id")) or {}).get("sources") or []
-        return "confirmed" if sources and all(s.get("license") or s.get("terms") for s in sources) else "unknown"
+        return "allowed" if sources and all(s.get("license") or s.get("terms") for s in sources) else "unknown"
     terms = member.get("terms") or {}
-    return "confirmed" if terms.get("status") == "confirmed" and str(terms.get("source", "")).startswith("https://") \
-        else "unknown"
+    status = terms.get("status")
+    if status in ("allowed", "silent", "prohibits") and str(terms.get("source", "")).startswith("https://"):
+        return status
+    return "unknown"
 
 
 def terms_report(definitions: list[dict]) -> dict:
@@ -347,6 +359,9 @@ def validate(defn: dict, *, check_contracts: bool = True) -> list[str]:
         errors.append("a necklace needs two required slots, or one slot fanning out to two or more pearls")
     errors.extend(stage_errors(defn))
     errors.extend(scope_errors(defn))
+    reviewed = defn.get("terms_reviewed_at")
+    if reviewed is not None and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(reviewed)):
+        errors.append("terms_reviewed_at is the day the members' terms were checked (YYYY-MM-DD)")
     return errors
 
 

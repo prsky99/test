@@ -36,6 +36,10 @@ STALE_HOURS = 48
 # Closed verdicts (PM 13:0x, 11-15): information we cannot read or trust holds, it does not pass.
 WATCH_STALE_HOURS = 3      # the watch runs hourly at :20; 03:20 -> 05:20 jumps the 03:50-05:10 window
 SNAPSHOT_MAX_HOURS = 72    # verified pearls from an older verify snapshot are not trusted
+# PM 12:27 (11-15): closing 3 ships only once ops has seen evaluator_version in the 09:12 pearl_daily snapshot of
+# 11-16 and equal to the official one. If it has not, a release sets this to False (one line) and closings 1, 2,
+# 4 and 5 ship without it; the snapshot is then read as before (no age or version check).
+CHECK_PEARL_SNAPSHOT = True
 DEFAULT_ROOT = Path("gateway-data/necklaces")
 PUBLIC = ("live", "held", "retired")
 
@@ -155,7 +159,7 @@ def verified_pearls(path: Path | None = None, now: float | None = None,
         data = json.loads(Path(path or verify_snapshot_path()).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if snapshot_problem(data, now, official):
+    if CHECK_PEARL_SNAPSHOT and snapshot_problem(data, now, official):
         return None
     out = set()
     for agent_id, agent in (data.get("agents") or {}).items():
@@ -225,6 +229,18 @@ def example_fields(defn: dict) -> dict:
     return out
 
 
+def terms_hold(defn: dict, running: dict) -> str | None:
+    """PM 12:27 (11-15): once a necklace's members were checked (terms_reviewed_at), it is not offered while the
+    lead of a required slot has unknown terms. Before the check nothing holds on terms (it would stop every one)."""
+    if not defn.get("terms_reviewed_at"):
+        return None
+    for slot in running["slots"]:
+        lead = next(iter(slot["chain"]), None)
+        if slot.get("required", True) and lead is not None and model.terms_status(lead) not in model.USABLE_TERMS:
+            return "terms_unknown"
+    return None
+
+
 def load_watch_state(root: Path, now: float) -> tuple[dict, str | None]:
     """The hourly watch's state and, when it cannot be trusted, why (PM 13:0x): a missing or broken file, or one
     not updated for WATCH_STALE_HOURS, holds every public necklace instead of reading as 'no holds'."""
@@ -283,6 +299,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     # The surface contract needs at least two pearls; summary holds come from the
     # daily retest (security, completion_low, quality_low and the like).
     reason = (reason
+              or terms_hold(defn, running)
               or watch_problem
               or watch_hold(defn["slug"], watch_state, approval)
               or ("no_member" if len(entry["pearls"]) < 2 else None)

@@ -183,11 +183,13 @@ def test_terms_of_use_status_per_member():
     """PM 13:0x (11-15): a terms field per member; fallbacks are confirmed by the licences in their catalogue."""
     member = ext(1, "a.example")
     assert model.terms_status(member) == "unknown"
-    confirmed = dict(member, terms={"status": "confirmed", "source": "https://a.example/terms", "checked_at": "2026-11-15"})
-    assert model.terms_status(confirmed) == "confirmed" and not model._member_errors("s", 0, confirmed)
-    assert model._member_errors("s", 0, dict(member, terms={"status": "confirmed"}))      # no source
+    for status in ("allowed", "silent", "prohibits"):
+        checked = dict(member, terms={"status": status, "source": "https://a.example/terms", "checked_at": "2026-11-15"})
+        assert model.terms_status(checked) == status and not model._member_errors("s", 0, checked)
+    assert model._member_errors("s", 0, dict(member, terms={"status": "allowed"}))        # no source or day
     assert model._member_errors("s", 0, dict(member, terms={"status": "maybe"}))
-    assert model.terms_status({"kind": "agentcon", "agent_id": "usgs-quakes"}) == "confirmed"
+    assert not model._member_errors("s", 0, dict(member, terms={"status": "unknown"}))
+    assert model.terms_status({"kind": "agentcon", "agent_id": "usgs-quakes"}) == "allowed"
     assert model.terms_status({"kind": "agentcon", "agent_id": "not-a-fallback"}) == "unknown"
     report = model.terms_report(model.load_all())
     assert sum(report["members"].values()) == len(report["rows"])

@@ -320,3 +320,33 @@ def test_untrusted_inputs_hold_instead_of_passing(tmp_path):
 
 def test_official_evaluator_version_is_read_from_the_report_tool():
     assert judge.official_evaluator_version().startswith("dq-")
+
+
+
+def test_the_snapshot_check_can_be_left_out_of_a_release(tmp_path, monkeypatch):
+    """PM 12:27: if 11-16's snapshot lacks evaluator_version, closing 3 alone is left out with one line."""
+    snap = tmp_path / "verify.json"
+    snap.write_text(json.dumps({"agents": {"1": {"roles": [{"role": "x.v1", "verified_pearl": True}]}}}))
+    assert judge.verified_pearls(snap, now=NOW, official="dq-test") is None
+    monkeypatch.setattr(judge, "CHECK_PEARL_SNAPSHOT", False)
+    assert judge.verified_pearls(snap, now=NOW, official="dq-test") == {(1, "x.v1")}
+
+
+
+def test_reviewed_necklace_waits_for_its_leads_terms_and_prohibited_members_leave(tmp_path):
+    """PM 12:27 (11-15): no terms hold before the review; after it an unknown lead holds, a prohibiting one leaves."""
+    from agent_market.necklaces import watch
+    defn = live_defn()
+    summary(tmp_path, defn["slug"])
+    state = {"updated": judge._iso(NOW)}
+    entry = judge.snapshot([defn], {defn["slug"]: approval(defn)}, tmp_path, NOW, watch_state=state, judge_state={},
+                           verified=BOTH)["necklaces"][0]
+    assert entry["status"] == "live"
+    reviewed = dict(defn, terms_reviewed_at="2026-11-19")
+    entry = judge.snapshot([reviewed], {defn["slug"]: approval(reviewed)}, tmp_path, NOW, watch_state=state,
+                           judge_state={}, verified=BOTH)["necklaces"][0]
+    assert (entry["status"], entry["held_reason"]) == ("held", "terms_unknown")
+    slot = defn["slots"][0]
+    lead = slot["chain"][0]
+    lead["terms"] = {"status": "prohibits", "source": "https://p.example/terms", "checked_at": "2026-11-19"}
+    assert lead["resource_id"] not in [m.get("resource_id") for m in watch.runtime_chain(slot, defn["slug"], {})]
