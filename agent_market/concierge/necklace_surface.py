@@ -34,6 +34,11 @@ REASONS = {
     'stale_retest': 'It has not been retested recently, so we stopped it until it is.',
     'manual': 'Our operators stopped it for review.',
     'stage4': 'Every agent for one step failed, including its fallbacks, so it stopped (step 4 of our recovery plan).',
+    'gate_held': 'Our operators paused its approval while they review it.',
+    'approval_revoked': 'Our operators withdrew its approval.',
+    'approval_mismatch': 'It changed since it passed our gate, so it waits for a new review.',
+    'not_approved': 'It is waiting for our operators to approve it again.',
+    'fingerprint_changed': 'One of its agents changed its tools, so it waits for a retest.',
 }
 
 

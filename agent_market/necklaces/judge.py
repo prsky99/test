@@ -259,9 +259,16 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
         except (OSError, ValueError):
             watch_state = {}
     entries = []
+    # PM R22: the last passed gate stays on the entry when ops holds, revokes or the definition changes, so the
+    # surface keeps the page and the tool answer with the stop notice instead of a 404 / "Unknown necklace".
+    passed = {} if judge_state is None else judge_state.setdefault("gate_passed", {})
     for defn in definitions:
         entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state)
         if entry is not None:
+            if entry.get("gate_passed_at"):
+                passed[defn["slug"]] = entry["gate_passed_at"]
+            elif passed.get(defn["slug"]):
+                entry["gate_passed_at"] = passed[defn["slug"]]
             entries.append(entry)
     signing_dir = Path(root).parent / "signing"
     from . import evidence
