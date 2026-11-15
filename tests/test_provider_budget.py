@@ -121,6 +121,7 @@ def test_answer_key_references_count_in_the_ledger_and_stop_after_a_429(monkeypa
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
     import data_quality as dq
     calls = []
+    monkeypatch.setattr(pb, 'ONE_DAY', {})   # a dated grant (11-16 reference_checks npmjs.org 30) must not move the share of 10
 
     def fake_get(url, **_):
         calls.append(url)
