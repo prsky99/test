@@ -338,7 +338,9 @@ GOLD_BUILDS = (('agent_market.necklaces.gold_repos', 'package-risk-audit', 'hold
                ('agent_market.necklaces.gold_topics_r3', 'topic-evidence-brief', 'holdout-r3'),
                ('agent_market.necklaces.gold_cve_fixes', 'cve-incident-brief', 'holdout-v2-fix'),
                # PM 11-16 07:0x: topic holdout-r4's OpenAlex part (its Wikipedia part, holdout-r4-wiki, is written)
-               ('agent_market.necklaces.gold_topics_r4', 'topic-evidence-brief', 'holdout-r4'))
+               ('agent_market.necklaces.gold_topics_r4', 'topic-evidence-brief', 'holdout-r4'),
+               # PM 11-16 07:00: round 2 of the topic launch gate
+               ('agent_market.necklaces.gold_topics_r5', 'topic-evidence-brief', 'holdout-r5'))
 
 
 def gold_quiet(local) -> bool:
