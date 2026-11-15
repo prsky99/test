@@ -132,10 +132,44 @@ def runtime_definition(defn: dict, state: dict) -> dict:
     return copy_
 
 
+HOLD_EVENTS_KEPT = 20
+
+
 def _hold(state: dict, slug: str, reason: str, detail: str, now: float):
+    """Holds are kept per event (PM R20). A new event starts a new hold after a release; on an open hold a different
+    problem is added and moves ``since`` forward, so only an approval later than the newest problem releases it."""
     holds = state.setdefault("holds", {})
-    if slug not in holds or holds[slug].get("released"):
-        holds[slug] = {"reason": reason, "detail": detail, "since": _now_iso(now)}
+    current = holds.get(slug)
+    event = {"reason": reason, "detail": detail, "since": _now_iso(now)}
+    if current is None or current.get("released"):
+        history = (current or {}).get("events") or ([] if current is None else
+                                                   [{k: current.get(k) for k in ("reason", "detail", "since",
+                                                                                 "released_at", "released_by")}])
+        holds[slug] = {**event, "events": (history + [event])[-HOLD_EVENTS_KEPT:]}
+        return
+    events = current.setdefault("events", [{k: current.get(k) for k in ("reason", "detail", "since")}])
+    if (events[-1].get("reason"), events[-1].get("detail")) != (reason, detail):
+        events.append(event)
+        del events[:-HOLD_EVENTS_KEPT]
+        current.update(event)
+
+
+def release_holds(state: dict, approvals: dict, now: float) -> list[str]:
+    """Record the release of an open hold once ops approved the necklace again after its newest problem
+    (the judge applies the same rule); the event keeps when and by which approval it was released."""
+    from .judge import _parse_time
+    released = []
+    for slug, hold in (state.get("holds") or {}).items():
+        approval = (approvals or {}).get(slug)
+        if hold.get("released") or not approval or approval.get("state") != "approved":
+            continue
+        if (_parse_time(approval.get("at")) or 0) > (_parse_time(hold.get("since")) or 0):
+            stamp = {"released_at": _now_iso(now), "released_by": "approval " + str(approval.get("at"))}
+            hold.update(stamp, released=True)
+            if hold.get("events"):
+                hold["events"][-1].update(stamp)
+            released.append(slug)
+    return released
 
 
 def _alert(state: dict, now: float, slug: str, slot: str, alert: str, count: int):
@@ -208,8 +242,12 @@ def _check_fallback(state: dict, slug: str, slot: str, m: dict, now: float, fall
 
 
 def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: float,
-            fallback_spec=_default_fallback_spec, fallback_health=_default_fallback_health) -> list[dict]:
-    """One watch round. ``fetch(rid)`` returns the resource row or None. Mutates ``state``."""
+            fallback_spec=_default_fallback_spec, fallback_health=_default_fallback_health,
+            approvals: dict | None = None) -> list[dict]:
+    """One watch round. ``fetch(rid)`` returns the resource row or None. Mutates ``state``.
+    Releases recorded first, so a problem seen in this round after a re-approval starts a new hold."""
+    if approvals is not None:
+        release_holds(state, approvals, now)
     lines = []
     marks = state.setdefault("members", {})
     for defn in definitions:
@@ -291,7 +329,9 @@ class NecklaceWatch:
         definitions = model.load_valid(self.definitions_dir)
         state_path = self.root / "watch" / "state.json"
         state = load_json(state_path, {})
-        lines = observe(definitions, self.store.resource, load_json(self.fingerprints, {}), state, now)
+        from .judge import load_approvals
+        lines = observe(definitions, self.store.resource, load_json(self.fingerprints, {}), state, now,
+                        approvals=load_approvals(self.root / "approvals.json"))
         from .judge import write_atomic
         write_atomic(state_path, state)
         day = time.strftime("%Y%m%d", time.localtime(now))
