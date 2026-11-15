@@ -13,6 +13,29 @@ from .http import AuthContext, _error
 from .identity import Kind
 
 
+async def _body(request: Request) -> dict:
+    """R38: malformed JSON is 400, a missing or wrong-typed field 422, never a 5xx."""
+    try:
+        body = await request.json()
+    except Exception:
+        raise ContractError("invalid_json", 400)
+    if not isinstance(body, dict):
+        raise ContractError("invalid_json", 400)
+    return body
+
+
+def _field_errors(call):
+    """Turn a missing or malformed field into 422 instead of an unhandled error."""
+    async def wrapped(*args, **kwargs):
+        try:
+            return await call(*args, **kwargs)
+        except (KeyError, TypeError, ValueError):
+            return JSONResponse(_error("invalid_request", 422, str(uuid4())), status_code=422)
+    wrapped.__name__ = call.__name__
+    wrapped.__signature__ = __import__("inspect").signature(call)
+    return wrapped
+
+
 def router_for(payment_gateway: AgentPaymentGateway, *, resolve_auth: Any) -> APIRouter:
     router = APIRouter(prefix="/api/ad-coin/v2/agent-payments")
 
@@ -34,12 +57,13 @@ def router_for(payment_gateway: AgentPaymentGateway, *, resolve_auth: Any) -> AP
             return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)
 
     @router.post("/mandates")
+    @_field_errors
     async def create_mandate(request: Request):
         try:
             ctx = await get_context(request)
             if ctx.principal.kind != Kind.HUMAN:
                 raise ContractError("human_session_required", 403)
-            body = await request.json()
+            body = await _body(request)
             mandate = await run_in_threadpool(
                 payment_gateway.create_mandate,
                 owner_id=str(ctx.principal.owner_id),
@@ -69,10 +93,11 @@ def router_for(payment_gateway: AgentPaymentGateway, *, resolve_auth: Any) -> AP
             return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)
 
     @router.post("/executions/hold")
+    @_field_errors
     async def hold_execution(request: Request):
         try:
             ctx = await get_context(request)
-            body = await request.json()
+            body = await _body(request)
             idem = request.headers.get("idempotency-key") or str(uuid4())
 
             actor = "agent" if ctx.principal.kind == Kind.AGENT else "user"
@@ -94,10 +119,14 @@ def router_for(payment_gateway: AgentPaymentGateway, *, resolve_auth: Any) -> AP
             return JSONResponse(_error(exc.code, exc.status, str(uuid4())), status_code=exc.status)
 
     @router.post("/executions/{execution_id}/settle")
+    @_field_errors
     async def settle_execution(request: Request, execution_id: str):
+        """R38: settling moves money between accounts, so only an operator may call it (a worker settles in
+        process, not over HTTP); a signed-in user or agent gets 403."""
         try:
-            await get_context(request)
-            body = await request.json()
+            ctx = await get_context(request)
+            payment_gateway.access.require_operator(ctx.principal)
+            body = await _body(request)
             ok = bool(body.get("ok", True))
             result_digest = body.get("result_digest")
 
