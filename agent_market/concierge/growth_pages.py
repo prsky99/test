@@ -543,6 +543,30 @@ GLAMA_SCHEMA = 'https://glama.ai/mcp/schemas/connector.json'
 GLAMA_CLAIM = re.compile(r'glama_claim_[A-Za-z0-9]{20,64}')
 
 
+# AgentPeering ownership badge (PM 11-15 16:57): the operator saves the public value AgentPeering shows
+# (ap-verify-<32 hex>) as public-pages/agentpeering-verify; it is served only when the file is exactly that value.
+AGENTPEERING_NAME = 'agentpeering-verify'
+AGENTPEERING_VALUE = re.compile(r'ap-verify-[0-9a-f]{32}')
+
+
+def agentpeering_value(path_fn=None):
+    """The ap-verify-... value when public-pages/agentpeering-verify holds exactly it (a newline allowed), else None."""
+    folder = data_dir() if path_fn is None else path_fn()
+    if folder is None:
+        return None
+    try:
+        raw = (folder / AGENTPEERING_NAME).read_bytes()
+    except OSError:
+        return None
+    if len(raw) > 128:
+        return None
+    try:
+        value = raw.decode('ascii').strip()
+    except UnicodeDecodeError:
+        return None
+    return value if AGENTPEERING_VALUE.fullmatch(value) else None
+
+
 def glama_claim(path_fn=None):
     """{"$schema", "claim"} when public-pages/glama.json is exactly that, else None (size cap 1 KB)."""
     folder = data_dir() if path_fn is None else path_fn()
@@ -668,6 +692,14 @@ def growth_router(store=None):
         if value is None:
             return Response(status_code=404, headers={'Cache-Control': 'no-store'})
         return JSONResponse(value)  # public, max-age=300 from public_http_contract (SNAPSHOT_READS)
+
+    @router.get('/.well-known/agentpeering-verify', include_in_schema=False)
+    def agentpeering_ownership():
+        value = agentpeering_value()
+        if value is None:
+            return Response(status_code=404, headers={'Cache-Control': 'no-store'})
+        # not in the edge cache rule (PM 16:57); the badge check reads it a few times
+        return Response(value, media_type='text/plain; charset=utf-8', headers={'Cache-Control': 'no-store'})
 
     @router.get('/.well-known/mcp-registry-auth', include_in_schema=False)
     def mcp_registry_auth():
