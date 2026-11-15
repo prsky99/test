@@ -197,6 +197,8 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
         item['fallback'] = fallback(entry)
     if scope_notice(entry):
         item['scope_notice'] = scope_notice(entry)
+    if comparison(entry):
+        item['comparison'] = comparison(entry)
     found = notice(entry, base)
     if found:
         item['notice'] = {'title': found[0], 'text': found[1], **found[2]}
@@ -510,6 +512,52 @@ def scope_notice(entry):
     return value if 1 <= len(value) <= 600 else None
 
 
+# User instruction 11-15 (plan reports/necklace-promotion-orders-2026-11-15, 3.2): why a necklace, in plain words, with
+# no number. Shown only where an offered necklace is (pages, llms.txt, MCP and A2A descriptions), never while none is.
+WHY = ('Why a necklace: an agent that finds several agents, calls each one and merges their answers spends tokens and '
+       'time on every step, and under a time limit it can settle on a wrong answer. A necklace does those steps in one '
+       'call: agents we tested, in a fixed order, with fallbacks, returning one answer.')
+WHY_SHORT = 'One call instead of finding, calling and merging several agents yourself.'
+_SIDES = ('calls', 'tokens', 'seconds', 'accuracy')
+
+
+def comparison(entry):
+    """The measured pair from the judge's snapshot (plan 3.1): same cases, same day, the necklace against an agent that
+    calls the member tools itself. None unless every value is a plain number; worse values are shown as they are."""
+    value = entry.get('comparison') if isinstance(entry, dict) else None
+    if not isinstance(value, dict):
+        return None
+    cases, at = value.get('cases'), value.get('measured_at')
+    if type(cases) is not int or cases < 1 or not isinstance(at, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', at):
+        return None
+    sides = {}
+    for side in ('with', 'without'):
+        row = value.get(side)
+        if not isinstance(row, dict):
+            return None
+        for key in _SIDES:
+            v = row.get(key)
+            if type(v) not in (int, float) or v < 0 or (key == 'accuracy' and v > 1):
+                return None
+        sides[side] = {key: row[key] for key in _SIDES}
+    return {'cases': cases, 'measured_at': at, **sides}
+
+
+def comparison_line(entry):
+    found = comparison(entry)
+    if not found:
+        return None
+    w, wo = found['with'], found['without']
+    num = lambda v: format(round(v), ',')
+    sec = lambda v: format(round(v, 1), 'g')
+    pct = lambda v: str(round(v * 100)) + '%'
+    return ('Measured on ' + str(found['cases']) + ' cases (' + found['measured_at'] + '), against an agent calling the '
+            'same agents itself: ' + num(wo['calls']) + ' calls \u2192 ' + num(w['calls']) + ', about ' + num(wo['tokens'])
+            + ' \u2192 ' + num(w['tokens']) + ' tokens, ' + sec(wo['seconds']) + ' s \u2192 ' + sec(w['seconds']) + ' s, '
+            + pct(wo['accuracy']) + ' \u2192 ' + pct(w['accuracy']) + ' correct (medians per case; tokens estimated from '
+            'text length; finding the tools and merging the answers are not counted on either side).')
+
+
 # 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (pricing {"mode":
 # "free"}, workflow c5c0595f); the words state the fact and promise no end date, only that a charge is announced first.
 FREE_NOW = 'Free to run for now. If that changes, we will say so on this page first.'
@@ -542,7 +590,10 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
              '<p class="muted necklace-standing">' + esc(standing_line(entry, now)) + '</p>'
              + ('<p class="necklace-scope"><strong>Scope:</strong> ' + esc(scope_notice(entry)) + '</p>' if scope_notice(entry) else '')
              + ('<p class="muted necklace-fallback">' + esc(fallback_line(entry)) + '</p>' if fallback_line(entry) else '')
-             + ('<p class="necklace-free">' + esc(FREE_NOW) + '</p>' if free_now(entry) and offered(entry, now) else '')]
+             + ('<p class="necklace-free">' + esc(FREE_NOW) + '</p>' if free_now(entry) and offered(entry, now) else '')
+             + (('<p class="necklace-why">' + esc(WHY) + '</p>'
+                 + ('<p class="muted necklace-measured">' + esc(comparison_line(entry)) + '</p>' if comparison_line(entry) else ''))
+                if offered(entry, now) else '')]
     if run is not None:
         parts.append(result_section(run[1], esc))
     found = notice(entry, base, snapshot)
@@ -639,13 +690,14 @@ def llms_section(base='https://agentconcierge.biz', snapshot=None, now=None):
     rows = live(snapshot, now)
     if not rows:
         return ''
-    lines = ['\n## Necklaces you can run\n']
+    lines = ['\n## Necklaces you can run\n', WHY + '\n\n']
     for e in rows:
         q = e.get('quality') or {}
         lines.append('- ' + (e.get('name') or e['slug']) + ': ' + (e.get('summary') or '')
                      + (' Better than the best single agent by ' + str(round(q['delta_pp'], 1)) + ' points.' if isinstance(q.get('delta_pp'), (int, float)) else '')
                      + ' MCP tool `' + tool_name(e['slug']) + '`, A2A skill `' + skill_id(e['slug']) + '`, page `'
-                     + base + '/necklaces/' + e['slug'] + '`' + _input_note(e) + ('. Free to run for now' if free_now(e) else '') + '\n')
+                     + base + '/necklaces/' + e['slug'] + '`' + _input_note(e) + ('. Free to run for now' if free_now(e) else '')
+                     + ('. ' + comparison_line(e) if comparison_line(e) else '') + '\n')
     lines.append('- Changes (live, paused, stopped): `' + base + '/api/feed/necklaces.json`\n')
     return ''.join(lines)
 
@@ -690,7 +742,8 @@ def tools(snapshot=None, now=None):
         evidence = (' Verified 95%: ' + str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed.' if claim
                     else ' Recent tests: ' + str(window[0]) + '/' + str(window[1]) + ' passed.' if window else '')
         out.append({'name': tool_name(e['slug']), 'title': e.get('name') or e['slug'],
-                    'description': ('Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + evidence
+                    'description': ('Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + ' ' + WHY_SHORT + evidence
+                                    + (' ' + comparison_line(e) if comparison_line(e) else '')
                                     + (' Scope: ' + scope_notice(e) if scope_notice(e) else '')
                                     + (' Example arguments: ' + json.dumps(example_input(e), separators=(',', ':')) + '.'
                                        if example_input(e) else '')
@@ -784,7 +837,8 @@ def skills(base='https://agentconcierge.biz', snapshot=None, now=None):
         example = 'run necklace ' + e['slug'] + ' ' + json.dumps(example_arguments(e.get('input_schema'), example_input(e)),
                                                                    separators=(',', ':'))
         out.append({'id': skill_id(e['slug']), 'name': e.get('name') or e['slug'],
-                    'description': 'Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '')
+                    'description': 'Necklace (a workflow of tested agents, ' + str(sum(1 for p in e.get('pearls') or [] if isinstance(p, dict) and p.get('pearl') is True)) + ' verified pearls): ' + (e.get('summary') or '') + ' ' + WHY_SHORT
+                                   + (' ' + comparison_line(e) if comparison_line(e) else '')
                                    + (' ' + FREE_NOW.replace('on this page', 'on its page') if free_now(e) else '') + ' Send: ' + example
                                    + ' ' + NOTICE_SENTENCE + ' Details: ' + base + '/necklaces/' + e['slug'],
                     'tags': ['necklace', 'workflow'], 'examples': [example]})
