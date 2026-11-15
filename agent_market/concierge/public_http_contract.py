@@ -10,7 +10,7 @@ import re
 from starlette.datastructures import Headers, MutableHeaders
 from .conditional_http import etag_matches
 
-TAGGED_HEADERS=('content-type','content-security-policy','cache-control','vary')  # in the computed ETag (11-15)
+TAGGED_HEADERS=('content-type','content-security-policy','cache-control','cloudflare-cdn-cache-control','vary')  # in the computed ETag (11-15)
 from .security import _QUOTA_SINK, quota_headers
 from .sitemap_parts import is_part as sitemap_part
 
@@ -77,6 +77,12 @@ GROWTH_PREFIXES = ('/agents/task/','/agents/best/','/agent/','/agents/compare/',
 # 11-14 PM: the growth pages come from the once-a-day task snapshot, so the edge keeps them six hours (a stale copy
 # of a page the new snapshot dropped can show for up to that long; the sitemap, kept 10 minutes, drops it first).
 GROWTH_CACHE = 'public, max-age=21600, stale-while-revalidate=86400'
+# 11-15 PM 11:4x: browsers keep a growth page five minutes, the edge six hours. Cloudflare reads its own header first and
+# never passes it on (developers.cloudflare.com/cache/concepts/cdn-cache-control), so the edge keeps max-age plus
+# stale-while-revalidate; s-maxage is still avoided (it turns stale serving off, 11-12 measurement above). On 11-15 a
+# visitor who opened /advertise before its CSP fix kept the broken copy in the browser for up to six hours.
+GROWTH_BROWSER_CACHE = 'public, max-age=300, stale-while-revalidate=86400'
+GROWTH_EDGE_HEADER = 'cloudflare-cdn-cache-control'
 # 11-15 R78: a necklace page carries its pause or replacement notice, so it is kept five minutes (plus five stale):
 # a notice reaches every reader within about ten minutes. The method pages follow /methodology.json (ten minutes).
 NECKLACE_CACHE = 'public, max-age=300, stale-while-revalidate=300'
@@ -195,6 +201,9 @@ class PublicHTTPContract:
                     else AGENT_DETAIL_CACHE if agent_detail_path(path)
                     else FEED_CACHE if feed_path(path)
                     else 'public, max-age=30, stale-while-revalidate=30')
+                if headers['cache-control']==GROWTH_CACHE:
+                    headers['cache-control']=GROWTH_BROWSER_CACHE
+                    headers[GROWTH_EDGE_HEADER]=GROWTH_CACHE
                 if growth_path(path):  # the same URL answers HTML or Markdown by Accept
                     vary=[v.strip() for v in headers.get('vary','').split(',') if v.strip()]
                     for name in ('Accept','Accept-Encoding'):
