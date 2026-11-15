@@ -108,7 +108,7 @@ def definition_for(entry: dict, definitions_dir: Path | None = None) -> dict:
 OUR_CAPACITY = "our_capacity"
 # Our side was full: the edge's in-flight limit (CAPACITY_EXCEEDED, after 3be2317c only when the origin could not take
 # it either), the runner's process-wide cap (capacity) or the relay cap of our own tests (our_capacity).
-CAPACITY_CODES = ("CAPACITY_EXCEEDED", "capacity", "our_capacity")
+CAPACITY_CODES = ("CAPACITY_EXCEEDED", "capacity", "our_capacity", "quota_exhausted")
 
 
 def capacity_failure(result: dict) -> bool:
@@ -117,6 +117,13 @@ def capacity_failure(result: dict) -> bool:
     attempts = [a for name in failed for a in result.get("attempts", {}).get(name, []) if not a.get("ok")]
     codes = [a.get("error_class") for a in attempts if a.get("error_class") not in ("deadline", "not_needed")]
     return bool(codes) and all(code in CAPACITY_CODES for code in codes)
+
+
+def connection_failure(result: dict) -> bool:
+    """True when a failed required step never called a member because a value from an earlier step was empty."""
+    failed = [name for name, slot in result.get("slots", {}).items() if slot.get("failed")]
+    return any(a.get("error_class") == "connection_empty"
+               for name in failed for a in result.get("attempts", {}).get(name, []))
 
 
 def data_root() -> Path:
@@ -133,7 +140,7 @@ def definitions_root() -> Path:
 
 def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | None = None, *,
                     root: Path | None = None, definitions_dir: Path | None = None,
-                    caller=None, sensitive=None, limiter=None, cache=None, domains=None) -> dict:
+                    caller=None, sensitive=None, limiter=None, cache=None, domains=None, quota_budget=None) -> dict:
     """``meta`` = {ip, ua, qa, principal, internal_ips} of the request; without it the run counts as internal.
 
     Wired at app assembly: ``necklace_surface.RUN = service.run_for_surface`` (PM F05, 11-14)."""
@@ -177,6 +184,7 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
         if caller is None:
             caller = runner.engine_caller(front.workflows)
         caller = (limits.DOMAINS if domains is None else domains).wrap(caller)
+        caller = runner.live_quota_caller(caller, quota_budget)     # PM 17:24: 80% of a provider's published day
         result = runner.Runner(caller, watch_state=watch_state).run(defn, values)
         result["ran_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())   # when the members answered
         cache.put(cache_key, result)
@@ -192,6 +200,8 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
     event["run_id"] = uuid.uuid4().hex      # one run counts once in the north star, however often a file is read
     if not result["ok"] and capacity_failure(result):
         event["our_capacity"] = True     # the north star counts this apart from the members' failures
+    if not result["ok"] and connection_failure(result):
+        event["connection_empty"] = True  # PM 17:28: a required value from an earlier step was empty (ours)
     if result.get("cached"):
         event["cached"] = True          # served from the short result cache: no member was called
     try:

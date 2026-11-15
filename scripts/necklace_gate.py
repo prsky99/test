@@ -246,7 +246,14 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
                        "met_in_every_run": len(always) >= need,
                        "met_when_optional_inputs_given": len(counted_slots) >= need},
             "terms_unknown": sum(1 for s in slots for m in s["members"] if m.get("terms") == "unknown"),
+            # PM 17:24: the necklace's daily capacity before it is promoted (necklaces.capacity)
+            "capacity": _capacity(defn, state),
             "problems": problems, "warnings": warnings, "ok": not problems and len(always) >= need}
+
+
+def _capacity(defn: dict, state: dict) -> dict:
+    from agent_market.necklaces.capacity import capacity
+    return capacity(defn, {s["slot"]: runtime_chain(s, defn["slug"], state) for s in defn["slots"]})
 
 
 def shared_domain_warnings(defn: dict, state: dict | None = None) -> list[str]:

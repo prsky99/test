@@ -335,6 +335,11 @@ def observe(definitions: list[dict], fetch, prints: dict, state: dict, now: floa
                 key = member_key(slug, slot["slot"], m)
                 mark = marks.setdefault(key, {"fail_streak": 0, "ok_streak": 0})
                 row = fetch(m["resource_id"])
+                if row:          # PM 17:28: the tool's required arguments, for runner.connection_empty
+                    tool = tool_definition(row, m["tool"]) or {}
+                    required = (tool.get("inputSchema") or tool.get("input_schema") or {}).get("required")
+                    state.setdefault("tool_required", {})[f"{m['resource_id']}|{m['tool']}"] = \
+                        [str(x) for x in required] if isinstance(required, list) else []
                 health = health_state(row, now)
                 ok = health == "healthy"
                 problem = annotation_problem(row or {}, m) if row else None

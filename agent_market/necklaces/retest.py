@@ -76,7 +76,7 @@ _RELAY_SLOTS = threading.BoundedSemaphore(RELAY_CONCURRENCY)
 CAPACITY = "our_capacity"      # the edge's CAPACITY_EXCEEDED: our side, never the member's failure
 # PM R23 (11-15): failures that say nothing about the member - our own budget or pace, our edge, the provider asking for
 # a pause - leave a run "not measured" instead of failed, for the necklace and for every single baseline alike.
-NOT_MEASURED = (CAPACITY, "relay_throttled", "PROVIDER_429")
+NOT_MEASURED = (CAPACITY, "relay_throttled", "PROVIDER_429", "quota_exhausted")
 
 
 def not_measured(attempts: dict) -> str | None:
@@ -774,7 +774,9 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
             for a in attempts:
                 lines.append({"type": "member", "slug": defn["slug"], "version": defn["version"], "slot": slot,
                               "resource_id": a["resource_id"], "tool": a["tool"], "kind": a["kind"], "at": at,
-                              "ok": None if not_measured({slot: [a]}) else a["ok"],
+                              # PM 17:28: an empty connection is ours, not the member's (no ok/fail for it)
+                              "ok": None if not_measured({slot: [a]}) or a["error_class"] == "connection_empty"
+                              else a["ok"],
                               "contract_valid": a["error_class"] != "contract_invalid",
                               "latency_ms": a["ms"], "error_class": a["error_class"]})
         details.append({"case_id": case["case_id"], "verdict": verdict, "output": result["output"],

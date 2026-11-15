@@ -115,6 +115,30 @@ def render(input_map: dict, values: dict) -> dict:
     return args
 
 
+CONNECTION_EMPTY = "connection_empty"
+
+
+def connection_empty(member: dict, args: dict, watch_state: dict | None) -> bool:
+    """PM 17:28 (agent team): an earlier step answered but a value this member needs from it is empty, so render left
+    the argument out. Calling anyway made the member fail and the failure was counted against it. Not called when:
+    - an external member's tool lists that argument as required (its inputSchema, copied by the hourly watch into
+      the watch state as tool_required "<resource_id>|<tool>"), or
+    - no schema is known (our own agents, a member the watch has not read yet) and every argument taken from an
+      earlier step is empty.
+    An empty optional argument is left out as before. The attempt is recorded as connection_empty: our connection's
+    failure (the run can still fail), never the member's."""
+    from_slots = [k for k, v in (member.get("input_map") or {}).items() if isinstance(v, str) and "{{slot." in v]
+    missing = [k for k in from_slots if k not in args]
+    if not missing:
+        return False
+    required = None
+    if member.get("kind") == "external":
+        required = ((watch_state or {}).get("tool_required") or {}).get(f"{member.get('resource_id')}|{member.get('tool')}")
+    if required is not None:
+        return any(k in required for k in missing)
+    return len(missing) == len(from_slots)
+
+
 def in_coverage(member: dict, values: dict) -> bool:
     for key, allowed in (member.get("coverage") or {}).items():
         if key in values and values[key] not in allowed:
@@ -656,6 +680,9 @@ class Runner:
         if left * 1000 < MIN_ATTEMPT_MS:
             return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, False, 0, "deadline"), None
         args = render(member.get("input_map") or {}, values)
+        if connection_empty(member, args, self.watch_state):    # PM 17:28: our connection, not the member
+            return Attempt(member.get("resource_id"), member["tool"], member["kind"], rank, False, 0,
+                           "connection_empty"), None
         chars_in, chars_out = len(_text(args)), 0
         try:
             raw = self.caller(member, args, left)
@@ -913,6 +940,42 @@ class BudgetDenied(Exception):
     def __init__(self, why: str):
         super().__init__(why)
         self.error_code = "budget_" + why
+
+
+class QuotaExhausted(Exception):
+    """PM 11-15 17:24: a provider with a published day limit has had 80% of it from us today (tests and live runs
+    together, provider_budget.live_reserve): the slot moves to its next member; the attempt is our quota, not a
+    member failure (fingerprint, health and drill counts leave it out)."""
+
+    def __init__(self, why: str = "quota_exhausted"):
+        super().__init__(why)
+        self.error_code = "quota_exhausted" if why == "quota_exhausted" else "budget_" + why
+
+
+def live_quota_caller(caller, budget=None, default_per_day=None):
+    """Wrap the public run caller (PM 17:24, 17:32): every external member call is counted on the shared ledger
+    (live_reserve, measured 0.55 ms p50 on 11-15) and refused past 80% of the provider's published day limit, or of
+    our own default (limits.DOMAIN_PER_DAY, 300) where it publishes none -> QuotaExhausted, and the slot moves to its
+    next member, our own substitutes included. A ledger error never stops an answer (fail open)."""
+    if budget is None:
+        from .. import provider_budget as budget
+    if default_per_day is None:
+        from .limits import DOMAIN_PER_DAY as default_per_day
+
+    def call(member, args, timeout_s):
+        name = member.get("registrable_domain")
+        if member.get("kind") == "external" and name and hasattr(budget, "live_reserve"):
+            try:
+                try:
+                    ok, why = budget.live_reserve("https://" + name, default_per_day=default_per_day)
+                except TypeError:          # a ledger without the default: published limits only
+                    ok, why = budget.live_reserve("https://" + name)
+            except Exception:                       # noqa: BLE001  the ledger never blocks an answer
+                ok, why = True, "ledger_error"
+            if not ok:
+                raise QuotaExhausted(why)
+        return caller(member, args, timeout_s)
+    return call
 
 
 # Only a pause the provider itself asked for counts against its domain. Our own relay's rate limit

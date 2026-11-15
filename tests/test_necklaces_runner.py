@@ -501,3 +501,42 @@ def test_package_releases_hands_the_github_repository_to_the_next_stage():
     assert norm_package_releases(npm, {})["repository_github"] == "lodash/lodash"
     assert norm_package_releases({"name": "x"}, {}) is None
     assert set(norm_package_releases(ours, {})) <= staged_fields("package.releases.v1")
+
+
+def test_an_empty_connection_is_not_called_and_not_the_members_failure():
+    """PM 17:28 (agent team): a required value from an earlier step is empty -> the member is not called and the
+    attempt is connection_empty; an empty optional argument is left out and the member is called as before."""
+    from agent_market.necklaces.runner import connection_empty
+    m = {"kind": "external", "resource_id": 7, "tool": "get_holidays",
+         "input_map": {"year": "{{input.year}}", "countryCode": "{{slot.location.country_code}}"}}
+    state = {"tool_required": {"7|get_holidays": ["year", "countryCode"]}}
+    assert connection_empty(m, {"year": 2026}, state)                       # required, empty
+    assert not connection_empty(m, {"year": 2026, "countryCode": "JP"}, state)
+    assert not connection_empty(m, {"year": 2026}, {"tool_required": {"7|get_holidays": ["year"]}})   # optional
+    # no schema known: blocked only when every value from earlier steps is empty
+    own = {"kind": "agentcon", "agent_id": "sec-filings", "tool": "t",
+           "input_map": {"cik": "{{slot.registry.cik}}", "ticker": "{{slot.registry.ticker}}"}}
+    assert connection_empty(own, {}, {}) and not connection_empty(own, {"ticker": "KO"}, {})
+    assert not connection_empty({"kind": "external", "resource_id": 8, "tool": "x",
+                                 "input_map": {"q": "{{input.q}}"}}, {}, {})
+
+
+def test_the_runner_records_connection_empty_and_moves_on():
+    from agent_market.necklaces import runner as r
+    called = []
+
+    def caller(member, args, timeout_s):
+        called.append(member.get("resource_id") or member.get("agent_id"))
+        if member.get("resource_id") == 1:
+            return {"lat": 35.6, "lon": 139.7, "place": "Tokyo"}            # no country code
+        return {"items": [{"name": "New Year"}]}
+    defn = {"slug": "t", "version": 1, "budget_ms": {"total": 5000, "slot": 3500}, "slots": [
+        {"slot": "location", "contract": "geocode.address.v1", "required": True, "fanout": 1,
+         "chain": [{"kind": "external", "resource_id": 1, "tool": "geo", "state": "active",
+                    "input_map": {"q": "{{input.q}}"}}]},
+        {"slot": "holidays", "contract": "holiday.calendar.v1", "required": True, "fanout": 1, "depends_on": ["location"],
+         "chain": [{"kind": "external", "resource_id": 7, "tool": "get_holidays", "state": "active",
+                    "input_map": {"countryCode": "{{slot.location.country_code}}"}}]}]}
+    out = r.Runner(caller, watch_state={"tool_required": {"7|get_holidays": ["countryCode"]}}).run(defn, {"q": "Tokyo"})
+    assert called == [1] and not out["ok"]
+    assert [a["error_class"] for a in out["attempts"]["holidays"]] == ["connection_empty"]

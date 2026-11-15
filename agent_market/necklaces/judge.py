@@ -330,6 +330,8 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     from .members import COUNTED
     entry["member_count"] = sum(1 for p in entry["pearls"] if p.get("standing") in COUNTED)   # pearls + provisional
     entry["fallback"] = fallback_depth(running)
+    from .capacity import capacity                   # PM 17:24: runs a day the providers allow, and the bottleneck
+    entry["capacity"] = capacity(running)
     if status == "retired":
         entry["replaced_by"] = defn.get("replaced_by")
         return entry

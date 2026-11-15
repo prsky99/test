@@ -24,7 +24,7 @@ import math
 import statistics
 
 CHARS_PER_TOKEN = 4
-NOT_SENT = ("deadline", "capacity", "budget")       # attempts that never reached a member
+NOT_SENT = ("deadline", "capacity", "budget", "quota", "connection")   # attempts that never reached a member
 
 # Full value (PM 11-15 15:11): the direct path also has to find the agents and merge their answers, which is the
 # saving the user named. Per slot one find_agents call; per member server it calls one tools/list (names and
