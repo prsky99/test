@@ -39,3 +39,17 @@ def test_a_running_thread_is_not_started_twice(tmp_path):
     assert step.run_due() is None
     gate.set()
     step.thread.join(5)
+
+
+def test_the_lifecycle_step_runs_once_a_day_with_its_own_name(tmp_path):
+    from agent_market.registry_schedule import LifecycleStep
+    clock = [1_800_000_000.0]
+    calls = []
+    step = LifecycleStep(object(), clock=lambda: clock[0], job=lambda store: calls.append(1) or
+                         {'rdap': 3, 'unresponsive': 2081, 'coverage': {'x': 1}}, background=False, log=tmp_path / 'r.jsonl')
+    first = step.run_due()['tool_lifecycle']
+    assert first['step'] == 'tool_lifecycle' and first['rdap'] == 3 and 'coverage' not in first   # scalars only
+    clock[0] += 23 * 3600
+    assert step.run_due() is None
+    clock[0] += 3600
+    assert step.run_due() is not None and len(calls) == 2

@@ -18,6 +18,10 @@ LOG = Path("logs/ops/registry-job.jsonl")
 
 
 class VerifiedRegistryStep:
+    EVERY_S = EVERY_S
+    NAME = "verified_registry"
+    JOB = ("verified_registry", "run_job")
+
     def __init__(self, store, clock=time.time, job=None, background=True, log: Path | None = None):
         self.store, self.clock, self._job = store, clock, job
         self.background, self.log = background, Path(log or LOG)
@@ -28,9 +32,12 @@ class VerifiedRegistryStep:
         try:
             job = self._job
             if job is None:
-                from .verified_registry import run_job as job
+                import importlib
+                module, name = self.JOB
+                job = getattr(importlib.import_module("agent_market." + module), name)
             result = job(self.store) or {}
-            line.update({k: result[k] for k in ("listed", "entries", "changes", "skipped") if k in result})
+            line["step"] = self.NAME
+            line.update({k: v for k, v in result.items() if isinstance(v, (int, float, str)) and len(str(v)) < 200})
             if "skipped" not in result:
                 self.last_done = started
         except Exception as exc:  # noqa: BLE001 - the next pass tries again; other steps keep running
@@ -46,10 +53,18 @@ class VerifiedRegistryStep:
 
     def run_due(self):
         now = self.clock()
-        if now - self.last_done < EVERY_S or (self.thread is not None and self.thread.is_alive()):
+        if now - self.last_done < self.EVERY_S or (self.thread is not None and self.thread.is_alive()):
             return None
         if not self.background:
-            return {"verified_registry": self._run(now)}
-        self.thread = threading.Thread(target=self._run, args=(now,), name="verified-registry", daemon=True)
+            return {self.NAME: self._run(now)}
+        self.thread = threading.Thread(target=self._run, args=(now,), name=self.NAME.replace("_", "-"), daemon=True)
         self.thread.start()
-        return {"verified_registry": "started"}
+        return {self.NAME: "started"}
+
+
+class LifecycleStep(VerifiedRegistryStep):
+    """E6 lifecycle signals (agent team, docs/VERIFIED_REGISTRY.md): once a day, its own thread (up to 300 RDAP reads
+    a second apart, about five minutes). tool_lifecycle.run_job skips the measurement windows itself."""
+    EVERY_S = 86400
+    NAME = "tool_lifecycle"
+    JOB = ("tool_lifecycle", "run_job")

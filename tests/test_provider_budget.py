@@ -208,3 +208,13 @@ def test_ad_review_blocklists_have_four_a_day_per_feed_host(tmp_path):
     assert pb.reserve('https://urlhaus.abuse.ch/downloads/hostfile/', 'ad_blocklists', now=now,
                       directory=tmp_path) == (False, 'system_share')
     assert pb.reserve('https://openphish.com/feed.txt', 'ad_blocklists', now=now, directory=tmp_path) == (True, 'ok')
+
+
+def test_ad_review_domain_age_has_its_own_ten_beside_the_daily_lifecycle_fifty(tmp_path):
+    """11-15: the daily E6 run cannot use up the RDAP reads a waiting advertiser's offer needs."""
+    now = at(14)
+    url = 'https://rdap.verisign.com/com/v1/domain/x.com'
+    assert pb.reserve(url, 'lifecycle_rdap', n=50, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve(url, 'lifecycle_rdap', now=now, directory=tmp_path) == (False, 'system_share')
+    assert pb.reserve(url, 'ad_review_rdap', n=10, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve(url, 'gate', now=now, directory=tmp_path) == (False, 'domain_daily_total')

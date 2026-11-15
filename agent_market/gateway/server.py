@@ -253,14 +253,14 @@ def _compose_app(
             from ..necklace_schedule import NecklaceStep, RetestStep, RoleTaskRefresh  # PM 11-14/15: necklace jobs
             from ..graph_cap_schedule import GraphCapRefresh  # PM 11-15: daily graph-cap refresh (no-op before the column)
             from ..member_fingerprints import MemberFingerprintStep  # PM 11-15: members' fingerprints every 6 hours
-            from ..registry_schedule import VerifiedRegistryStep  # E7 (PM 11-15): registry snapshot every hour
+            from ..registry_schedule import LifecycleStep, VerifiedRegistryStep  # E7 hourly, E6 daily (PM 11-15)
             scheduler = Scheduler(collector, service, config.rescan_interval, front.digest,
                                   front.workflows if service_role == 'legacy' else None,
                                   summaries=[HealthSummaries(store), Retention(store), WorkflowRetention(front.workflows),
                                              NvdSnapshotRefresh(), FallbackWatchStep(), AirportIndexRefresh(),
                                              NecklaceStep(store), RetestStep(), GraphCapRefresh(),
                                              RoleTaskRefresh(), MemberFingerprintStep(store),
-                                             VerifiedRegistryStep(store)])
+                                             VerifiedRegistryStep(store), LifecycleStep(store)])
             scheduler.start()
         try:
             yield
