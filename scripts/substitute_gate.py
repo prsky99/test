@@ -52,6 +52,7 @@ DOMAINS = {'nvd-cve': ['https://services.nvd.nist.gov/'], 'cisa-kev': ['https://
            'rdap-domain': ['https://data.iana.org/'],
            # Each case reads the site it is asked about; those sites are reserved per call, not here.
            'site-readiness': [],
+           'tls-certificate': [],   # the case's own site (a handshake, reserved per site in the agent)
            'tz-time': [], 'airport-lookup': [], 'unit-convert': [], 'public-holidays': [], 'holiday-calendar': []}
 # Calls per case when an agent may call a source more than once (11-15 agent team, eefdb282: GLEIF search plus one
 # direct read of the top-level entity; Wikidata at most once). Reserved as CASES x this + EXTRA_CALLS.

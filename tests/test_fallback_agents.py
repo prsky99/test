@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2124,3 +2124,22 @@ def test_gold_judge_for_package_releases():
     assert g.judge("package-releases", case, {"latest_version": "4.18.1", "answer": "x", "source": "npm"})["pass"]
     assert not g.judge("package-releases", case, {"latest_version": "4.17.21", "answer": "x", "source": "npm"})["pass"]
     assert not g.applies("package-releases", {"input": {"ecosystem": "PyPI"}})
+
+
+def test_tls_certificate_refuses_names_that_reach_private_addresses(tmp_path):
+    """workflow 11-15: the handshake goes only to a checked public address; nothing is connected otherwise."""
+    a, _ = agents(tmp_path, {})
+    connected = []
+    a.connect = lambda addr, timeout: connected.append(addr)
+    a.resolve = lambda host: [(2, 1, 6, "", ("10.0.0.5", 443))]
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("tls-certificate", {"domain": "intranet-example.com"})
+    assert err.value.code == "invalid_input" and connected == []
+    a.resolve = lambda host: [(2, 1, 6, "", ("93.184.216.34", 443)), (2, 1, 6, "", ("127.0.0.1", 443))]
+    with pytest.raises(FallbackUnavailable):
+        a.execute("tls-certificate", {"domain": "mixed-example.com"})
+    assert connected == []
+    for bad in ("localhost", "10.0.0.1", "printer.local"):
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("tls-certificate", {"domain": bad})
+        assert err.value.code == "invalid_input"

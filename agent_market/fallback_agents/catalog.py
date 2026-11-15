@@ -129,6 +129,10 @@ NIST = {"name": "NIST Special Publication 811 conversion factors", "url": "https
         "license": "U.S. Government work, public domain in the United States",
         "notice": "Computed on our server from exact SI definitions; US customary units (US gallon, avoirdupois pound)."}
 
+SITE_TLS = {"name": "The website's own TLS certificate (read in the TLS handshake)", "url": "https://www.rfc-editor.org/rfc/rfc8446",
+            "license": "Public facts a server presents to every visitor; nothing is downloaded beyond the handshake",
+            "notice": "Port 443 only, to a public address checked before connecting; the certificate the site serves now."}
+
 MCP_REGISTRY = {"name": "Official MCP Registry (Model Context Protocol)", "url": "https://registry.modelcontextprotocol.io/",
                 "license": "CC0 1.0 metadata; REST API for clients and aggregators (modelcontextprotocol.io/registry/about)",
                 "notice": "The registry is in preview: entries can change or be reset. Listing is not an endorsement."}
@@ -341,6 +345,13 @@ SPECS = {
                        "index and a time-zone boundary grid; read-only.",
         "sources": [OURAIRPORTS, TZ_BOUNDARIES],
         "rate": "no network calls per request; the index is refreshed once a day",
+    },
+    "tls-certificate": {
+        "name": "AgentValCon TLS Certificate Check", "tool": "check_tls_certificate", "contract": "tls.certificate.v1",
+        "description": "Read the TLS certificate a public website serves on port 443: whether it validates, issuer, "
+                       "expiry date and days left; read-only, the handshake only.",
+        "sources": [SITE_TLS],
+        "rate": "one handshake a domain; cached 6 hours",
     },
     "mcp-registry": {
         "name": "AgentValCon MCP Registry Lookup", "tool": "lookup_mcp_registry", "contract": "mcp.registry.lookup.v1",

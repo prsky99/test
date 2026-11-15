@@ -44,7 +44,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "wiki-grounding": 24 * 3600, "ecb-fx": 26 * 3600, "usgs-quakes": 3600,
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
-           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400}  # rules age from the library release; update the pin at least yearly
+           "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400, "tls-certificate": 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -57,7 +57,7 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "wikidata-place": (86400, 7 * 86400), "wikidata-book": (86400, 7 * 86400),
        "gdelt-news": (3600, 6 * 3600), "census-geocode": (7 * 86400, 30 * 86400),
        "mcp-registry": (3600, 6 * 3600), "github-releases": (3600, 24 * 3600),
-       "package-releases": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "package-releases": (6 * 3600, 24 * 3600), "tls-certificate": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -93,6 +93,9 @@ class FallbackAgents:
         self.weather: OrderedDict = OrderedDict()  # (lat, lon) -> dict(value, as_of, expires, last_modified, at)
         self.airports = None
         self.tz_grid = None
+        import socket as _socket
+        self.resolve = lambda host: _socket.getaddrinfo(host, 443, proto=_socket.IPPROTO_TCP)   # tests replace these
+        self.connect = lambda addr, timeout: _socket.create_connection(addr, timeout=timeout)
         self.country_grid = None
 
     # ---------------------------------------------------------------- public
@@ -1370,6 +1373,64 @@ class FallbackAgents:
         if found["zone"]:
             return f", time zone {found['zone']}"
         return ", time zone near a boundary: " + " or ".join(found["candidates"][:4])
+
+    def _tls_certificate(self, args, remaining):
+        """tls.certificate.v1 (workflow 11-15 website-trust-brief v2). crt.sh did not answer in 30 s, so the site's own
+        certificate is read in a TLS handshake: every resolved address must be public, the connection goes to that
+        checked address (no second lookup), port 443, SNI the domain, nothing sent after the handshake."""
+        import ipaddress
+        import socket
+        import ssl
+        from .net import site_host
+        raw = next((str(args[k]) for k in ("domain", "host", "hostname", "url") if args.get(k)), "")
+        domain = re.sub(r"^https?://", "", raw.strip().lower()).split("/")[0].split(":")[0].rstrip(".")
+        if not site_host(domain):
+            raise FallbackUnavailable("invalid_input", "Use a public domain name such as example.com.")
+
+        def live(rem):
+            try:
+                infos = self.resolve(domain)
+            except OSError as exc:
+                raise FallbackUnavailable("not_found", "The domain does not resolve.") from exc
+            addrs = sorted({i[4][0] for i in infos})
+            if not addrs or not all(ipaddress.ip_address(a).is_global for a in addrs):
+                raise FallbackUnavailable("invalid_input", "The domain does not point only to public addresses.")
+            from .net import _BUDGET_SYSTEM
+            system = _BUDGET_SYSTEM.get()
+            if system:   # test runs we start count the handshake in the shared per-domain ledger, like net.get
+                from ..provider_budget import reserve
+                allowed, why = reserve(f"https://{domain}/", system)
+                if not allowed:
+                    raise SourceBusy(f"Shared test budget refused the call ({why}).")
+            context = ssl.create_default_context()
+            facts = {"domain": domain}
+            try:
+                with self.connect((addrs[0], 443), max(0.5, min(3.0, rem() - 0.2))) as sock:
+                    with context.wrap_socket(sock, server_hostname=domain) as tls:
+                        cert = tls.getpeercert()
+                facts["valid"] = True
+            except ssl.SSLCertVerificationError as exc:
+                facts.update(valid=False, reason=_text(getattr(exc, "verify_message", "") or str(exc), 160))
+                cert = None
+            except (OSError, ssl.SSLError) as exc:
+                raise SourceError("The website did not complete a TLS handshake.") from exc
+            if cert:
+                issuer = dict(x[0] for x in cert.get("issuer") or [] if x)
+                facts["issuer"] = _text(issuer.get("organizationName") or issuer.get("commonName"), 300)
+                end = datetime.fromtimestamp(ssl.cert_time_to_seconds(cert["notAfter"]), timezone.utc)
+                facts["not_after"] = end.strftime("%Y-%m-%d")
+            return facts, _now_iso(self.utc_now())
+        (facts, as_of), cache = self._cached(("tls-certificate", domain), TTL["tls-certificate"], live, remaining)
+        out = {"domain": facts["domain"], "valid": facts["valid"], "url": f"https://{domain}/",
+               "source": "TLS handshake with the website (port 443)"}
+        if facts["valid"]:
+            days = (datetime.strptime(facts["not_after"], "%Y-%m-%d").replace(tzinfo=timezone.utc) - self.utc_now()).days
+            out.update(issuer=facts["issuer"], not_after=facts["not_after"], days_left=days)
+            out["answer"] = (f"{domain}: the TLS certificate validates; issuer {facts['issuer']}; expires {facts['not_after']} "
+                             f"({days} days left).")
+        else:
+            out["answer"] = f"{domain}: the TLS certificate does not validate ({facts.get('reason') or 'unknown reason'})."
+        return out, cache, False, {"TLS handshake": as_of}
 
     def _mcp_registry(self, args, remaining):
         """mcp.registry.lookup.v1 (PM 11-15 16:12): an exact registry name reads its latest version; a phrase searches.

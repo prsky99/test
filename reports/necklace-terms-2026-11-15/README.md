@@ -206,6 +206,24 @@ prohibits 2건은 정의에 넣지 않았습니다. 넣으면 그 멤버가 모�
   - 흩어진 낱말은 세지 않습니다.
 - 바꾼 기준으로 다시 따지면 8건 중 7건 통과입니다. Population ageing은 이제 실패로 남고, Income distribution은 통과합니다. 나머지 6건(Entrepreneurship, Public transport, Populism, Universal basic income, Social capital, Subjective well-being)은 통과한 논문이 모두 주제에 맞습니다.
 
+## website-trust-brief v2 원천 판정 (워크플로우 0acad312, 11-15 16시)
+
+| 원천 | 판정 | 근거 | 비고 |
+|---|---|---|---|
+| crt.sh(인증서 투명성 로그 검색) | silent(약관 없음) | 첫 화면에 약관 링크가 없고 "© Sectigo"만 있음. 자료는 공개 CT 로그 | **속도 때문에 쓰지 않음**: python.org는 30초가 넘어도 답이 없었고, example.com은 502 |
+| 웹사이트 자신의 TLS 인증서(직접 연결) | allowed | 모든 방문자에게 보여 주는 공개 정보를 TLS 연결에서 읽기만 함. 제3자 약관 없음 | tls 자리는 이것으로 만듦(tls-certificate) |
+| Cloudflare 1.1.1.1 DoH JSON | **판정 전** | 이용 약관 페이지(developers.cloudflare.com/1.1.1.1/terms-of-use)가 있음. 오늘 그 도메인 몫을 다 써서 11-16에 읽음 | mail_auth 자리 후보 |
+| Google Public DNS JSON | **판정 전** | 자체 약관은 "Google APIs Terms of Service를 따른다"뿐임. 그 약관(같은 기능 API 재제공 제한 등)을 11-16에 읽음 | mail_auth 자리 후보 |
+
+- tls-certificate 안전장치
+  - 이름이 가리키는 모든 IP가 공개 주소여야 합니다.
+  - 확인한 바로 그 IP의 443 포트에 연결하고 SNI는 도메인입니다. 두 번째 DNS 조회가 없어서 확인과 연결 사이에 주소가 바뀌는 공격도 막힙니다.
+  - 연결 확인(핸드셰이크) 뒤에는 아무것도 보내지 않습니다.
+  - 장부를 쓰는 시험 실행에서는 사이트마다 공용 장부에 예약합니다.
+- 실측: agentconcierge.biz 0.49초(Let's Encrypt, 2027-01-13), github.com(Sectigo, 2027-01-27), expired.badssl.com은 "does not validate (certificate has expired)"로 2.54초
+  - 첫 시도에는 두 곳이 시간 초과였고, 다시 하니 정상이었습니다.
+  - 호출 예산 3.3초에 가까운 사이트가 있어, 느린 사이트는 가끔 source_unavailable로 답할 수 있습니다.
+
 ## 남은 것
 
 - 카탈로그 밖 자체 에이전트 133018·133019·133023(topic-evidence-brief, package-risk-audit)

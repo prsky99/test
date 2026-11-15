@@ -764,5 +764,39 @@
    null,
    {}
   ]
+ ],
+ "tls-certificate": [
+  [
+   {
+    "domain": "github.com"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "url": "https://agentconcierge.biz/"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "domain": "localhost"
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "domain": "10.0.0.1"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }
