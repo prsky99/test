@@ -671,7 +671,7 @@ def requests_per_case(defn: dict) -> int:
     return 2 * sum(min(slot.get("fanout", 1), len(model.live_members(slot, "external"))) for slot in defn["slots"])
 
 
-SINGLE_FROM_INPUT = {"legal_name": "name", "point": "address", "author": "title"}      # a single agent gets what the person typed instead of a staged value
+SINGLE_FROM_INPUT = {"legal_name": "name", "search_name": "name", "point": "address", "author": "title"}      # a single agent gets what the person typed instead of a staged value
 
 
 def single_definition(defn: dict, slot_name: str, member: dict) -> dict:

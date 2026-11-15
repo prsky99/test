@@ -59,12 +59,15 @@ class SlotResult:
     attempts: list = field(default_factory=list)
     abandoned: int = 0
     skipped: str | None = None          # input_absent (optional step not asked for) or upstream_failed
+    not_found: bool = False             # PM 11-16: every member that answered was about another company
 
     @property
     def status(self) -> str:
         """answered, partial (answered while another call timed out), timeout, failed or skipped."""
         if self.skipped:
             return "skipped"
+        if self.not_found:
+            return "not_found"
         timed = any(a.error_class in ("timeout", "late", "deadline") for a in self.attempts)
         if self.answers:
             return "partial" if timed else "answered"
@@ -74,6 +77,8 @@ class SlotResult:
     def stage(self) -> int:
         if self.skipped == "input_absent":
             return 0                    # nothing was asked of this step
+        if self.not_found:
+            return 3                    # our own identity check answered: no article about the company
         if not self.answers:
             return 4
         used = [a for a in self.attempts if a.ok]
@@ -85,7 +90,7 @@ class SlotResult:
         ok = [a for a in self.attempts if a.ok]
         best = min(ok, key=lambda a: a.rank) if ok else None
         return {"rank": best.rank if best else None, "kind": best.kind if best else None,
-                "failed": not self.answers, "stage": self.stage, "status": self.status}
+                "failed": not self.answers and not self.not_found, "stage": self.stage, "status": self.status}
 
 
 # ---------------------------------------------------------------- argument mapping
@@ -332,6 +337,8 @@ def norm_registry(raw, values):
         del out["lei"]
     if not out.get("legal_name") and not any(out.get(k) for k in ("cik", "lei", "ticker")):
         return None
+    if out.get("legal_name") and search_name(out["legal_name"]):
+        out["search_name"] = search_name(out["legal_name"])     # PM 11-16: what an encyclopedia search is given
     return out
 
 
@@ -520,6 +527,97 @@ def norm_filings(raw, values):
     return out
 
 
+# ---------------------------------------------------------------- encyclopedia identity (PM 11-16, company gate round 1)
+# A search member returned other companies' articles for small filers ("Kodiak Sciences" -> "Bart the Bear"). When the
+# step reads a company that an earlier registry step named, an answer is kept only for the entries about that company
+# (its distinctive name words, its ticker or its CIK); an answer with none is discarded and the next member is asked.
+# When no member has an article about the company the step answers "No encyclopedia article found" (not_found).
+IDENTITY_MISMATCH = "identity_mismatch"
+NOT_FOUND_NOTE = "No encyclopedia article found for this company."
+LEGAL_FORMS = {"inc", "corp", "co", "ltd", "plc", "ag", "se", "sa", "nv", "spa", "asa", "ab", "oyj", "group",
+               "holdings", "holding", "company", "corporation", "limited", "incorporated", "the", "and", "of", "llc",
+               "lp", "trust", "bancorp", "de", "new"}
+_TAG = re.compile(r"<[^>]{0,200}>")
+
+
+def name_words(name: str) -> list[str]:
+    """The distinctive words of a company name: lower case, legal forms and words under three letters left out."""
+    words = re.sub(r"[^a-z0-9 ]", " ", str(name or "").lower().replace("&", " and ")).split()
+    return [w for w in words if len(w) > 2 and w not in LEGAL_FORMS]
+
+
+def search_name(legal_name: str) -> str | None:
+    """The name as an encyclopedia titles it: legal forms and state tags at the end left out ("Quicklogic Corp" ->
+    "Quicklogic", "Rand Capital Corp /DE/" -> "Rand Capital")."""
+    text = re.sub(r"\s*/[A-Za-z]{2}/?\s*$", "", str(legal_name or "")).replace("/", " ")
+    words = re.sub(r"[,.]", " ", text).split()
+    while words and words[-1].lower() in LEGAL_FORMS:
+        words.pop()
+    return " ".join(words) or None
+
+
+COMPANY_WORDS = re.compile(r"\b(?:company|corporation|incorporated|inc|corp|business|firm|manufacturer|maker|"
+                           r"provider|developer|bank|bancorp|bancshares|insurer|retailer|operator|conglomerate|"
+                           r"biotechnology|pharmaceutical|trust|fund|holding|subsidiary|publicly traded|nyse|nasdaq|"
+                           r"founded|headquartered|based in)\b")
+
+
+def is_about(entry_text: str, title: str, values: dict) -> bool:
+    """The entry is the registry's company: its ticker as a listing ("NYSE: SWX") or its CIK, or a title that is the
+    company's name (every distinctive word, nothing else but legal forms and a "(company)" tag) over a text that
+    reads as a company. A text that only mentions the name (another company's list, a person) is not about it."""
+    text = _TAG.sub("", entry_text).lower()
+    ticker = str(values.get("slot.registry.ticker") or "").lower()
+    if ticker and re.search(r"(?:nyse|nasdaq|amex|otc\w*|ticker)\W{1,4}" + re.escape(ticker) + r"\b", text):
+        return True
+    cik = str(values.get("slot.registry.cik") or "").lstrip("0")
+    if cik and re.search(r"\bcik\W{0,4}0*" + re.escape(cik) + r"\b", text):
+        return True
+    legal = values.get("slot.registry.legal_name") or ""
+    words = name_words(legal)
+    head = re.sub(r"\([^)]*\)", " ", _TAG.sub("", title or "")).lower()
+    title_words = name_words(head)
+    if not words or not title_words or sorted(set(title_words)) != sorted(set(words)):
+        return False
+    # the title's legal forms must be the company's own ("Sun Group" is not "SUN"; "Scholastic Corporation" is
+    # "SCHOLASTIC CORP")
+    if not _forms(head) <= _forms(legal) | {"the", "and", "of", "new"}:
+        return False
+    return bool(COMPANY_WORDS.search(text))
+
+
+_SAME_FORM = {"corporation": "corp", "incorporated": "inc", "company": "co", "limited": "ltd", "holding": "holdings"}
+
+
+def _forms(name: str) -> set[str]:
+    words = re.sub(r"[^a-z0-9 ]", " ", str(name or "").lower().replace("&", " and ")).split()
+    return {_SAME_FORM.get(w, w) for w in words if w in LEGAL_FORMS}
+
+
+def _entries(raw) -> list[tuple[str, str]]:
+    """(title, text) per entry of an answer: each dict of a result list, or the whole answer as one entry."""
+    if isinstance(raw, list):
+        return [(str(e.get("title") or ""), json.dumps(e, ensure_ascii=False, default=str) if isinstance(e, dict) else str(e))
+                for e in raw]
+    if isinstance(raw, dict):
+        return [(str(raw.get("title") or ""), json.dumps(raw, ensure_ascii=False, default=str))]
+    return [("", str(raw or ""))]
+
+
+def norm_encyclopedia(raw, values):
+    """encyclopedia.summary.v1: as norm_generic for a topic; for a company named by an earlier registry step, only the
+    entries about that company (is_about), else {"identity_mismatch": True} (the member's answer is discarded)."""
+    if not any(values.get(k) for k in ("slot.registry.legal_name", "slot.registry.ticker", "slot.registry.cik")):
+        return norm_generic(raw, values)
+    if is_error(raw):
+        return None
+    kept = [text for title, text in _entries(raw) if is_about(text, title or text[:200], values)]
+    if not kept:
+        return {IDENTITY_MISMATCH: True}
+    out = norm_generic(kept if isinstance(raw, list) else raw, values)
+    return dict(out, identity="matched") if out else {IDENTITY_MISMATCH: True}
+
+
 AUTHOR_KEYS = ("author_name", "author", "authors", "author_names", "creator")
 YEAR_KEYS = ("first_publish_year", "first_published", "publication_year", "year", "published", "publish_year",
              "publication_date", "date")
@@ -569,14 +667,16 @@ NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_r
                "cve.exploited.v1": norm_exploited, "company.registry.v1": norm_registry,
                "geocode.address.v1": norm_location, "airport.lookup.v1": norm_location,
                "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes, "book.search.v1": norm_book, "sec.filings.v1": norm_filings,
-               "package.releases.v1": norm_package_releases}
+               "package.releases.v1": norm_package_releases,
+               "encyclopedia.summary.v1": norm_encyclopedia}
 
 
 # What a later stage can read ({{slot.<slot>.<field>}}): the scalar fields of each normalizer's answer (Runner.run
 # stages str, int and float values, never lists, dicts or booleans). The gate checks every slot reference against
 # this (PM 12:58, 11-15); tests keep it equal to what the normalizers return.
 STAGED_FIELDS = {norm_advisories: set(), norm_record: {"cve_id", "cvss_score"}, norm_exploited: {"cve_id"},
-                 norm_generic: {"text"}, norm_registry: {"cik", "ticker", "lei", "legal_name"},
+                 norm_generic: {"text"}, norm_registry: {"cik", "ticker", "lei", "legal_name", "search_name"},
+                 norm_encyclopedia: {"text", "identity"},
                  norm_location: {"lat", "lon", "point", "place", "country_code", "timezone"},
                  norm_quakes: {"count"}, norm_book: {"author", "year", "title", "text"},
                  norm_filings: {"text"},
@@ -691,7 +791,11 @@ class Runner:
             credit = getattr(raw, "attribution", None)   # AgentValCon fallback sources and licenses (R29)
             if canon is not None and isinstance(credit, dict):
                 canon = {**canon, "attribution": credit}
-            ok, error = canon is not None, None if canon is not None else "contract_invalid"
+            if isinstance(canon, dict) and canon.get(IDENTITY_MISMATCH):
+                canon = None                     # PM 11-16: another company's article is discarded, never an answer
+                ok, error = False, IDENTITY_MISMATCH
+            else:
+                ok, error = canon is not None, None if canon is not None else "contract_invalid"
             kept = _text(raw)[:self.keep_raw] if self.keep_raw else None
         except Exception as exc:   # every failure of one member is that member's, never the run's
             canon, ok, error = None, False, (getattr(exc, "error_code", None) or getattr(exc, "code", None)
@@ -843,7 +947,11 @@ class Runner:
             still_running = sum(1 for st in states.values() for f in st.get("abandoned_futures", []) if not f.done())
             pool.shutdown(wait=False, cancel_futures=True)
         results = {name: st["result"] for name, st in states.items()}
-        failed = [s.slot for s in results.values() if s.required and not s.answers]
+        for r in results.values():     # PM 11-16: no member had an article about the company -> "not found"
+            if not r.answers and not r.skipped and any(a.error_class == IDENTITY_MISMATCH for a in r.attempts) \
+                    and all(a.error_class in (IDENTITY_MISMATCH, "contract_invalid", CONNECTION_EMPTY) for a in r.attempts):
+                r.not_found = True
+        failed = [s.slot for s in results.values() if s.required and not s.answers and not s.not_found]
         # PM 11-15, changed 16:03 (user instruction d4670360): a run counts only when enough steps were answered by
         # a counted member, a verified pearl or a provisional member (necklaces.members); per run, not per definition
         from .members import counted
@@ -851,7 +959,8 @@ class Runner:
         pearls_answered = sum(1 for r in results.values() if any(counted(m) for m, _ in r.answers))
         if need and not failed and pearls_answered < need:
             failed.append("pearls_answered")
-        output = {name: (merge(states[name]["slot"]["contract"], r.answers) if r.answers else {"missing": True})
+        output = {name: (merge(states[name]["slot"]["contract"], r.answers) if r.answers else
+                         {"not_found": True, "note": NOT_FOUND_NOTE} if r.not_found else {"missing": True})
                   for name, r in results.items()}
         return {
             "slug": defn["slug"], "version": defn["version"], "digest": model.digest(defn),

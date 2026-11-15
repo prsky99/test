@@ -82,7 +82,7 @@ def test_every_external_member_is_probed_with_the_gate_label():
     assert sorted({rid for rid, *_ in relay.seen}) == [52559, 58997, 241601]
     assert {qa for _, qa, *_ in relay.seen} == {"necklace_gate"}
     calls = {rid: args for rid, _, method, args in relay.seen if method == "tools/call"}
-    assert calls == {241601: {"query": "Apple Inc."}, 58997: {"ticker": "AAPL"}, 52559: {"domain": "apple.com"}}
+    assert calls == {241601: {"query": "Apple"}, 58997: {"ticker": "AAPL"}, 52559: {"domain": "apple.com"}}
     # PM 16:03: an approved own substitute counts as a provisional member, so registry counts too
     assert out["pearls"]["in_every_run"] == ["registry", "background", "filings"] and out["ok"] is True
     assert out["pearls"]["seated_pearl_slots"] == ["background", "filings", "domain"]
