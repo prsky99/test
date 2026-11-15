@@ -301,8 +301,106 @@ def norm_registry(raw, values):
     return out
 
 
+LAT_KEYS, LON_KEYS = ("lat", "latitude"), ("lon", "lng", "long", "longitude")
+PLACE_KEYS = ("address", "formatted_address", "display_name", "name", "place", "city")
+POINT_TEXT = re.compile(r"(-?\d{1,2}\.\d{2,})\s*,\s*(-?\d{1,3}\.\d{2,})")
+
+
+def _number(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coords(node: dict):
+    lat = next((_number(node[k]) for k in node if str(k).lower() in LAT_KEYS), None)
+    lon = next((_number(node[k]) for k in node if str(k).lower() in LON_KEYS), None)
+    if lat is None or lon is None or not (-90 <= lat <= 90 and -180 <= lon <= 180) or (lat == 0 and lon == 0):
+        return None
+    return lat, lon
+
+
+def norm_location(raw, values):
+    """The location hub (geocode.address, airport.lookup, ip.lookup; plan 4-1): the first coordinates in the answer,
+    breadth-first, so a later stage reads {{slot.<slot>.lat}}, .lon or .point ("lat,lon"). An answer without
+    coordinates fails the slot: a stage after it cannot run on a place name it did not resolve."""
+    if is_error(raw):
+        return None
+    found = None
+    for node, _ in _walk(raw):
+        if isinstance(node, dict) and (found := _coords(node)):
+            name = next((str(node[k]) for k in node if str(k).lower() in PLACE_KEYS and isinstance(node[k], str)), "")
+            break
+    if not found:
+        match = POINT_TEXT.search(_text(raw))
+        if not match:
+            return None
+        found, name = (float(match.group(1)), float(match.group(2))), ""
+        if not (-90 <= found[0] <= 90 and -180 <= found[1] <= 180):
+            return None
+    lat, lon = round(found[0], 6), round(found[1], 6)
+    return {"lat": lat, "lon": lon, "point": f"{lat:.6f},{lon:.6f}", "place": name[:300]}
+
+
+MAG_KEYS = ("mag", "magnitude")
+TIME_KEYS = ("time", "origin_time", "datetime", "date", "utc_time")
+CENTER_KEYS = ("center", "centre", "near", "origin", "location", "query", "search", "criteria")
+
+
+def norm_quakes(raw, values):
+    """earthquake.feed.v1: every event with a magnitude and coordinates (time, place and USGS link when given), so the
+    grader compares events, not wording. An answer that lists no event is kept as an empty list only when it says so
+    in a structure (a count of 0 or an empty list), never from silence."""
+    if is_error(raw):
+        return None
+    events, said_none, seen, center = [], False, set(), None
+    for node, path in _walk(raw):
+        if not isinstance(node, dict):
+            continue
+        if center is None and not any(str(k).lower() in MAG_KEYS for k in node) \
+                and any(p in CENTER_KEYS for p in path) and (here := _coords(node)):
+            center = {"lat": here[0], "lon": here[1]}           # the point the feed searched around, when it says
+
+        for key, item in node.items():
+            if str(key).lower() in ("count", "total") and item == 0:
+                said_none = True
+            if str(key).lower() in ("quakes", "earthquakes", "events", "features") and item == []:
+                said_none = True
+        mag = next((_number(node[k]) for k in node if str(k).lower() in MAG_KEYS), None)
+        where = _coords(node)
+        if where is None and isinstance(node.get("geometry"), dict):
+            c = node["geometry"].get("coordinates")
+            if isinstance(c, list) and len(c) >= 2:
+                where = (_number(c[1]), _number(c[0])) if None not in (_number(c[1]), _number(c[0])) else None
+        if mag is None and isinstance(node.get("properties"), dict):
+            mag = _number(node["properties"].get("mag"))
+        if mag is None or where is None:
+            continue
+        props = node.get("properties") if isinstance(node.get("properties"), dict) else node
+        when = next((props[k] for k in props if str(k).lower() in TIME_KEYS and props[k] not in (None, "")), None)
+        url = next((props[k] for k in props if str(k).lower() in ("url", "link", "detail")
+                    and isinstance(props[k], str) and props[k].startswith("https://")), None)
+        key = (round(mag, 1), round(where[0], 2), round(where[1], 2), str(when))
+        if key in seen:                                    # a "strongest" summary repeats one of the listed events
+            continue
+        seen.add(key)
+        events.append({"mag": mag, "lat": where[0], "lon": where[1], "time": when, "url": url,
+                       "place": str(props.get("place") or "")[:200]})
+    if not events and not said_none:
+        return None
+    out = {"events": events[:100], "count": len(events)}
+    if center:
+        out["center"] = center
+    return out
+
+
 NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_record,
-               "cve.exploited.v1": norm_exploited, "company.registry.v1": norm_registry}
+               "cve.exploited.v1": norm_exploited, "company.registry.v1": norm_registry,
+               "geocode.address.v1": norm_location, "airport.lookup.v1": norm_location,
+               "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes}
 
 
 def normalize(contract: str, raw, values):

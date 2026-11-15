@@ -1,0 +1,147 @@
+{
+  "slug": "quakes-near-address",
+  "version": 1,
+  "status": "candidate",
+  "name": "Earthquakes near an address",
+  "summary": "Where an address or landmark is, as coordinates, and the earthquakes of magnitude 4.5 or more within 1,000 km of it in the last 7 days (USGS data), each with magnitude, time, place and distance.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "address": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 300
+      }
+    },
+    "required": [
+      "address"
+    ],
+    "additionalProperties": false
+  },
+  "budget_ms": {
+    "total": 5000,
+    "slot": 2500
+  },
+  "synthesis": {
+    "kind": "merge-v1",
+    "rules": [
+      "the location step resolves the address once; the earthquake step searches around those coordinates",
+      "a run counts only when at least two verified pearls answered (the geocoder and an earthquake feed)",
+      "earthquakes are M4.5 or more within 1,000 km in the last 7 days, as the feeds report them",
+      "every statement keeps its source link"
+    ]
+  },
+  "answer_set": "quakes-near-address-v1",
+  "slots": [
+    {
+      "slot": "location",
+      "contract": "geocode.address.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 264482,
+          "tool": "geocode_address",
+          "registrable_domain": "dmvtransit.com",
+          "upstream": [
+            "google-maps"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "query": "{{input.address}}"
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 37322,
+          "tool": "geocode",
+          "registrable_domain": "datakoot.com",
+          "upstream": [
+            "us-census"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "input_map": {
+            "address": "{{input.address}}"
+          }
+        }
+      ]
+    },
+    {
+      "slot": "quakes",
+      "contract": "earthquake.feed.v1",
+      "required": true,
+      "fanout": 1,
+      "depends_on": [
+        "location"
+      ],
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 37322,
+          "tool": "earthquakes",
+          "registrable_domain": "datakoot.com",
+          "upstream": [
+            "usgs"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "lat": "{{slot.location.lat}}",
+            "lon": "{{slot.location.lon}}",
+            "radius_km": 1000,
+            "days": 7,
+            "min_magnitude": 4.5,
+            "limit": 20
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 178542,
+          "tool": "earthquakes",
+          "registrable_domain": "augur-trade.com",
+          "upstream": [
+            "usgs"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "near": "{{slot.location.point}}",
+            "radius_km": 1000,
+            "period": "week",
+            "min_magnitude": 4.5,
+            "limit": 20
+          }
+        }
+      ]
+    }
+  ],
+  "notes": "v1 candidate from the location hub (100-necklace plan 4-1, workflow 11-15). Leads are verified pearls 264482 (geocode.address) and 37322, 178542 (earthquake.feed) by the 11-15 verify snapshot; all three passed the relay check at 11:41-11:46. 37322's geocode is US Census (US addresses only) and stands second. Gaps before the gate: no AgentValCon fallback for geocode.address yet, and the usgs-quakes fallback takes no coordinates (asked of the agent team). Delta risk: 178542 accepts a place name by itself, so the task is graded as coordinates plus the strongest nearby quake together (retest.grade_quakes_task).",
+  "min_pearls_answered": 2,
+  "probe_input": {
+    "address": "Tokyo Tower, Minato, Tokyo, Japan",
+    "slot.location.lat": 35.6586,
+    "slot.location.lon": 139.7454,
+    "slot.location.point": "35.658600,139.745400"
+  },
+  "input_help": {
+    "address": "A street address, landmark or city, for example Tokyo Tower, Minato, Tokyo, Japan."
+  }
+}

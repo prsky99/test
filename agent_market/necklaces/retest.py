@@ -29,7 +29,7 @@ QA = "necklace_retest"
 QA_GATE = "necklace_gate"           # gate rounds and the gate check (deploy/NECKLACE_GATE.md 3절)
 BUDGET_SECONDS = 35 * 60
 CONTRAST = {"package-risk-audit": "advisories", "cve-incident-brief": "record", "company-due-diligence": "background",
-            "topic-evidence-brief": "papers"}
+            "topic-evidence-brief": "papers", "quakes-near-address": "quakes"}
 
 
 # ---------------------------------------------------------------- public relay caller
@@ -324,7 +324,142 @@ TASK_EXCLUDE = {"company-due-diligence": company_excluded}
 GRADERS["filings"] = grade_filings
 
 
-TASK_GRADERS = {"company-due-diligence": grade_company_task}
+# ---------------------------------------------------------------- quakes-near-address (location hub, workflow 11-15)
+USGS_FDSN = ("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&latitude={lat}&longitude={lon}"
+             "&maxradiuskm={radius}&starttime={start}&minmagnitude={mag}&orderby=magnitude&limit=200")
+REFERENCE_SECONDS = 600                 # one USGS query per place per ten minutes, through the shared ledger
+FEED_LAG_SECONDS = 1800                 # feeds and caches can trail USGS by minutes: the newest half hour is not owed
+_QUAKE_REFERENCE: dict = {}
+
+
+def km(lat1, lon1, lat2, lon2) -> float:
+    import math
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    a = math.sin((p2 - p1) / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(math.radians(lon2 - lon1) / 2) ** 2
+    return 6371.0 * 2 * math.asin(min(1.0, math.sqrt(a)))
+
+
+def epoch(value) -> float | None:
+    """An event time as seconds: ISO 8601 text, or epoch seconds or milliseconds (USGS gives milliseconds)."""
+    from datetime import datetime
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value / 1000 if value > 1e11 else float(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            return datetime.fromisoformat(value.strip().replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            return None
+    return None
+
+
+def _fetch_json(url: str):
+    import urllib.request
+    from ..provider_budget import note, reserve
+    from .gold import USER_AGENT
+    ok, _why = reserve(url, "reference_checks")
+    if not ok:
+        return None
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            note(url, "reference_checks", getattr(response, "status", 200))
+            return json.loads(response.read().decode("utf-8"))
+    except Exception as exc:                              # noqa: BLE001 - no reference means the case is not graded
+        if getattr(exc, "code", None):
+            note(url, "reference_checks", exc.code)
+        return None
+
+
+def quakes_reference(truth: dict, now: float | None = None, get=_fetch_json) -> list[dict] | None:
+    """USGS events for the case's place and window, asked when the case is graded (cached ten minutes)."""
+    now = time.time() if now is None else now
+    key = (truth["lat"], truth["lon"], truth["radius_km"], int(now // REFERENCE_SECONDS))
+    if key not in _QUAKE_REFERENCE:
+        start = time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(now - truth["days"] * 86400))
+        body = get(USGS_FDSN.format(lat=truth["lat"], lon=truth["lon"], radius=truth["radius_km"], start=start,
+                                    mag=truth["min_magnitude"]))
+        if not isinstance(body, dict) or not isinstance(body.get("features"), list):
+            return None
+        events = []
+        for feature in body["features"]:
+            props, coords = feature.get("properties") or {}, (feature.get("geometry") or {}).get("coordinates") or []
+            if isinstance(props.get("mag"), (int, float)) and len(coords) >= 2:
+                events.append({"id": feature.get("id"), "mag": float(props["mag"]), "lat": coords[1], "lon": coords[0],
+                               "time": epoch(props.get("time"))})
+        if len(_QUAKE_REFERENCE) > 500:
+            _QUAKE_REFERENCE.clear()
+        _QUAKE_REFERENCE[key] = events
+    return _QUAKE_REFERENCE[key]
+
+
+def grade_location(case, slot_out) -> bool:
+    """Coordinates within the case's tolerance of the place (landmark 3 km, city 25 km), anywhere in the answer that
+    is not an earthquake (an event has a magnitude)."""
+    truth = case["truth"]
+    if not slot_out:
+        return False
+    for node, _ in runner._walk(slot_out):
+        if isinstance(node, dict) and not any(str(k).lower() in runner.MAG_KEYS for k in node):
+            here = runner._coords(node)
+            if here and km(here[0], here[1], truth["lat"], truth["lon"]) <= truth["tolerance_km"]:
+                return True
+    for match in runner.POINT_TEXT.finditer(_text(slot_out)):
+        lat, lon = float(match.group(1)), float(match.group(2))
+        if -90 <= lat <= 90 and -180 <= lon <= 180 and km(lat, lon, truth["lat"], truth["lon"]) <= truth["tolerance_km"]:
+            return True
+    return False
+
+
+def grade_quakes(case, slot_out, now: float | None = None, reference=None) -> bool:
+    """The answer's events against USGS for the same place and window:
+    - it must list events or say there are none (silence is not an answer)
+    - no event may lie beyond the radius (with a 10 % and location margin): an answer for the wrong place fails
+    - when USGS has an event that is surely in the window (well inside the radius, older than half an hour, not at
+      the week's edge, at least 0.2 above the minimum magnitude), the strongest such event must be in the answer
+      (magnitude within 0.3, epicentre within 50 km, time within 5 minutes when both give one)"""
+    truth = case["truth"]
+    now = time.time() if now is None else now
+    quakes = runner.norm_quakes(slot_out, {}) if slot_out else None
+    if quakes is None:
+        return False
+    radius, tol = truth["radius_km"], truth["tolerance_km"]
+    for e in quakes["events"]:
+        if km(e["lat"], e["lon"], truth["lat"], truth["lon"]) > 1.1 * radius + tol:
+            return False
+    reference = quakes_reference(truth, now) if reference is None else reference
+    if reference is None:
+        return False
+    sure = [e for e in reference if e["time"] is not None
+            and km(e["lat"], e["lon"], truth["lat"], truth["lon"]) <= 0.9 * radius - tol
+            and FEED_LAG_SECONDS <= now - e["time"] <= (truth["days"] - 0.5) * 86400
+            and e["mag"] >= truth["min_magnitude"] + 0.2]
+    if not sure:
+        return True
+    strongest = max(sure, key=lambda e: e["mag"])
+    for e in quakes["events"]:
+        when = epoch(e.get("time"))
+        if abs(e["mag"] - strongest["mag"]) <= 0.3 and km(e["lat"], e["lon"], strongest["lat"], strongest["lon"]) <= 50 \
+                and (when is None or abs(when - strongest["time"]) <= 300):
+            return True
+    return False
+
+
+def grade_quakes_task(case, output) -> bool:
+    """quakes-near-address as one task, for the necklace and every single member alike: the place's coordinates and
+    the nearby earthquakes together. 178542 takes a place name by itself, so the quakes alone are not the task."""
+    return grade_location(case, output) and grade_quakes(case, output)
+
+
+def quakes_excluded(case, now: float | None = None) -> str | None:
+    """No USGS answer for the reference: the case is not graded (counted apart, never a failure)."""
+    return None if quakes_reference(case["truth"], now) is not None else "reference_unavailable"
+
+
+GRADERS["location"] = grade_location
+GRADERS["quakes"] = grade_quakes
+TASK_EXCLUDE["quakes-near-address"] = quakes_excluded
+
+TASK_GRADERS = {"company-due-diligence": grade_company_task, "quakes-near-address": grade_quakes_task}
 
 
 def grade(defn: dict, case: dict, output: dict) -> dict:
@@ -347,7 +482,7 @@ def requests_per_case(defn: dict) -> int:
     return 2 * sum(min(slot.get("fanout", 1), len(model.live_members(slot, "external"))) for slot in defn["slots"])
 
 
-SINGLE_FROM_INPUT = {"legal_name": "name"}      # a single agent gets what the person typed instead of a staged value
+SINGLE_FROM_INPUT = {"legal_name": "name", "point": "address"}      # a single agent gets what the person typed instead of a staged value
 
 
 def single_definition(defn: dict, slot_name: str, member: dict) -> dict:
