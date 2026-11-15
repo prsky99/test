@@ -3,6 +3,23 @@ from ..broker.categories import CATEGORIES
 from .connections import KINDS
 
 
+# E2 (PM 11-15, reports/growth-experiments/2026-11-15.md 1.1): shorter descriptions that say what the tool is for, when to
+# use it and what it returns. A description that meets that standard is chosen far more often, while longer augmented
+# ones add steps and sometimes do worse (arXiv 2602.18914, 2602.14878). Variant B for the A/B split the search team wires
+# by client group; the live descriptions stay as they are until then.
+DESCRIPTIONS_B = {
+    'find_agents': ('Find agents for a task. Use when you need an agent to do something now. Returns up to three, each with '
+                    'its endpoint, last check time, grade, price_status and, when we can run it, run_here for the call tool. '
+                    'Read-only.'),
+    'check_agent': ('Check one agent before you call it. Use with an endpoint or agent-card URL, also for agents found '
+                    'earlier. Returns our latest recorded status, recent check success rate, grade and up to three '
+                    'alternatives. Read-only; the URL is never called.'),
+    'verify_agent': ('See how one agent did in our role tests. Use when you need evidence it answers correctly, not only '
+                     'that it is up. Returns its score out of 100 per role, test time, whether it is a verified pearl and '
+                     'verified alternatives. Give agent_id or url. Read-only.'),
+    'best_for_role': ('List the agents that passed our tests for a role. Use when you know the job (roles look like '
+                      'weather.forecast.v1). Returns the verified pearls and any necklace that runs the job. Read-only.'),
+}
 def mcp_tools():
     TOKEN_ARG = {"visitor_token": {"type": "string", "description": "Your visitor token (vt_…) so I remember you. Omit on first contact."}}
     TOOLS = [
