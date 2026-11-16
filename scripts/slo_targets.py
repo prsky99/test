@@ -30,8 +30,9 @@ def sample_ok(part, row, targets):
 
 
 def connect_ok(sample):
-    """user_slo's own rule for a connection sample: tools were listed and the recommended tool was among them."""
-    return bool(sample.get('tools')) and sample.get('error') != 'tool_unlisted'
+    """user_slo's own rule for a connection sample: tools were listed, the recommended tool was among them and it does
+    the task's action (11-17 action_mismatch: a check tool for a task that sends)."""
+    return bool(sample.get('tools')) and sample.get('error') not in ('tool_unlisted', 'action_mismatch')
 
 
 def attainment(record, targets):

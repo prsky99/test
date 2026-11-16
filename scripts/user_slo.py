@@ -36,6 +36,12 @@ except ImportError:
     from slo_targets import FINAL, INTERIM, attainment
 
 ROOT = Path(__file__).resolve().parents[1]
+try:  # the recommendation's own rule (PM 11-17 06:3x); a light module with no service imports
+    from agent_market.concierge.task_action import action_mismatch
+except ImportError:
+    import sys as _sys
+    _sys.path.insert(0, str(ROOT))
+    from agent_market.concierge.task_action import action_mismatch
 OUT = ROOT / 'logs/ops/user-slo.jsonl'
 BASE = 'https://agentconcierge.biz'
 UA = 'agentcon-user-slo/1 (site owner QA; contact@agentconcierge.biz)'
@@ -252,6 +258,8 @@ def failure_reason(entry, card):
     unverified_tool: a read tool the gateway has not verified as read-only (fixable on our side);
     unrelayed: not relayed, from a card that predates the reason field; connect_failed: the connection itself failed;
     no_gateway_endpoint / no_recommendation as before. None for a passing sample."""
+    if entry.get('error') == 'action_mismatch':
+        return 'action_mismatch'            # 11-17: the recommended tool checks or reads, the task sends
     if entry.get('tools') and entry.get('error') != 'tool_unlisted':
         return None
     if entry.get('error') in ('no_gateway_endpoint', 'no_recommendation'):
@@ -362,6 +370,10 @@ def check_recommend_and_connect(n=2):
         listed = (wanted in names) if wanted and '/api/gateway/mcp/' in endpoint and names else None
         if listed is False and time.time() >= TOOL_LISTED_FROM:
             error_c = error_c or 'tool_unlisted'
+        if wanted and action_mismatch(task, wanted):
+            # PM 11-17 06:3x: "send email" answered with a2a/87188 verify-email passed three times. A tool that only
+            # checks or reads does not do a task that sends, so the sample fails however the connection went.
+            error_c = error_c or 'action_mismatch'
         entry = {'endpoint': endpoint.rsplit('/', 2)[-2] + '/' + endpoint.rsplit('/', 1)[-1], 's': took_c,
                  'tools': len(names), 'error': error_c, 'connection_available': available,
                  'recommended_tool': wanted, 'tool_listed': listed}
@@ -370,7 +382,7 @@ def check_recommend_and_connect(n=2):
         entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
         conn.append(entry)
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
-    conn_bad = [c for c in conn if not c['tools'] or c.get('error') == 'tool_unlisted']
+    conn_bad = [c for c in conn if not c['tools'] or c.get('error') in ('tool_unlisted', 'action_mismatch')]
     # A first recommendation without a gateway path is a failed connection (PM 11-12, replacing the 11-11 rule
     # that left such an hour unmeasured).
     return ({'samples': rec, 'ok': not rec_bad, 'bad': rec_bad},

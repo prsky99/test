@@ -15,6 +15,7 @@ import time
 from collections import OrderedDict
 
 from .execution_policy import safe_registered_tool, tools_for
+from .task_action import action_mismatch
 from .schema_cache import install as _install_schema_cache
 
 _install_schema_cache()  # 16,384 schema checks remembered instead of 4,096 (11-11 Chat profile)
@@ -182,6 +183,8 @@ def tool_direction_fits(task, tool):
     if not isinstance(task, str) or not isinstance(tool, dict):
         return True
     text = str(tool.get('name') or tool.get('id') or '') + ' ' + str(tool.get('description') or '')
+    if action_mismatch(task, str(tool.get('name') or tool.get('id') or '')):
+        return False  # a check or lookup tool chosen for a task that sends (PM 11-17 06:3x: verify-email for send email)
     return not (FORWARD_TASK.search(task) and not REVERSE_TASK.search(task) and REVERSE_TOOL.search(text))
 
 
@@ -306,6 +309,8 @@ def wrong_direction(task, item, descriptions=None):
         return True
     if _currency_mismatch(task, str(chosen)):
         return True
+    if action_mismatch(task, str(chosen)):
+        return True   # the task sends, the tool only checks or reads (PM 11-17 06:3x)
     return bool(FORWARD_TASK.search(task) and not REVERSE_TASK.search(task) and REVERSE_TOOL.search(text))
 
 
@@ -397,6 +402,8 @@ class ExposedFirstRecommender:
                         or input_mismatch(task, item) or missing_value(task, item)):
                     item['task_standing'] = min(score, -1)
                     item['direction_mismatch'] = True
+                if action_mismatch(task, str(chosen or '')):
+                    item['action_mismatch'] = True   # Chat leaves it out (fast_chat.relayable, PM 11-17 06:3x)
                 if not self.tool_listed(item, chosen):
                     # The chosen tool is not on the gateway's tools/list (11-11 real task a12: tollbooth's
                     # air_quality_index is not an admitted tool, so the caller could only try another one).

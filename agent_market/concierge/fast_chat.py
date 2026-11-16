@@ -533,7 +533,7 @@ def relayable(item):
     public calls to it, x402 aside: 11-15 user_slo mcp/36513), so the caller could not run it through the gateway."""
     if not isinstance(item, dict):
         return True
-    if item.get('tool_unlisted') is True:
+    if item.get('tool_unlisted') is True or item.get('action_mismatch') is True:
         return False
     return not needs_provider_auth(item)
 
@@ -571,7 +571,9 @@ def relayable_only(items):
     # PM 11-17 02:2x (user_slo 01:06 mcp/431838 Kivel, send_email): with nothing relayed the documentation-link answer
     # put first a listing whose own authorization the gateway refuses at initialize. That answer may still name an
     # unrelayed keyless tool; a listing that needs the provider's authorization leaves it.
-    return [item for item in items if not needs_provider_auth(item)]
+    # PM 11-17 06:3x (user_slo "send email" passed on a2a/87188 verify-email): a tool that only checks or reads is no
+    # answer to a task that sends; the honest unrelayed answer names the sending tool instead.
+    return [item for item in items if not needs_provider_auth(item) and item.get('action_mismatch') is not True]
 
 
 FALLBACK_DEADLINE = 8.0  # seconds into a request after which the split and neighbor searches do not start
