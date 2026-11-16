@@ -2435,3 +2435,25 @@ def test_wikipedia_summary_gold_counts_not_found_right_for_a_company_without_an_
     assert g.judge("wikipedia-summary", has, None, "not_found")["pass"] is False
     topic = {"truth": {"wiki": {"title": "Telehealth"}}}
     assert g.judge("wikipedia-summary", topic, {"title": "Telehealth"})["pass"] is True
+
+
+def test_wikipedia_summary_takes_a_title_that_only_adds_a_legal_form(tmp_path):
+    """PM 11-16 (B): "CBRE" -> "CBRE Group", "SCHOLASTIC" -> "Scholastic Corporation"; extra words that are not legal
+    forms ("band", "Records", a place) or come before the name stay not_found."""
+    pages = {"CBRE": ["CBRE Group"], "SCHOLASTIC": ["Scholastic Corporation"],
+             "Nope": ["Nope (band)", "Nope Records"], "Mercury": ["Mercury Group London"], "Acme": ["The Acme Group"]}
+
+    def handler(request):
+        params = request.url.params
+        if "gpssearch" in params:
+            return httpx.Response(200, json={"query": {"pages": [
+                {"index": i + 1, "pageid": 100 + i, "title": t, "fullurl": "https://en.wikipedia.org/wiki/" + t.replace(" ", "_"),
+                 "extract": f"{t} is a subject."} for i, t in enumerate(pages[params["gpssearch"]])]}})
+        return httpx.Response(200, json={"query": {"pages": [{"title": params["titles"], "missing": True}]}})
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": handler})
+    assert a.execute("wikipedia-summary", {"title": "CBRE"})["result"]["title"] == "CBRE Group"
+    assert a.execute("wikipedia-summary", {"title": "SCHOLASTIC"})["result"]["title"] == "Scholastic Corporation"
+    for title in ("Nope", "Mercury", "Acme"):          # band, Records, a place (London), a word before the name
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("wikipedia-summary", {"title": title})
+        assert err.value.code == "not_found", title
