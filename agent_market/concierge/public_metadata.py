@@ -152,14 +152,17 @@ def sitemap(base, snapshot=None):
         '  <url><loc>'+html.escape(url(panel,base), quote=False)+'</loc>'+(lastmod if panel == 'overview' else '')+'</url>\n' for panel in PAGES) + '</urlset>'
 
 
-def robots(base):
+def robots(base, parts=()):
+    """PARTS: the sitemap part names (sitemap_parts.split); 11-16 (Search Console had never fetched the agent parts the
+    index names): each part is also listed on its own Sitemap: line, which Google, Bing and others read directly."""
     private = ['/customer/', '/api/customer-', '/api/workspace-', '/api/task-updates',
         '/api/gateway/', '/api/owned-data-agents/', '/api/workflows/run', '/api/workflows/runs',
         '/new/en/sign-in.html', '/new/en/sign-up.html', '/new/en/workspace.html', '/new/en/account.html']
     return ('# AgentValCon public pages and discovery guides\n# '+base+'/llms.txt\n# '+base+'/llms-full.txt\n# '+url('about',base)+'\n'
         + ''.join('User-agent: '+bot+'\n' for bot in ['*','Googlebot','Google-Extended','GPTBot','OAI-SearchBot','PerplexityBot','ClaudeBot','anthropic-ai'])
         + ''.join('Disallow: '+path+'\n' for path in private)
-        + 'Disallow: /api/task-updates/*/action\nAllow: /\nSitemap: '+base.rstrip('/')+'/sitemap.xml\n')
+        + 'Disallow: /api/task-updates/*/action\nAllow: /\nSitemap: '+base.rstrip('/')+'/sitemap.xml\n'
+        + ''.join('Sitemap: '+base.rstrip('/')+'/sitemaps/'+name+'.xml\n' for name in parts))
 
 
 

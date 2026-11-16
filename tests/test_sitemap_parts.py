@@ -67,4 +67,17 @@ def test_the_site_serves_the_index_and_its_parts(w):
     assert c.get('/sitemap.xml', headers={'Cookie': 'session=1'}).headers['cache-control'] != EDGE_DOCUMENT_CACHE
 
 
+
+def test_robots_names_the_index_and_every_part_it_lists(w):
+    """11-16: Google had never fetched the agent parts the index names; robots.txt lists each part on its own line."""
+    _, c, _ = w
+    index = c.get('/sitemap.xml')
+    parts = [urlsplit(e.text).path for e in ET.fromstring(index.text).iter(NS + 'loc')]
+    robots = c.get('/robots.txt')
+    assert robots.status_code == 200
+    lines = [line[len('Sitemap: '):] for line in robots.text.splitlines() if line.startswith('Sitemap: ')]
+    assert [urlsplit(u).path for u in lines] == ['/sitemap.xml', *parts] and len(parts) >= 1
+    assert all(u.startswith('https://agentconcierge.biz/') for u in lines)
+
+
 from tests.test_concierge import w  # noqa: E402,F401 (fixture)

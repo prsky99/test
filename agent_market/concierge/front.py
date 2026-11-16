@@ -509,9 +509,9 @@ def sitemap_xml(base: str) -> str:
     return sitemap(base)
 
 
-def robots_txt(base: str) -> str:
+def robots_txt(base: str, parts=()) -> str:
     from .public_metadata import robots
-    return robots(base)
+    return robots(base, parts)
 
 
 def catalog_sentence(counts: dict, daily: dict | None = None) -> str:
@@ -2507,7 +2507,12 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
 
     @router.get("/robots.txt", include_in_schema=False)
     def robots(request: Request):
-        content = robots_txt(front.base(request))
+        try:   # 11-16: the sitemap parts on their own Sitemap: lines; robots.txt never fails because of them
+            from .sitemap_parts import NAME
+            parts = [name for name in sitemap_parts(request) if NAME.match(name)]
+        except Exception:
+            parts = []
+        content = robots_txt(front.base(request), parts)
         etag = f'"{hashlib.sha256(content.encode()).hexdigest()[:16]}"'
         if request.headers.get("if-none-match") == etag:
             return Response(status_code=304, headers={"ETag": etag, "Cache-Control": "public, max-age=3600"})
