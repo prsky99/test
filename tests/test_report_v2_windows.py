@@ -172,3 +172,12 @@ def test_public_necklace_seats_without_a_usable_final_pearl_come_next_after_pape
                              terms={1: 'silent', 2: 'prohibits'}, seats=['news.search.v1', 'cve.record.v1'])
     assert order[0] == 'papers.search.v1' and order[1] == 'cve.record.v1'   # a prohibited pearl fills no seat
     assert 'news.search.v1' not in order                                     # a usable final pearl fills it
+
+
+def test_role_task_summary_counts_our_stored_versions_only():
+    assert V.role_task_summary(9, 'fx.rate.v1', 'convert') == {}
+    V.save_version({'id': 9, 'role': 'fx.rate.v1', 'tool': 'convert', 'outcome': 'failed', 'excerpt': '', 'host': 'a.example.com',
+                    'latency_ms': 300, 'arguments': {'from': 'USD', 'to': 'EUR'}, 'started': time.time() - 60, 'reason': 'tool error'})
+    out = V.role_task_summary(9, 'fx.rate.v1', 'convert')
+    assert out['tasks_run'] == 1 and out['tasks_correct'] == 0 and out['success_days'] == 0
+    assert out['last_checked'].endswith('+09:00') and set(out) == {'tasks_run', 'tasks_correct', 'success_days', 'last_checked'}

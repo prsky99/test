@@ -909,6 +909,25 @@ def passing(v):
     return v.get('outcome') == 'succeeded' and bool(acc) and (v.get('quality') or {}).get('score', 0) >= PASS_MARK
 
 
+def role_task_summary(rid, role, tool, now=None):
+    """Machine-readable test evidence v1 summary for one member's role tool (PM 11-16 21:5x; the same four names as
+    the agent team's evidence records and concierge/role_task_line.py): tasks_run = our stored role-task versions of
+    TOOL (our own skips are never stored), tasks_correct = those that passed (succeeded, accuracy compared and met,
+    85+), success_days = different KST days with a qualifying success, last_checked = the newest test (ISO 8601,
+    +09:00). One function for the verify snapshot and the evidence address, so their numbers agree; a field
+    without a value is left out, nothing is made up."""
+    now = time.time() if now is None else now
+    stored = [v for v in versions_of(rid, canonical(role)) if v.get('tool') == tool]
+    if not stored:
+        return {}
+    newest = max(float(v.get('tested') or 0) for v in stored)
+    out = {'tasks_run': len(stored), 'tasks_correct': sum(1 for v in stored if passing(v)),
+           'success_days': success_days(rid, canonical(role), tool, now)}
+    if newest > 0:
+        out['last_checked'] = dt.datetime.fromtimestamp(newest, dt.timezone(dt.timedelta(hours=9))).isoformat(timespec='seconds')
+    return out
+
+
 def recent_tasks(v, now=None):
     """The newest version per role task (case) of V's tool under V's evaluator over RECENT_DAYS (R12, precision
     review 11-15): the task rotates daily, so the latest version alone switched a #1 off one day in three."""
