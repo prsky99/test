@@ -62,7 +62,7 @@ SHARE = {
 }
 # PM 11-14 06:4x (decision 3): public-data institutions with stated rate limits that the agents' own per-host pacing
 # keeps (agent_market/fallback_agents/limits.py) take more substitute tests a day; the domain total stays DAILY_TOTAL.
-CASSETTES_UNTIL = '2026-11-24'
+CASSETTES_UNTIL = '20261124'   # the ledger's day format (today(): YYYYMMDD, KST)
 # The share grows with a declared domain's total (x10 on sec.gov, x16 on wikipedia.org); the recording needs about 80
 # there, so its base is pinned to give 40 a day on sec.gov (two days, around the gates) and 66 on wikipedia.org.
 CASSETTE_OVERRIDE = {('cassettes', 'sec.gov'): 4, ('cassettes', 'wikipedia.org'): 4}
@@ -215,7 +215,7 @@ ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'referenc
 
 
 def share_limit(system, name, day=None, directory=None):
-    if system == 'cassettes' and (day or time.strftime('%Y-%m-%d')) > CASSETTES_UNTIL:
+    if system == 'cassettes' and (day or today()).replace('-', '') > CASSETTES_UNTIL:
         return 0
     base = (ONE_DAY.get(day or '', {}).get((system, name)) or CASSETTE_OVERRIDE.get((system, name))
             or SHARE_OVERRIDE.get((system, name), SHARE[system]))

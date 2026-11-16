@@ -367,7 +367,10 @@ def test_holdout_r5_wiki_reads_fit_on_11_16_only():
 def test_the_cassette_share_is_small_on_commercial_domains_pinned_on_declared_ones_and_ends_after_1124():
     """agent team 11-16: one recording of the approved substitutes for the agents.py split (PM target 11-24)."""
     from agent_market import provider_budget as pb
-    assert pb.share_limit('cassettes', 'deps.dev', day='2026-11-16') == 20
-    assert pb.share_limit('cassettes', 'sec.gov', day='2026-11-16') == 40
-    assert pb.share_limit('cassettes', 'wikipedia.org', day='2026-11-16') == 66
-    assert pb.share_limit('cassettes', 'deps.dev', day='2026-11-25') == 0
+    # reserve passes today() ('20261116'); 11-16 f8297098 compared it with '2026-11-24' and always saw the end date
+    assert pb.share_limit('cassettes', 'deps.dev', day='20261116') == 20
+    assert pb.share_limit('cassettes', 'sec.gov', day='20261116') == 40
+    assert pb.share_limit('cassettes', 'wikipedia.org', day='20261116') == 66
+    assert pb.share_limit('cassettes', 'deps.dev', day='20261124') == 20
+    assert pb.share_limit('cassettes', 'deps.dev', day='20261125') == 0
+    assert pb.share_limit('cassettes', 'deps.dev', day=pb.today()) == 20
