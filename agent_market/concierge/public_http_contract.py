@@ -93,6 +93,11 @@ GROWTH_CACHE = 'public, max-age=21600, stale-while-revalidate=86400'
 # visitor who opened /advertise before its CSP fix kept the broken copy in the browser for up to six hours.
 GROWTH_BROWSER_CACHE = 'public, max-age=300, stale-while-revalidate=86400'
 GROWTH_EDGE_HEADER = 'cloudflare-cdn-cache-control'
+# 11-16 (Search Console WNC-20237597, PM 12:2x): a growth page that says noindex is kept no longer than the sitemap
+# (EDGE_DOCUMENT_CACHE). The daily snapshot can turn yesterday's noindex page (a thin, duplicate or basic agent page)
+# into an indexed one; the sitemap listed it within the hour while the edge kept handing out the noindex copy for six
+# hours and up to a day stale, so Google read a submitted URL marked noindex. Indexed pages keep GROWTH_CACHE.
+GROWTH_NOINDEX_BROWSER_CACHE = 'public, max-age=300'
 # 11-15 R78: a necklace page carries its pause or replacement notice, so it is kept five minutes (plus five stale):
 # a notice reaches every reader within about ten minutes. The method pages follow /methodology.json (ten minutes).
 NECKLACE_CACHE = 'public, max-age=300, stale-while-revalidate=300'
@@ -216,7 +221,10 @@ class PublicHTTPContract:
                     else FEED_CACHE if feed_path(path)
                     else REGISTRY_CACHE if registry_path(path)
                     else 'public, max-age=30, stale-while-revalidate=30')
-                if headers['cache-control']==GROWTH_CACHE:
+                if headers['cache-control']==GROWTH_CACHE and 'noindex' in headers.get('x-robots-tag','').lower():
+                    headers['cache-control']=GROWTH_NOINDEX_BROWSER_CACHE
+                    headers[GROWTH_EDGE_HEADER]=EDGE_DOCUMENT_CACHE
+                elif headers['cache-control']==GROWTH_CACHE:
                     headers['cache-control']=GROWTH_BROWSER_CACHE
                     headers[GROWTH_EDGE_HEADER]=GROWTH_CACHE
                 elif headers['cache-control']==FEED_CACHE and path in PAGE_STATUS_READS:
