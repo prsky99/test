@@ -2,7 +2,8 @@
 
 user_slo 18:04 measured all three pages EXPIRED (1.06-2.25 s): a copy left alone for more than max-age + swr
 (15 min) sent the visitor to the origin. With swr 86400 the edge answers UPDATING at once within a day. What must
-still hold: no s-maxage (Cloudflare then serves nothing stale), personal and sign-in answers stay no-store, a
+still hold: no s-maxage (Cloudflare then serves nothing stale), personal answers stay no-store (the sign-in page
+itself is cookie-free and kept 300 s since 46aa1389), a
 response that sets a cookie is never shared, and old HTML can still load its old assets (tests in
 test_earlier_asset_urls.py: earlier bundle digests and panels.js digests kept on disk).
 """
@@ -26,7 +27,11 @@ def test_sign_in_and_account_answers_stay_private(client):  # noqa: F811
         # 11-14 PM: the old sign-in address is one fixed, cookie-free move (308) a cache may keep for a day
         r = site.get('/new/en/sign-in.html', follow_redirects=False)
         assert r.status_code == 308 and r.headers['cache-control'] == 'public, max-age=86400' and 'set-cookie' not in r.headers
-        assert site.get('/customer/sign-in').headers['cache-control'] == 'no-store'
+        # PM 11-16 04:3x (46aa1389): the sign-in page carries nothing personal and is kept a short while; it sets no
+        # cookie (the sign-in flow cookie comes from the POST its button sends)
+        from agent_market.customer_sign_in_cache import BROWSER_CACHE
+        r = site.get('/customer/sign-in')
+        assert r.headers['cache-control'] == BROWSER_CACHE and 'set-cookie' not in r.headers
 
 
 def test_a_cookie_answer_is_never_given_the_shared_policy(page_client):  # noqa: F811
