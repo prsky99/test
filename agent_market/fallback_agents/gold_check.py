@@ -46,7 +46,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "package-releases": "package-risk-audit",  # workflow 11-15 (meta seat of package-risk-audit v2)
         "software-incident": "cve-incident-brief",  # cve v2 fix seat; needs truth.fixes (first patched versions)
         "github-releases": "package-risk-audit",    # split holdout-v2-activity (gold_repos.py, workflow 9da8aa94)
-        "gdelt-news": "topic-evidence-brief"}       # news seat (workflow 36fe030f): judged on the answer itself
+        "gdelt-news": "topic-evidence-brief",       # news seat (workflow 36fe030f): judged on the answer itself
+        "mcp-registry": "mcp-server-trust-check"}   # registry seat (agent team 11-16, scripts/gold_mcp_registry.py)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -63,6 +64,18 @@ def judge(agent_id: str, case: dict, result: dict | None, error: str | None = No
             # a company with no article of its own (holdout-r5-wiki, workflow 11-16): not_found is the right answer
             return {"pass": error == "not_found", "expected_absence": True, "got": error, "want": "not_found"}
         return {"pass": False}
+    if agent_id == "mcp-registry":
+        # agent team 11-16: listed false is the right answer for a made-up name; a listed server must carry the same
+        # registry name and the frozen latest version, or a version published after it (the set is frozen before
+        # the gate; a server may publish in between)
+        if truth.get("listed") is False:
+            return {"pass": result.get("listed") is False, "expected_absence": True,
+                    "got": result.get("listed"), "want": False}
+        same = str(result.get("name") or "") == str(truth.get("name") or "")
+        newer = str(result.get("published_at") or "") > str(truth.get("published_at") or "~")
+        ok = result.get("listed") is True and same and (result.get("version") == truth.get("version") or newer)
+        return {"pass": bool(ok), "got": [result.get("name"), result.get("version"), result.get("published_at")],
+                "want": [truth.get("name"), truth.get("version"), truth.get("published_at")]}
     if agent_id == "cve-org":
         # PM 11-14: the value must equal the value of the source it names (CNA or ADP in the CVE record).
         want = truth.get("cvss_record")

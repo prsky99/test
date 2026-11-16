@@ -2514,3 +2514,17 @@ def test_cve_checks_apply_to_the_cve_contracts_only():
     with pytest.raises(FallbackUnavailable):
         contract_check("cve.exploited.v1", {"cve_id": "CVE-2021-1"}, {"cve_id": "CVE-2021-9"})
     contract_check("encyclopedia.summary.v1", {"title": "x"}, {"title": "y", "cvss_score": 1})   # not a CVE contract
+
+def test_gold_judge_for_mcp_registry():
+    """agent team 11-16: listed false for a made-up name; a listed server needs the same name and the frozen version
+    or a later publish."""
+    from agent_market.fallback_agents.gold_check import judge
+    absent = {"truth": {"listed": False}}
+    assert judge("mcp-registry", absent, {"listed": False, "source": "x"})["pass"]
+    assert not judge("mcp-registry", absent, {"listed": True, "name": "a/b", "source": "x"})["pass"]
+    case = {"truth": {"listed": True, "name": "io.github.a/b", "version": "1.2.0", "published_at": "2026-11-01T00:00:00Z"}}
+    hit = {"listed": True, "name": "io.github.a/b", "version": "1.2.0", "published_at": "2026-11-01T00:00:00Z", "source": "x"}
+    assert judge("mcp-registry", case, hit)["pass"]
+    assert judge("mcp-registry", case, {**hit, "version": "1.3.0", "published_at": "2026-11-17T00:00:00Z"})["pass"]
+    assert not judge("mcp-registry", case, {**hit, "version": "1.1.0", "published_at": "2026-10-01T00:00:00Z"})["pass"]
+    assert not judge("mcp-registry", case, {**hit, "name": "io.github.a/other"})["pass"]
