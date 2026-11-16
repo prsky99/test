@@ -423,10 +423,10 @@
       "basis": "no operator name or terms (/terms, /tos, /privacy answer 404; code MIT only); academic_search is a paid x402 tool (0.02 USDC a call or a 30-day pass), two free MCP calls a day for trial (paid path)"
     },
     "164489": {
-      "status": "silent",
+      "status": "prohibits",
       "source": "https://abstractinator.me/privacy.html",
       "checked_at": "2026-11-16",
-      "basis": "no terms page (privacy policy and README only, code MIT); MCP needs no login; abstracts stay the copyright of their authors and publishers"
+      "basis": "re-checked with the stricter silent rule (PM 11-16): the site links licence statements (code MIT, registry data CC BY 4.0 in the README) but no terms for reusing the service's answers, and says abstracts remain the copyright of their authors and publishers (ambiguous, so not silent)"
     },
     "57993": {
       "status": "prohibits",
@@ -469,6 +469,60 @@
       "source": "https://pubroot.com/agents.txt",
       "checked_at": "2026-11-16",
       "basis": "no terms page (/terms 404) and no content licence; built for agents, reads need no auth; 60 an hour (unauthenticated GitHub API)"
+    },
+    "36306": {
+      "status": "prohibits",
+      "source": "https://allratestoday.com/terms/",
+      "checked_at": "2026-11-16",
+      "basis": "Terms: keyless free endpoints may not run a commercial service without a paid plan; API data may not be resold or redistributed without permission"
+    },
+    "48762": {
+      "status": "allowed",
+      "source": "https://frankfurter.dev/license/",
+      "checked_at": "2026-11-16",
+      "basis": "licence page: blended rates computed by Frankfurter are free to use, no key; a single provider's rates follow that provider's terms; data as is"
+    },
+    "59569": {
+      "status": "allowed",
+      "source": "https://sbor.xyz/terms.html",
+      "checked_at": "2026-11-16",
+      "basis": "Terms: CC BY 4.0, free to use including commercially, keyless, attribute SBOR and sbor.xyz; note: the data is a BTC-backed dollar lending-rate index, not exchange rates (wrong role for fx.rate)"
+    },
+    "58558": {
+      "status": "prohibits",
+      "source": "https://vedarai.ru/legal/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms forbid bots and parsers without the operator's permission and redistribution without written permission; upstream Open-Meteo free tier is non-commercial only"
+    },
+    "273045": {
+      "status": "prohibits",
+      "source": "https://getinvoicesnap.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms cover receipt and expense bookkeeping use only; automated reuse of results and redistribution not addressed (ambiguous)"
+    },
+    "175945": {
+      "status": "prohibits",
+      "source": "https://xn--5kvtwv52d.com/",
+      "checked_at": "2026-11-16",
+      "basis": "no readable terms: /terms returns the JavaScript home shell, and the gateway has a sign-up console (an account is likely needed); upstream FX source not stated (unreadable, so not silent)"
+    },
+    "268473": {
+      "status": "silent",
+      "source": "https://reliness.co.uk/",
+      "checked_at": "2026-11-16",
+      "basis": "static home page links only Privacy and Complaints; /terms 404; no news-search terms anywhere"
+    },
+    "225022": {
+      "status": "silent",
+      "source": "https://foster-mcp.esakiz.workers.dev/",
+      "checked_at": "2026-11-16",
+      "basis": "no operator page or terms (esakiz.workers.dev does not resolve); keyless REST and MCP; rates from the Central Bank of the Republic of Turkey daily bulletin, stated as indicative"
+    },
+    "59463": {
+      "status": "prohibits",
+      "source": "https://latlng.work/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms require an API key for the Service and forbid harvesting for competing datasets; commercial reuse not addressed; data OpenStreetMap (ODbL)"
     }
   },
   "changes": [
@@ -1159,6 +1213,86 @@
       "from": "unknown",
       "to": "silent",
       "source": "https://pubroot.com/agents.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "164489",
+      "from": "silent",
+      "to": "prohibits",
+      "source": "https://abstractinator.me/privacy.html",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "36306",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://allratestoday.com/terms/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "48762",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://frankfurter.dev/license/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "59569",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://sbor.xyz/terms.html",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "58558",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://vedarai.ru/legal/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "273045",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://getinvoicesnap.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "175945",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://xn--5kvtwv52d.com/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "268473",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://reliness.co.uk/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "225022",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://foster-mcp.esakiz.workers.dev/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "59463",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://latlng.work/terms",
       "at": "2026-11-16",
       "by": "agent team"
     }
