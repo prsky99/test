@@ -346,6 +346,33 @@ def is_payment_error(text: str | None) -> bool:
     return bool(text and _PAYMENT.search(text))
 
 
+# PM 11-17 02:4x: a "payment storefront" agent answers the task with only a paid address, a price and x402 terms. Its
+# trial is not a task result (it never did the task without payment): recorded as payment_required, so the grade stays
+# under B ("paid call not tested") and it is no pearl candidate. Judged by content: a reply that gives a result and adds
+# a paid upgrade keeps its place (KEEP). Hand-checked on production replies 11-17: 60 sampled of 156, see
+# reports/payment-storefront-a2a-2026-11-17.
+_SF_PAY = re.compile(r"\bx402\b|payment[- ]required|\bHTTP 402\b", re.I)
+_SF_SALE = re.compile(r"(?:\$\s?\d+(?:\.\d+)?|\b\d+(?:\.\d+)?\s?(?:USDC|USDT|USD1|USD)\b)|"
+                      r"\bper[- ](?:call|request|query|answer|check|clip)\b|payment-required", re.I)
+_SF_KEEP = re.compile(r"\bfree (?:preview|previews|reply|answer|result|results)\b|\bfree to read\b|"
+                      r"\bfree \(this (?:reply|answer)\)|\bfound \d+|\bpage \d+ of \d+|\bresults? \d+|\btrust score\b|"
+                      r"\bpreview:|\bfree cached verdict\b", re.I)
+
+
+def payment_storefront(text: str | None) -> bool:
+    """True when a reply sells instead of answering: payment terms and a price, and no sign of a result."""
+    text = str(text or "")
+    return bool(_SF_PAY.search(text) and _SF_SALE.search(text) and not _SF_KEEP.search(text))
+
+
+def storefront_trial(trial: dict | None) -> dict | None:
+    """A passing trial whose reply is a payment storefront becomes a payment-required one (stored ones too)."""
+    if isinstance(trial, dict) and trial.get("ok") and payment_storefront(trial.get("sample_output")):
+        return {**trial, "ok": False, "payment_required": True, "storefront": True,
+                "error": "The agent returned payment terms instead of a task result."}
+    return trial
+
+
 def _parse(resp: httpx.Response) -> dict | None:
     text = resp.text[:MAX_CARD]
     if "text/event-stream" in resp.headers.get("content-type", ""):
@@ -664,6 +691,9 @@ class AgentProber:
                     out.update(ok=False, key_required=True, error="The agent answered that an API key is required.")
                 elif summary["state"] == "auth-required" or asks_for_auth(summary["text"]):   # PM 11-17 02:2x
                     out.update(ok=False, key_required=True, error="The agent answered that authorization is required.")
+                elif out["ok"] and payment_storefront(summary["text"]):   # PM 11-17 02:4x
+                    out.update(ok=False, payment_required=True, storefront=True,
+                               error="The agent returned payment terms instead of a task result.")
                 elif not out["ok"]:
                     out["error"] = "The agent returned no usable task result." if summary["state"] == "completed" else f"Task is not completed: {summary['state'] or 'no response'}."
                     if summary["state"] == "payment-required" or is_payment_error(summary["text"]):
@@ -760,7 +790,7 @@ class AgentProber:
         self.store.record_auth(r["id"], s["auth"])
         self.store.set_auth_observed(r["id"], s["auth_required"])
         trial = s["trial"]
-        last_trial = trial or json.loads(r.get("trial_info") or "null")
+        last_trial = storefront_trial(trial or json.loads(r.get("trial_info") or "null"))
         guide = build_guide(card, {"method": s["auth"]["method"], "autonomy": s["auth"]["autonomy"],
                                    "instructions": s["auth"]["info"].get("instructions")}, last_trial, changes, s["live"])
         guide["updated_at"] = time.time()

@@ -926,7 +926,10 @@ def apply_quality_policy(resource: dict, ev: dict, health: tuple[int, int] | Non
         findings.append({"severity": "low", "code": "unstable_week" if functional else "unverified_function", "tool": None,
                          "message": (f"7-day success {ok}/{n} is below {VERIFIED_UPTIME:.0%}" if functional
                                      else "Only an unpaid 402 challenge was checked; grade is capped at B"
-                                     if kind == "x402" else "No passing functional test yet; grade is capped at B")})
+                                     if kind == "x402" else
+                                     # PM 11-17 02:4x: a payment storefront's reply is terms, not a result
+                                     "Only payment terms were returned; the paid call is not tested; grade is capped at B"
+                                     if (trial or {}).get("storefront") else "No passing functional test yet; grade is capped at B")})
     elif level == "limited":
         findings.append({"severity": "low", "code": "insufficient_monitoring", "tool": None,
                          "message": f"Only {n} health check(s) in {POLICY_WINDOW_DAYS} days; grade is capped at B"})
