@@ -33,7 +33,7 @@ def test_each_step_says_pearl_or_under_verification(snapshot):  # noqa: F811
     assert ns.offered(entry, NOW)                                         # a pearl and a provisional member: offered
     status, page = ns.page(entry['slug'], snapshot=snap, now=NOW)
     assert status == 200 and 'Verified pearl</span>' in page and 'Under verification</span>' in page
-    assert ns.PROVISIONAL_NOTE in page.replace('&#x27;', "'")
+    assert ns.provisional_note(snap) in page.replace('&#x27;', "'")
     status, page = ns.page('trip-brief', snapshot=snapshot, now=NOW)                 # both pearls: no note
     assert 'Under verification' not in page and 'necklace-provisional-note' not in page
     # an unknown value never reads as a pearl
@@ -57,3 +57,44 @@ def test_agentvalcon_lead_has_no_catalog_card(snapshot):  # noqa: F811
     status, page = ns.page(entry['slug'], snapshot=snap, now=NOW)
     assert status == 200 and 'location · AgentValCon agent' in page and '/agent/None' not in page
     assert '/agent/own-geocode' not in page
+
+
+
+RULES = {'verified_pearl': {'min_score': 85, 'successes_on_different_days': 2},
+         'provisional': {'min_score': 70, 'within_days': 7, 'reports': 1}}
+
+
+def test_the_provisional_note_states_the_bars_and_our_own_agent_is_named_apart(snapshot):  # noqa: F811
+    """PM 11-16 (workflow 17:3x): the outside provisional members scored 79.9-84.7, below the verified bar, so the note
+    may not say they 'passed and await a second day'; our own fallback leading a step is said to be ours."""
+    assert ns.provisional_note({'member_rules': RULES}) == (
+        'Under verification: the agent answered our test for this step within the last 7 days with a score of at least '
+        '70, below the verified-pearl bar (85 or more on 2 different days). When a verified pearl is available for the '
+        'step, it takes the place.')
+    assert ns.provisional_note({'member_rules': {}}) == ns.PROVISIONAL_NOTE and 'second check' not in ns.PROVISIONAL_NOTE
+    entry = dict(snapshot['necklaces'][0])
+    own = {**entry['pearls'][1], 'standing': 'provisional', 'kind': 'agentcon', 'resource_id': None}
+    entry['pearls'] = [dict(entry['pearls'][0]), own]
+    snap = {**snapshot, 'member_rules': RULES, 'necklaces': [entry] + snapshot['necklaces'][1:]}
+    status, page = ns.page(entry['slug'], snapshot=snap, now=NOW)
+    text = page.replace('&#x27;', "'")
+    assert status == 200 and ns.OWN_PROVISIONAL_NOTE in text and 'necklace-provisional-note' not in page
+
+
+def test_the_sources_sentence_follows_the_summary_where_one_is_kept(snapshot, monkeypatch):  # noqa: F811
+    entry = dict(snapshot['necklaces'][0])
+    monkeypatch.setitem(ns._SOURCES, 'value', {entry['slug']: 'What each step uses: Wikipedia only.'})
+    monkeypatch.setattr(ns, 'sources_note', lambda e: ns._SOURCES['value'].get((e or {}).get('slug')))
+    assert ns.shown_summary(entry) == (entry.get('summary') or '') + ' What each step uses: Wikipedia only.'
+    status, page = ns.page(entry['slug'], snapshot=snapshot, now=NOW)
+    assert 'What each step uses: Wikipedia only.' in page
+    assert 'What each step uses: Wikipedia only.' in ns.llms_section(snapshot=snapshot, now=NOW)
+    assert ns.public_item(entry, now=NOW)['sources'] == 'What each step uses: Wikipedia only.'
+    other = {**entry, 'slug': 'no-note'}
+    assert ns.shown_summary(other) == (entry.get('summary') or '') and 'sources' not in ns.public_item(other, now=NOW)
+
+
+def test_the_topic_sentence_names_wikipedia_and_two_paper_indexes():
+    note = ns.sources_note({'slug': 'topic-evidence-brief'})
+    assert note and 'English Wikipedia' in note and 'not a web search' in note and 'both come from Wikipedia' in note
+    assert 'OpenAlex' in note and 'Europe PMC' in note

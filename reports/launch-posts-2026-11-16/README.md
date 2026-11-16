@@ -166,7 +166,8 @@ Feedback on what failed is the most useful thing for me.
 | 자리 | 나가는 문구(영어 원문) | 근거 |
 |---|---|---|
 | 홈·Workflows 카드 | "Why a necklace: an agent that finds several agents, calls each one and merges their answers spends tokens and time on every step, and under a time limit it can settle on a wrong answer. A necklace does those steps in one call: agents we tested, in a fixed order, with fallbacks, returning one answer." + 목걸이 링크 + 주문 링크 | necklace_surface.WHY, why_card |
-| 목걸이 페이지 단계별 표시 | 검증 진주는 "Verified pearl", 임시 멤버(web 자리 등)는 "Under verification" + "Under verification: the agent passed our tests for this step but has not yet passed its second check on a different day. When a verified pearl is available for the step, it takes the place." | member_status, PROVISIONAL_NOTE (임시 멤버를 화면에 밝힘) |
+| 목걸이 페이지 단계별 표시 | 검증 진주는 "Verified pearl", 임시 멤버는 "Under verification". 외부 임시 멤버 설명: "Under verification: the agent answered our test for this step within the last 7 days with a score of at least 70, below the verified-pearl bar (85 or more on 2 different days). …" (숫자는 판정 스냅샷 member_rules). 자체 대체(web 자리의 wiki-grounding): "AgentValCon agent, under verification: our own agent for this step, which passed our substitute check; …" | provisional_note, OWN_PROVISIONAL_NOTE (PM 11-16: 외부 임시 멤버 34550·34807·32841은 역할 시험 79.9~84.7점이라 "통과 뒤 둘째 날 대기"가 아님) |
+| 원천 문장(요약 뒤) | "What each step uses (as of 2026-11-17): the web step answers from English Wikipedia, quoting the lead sentences of the best-matching articles with links (not a web search); the background step summarises the one Wikipedia article on the topic, so both come from Wikipedia; papers come from two indexes (OpenAlex or Crossref, and Europe PMC with Crossref); news is optional." | necklace_sources.json → 페이지·llms·MCP 도구·A2A skill·/api/necklaces. 정의의 summary("a grounded web answer … an encyclopedia summary")는 판정 지문이라 내일 전에 못 바꿔 화면에서 바로잡음 |
 | 측정 줄 | "Measured in our test runs on N cases (first – last date): one call, a median of S s per case, A% correct, about T tokens (text length ÷ 4). From the same runs' records (not a separate run), an agent calling the same 4 agents itself would make C calls and handle about U tokens (text length ÷ 4), taking about X s if it sent each step's calls at the same time. Finding the tools and merging the answers are not counted." | comparison_line(PM 11-16 표시 규칙: "Measured"는 목걸이 쪽 잰 값만, 직접 호출 쪽은 같은 실행 기록에서 계산했다고 밝힘, 직접 호출 쪽 정확도·찾기·합치기 추정치는 내지 않음). **지금 topic 측정 없음 → 줄이 나가지 않음** |
 | 무료 | "Free to run for now. If that changes, we will say so on this page first." | FREE_NOW |
 | 추천 답 첫 줄(Chat·find_agents·A2A) | "Free to run now: Topic evidence brief (a necklace of tested agents): call tool `necklace_topic_evidence_brief` with {"topic":"<주제>"}. https://agentconcierge.biz/necklaces/topic-evidence-brief" | necklace_lead, 호출부 refs/heads/growth/necklace-lead-callsite(c0dc9f45, r11) |
@@ -176,25 +177,26 @@ Feedback on what failed is the most useful thing for me.
 
 ### 5.2 공통 사실 (1절의 `{…}` 자리, topic용)
 - `{NECKLACE}` Topic evidence brief / `{SLUG}` topic-evidence-brief / `{TOOL}` necklace_topic_evidence_brief / `{SKILL}` necklace-topic-evidence-brief
-- One line: "A cited brief on one topic: a grounded web answer, the most relevant papers from more than one index, an encyclopedia summary and recent news."
-- `{STEPS}`: 4 steps (web grounding, paper search, encyclopedia summary required; news optional). 단계별 멤버와 Verified/Under verification 표시는 공개 시점 페이지를 그대로 옮긴다(판정이 정함, 지금 적지 않음).
+- One line(게시 글용, 원천에 맞춤): "A cited brief on one topic from Wikipedia and paper indexes: an answer quoting the best-matching Wikipedia articles, a summary of the topic's own Wikipedia article, papers from two indexes (OpenAlex or Crossref, and Europe PMC with Crossref) and, when available, recent news." (화면 요약은 판정 정의 그대로이고 원천 문장이 뒤에 붙음)
+- `{STEPS}`: 4 steps (an answer from Wikipedia, paper search in two indexes, a Wikipedia summary of the topic required; news optional). web·background 두 자리는 원천이 같은 위키백과다(다른 출처라고 쓰지 않음). 단계별 멤버와 Verified/Under verification 표시는 공개 시점 페이지를 그대로 옮긴다(판정이 정함, 지금 적지 않음).
 - `{INPUT}`: `{"topic": "retrieval augmented generation"}` (게시 당일 실제로 돌린 입력으로 바꾼다)
 - `{ANSWER}`: [측정 뒤 기입: 게시 당일 실제 호출 결과 첫 줄들과 단계 목록, 손대지 않은 그대로]
 - 시간: [측정 뒤 기입: 게시 당일 그 호출이 실제 걸린 시간]
 - 토큰·호출 수·정확도: [측정 뒤 기입: 목걸이 페이지 "Measured in our test runs …" 줄을 그대로. 정확도는 목걸이 쪽만 있음(직접 호출 쪽 정확도는 재지 않아 쓰지 않음). 토큰은 "(text length ÷ 4)"와 함께만. 없으면 1절의 MCP-Universe 인용만]
-- 한계: "Covers one topic per call; sources are public web, paper indexes, an encyclopedia and news. Some steps may be led by an agent under verification; the page shows which, step by step. Free for now."
+- 한계: "Covers one topic per call; sources are English Wikipedia (two steps), two paper indexes and news. Some steps may be led by an agent under verification; the page shows which, step by step. Free for now."
 
 ### 5.3 채널별 초안 (영어). 게시는 사용자 확인 뒤
 **Reddit r/mcp** (규칙 원문 확인 필요: 자기 홍보·플레어. AI 금지 조항이 있으면 사용자가 다시 씀)
 ```
-Title: Free MCP tool: one call for a cited brief on any topic (web + papers + encyclopedia + news)
+Title: Free MCP tool: one call for a cited brief on any topic (Wikipedia + papers from two indexes + news)
 
 I'm the maker. AgentValCon tests MCP servers and A2A agents with real read-only calls. When a few of them do
 a job better together than alone, we join them into a "necklace": one tool call instead of finding, calling
 and merging several servers yourself.
 
-The first one is Topic evidence brief: a grounded web answer, the most relevant papers from more than one
-index, an encyclopedia summary and recent news, in one answer.
+The first one is Topic evidence brief: an answer quoting the best-matching Wikipedia articles, a summary of
+the topic's own Wikipedia article, papers from two indexes (OpenAlex or Crossref, and Europe PMC with Crossref)
+and, when available, recent news, in one answer.
 No key: tool `necklace_topic_evidence_brief` on https://agentconcierge.biz/mcp
 Input: {"topic": "<topic>"}
 Answer (first lines, today's real run): [측정 뒤 기입]
@@ -210,8 +212,8 @@ What failed for you is the most useful feedback.
 
 **Reddit r/AI_Agents 주간 Project Display 스레드 댓글** (별도 글 아님)
 ```
-Topic evidence brief: one MCP/A2A call returns a cited brief on a topic (web answer, papers from more than
-one index, encyclopedia summary, recent news). Free, no key: https://agentconcierge.biz/necklaces/topic-evidence-brief
+Topic evidence brief: one MCP/A2A call returns a cited brief on a topic (answers and a summary from Wikipedia,
+papers from two indexes, recent news when available). Free, no key: https://agentconcierge.biz/necklaces/topic-evidence-brief
 Measured: [측정 뒤 기입]. Some steps are still under verification and say so on the page. Feedback welcome.
 ```
 
@@ -221,7 +223,7 @@ Measured: [측정 뒤 기입]. Some steps are still under verification and say s
 - 첫 댓글: r/mcp 초안 첫 두 단락을 사용자 말로 줄임. 업보트 요청·경품 없음.
 
 **Hacker News (Show HN)·dev.to**: AI가 쓴 글 금지라 초안을 주지 않는다. 사용자가 5.2 사실 목록으로 직접 쓴다.
-- Show HN 제목 예(사용자 판단): `Show HN: Topic evidence brief – web, papers and encyclopedia in one MCP call`
+- Show HN 제목 예(사용자 판단): `Show HN: Topic evidence brief – Wikipedia and papers from two indexes in one MCP call`
 
 ### 5.4 채널별 자기 홍보 규칙 요약 (0절에서 정리한 원문 기준)
 | 채널 | 규칙 | 할 일 |

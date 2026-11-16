@@ -1,0 +1,4 @@
+{
+  "_doc": "Plain words on what each step of a necklace actually uses, shown after its summary on the page, llms.txt, the MCP tool, the A2A skill and /api/necklaces (PM 11-16: the summary is part of the judged definition and cannot change before a new gate, so a summary that reads wider than the sources is corrected here). Facts from the workflow team for the version judged; update this line whenever the members of a step change. Keys are necklace slugs.",
+  "topic-evidence-brief": "What each step uses (as of 2026-11-17): the web step answers from English Wikipedia, quoting the lead sentences of the best-matching articles with links (not a web search); the background step summarises the one Wikipedia article on the topic, so both come from Wikipedia; papers come from two indexes (OpenAlex or Crossref, and Europe PMC with Crossref); news is optional."
+}

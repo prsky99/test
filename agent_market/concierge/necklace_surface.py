@@ -180,8 +180,10 @@ def agent_line(entry, base='https://agentconcierge.biz', snapshot=None):
 # Each step says which it is; a provisional member never reads as a pearl.
 MEMBER_LABELS = {'verified_pearl': 'Verified pearl', 'provisional': 'Under verification'}
 NOT_COUNTED = 'Not passing our member tests now'
-PROVISIONAL_NOTE = ('Under verification: the agent passed our tests for this step but has not yet passed its second '
-                    'check on a different day. When a verified pearl is available for the step, it takes the place.')
+PROVISIONAL_NOTE = ('Under verification: the agent answered our test for this step recently but has not yet reached the '
+                    'verified-pearl bar. When a verified pearl is available for the step, it takes the place.')
+OWN_PROVISIONAL_NOTE = ('AgentValCon agent, under verification: our own agent for this step, which passed our substitute '
+                        'check; it leads until a verified pearl is available.')
 
 
 # PM 11-16 06:5x: a required step with no usable outside member runs on our own agent alone; the page and the agent
@@ -211,6 +213,48 @@ def external_pending(pearl):
 
 def pending_roles(entry):
     return [str(p.get('role') or 'step') for p in entry.get('pearls') or [] if external_pending(p)]
+
+
+def provisional_note(snapshot=None):
+    """PM 11-16 (workflow 17:3x): an outside provisional member answered its role test within the window with a score
+    of at least the provisional bar, below the verified-pearl bar; it has not 'passed and awaits a second day'. The
+    numbers are the judge's (snapshot member_rules); without them the sentence carries none."""
+    rules = (snapshot or load()).get('member_rules')
+    rules = rules if isinstance(rules, dict) else {}
+    p = rules.get('provisional') if isinstance(rules.get('provisional'), dict) else {}
+    v = rules.get('verified_pearl') if isinstance(rules.get('verified_pearl'), dict) else {}
+    low, within = _rule_number(p.get('min_score')), _rule_number(p.get('within_days'))
+    high, days = _rule_number(v.get('min_score')), _rule_number(v.get('successes_on_different_days'))
+    if None in (low, within, high, days):
+        return PROVISIONAL_NOTE
+    return ('Under verification: the agent answered our test for this step within the last ' + format(within, 'g')
+            + ' days with a score of at least ' + format(low, 'g') + ', below the verified-pearl bar (' + format(high, 'g')
+            + ' or more on ' + format(days, 'g') + ' different days). When a verified pearl is available for the step, '
+            'it takes the place.')
+
+
+_SOURCES = {'key': None, 'value': {}}
+
+
+def sources_note(entry):
+    """The 'what each step uses' sentence for a necklace (necklace_sources.json), or None."""
+    path = Path(__file__).with_name('necklace_sources.json')
+    try:
+        key = path.stat().st_mtime_ns
+        if _SOURCES['key'] != key:
+            data = json.loads(path.read_text(encoding='utf-8'))
+            _SOURCES.update(key=key, value={k: v for k, v in data.items()
+                                            if not k.startswith('_') and isinstance(v, str) and v.strip()})
+    except (OSError, ValueError):
+        return None
+    return _SOURCES['value'].get((entry or {}).get('slug')) if isinstance(entry, dict) else None
+
+
+def shown_summary(entry):
+    """The judged summary followed by the sources sentence where one is kept."""
+    summary = (entry.get('summary') or '') if isinstance(entry, dict) else ''
+    note = sources_note(entry)
+    return (summary + ' ' + note).strip() if note else summary
 
 
 def member_status(pearl):
@@ -278,6 +322,7 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
     """The /api/necklaces entry: what a person or an agent needs to choose and run it; no internal fields."""
     quality, cost, completion = entry.get('quality') or {}, entry.get('cost') or {}, entry.get('completion') or {}
     item = {'slug': entry['slug'], 'name': entry.get('name'), 'summary': entry.get('summary'),
+            **({'sources': sources_note(entry)} if sources_note(entry) else {}),
             'status': entry.get('status'), 'offered': offered(entry, now),
             'url': base + '/necklaces/' + entry['slug'], 'mcp_tool': tool_name(entry['slug']),
             'a2a_skill': skill_id(entry['slug']), 'input_schema': entry.get('input_schema'),
@@ -786,7 +831,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
     esc = lambda value: html.escape(str(value), quote=True)
     item = public_item(entry, base, now)
     runs = offered(entry, now)
-    parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, entry.get('summary') or ''),
+    parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, shown_summary(entry)),
              '<p class="muted necklace-standing">' + esc(standing_line(entry, now)) + '</p>'
              + ('<p class="necklace-scope"><strong>Scope:</strong> ' + esc(scope_notice(entry)) + '</p>' if scope_notice(entry) else '')
              + ('<p class="muted necklace-fallback">' + esc(fallback_line(entry)) + '</p>' if fallback_line(entry) else '')
@@ -853,8 +898,10 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
                                + esc(MEMBER_LABELS.get(p['standing'], NOT_COUNTED)) + '</span>'
                                + (' · <span class="necklace-external-pending">' + esc(EXTERNAL_PENDING) + '</span>'
                                   if p.get('external_pending') else '') + '</li>' for p in item['pearls'])
-                     + '</ul>' + ('<p class="muted necklace-provisional-note">' + esc(PROVISIONAL_NOTE) + '</p>'
-                                  if any(p['standing'] == 'provisional' for p in item['pearls']) else '')
+                     + '</ul>' + ('<p class="muted necklace-provisional-note">' + esc(provisional_note(snapshot)) + '</p>'
+                                  if any(p['standing'] == 'provisional' and p.get('card') for p in item['pearls']) else '')
+                     + ('<p class="muted necklace-own-note">' + esc(OWN_PROVISIONAL_NOTE) + '</p>'
+                        if any(p['standing'] == 'provisional' and not p.get('card') for p in item['pearls']) else '')
                      + '</section>')
     if runs:
         example = example_input(entry)
@@ -865,12 +912,12 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
                      + ('; example arguments <code>' + esc(json.dumps(example, separators=(',', ':'))) + '</code>' if example else '')
                      + '.</p></section>')
     structured = {'@context': 'https://schema.org', '@type': 'SoftwareApplication', 'name': entry.get('name') or slug,
-                  'applicationCategory': 'AI agent workflow', 'description': entry.get('summary') or '',
+                  'applicationCategory': 'AI agent workflow', 'description': shown_summary(entry),
                   'url': base + '/necklaces/' + slug,
                   'isBasedOn': [p['card'] for p in item['pearls'] if p.get('card')],
                   'publisher': {'@type': 'Organization', 'name': 'AgentValCon', 'url': base + '/'}}
     return 200, shell(title=(entry.get('name') or slug) + ' — Necklace | AgentValCon',
-                      description=entry.get('summary') or '', canonical=base + '/necklaces/' + slug,
+                      description=shown_summary(entry), canonical=base + '/necklaces/' + slug,
                       body='<div class="pearl-page">' + ''.join(parts) + '</div>', structured=structured, index=runs)
 
 
@@ -896,7 +943,7 @@ def llms_section(base='https://agentconcierge.biz', snapshot=None, now=None):
     lines = ['\n## Necklaces you can run\n', WHY + '\n\n']
     for e in rows:
         q = e.get('quality') or {}
-        lines.append('- ' + (e.get('name') or e['slug']) + ': ' + (e.get('summary') or '')
+        lines.append('- ' + (e.get('name') or e['slug']) + ': ' + shown_summary(e)
                      + (' ' + single_line(q) if single_line(q) else '')
                      + ' MCP tool `' + tool_name(e['slug']) + '`, A2A skill `' + skill_id(e['slug']) + '`, page `'
                      + base + '/necklaces/' + e['slug'] + '`' + _input_note(e) + ('. Free to run for now' if free_now(e) else '')
@@ -946,7 +993,7 @@ def tools(snapshot=None, now=None):
         evidence = (' Verified 95%: ' + str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed.' if claim
                     else ' Recent tests: ' + str(window[0]) + '/' + str(window[1]) + ' passed.' if window else '')
         out.append({'name': tool_name(e['slug']), 'title': e.get('name') or e['slug'],
-                    'description': ('Necklace (a workflow of tested agents: ' + members_phrase(e) + '): ' + (e.get('summary') or '') + ' ' + WHY_SHORT + evidence
+                    'description': ('Necklace (a workflow of tested agents: ' + members_phrase(e) + '): ' + shown_summary(e) + ' ' + WHY_SHORT + evidence
                                     + (' ' + comparison_line(e) if comparison_line(e) else '')
                                     + (' ' + pending_sentence(e) if pending_sentence(e) else '')
                                     + (' Scope: ' + scope_notice(e) if scope_notice(e) else '')
@@ -980,7 +1027,7 @@ def details(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
     if not entry or not _time(entry.get('gate_passed_at')):
         return None
     item = public_item(entry, base, now)
-    lines = [item['name'] + ': ' + (item['summary'] or '')]
+    lines = [item['name'] + ': ' + (item['summary'] or '') + (' ' + item['sources'] if item.get('sources') else '')]
     if 'notice' in item:
         lines.append(item['notice']['text'])
     for p in item['pearls']:
@@ -1045,7 +1092,7 @@ def skills(base='https://agentconcierge.biz', snapshot=None, now=None):
         example = 'run necklace ' + e['slug'] + ' ' + json.dumps(example_arguments(e.get('input_schema'), example_input(e)),
                                                                    separators=(',', ':'))
         out.append({'id': skill_id(e['slug']), 'name': e.get('name') or e['slug'],
-                    'description': 'Necklace (a workflow of tested agents: ' + members_phrase(e) + '): ' + (e.get('summary') or '') + ' ' + WHY_SHORT
+                    'description': 'Necklace (a workflow of tested agents: ' + members_phrase(e) + '): ' + shown_summary(e) + ' ' + WHY_SHORT
                                    + (' ' + comparison_line(e) if comparison_line(e) else '')
                                    + (' ' + pending_sentence(e) if pending_sentence(e) else '')
                                    + (' ' + FREE_NOW.replace('on this page', 'on its page') if free_now(e) else '') + ' Send: ' + example
