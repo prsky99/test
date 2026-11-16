@@ -52,6 +52,20 @@ def parse_jsonrpc(resp: httpx.Response) -> dict | None:
     return data if isinstance(data, dict) else None
 
 
+
+def stamp_fingerprint(trial, tools):
+    """The server's fingerprint-v1 at the moment of the trial call (agent team 11-16, PM due 11-20): the verified
+    registry compares it with the latest fingerprint and marks a changed server 'recheck_pending'. Same value and
+    form as member_fingerprints' server_fp (hex, no prefix); left out when there is no trial or no tool list."""
+    if not isinstance(trial, dict) or not isinstance(tools, list):
+        return trial
+    try:
+        from agent_market.tool_fingerprint import VERSION, server_fp
+        trial.update(server_fp=server_fp(tools), fp_version=VERSION)
+    except Exception:
+        pass                        # a fingerprint we cannot compute is left out, never guessed
+    return trial
+
 class CapabilityProber:
     def __init__(self, store: Store, http: httpx.Client | None = None, allow_private: bool = False,
                  max_age: float = 86400, workers: int = 8, per_host_delay: float = 1.0,
@@ -90,7 +104,7 @@ class CapabilityProber:
                 tools = (listed.get("result") or {}).get("tools")
                 if isinstance(tools, list):
                     picked = trial_for(usage.compact_tools(tools)) if trial_for else None
-                    trial = self._trial(url, http, headers, *picked) if picked else None
+                    trial = stamp_fingerprint(self._trial(url, http, headers, *picked) if picked else None, tools)
                     return {"tools": tools, "protocol_version": pv or "2026-07-28", "server_info": disc_res.get("serverInfo"),
                             "instructions": disc_res.get("instructions"), "trial": trial}
         except Exception:
@@ -119,7 +133,7 @@ class CapabilityProber:
                 raise ValueError("tools/list failed")
             picked = trial_for(usage.compact_tools(tools)) if trial_for else None
             if picked:
-                trial = self._trial(url, http, headers, *picked)
+                trial = stamp_fingerprint(self._trial(url, http, headers, *picked), tools)
         finally:
             if sid:
                 try:
