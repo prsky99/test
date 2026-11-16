@@ -36,6 +36,7 @@ def test_expiring_sets_open_one_line_a_day_and_none_closes_it(tmp_path, monkeypa
 def test_holiday_truth_runs_in_the_app_python_retries_errors_and_stops_when_written(tmp_path, monkeypatch):
     """PM 11-15 / ops review: the daily Nager.Date round runs as a subprocess of the app's Python (the watch's own
     lacks the app's packages), outside :55-:10; the day is done only on a result, an error is tried 3 times a day."""
+    monkeypatch.setattr(ops_auto, 'HOLIDAY_STOPPED', '')   # the old path, kept for when another truth source is chosen
     import subprocess
     monkeypatch.setattr(ops_auto, "ACTIONS", tmp_path / "actions.md")
     outputs = []
@@ -68,3 +69,13 @@ def test_holiday_truth_runs_in_the_app_python_retries_errors_and_stops_when_writ
     (gold / "holidays-at-address").mkdir()
     (gold / "holidays-at-address" / "manifest.json").write_text("{}")
     assert ops_auto.holiday_truth(lambda: datetime(2026, 11, 18, 10, 20).timestamp(), run, state, log, gold) == "done"
+
+
+def test_holiday_truth_is_stopped_while_the_source_terms_rule_it_out(tmp_path):
+    """PM 11-16: Nager.Date asks commercial users for sponsorship; the watch no longer starts the holiday builder."""
+    called = []
+    assert ops_auto.HOLIDAY_STOPPED
+    at = lambda h, m: (lambda: datetime(2026, 11, 16, h, m).timestamp())   # noqa: E731
+    assert ops_auto.holiday_truth(at(11, 20), lambda: called.append(1), tmp_path / 's.json', tmp_path / 'l.jsonl',
+                                  tmp_path) == 'stopped'
+    assert called == []

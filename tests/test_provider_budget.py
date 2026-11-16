@@ -397,3 +397,15 @@ def test_mcp_registry_gate_share_on_1117_only():
     assert pb.share_limit('substitute_tests', 'modelcontextprotocol.io', day='20261117') == 30
     assert pb.share_limit('substitute_tests', 'modelcontextprotocol.io', day='20261118') == 5
     assert pb.domain('https://registry.modelcontextprotocol.io/v0/servers') == 'modelcontextprotocol.io'
+
+
+def test_nager_is_closed_by_the_ledger_and_its_terms_are_recorded(tmp_path):
+    """PM 11-16: Nager.Date asks commercial users for sponsorship, so the ledger refuses every call to it."""
+    from agent_market import provider_budget as pb
+    assert pb.domain_total('nager.at') == 0 and pb.domain_total('nagerholidays.com') == 0
+    assert pb.domain('https://date.nager.at/api/v3/PublicHolidays/2026/US') == 'nager.at'
+    ok, why = pb.reserve('https://date.nager.at/api/v3/PublicHolidays/2026/US', 'reference_checks', directory=tmp_path)
+    assert not ok and why == 'domain_daily_total'
+    assert pb.TRUTH_SOURCE_TERMS['nager.at']['status'] == 'prohibits'
+    for host in ('https://cutgpt.app/mcp', 'https://openkrill.app/mcp'):    # terms verdict 4835e5c3
+        assert not pb.reserve(host, 'gate', directory=tmp_path)[0]

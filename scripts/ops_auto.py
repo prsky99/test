@@ -293,6 +293,7 @@ HOLIDAY_LOG = ROOT / 'logs/ops/holiday-truth.jsonl'
 HOLIDAY_AFTER_HOUR = 10   # workflow 11-15 (PM): one Nager.Date round a day inside the reference_checks share
 HOLIDAY_TRIES = 3
 HOLIDAY_TIMEOUT_S = 180
+HOLIDAY_STOPPED = 'nager.at terms: commercial use needs active sponsorship (nagerholidays.com/legal/termsofservice, PM 11-16)'
 
 
 def holiday_truth(clock=time.time, run=None, state_path=None, log_path=None, gold=None):
@@ -302,6 +303,8 @@ def holiday_truth(clock=time.time, run=None, state_path=None, log_path=None, gol
     Every try leaves one line (countries kept, cases, stopped by the share, written, or the error). The day counts as
     done only on a result (stopped by the share included); an error is tried again next round, at most 3 a day; a
     skipped day is caught up the next day because kept countries stay on disk."""
+    if HOLIDAY_STOPPED:   # PM 11-16: the truth source's terms rule us out until another source is chosen
+        return 'stopped'
     local = datetime.fromtimestamp(clock())
     if local.hour < HOLIDAY_AFTER_HOUR or local.minute >= 55 or local.minute < 10:
         return None

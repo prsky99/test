@@ -83,10 +83,30 @@ SHARE_OVERRIDE = {('substitute_tests', d): 30 for d in ('gleif.org', 'sec.gov', 
 # $1 per 1,000 requests" (help.openalex.org/api/searching), so about 100 of our searches a day. The older "100,000 a
 # day" no longer appears there (checked 11-16). Half of that, as for every declared domain (PM 11-15 11:40 decision 5).
 DOMAIN_TOTAL = {'sec.gov': 600, 'arxiv.org': 600, 'met.no': 600, 'openalex.org': 50}
+# Domains no path of ours may call: their day total is 0 and the ledger refuses every reserve.
+CLOSED_DOMAINS = {
+    # PM 11-16 18:0x: Nager.Date (date.nager.at, now nagerholidays.com) asks commercial users for sponsorship
+    # (TRUTH_SOURCE_TERMS below).
+    'nager.at': 'terms: commercial use needs active sponsorship (nagerholidays.com/legal/termsofservice)',
+    'nagerholidays.com': 'terms: commercial use needs active sponsorship (nagerholidays.com/legal/termsofservice)',
+    # PM 11-16 18:1x: the agent team's terms verdict 4835e5c3 put 34550 and 34807 at prohibits.
+    'cutgpt.app': 'member 34550 prohibits (agent team terms verdict 4835e5c3, 11-16)',
+    'openkrill.app': 'member 34807 prohibits (agent team terms verdict 4835e5c3, 11-16)',
+}
 # Truth sources of our answer sets: terms and published limits, checked at the source (PM 11-16 07:5x, workflow
 # gold_company_r5 used Wikidata to mark which companies have an English Wikipedia article). No daily number is
 # published for these, so their day total stays DAILY_TOTAL.
 TRUTH_SOURCE_TERMS = {
+    'nager.at': {
+        'status': 'prohibits',
+        'license': 'code MIT (github.com/nager/Nager.Date); the hosted Web API has its own terms',
+        'terms': 'The Web API can be used for private or non-profit projects; commercial use requires active '
+                 'sponsorship; running a holiday portal of your own on its data is not allowed (terms of 2023-09-15)',
+        'terms_url': 'https://nagerholidays.com/legal/termsofservice',
+        'limits': 'no number published ("No Rate Limits" on https://nagerholidays.com/Api); date.nager.at redirects there',
+        'decision': 'PM 11-16: not used while we earn money; gold_holidays and the holiday role task are on hold',
+        'checked': '2026-11-16',
+    },
     'wikidata.org': {
         'license': 'CC0 (structured data: main, Property, Lexeme, EntitySchema namespaces)',
         'license_url': 'https://www.wikidata.org/wiki/Wikidata:Licensing',
@@ -153,6 +173,8 @@ def published_per_day(name, path=None):
 def domain_total(name, path=None, day=None, directory=None):
     """Our tests' day total on NAME. PM 17:24: on a declared domain it is 20% of the published limit (at most
     DECLARED_CAP); on a day whose plan holds gate calls there, it rises to those holds, never above the limit."""
+    if name in CLOSED_DOMAINS:
+        return 0
     if name in DOMAIN_TOTAL:
         return DOMAIN_TOTAL[name]
     per_day = published_per_day(name, path)
