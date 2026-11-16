@@ -133,6 +133,16 @@ SITE_TLS = {"name": "The website's own TLS certificate (read in the TLS handshak
             "license": "Public facts a server presents to every visitor; nothing is downloaded beyond the handshake",
             "notice": "Port 443 only, to a public address checked before connecting; the certificate the site serves now."}
 
+SUN_CALC = {"name": "NOAA solar position equations (computed on our server)", "url": "https://gml.noaa.gov/grad/solcalc/calcdetails.html",
+            "license": "U.S. Government work, public domain in the United States",
+            "notice": "Computed for a sea-level horizon with standard refraction; about a minute of accuracy between the "
+                      "polar circles; terrain and elevation are not modelled. Times in UTC."}
+
+SITE_GET = {"name": "The website's own home page (one HTTPS GET from our server)", "url": "https://www.rfc-editor.org/rfc/rfc9110",
+            "license": "Public facts a server presents to every visitor; the page body is not kept",
+            "notice": "One check now from one vantage point, not monitoring; every redirect hop is checked as a public "
+                      "HTTPS address before it is followed."}
+
 MCP_REGISTRY = {"name": "Official MCP Registry (Model Context Protocol)", "url": "https://registry.modelcontextprotocol.io/",
                 "license": "CC0 1.0 metadata; REST API for clients and aggregators (modelcontextprotocol.io/registry/about)",
                 "notice": "The registry is in preview: entries can change or be reset. Listing is not an endorsement."}
@@ -360,6 +370,20 @@ SPECS = {
                        "expiry date and days left; read-only, the handshake only.",
         "sources": [SITE_TLS],
         "rate": "one handshake a domain; cached 6 hours",
+    },
+    "sun-times": {
+        "name": "AgentValCon Sun Times", "tool": "get_sun_times", "contract": "sun.times.v1",
+        "description": "Sunrise, sunset and day length at a latitude and longitude on a date (UTC), or that the sun "
+                       "stays up or down all day near the poles; computed, no network calls.",
+        "sources": [SUN_CALC],
+        "rate": "no network calls",
+    },
+    "site-reachability": {
+        "name": "AgentValCon Site Reachability Check", "tool": "check_site_reachability", "contract": "site.reachability.v1",
+        "description": "Whether a public website answers right now: one HTTPS GET of its home page, the status code, "
+                       "the final address after redirects and whether it stays on HTTPS; read-only, the body is not kept.",
+        "sources": [SITE_GET],
+        "rate": "one GET a check (redirects followed one hop at a time); no cache",
     },
     "mcp-registry": {
         "name": "AgentValCon MCP Registry Lookup", "tool": "lookup_mcp_registry", "contract": "mcp.registry.lookup.v1",

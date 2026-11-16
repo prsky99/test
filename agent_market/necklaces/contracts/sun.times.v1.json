@@ -1,0 +1,93 @@
+{
+  "id": "sun.times.v1",
+  "role": "Sunrise, sunset and day length at a point on a date, computed from the coordinates (workflow 11-16 for weather-outdoor-brief; input keys are alternatives, a member uses the ones it accepts)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "latitude": {
+        "type": "number",
+        "minimum": -90,
+        "maximum": 90
+      },
+      "longitude": {
+        "type": "number",
+        "minimum": -180,
+        "maximum": 180
+      },
+      "location": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "date": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      },
+      "date": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "timezone": {
+        "type": "string",
+        "maxLength": 64
+      },
+      "sunrise": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "sunset": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "day_length_minutes": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 1440
+      },
+      "polar": {
+        "type": "string",
+        "enum": [
+          "none",
+          "always_up",
+          "always_down"
+        ]
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "times named: sunrise|sunset|\\d{1,2}:\\d{2}",
+    "a day when the sun never sets or never rises is a normal answer (polar always_up or always_down)",
+    "computed; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "latitude": 37.5665,
+      "longitude": 126.978,
+      "location": "37.5665,126.978",
+      "date": "2026-11-20"
+    }
+  ]
+}

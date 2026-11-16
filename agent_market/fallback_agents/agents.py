@@ -19,7 +19,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
@@ -67,7 +67,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
            "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400, "tls-certificate": 86400,
-           "sec-company-profile": 24 * 3600}  # rules age from the library release; update the pin at least yearly
+           "sec-company-profile": 24 * 3600, "sun-times": 10 * 365 * 86400, "site-reachability": 60}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -1554,6 +1554,67 @@ class FallbackAgents:
         if found["zone"]:
             return f", time zone {found['zone']}"
         return ", time zone near a boundary: " + " or ".join(found["candidates"][:4])
+
+    def _sun_times(self, args, remaining):
+        """sun.times.v1 (workflow 11-16, weather-outdoor-brief): computed by fallback_agents.sun, no outside call.
+        Coordinates come as latitude/longitude or a "lat,lon" location; a place name is not geocoded here."""
+        from .sun import sun_times
+        lat, lon = args.get("latitude"), args.get("longitude")
+        if (lat is None or lon is None) and args.get("location"):
+            m = re.fullmatch(r"\s*([-+]?\d{1,2}(?:\.\d+)?)\s*,\s*([-+]?\d{1,3}(?:\.\d+)?)\s*", str(args["location"]))
+            if m:
+                lat, lon = float(m.group(1)), float(m.group(2))
+        if lat is None or lon is None:
+            raise FallbackUnavailable("invalid_input", "Give latitude and longitude (a place name is not looked up here).")
+        try:
+            day = date.fromisoformat(args["date"]) if args.get("date") else self.utc_now().date()
+            out = sun_times(float(lat), float(lon), day)
+        except ValueError as exc:
+            raise FallbackUnavailable("invalid_input", "Use a valid date (YYYY-MM-DD) and coordinates.") from exc
+        state = out["state"]
+        polar = "none" if state == "normal" else state
+        hhmm = lambda t: f"{t[:10]} {t[11:16]} UTC" if t else None   # the UTC date too: Seoul rises the day before in UTC
+        if state == "normal":
+            answer = (f"On {day.isoformat()} at {float(lat):.4f},{float(lon):.4f}: sunrise {hhmm(out['sunrise'])}, "
+                      f"sunset {hhmm(out['sunset'])}, day length {out['day_length_minutes']} minutes.")
+        else:
+            answer = (f"On {day.isoformat()} at {float(lat):.4f},{float(lon):.4f} the sun "
+                      f"{'stays up all day (no sunset)' if state == 'always_up' else 'stays down all day (no sunrise)'}.")
+        result = {"answer": answer, "url": "https://gml.noaa.gov/grad/solcalc/calcdetails.html",
+                  "source": "Computed with the NOAA solar equations (public domain), UTC",
+                  "date": day.isoformat(), "timezone": "UTC", "day_length_minutes": out["day_length_minutes"],
+                  "polar": polar}
+        if state == "normal":
+            result.update(sunrise=out["sunrise"], sunset=out["sunset"])
+        return result, {"status": "computed", "age_seconds": 0}, False, {"NOAA solar equations": None}
+
+    def _site_reachability(self, args, remaining):
+        """site.reachability.v1 (workflow 11-16, website-trust-brief v2): one GET through fallback_agents.reach."""
+        from .net import site_host
+        from .reach import reach
+        raw = next((str(args[k]) for k in ("url", "domain") if args.get(k)), "")
+        domain = re.sub(r"^https?://", "", raw.strip().lower()).split("/")[0].split(":")[0].rstrip(".")
+        if not site_host(domain):
+            raise FallbackUnavailable("invalid_input", "Use a public domain name such as example.com.")
+        url = raw.strip() if raw.strip().startswith("https://") else f"https://{domain}/"
+        out = reach(url, limiters=self.limiters, http=self.http, seconds=max(0.5, remaining() - 0.2), clock=self.clock)
+        checked = _now_iso(self.utc_now())
+        if out["reachable"]:
+            answer = f"{domain} answered HTTP {out['status']} at {checked}"
+        elif out["status"]:
+            answer = f"{domain} answered HTTP {out['status']} at {checked} (not reachable as a working page)"
+        else:
+            answer = f"{domain} is unreachable at {checked}: {out['note'] or 'no answer'}"
+        if out["redirects"]:
+            answer += f", after {out['redirects']} redirect(s) to {out['final_url']}"
+        result = {"answer": answer + ".", "url": url, "source": "One HTTPS GET from AgentValCon's server",
+                  "domain": domain, "reachable": out["reachable"], "https": out["https"],
+                  "redirects": min(out["redirects"], 10), "elapsed_ms": out["elapsed_ms"], "checked_at": checked}
+        if out["status"]:
+            result["status"] = out["status"]
+        if out["final_url"].startswith("https://"):
+            result["final_url"] = out["final_url"]
+        return result, {"status": "live", "age_seconds": 0}, False, {"the website": checked}
 
     def _tls_certificate(self, args, remaining):
         """tls.certificate.v1 (workflow 11-15 website-trust-brief v2). crt.sh did not answer in 30 s, so the site's own

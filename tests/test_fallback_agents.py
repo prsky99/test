@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile", "sun-times", "site-reachability"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2528,3 +2528,30 @@ def test_gold_met_weather_builder_keeps_celsius_hours():
     assert saved == cases                                  # the saved addresses give the same set, one call a point
     assert cases[0]["input"] == {"city": "New York, NY", "latitude": 40.7128, "longitude": -74.006}
     assert cases[0]["truth"]["nws_hourly"][0]["temp_c"] == 5.0 and len(POINTS) >= 30
+
+def test_sun_times_agent_computes_without_a_network_call(tmp_path):
+    """sun.times.v1 (workflow 11-16): no outside call; a polar day is an answer with polar set, not an error."""
+    a, _ = agents(tmp_path, {})
+    out = a.execute("sun-times", {"latitude": 51.5074, "longitude": -0.1278, "date": "2024-06-21"})["result"]
+    assert out["polar"] == "none" and out["sunrise"] == "2024-06-21T03:43:00Z" and "sunrise 2024-06-21 03:43 UTC" in out["answer"]
+    seoul = a.execute("sun-times", {"latitude": 37.5665, "longitude": 126.978, "date": "2026-11-20"})["result"]
+    assert "sunrise 2026-11-19 22:17 UTC" in seoul["answer"]   # 07:17 KST on 20 November is the 19th in UTC
+    polar = a.execute("sun-times", {"location": "69.6492,18.9553", "date": "2024-12-21"})["result"]
+    assert polar["polar"] == "always_down" and "sunrise" not in polar and polar["day_length_minutes"] == 0
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("sun-times", {"location": "Seoul"})
+    assert err.value.code == "invalid_input"
+
+
+def test_site_reachability_agent_reports_status_and_final_address(tmp_path):
+    """site.reachability.v1 (workflow 11-16): one GET, redirects hop by hop, the domain echoed in the answer."""
+    a, _ = agents(tmp_path, {"https://python.org/": httpx.Response(301, headers={"location": "https://www.python.org/"}),
+                             "https://www.python.org/": httpx.Response(200, text="ok")})
+    out = a.execute("site-reachability", {"domain": "python.org"})["result"]
+    assert out["reachable"] is True and out["status"] == 200 and out["final_url"] == "https://www.python.org/"
+    assert out["redirects"] == 1 and "python.org answered HTTP 200" in out["answer"]
+    down, _ = agents(tmp_path, {"https://example.com/": httpx.Response(503)})
+    out = down.execute("site-reachability", {"url": "https://example.com/"})["result"]
+    assert out["reachable"] is False and out["status"] == 503
+    with pytest.raises(FallbackUnavailable):
+        a.execute("site-reachability", {"domain": "localhost"})
