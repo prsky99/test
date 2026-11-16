@@ -8,8 +8,10 @@ reports/necklace-terms-2026-11-15/README.md.
 """
 
 LICENSES = {
-    # 133018: YC Terms of Use forbid commercial display and redistribution without authorization; no data license found
-    'technology-news': None,
+    # 133018 switched from Hacker News (YC terms forbid commercial reuse) to GDELT on 11-16 (PM): titles, outlets, dates
+    # and links only, never article text
+    'technology-news': ('The GDELT Project: unlimited and unrestricted use, including commercial, provided the GDELT '
+                        'Project is cited with a link (https://www.gdeltproject.org/about.html#termsofuse)'),
     'research-papers': ('Bibliographic metadata: facts not subject to copyright; Crossref-generated data CC0 '
                         '(https://www.crossref.org/documentation/retrieve-metadata/)'),
     'country-profile': 'CC BY 4.0 (https://datacatalog.worldbank.org/public-licenses#cc-by)',
@@ -28,7 +30,4 @@ LICENSES = {
 
 # Agents taken down until their source can be replaced: the public endpoint answers tools/call with this notice and
 # calls no source. tools/list stays the same so the registered definition does not change.
-SUSPENDED = {
-    'technology-news': ('This agent is suspended: the terms of its data source (Hacker News) do not allow reuse here. '
-                        'No source was called.'),
-}
+SUSPENDED = {}   # 11-16: technology-news reads GDELT now (it was suspended for the Hacker News terms on 11-15)

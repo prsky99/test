@@ -118,6 +118,14 @@ def isolated_provider_budget(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(provider_budget, 'DIR', tmp_path_factory.mktemp('provider-budget'))
 
 
+@pytest.fixture(autouse=True)
+def isolated_news_bundle(monkeypatch, tmp_path_factory):
+    """The owned technology-news bundle (11-16, GDELT) is one shared file under gateway-data that the services read;
+    every engine a test makes stores its bundle in a temporary folder instead."""
+    from agent_market.owned_data_agents import tech_news
+    monkeypatch.setattr(tech_news, 'PATH', tmp_path_factory.mktemp('tech-news') / 'tech-news.json')
+
+
 # 11-15 11:01: a watch test ran ops_auto.watch() and wrote today's date into the real once-a-day state files under
 # logs/ops (the 11:05 watch skipped the revenue line and the vector-index hour). Every file the ops watch writes
 # (its board, logs and state) points into a temporary folder for every test that loaded these modules; inputs the

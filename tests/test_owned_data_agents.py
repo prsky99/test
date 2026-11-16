@@ -20,10 +20,15 @@ from agent_market.owned_data_agents.verification import isolated_world, wait
 
 def source(request):
     host = request.url.host
-    if host == 'hn.algolia.com':
-        query = request.url.params['query']
-        return httpx.Response(200, json={'hits': [{'objectID': '42', 'title': '<b>' + query + '</b>',
-            'url': 'https://sources.example/story', 'created_at': '2026-10-19T00:00:00Z'}]})
+    if host == 'api.gdeltproject.org':          # the hourly technology bundle (PM 11-16)
+        return httpx.Response(200, json={'articles': [
+            {'url': 'https://techcrunch.com/2026/10/19/ai', 'title': '<b>Artificial intelligence</b> agents ship',
+             'domain': 'techcrunch.com', 'seendate': '20261019T020000Z', 'language': 'English'},
+            {'url': 'https://arstechnica.com/2026/10/19/qc', 'title': 'Quantum computing milestone',
+             'domain': 'arstechnica.com', 'seendate': '20261019T010000Z', 'language': 'English'},
+            {'url': 'https://general-news.example/story', 'title': 'Artificial intelligence elsewhere',
+             'domain': 'general-news.example', 'seendate': '20261019T030000Z', 'language': 'English'}]},
+            headers={'Content-Type': 'application/json'})
     if host == 'api.crossref.org':
         query = request.url.params['query.bibliographic']
         return httpx.Response(200, json={'message': {'items': [{'DOI': '10.1234/source',
@@ -71,6 +76,8 @@ def engine():
     http = httpx.Client(transport=httpx.MockTransport(handle), trust_env=False)
     core = DataAgents(http=http, clock=lambda: state['time'],
                       utc_now=lambda: datetime(2026, 10, 20, tzinfo=timezone.utc))
+    from agent_market.owned_data_agents.tech_news import Store
+    core.news = Store(core._gdelt_bundle, clock=lambda: state['time'], utc_now=lambda: core.utc_now(), background=False)
     yield core, requests, state
     http.close()
 
@@ -114,20 +121,20 @@ def test_invalid_or_private_inputs_are_rejected_before_source_dispatch(engine, i
 
 def test_cache_age_is_truthful_stale_is_bounded_and_failures_do_not_hammer_source(engine):
     core, calls, state = engine
-    args = {'query': 'public research', 'limit': 2}
-    original = core.execute('technology-news', args)
+    args = {'query': 'public research', 'limit': 2}   # research-papers: ttl 300, max_stale 3600 (news is a bundle now)
+    original = core.execute('research-papers', args)
     state['time'] += 30
-    cached = core.execute('technology-news', args)
+    cached = core.execute('research-papers', args)
     assert cached['retrieved_at'] == original['retrieved_at'] and cached['cache'] == {'status': 'fresh_cache', 'age_seconds': 30}
-    state.update(fail=True, time=1061.0)
-    stale = core.execute('technology-news', args)
-    assert stale['retrieved_at'] == original['retrieved_at'] and stale['cache'] == {'status': 'stale_cache', 'age_seconds': 61}
+    state.update(fail=True, time=1301.0)
+    stale = core.execute('research-papers', args)
+    assert stale['retrieved_at'] == original['retrieved_at'] and stale['cache'] == {'status': 'stale_cache', 'age_seconds': 301}
     assert len(calls) == 2
-    core.execute('technology-news', args)
+    core.execute('research-papers', args)
     assert len(calls) == 2
-    state['time'] = 2000
+    state['time'] = 1000 + 3601
     with pytest.raises(DataUnavailable):
-        core.execute('technology-news', args)
+        core.execute('research-papers', args)
     assert len(calls) == 3
 
 
@@ -180,8 +187,8 @@ def test_parallel_identical_requests_share_one_source_fetch(engine):
 
 @pytest.mark.parametrize('response', [
     httpx.Response(302, headers={'Location': 'http://127.0.0.1/private'}),
-    httpx.Response(200, content=b'{"hits":[],"hits":[]}', headers={'Content-Type': 'application/json'}),
-    httpx.Response(200, content=b'{"hits":NaN}', headers={'Content-Type': 'application/json'}),
+    httpx.Response(200, content=b'{"message":{},"message":{}}', headers={'Content-Type': 'application/json'}),
+    httpx.Response(200, content=b'{"message":NaN}', headers={'Content-Type': 'application/json'}),
     httpx.Response(200, content=b'x' * 524289, headers={'Content-Type': 'application/json'}),
     httpx.Response(200, text='<html>private diagnostics</html>'),
     httpx.Response(429, json={'internal': 'must-not-leak'}),
@@ -194,7 +201,7 @@ def test_redirect_malformed_duplicate_nonfinite_large_and_rate_limited_sources_f
     with httpx.Client(transport=httpx.MockTransport(handle)) as http:
         core = DataAgents(http=http)
         with pytest.raises(DataUnavailable):
-            core.execute('technology-news', {'query': 'public research', 'limit': 1})
+            core.execute('research-papers', {'query': 'public research', 'limit': 1})
     assert len(calls) == 1
 
 
@@ -271,7 +278,7 @@ def test_all_three_existing_runtime_graphs_pass_actual_prior_outputs_and_inputs_
             run = wait(world.runtime, world.runtime.submit(world.store.get_workflow(workflow['id']), source='verification', public=True))
             assert run['status'] == 'succeeded', run
             assert run['node_results'][2]['input'][expected[0]] == expected[1]
-        assert len(calls) == 12
+        assert len(calls) == 11     # the second news query is answered from the same hourly bundle (PM 11-16)
 
 
 def test_osv_records_carry_their_database_and_noncommercial_sources_are_dropped():
@@ -284,3 +291,110 @@ def test_osv_records_carry_their_database_and_noncommercial_sources_are_dropped(
         ('GHSA-35jh-r3h4-6jhm', 'GitHub Advisory Database (CC BY 4.0)'), ('MAL-2024-1', 'OpenSSF Malicious Packages (Apache-2.0)')]
     assert data['excluded_matches'] == 1 and data['returned_matches'] == 2 and data['partial'] is True
     assert 'license allows reuse' in data['scope']
+
+
+def news_store(tmp_path, fetch, now=1_800_000_000.0):
+    from agent_market.owned_data_agents.tech_news import Store
+    state = {'now': now}
+    store = Store(fetch, tmp_path / 'bundle.json', clock=lambda: state['now'],
+                  utc_now=lambda: datetime(2026, 10, 20, tzinfo=timezone.utc), background=False)
+    return store, state
+
+
+def gdelt_page(*rows):
+    return {'articles': [{'url': u, 'title': t, 'domain': d, 'seendate': s, 'language': 'English'} for u, t, d, s in rows]}
+
+
+def test_technology_news_answers_from_the_hourly_bundle_without_calling_gdelt_per_request(tmp_path):
+    """PM 11-16: GDELT is read at most once an hour into a bundle (technology outlets only, titles and links); requests
+    filter the bundle locally and state when it was collected; no article page is ever requested."""
+    calls = []
+    def fetch():
+        calls.append(1)
+        return gdelt_page(('https://techcrunch.com/a', 'Quantum computing startup raises money', 'techcrunch.com', '20261019T120000Z'),
+                          ('https://www.theverge.com/b', 'New phone review', 'theverge.com', '20261019T110000Z'),
+                          ('https://general-news.example/c', 'Quantum computing in politics', 'general-news.example', '20261019T100000Z'))
+    store, state = news_store(tmp_path, fetch)
+    core = DataAgents(http=httpx.Client(transport=httpx.MockTransport(lambda r: pytest.fail('no request'))), news_store=store)
+    out = core.execute('technology-news', {'query': 'quantum computing', 'limit': 3})
+    assert out['data'] == {'query': 'quantum computing', 'partial': False, 'items': [
+        {'title': 'Quantum computing startup raises money', 'url': 'https://techcrunch.com/a',
+         'published_at': '2026-10-19T12:00:00Z', 'source': 'techcrunch.com'}]}           # the non-tech outlet is never kept
+    assert out['retrieved_at'] == '2026-10-20T00:00:00Z' and out['cache'] == {'status': 'live', 'age_seconds': 0}
+    for _ in range(20):                                            # repeated Test clicks: still one GDELT call
+        core.execute('technology-news', {'query': 'phone', 'limit': 2})
+    assert len(calls) == 1
+    other = core.execute('technology-news', {'query': 'nothing matches this', 'limit': 2})
+    assert other['data']['partial'] is True and 'latest technology news' in other['data']['note']
+    assert [r['url'] for r in other['data']['items']] == ['https://techcrunch.com/a', 'https://www.theverge.com/b']
+
+
+def test_technology_news_bundle_refresh_staleness_and_failure(tmp_path):
+    """Refresh after an hour; a failed refresh keeps the bundle up to 6 hours (stated as stale); past that, busy."""
+    pages = [gdelt_page(('https://wired.com/x', 'Chip news', 'wired.com', '20261019T000000Z'))]
+    def fetch():
+        if not pages:
+            raise RuntimeError('GDELT 429')
+        return pages.pop(0)
+    store, state = news_store(tmp_path, fetch)
+    store.refresh_soon()
+    core = DataAgents(news_store=store)
+    state['now'] += 3700                                           # older than an hour: a refresh is tried and fails
+    out = core.execute('technology-news', {'query': 'chip', 'limit': 1})
+    assert out['cache'] == {'status': 'stale_cache', 'age_seconds': 3700} and out['data']['items'][0]['url'] == 'https://wired.com/x'
+    state['now'] += 21600 - 3700 + 1                               # past 6 hours
+    with pytest.raises(DataUnavailable, match='busy'):
+        core.execute('technology-news', {'query': 'chip', 'limit': 1})
+
+
+def test_gdelt_bundle_request_is_one_call_counted_in_the_ledger(monkeypatch):
+    """The background refresh is one GDELT call (technology outlets, newest 250, titles only) reserved in the shared
+    ledger; plain-text refusals from GDELT are failures, never data."""
+    from agent_market import provider_budget
+    from agent_market.owned_data_agents.tech_news import TECH_OUTLETS, URL
+    reserved, seen = [], []
+    monkeypatch.setattr(provider_budget, 'live_reserve', lambda url, *a, **k: reserved.append(url) or (True, 'ok'))
+    def handle(request):
+        seen.append(request)
+        return httpx.Response(200, json=gdelt_page(('https://zdnet.com/z', 'Cloud outage', 'zdnet.com', '20261019T000000Z')))
+    core = DataAgents(http=httpx.Client(transport=httpx.MockTransport(handle)))
+    raw = core._gdelt_bundle()
+    assert len(seen) == 1 and str(seen[0].url).startswith(URL) and reserved == [URL]
+    query = seen[0].url.params['query']
+    assert all('domainis:' + d in query for d in TECH_OUTLETS) and seen[0].url.params['maxrecords'] == '250'
+    assert raw['articles'][0]['domain'] == 'zdnet.com'
+    refused = DataAgents(http=httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, text='Please limit requests'))))
+    with pytest.raises(DataUnavailable):
+        refused._gdelt_bundle()
+
+
+def test_a_gdelt_429_pauses_the_domain_for_the_day_and_later_refreshes_do_not_call(monkeypatch):
+    from agent_market.owned_data_agents.source_limits import SourceBusy
+    """GDELT's own 429 pauses gdeltproject.org in the shared ledger (provider evidence), so no refresh calls it again
+    that day; the request answers busy instead of waiting."""
+    seen = []
+    def handle(request):
+        seen.append(request)
+        return httpx.Response(429, text='Please limit requests to one every 5 seconds')
+    core = DataAgents(http=httpx.Client(transport=httpx.MockTransport(handle)))
+    with pytest.raises(DataUnavailable):
+        core._gdelt_bundle()
+    with pytest.raises(SourceBusy):
+        core._gdelt_bundle()
+    assert len(seen) == 1
+
+
+def test_ttl_and_terms_for_gdelt_news():
+    from agent_market.owned_data_agents.source_terms import LICENSES, SUSPENDED
+    from agent_market.owned_data_agents.tech_news import MAX_STALE, TTL
+    assert (TTL, MAX_STALE) == (3600, 21600)
+    assert 'gdeltproject.org' in LICENSES['technology-news'] and 'technology-news' not in SUSPENDED
+
+
+def test_technology_news_is_busy_when_nothing_is_stored_and_the_refresh_fails(tmp_path):
+    """No bundle yet and GDELT refuses: 'busy, try again later', never an empty success or invented items."""
+    def fetch():
+        raise RuntimeError('GDELT 429')
+    store, _ = news_store(tmp_path, fetch)
+    with pytest.raises(DataUnavailable, match='busy'):
+        DataAgents(news_store=store).execute('technology-news', {'query': 'anything here', 'limit': 2})

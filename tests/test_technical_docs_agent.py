@@ -107,9 +107,13 @@ def test_research_and_news_digest_is_unchanged():
     non-commercial databases. That moved this digest because engine.py and catalog.py are hashed whole; the
     research-papers and technology-news tool specs and code paths are unchanged (same schema digests), so saved
     research and news digests keep their contracts and need only ``scripts.approve_model_contracts`` after the
-    frontend deploy."""
+    frontend deploy.
+
+    11-16 (PM, Hacker News terms): technology-news reads a stored hourly GDELT bundle (tech_news.py); the description,
+    source and an optional output 'note' changed, so this digest moved again and the news contract is re-approved with
+    ``scripts.approve_model_contracts --only`` for the technology-news resource after the frontend deploy."""
     from agent_market import owned_capability_adapter
-    assert owned_capability_adapter.IMPLEMENTATION == '9afacb80d53ee3c53d59cfc12bd58719716e6c07a1421656e35f9e81afedd1f8'
+    assert owned_capability_adapter.IMPLEMENTATION == 'f03e9cde30be5209f100d5a2c418104c6a50afaec137dbfc2326c3a9ef44fd39'
 
 
 def test_documentation_objectives_use_the_docs_agent_and_research_keeps_papers():

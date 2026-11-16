@@ -2260,17 +2260,21 @@ def test_owned_data_agents_name_a_source_license_or_leave_it_empty():
     assert set(LICENSES) == set(SPECS) | {docs.ID} and len(LICENSES) == 8
     for agent_id, value in LICENSES.items():
         assert value is None or "(https://" in value, agent_id
-    assert LICENSES["technology-news"] is None and "technology-news" in SUSPENDED
+    assert "gdeltproject.org" in LICENSES["technology-news"] and SUSPENDED == {}   # GDELT since 11-16
     assert "Context7" not in LICENSES["technical-docs"]
     assert all("license" not in spec for spec in SPECS.values()) and "license" not in docs.SPEC
 
 
-def test_suspended_owned_agent_answers_without_calling_its_source():
-    """PM 11-15 17:02: technology-news (Hacker News, terms prohibit) is down; tools/list is unchanged."""
+def test_suspended_owned_agent_answers_without_calling_its_source(monkeypatch):
+    """PM 11-15 17:02: a suspended owned agent answers its notice without calling the source; tools/list unchanged.
+    (technology-news was suspended for the Hacker News terms and reads GDELT since 11-16; the mechanism stays.)"""
     from fastapi.testclient import TestClient
+    from agent_market.owned_data_agents import source_terms
     from agent_market.owned_data_agents.catalog import tool_spec
     from agent_market.owned_data_agents.engine import DataAgents
     from agent_market.owned_data_agents.service import create_app
+
+    monkeypatch.setitem(source_terms.SUSPENDED, "technology-news", "This agent is suspended (test).")
 
     class NoCalls(DataAgents):
         def execute(self, agent_id, arguments):

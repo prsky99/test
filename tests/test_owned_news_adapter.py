@@ -1,4 +1,4 @@
-"""First-party Hacker News search projected into the private news contract (2026-10-28)."""
+"""First-party technology news (GDELT since 11-16, Hacker News before) projected into the private news contract (2026-10-28)."""
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
@@ -50,14 +50,14 @@ def test_stories_before_the_start_are_omitted_and_marked_partial(news):
     _, resource, core, _ = news
     current = profile(resource, NEWS_CONTRACT, NEWS_TOOL)
     now = datetime.now(timezone.utc)
-    output = {'agent': 'technology-news', 'source': {'name': 'Hacker News Search by Algolia', 'url': 'https://hn.algolia.com/api'},
+    output = {'agent': 'technology-news', 'source': {'name': 'The GDELT Project (gdeltproject.org), DOC 2.0 API', 'url': 'https://www.gdeltproject.org/'},
               'retrieved_at': stamp(now), 'cache': {'status': 'live', 'age_seconds': 0},
               'data': {'query': 'artificial intelligence', 'partial': False, 'items': [
-                  {'title': 'New', 'url': 'https://news.example/new', 'published_at': stamp(now - timedelta(hours=1)), 'source': 'Hacker News'},
-                  {'title': 'Old', 'url': 'https://news.example/old', 'published_at': stamp(now - timedelta(days=5)), 'source': 'Hacker News'}]}}
+                  {'title': 'New', 'url': 'https://news.example/new', 'published_at': stamp(now - timedelta(hours=1)), 'source': 'techcrunch.com'},
+                  {'title': 'Old', 'url': 'https://news.example/old', 'published_at': stamp(now - timedelta(days=5)), 'source': 'techcrunch.com'}]}}
     value = normalize(resource, NEWS_CONTRACT, NEWS_TOOL, request(), output, expected=current)
     assert [item['title'] for item in value['items']] == ['New'] and value['partial'] is True
-    assert value['items'][0]['summary'].startswith('Hacker News story submitted ')
+    assert value['items'][0]['summary'].startswith('Article from ') and 'seen by the GDELT Project' in value['items'][0]['summary']
 
 
 def test_approved_news_contract_is_verified_by_a_real_local_execution(news):

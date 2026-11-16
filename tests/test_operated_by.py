@@ -17,7 +17,7 @@ def test_ours_by_key_or_endpoint_and_nothing_else():
     assert ob.operated({**OWN, 'key': None}) == found                                  # explore rows: no key
     assert ob.operated({**OWN, 'source': 'registry'}) is None
     assert ob.operated({'source': 'agentconcierge-owned', 'key': 'agentconcierge-owned:unknown'})['data_source'] is None
-    assert ob.line(found).startswith('Operated by AgentValCon, with data from Hacker News Search by Algolia under its own terms')
+    assert ob.line(found).startswith('Operated by AgentValCon, with data from The GDELT Project (gdeltproject.org), DOC 2.0 API under its own terms')
     assert ob.line(found).endswith('Ranked by the same checks as every other agent.') and ob.line(None) == ''
 
 

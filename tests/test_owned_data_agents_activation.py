@@ -59,7 +59,7 @@ def test_installed_four_examples_and_three_templates_use_actual_data(operating):
         submitted = front.workflows.submit(workflow)
         result = wait(front.workflows,submitted)
         assert result['status'] == 'succeeded', result
-    assert {r.url.host for r in calls} == {'hn.algolia.com','api.crossref.org','api.worldbank.org','registry.npmjs.org','api.osv.dev','api.github.com'}
+    assert {r.url.host for r in calls} == {'api.gdeltproject.org','api.crossref.org','api.worldbank.org','registry.npmjs.org','api.osv.dev','api.github.com'}
     response = client.post(PREFIX+'/country-profile/mcp',json={'jsonrpc':'2.0','id':1,'method':'tools/call',
         'params':{'name':'get_country_profile','arguments':{'country_code':'US'}}})
     assert response.status_code == 200 and response.json()['result']['isError'] is False

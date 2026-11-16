@@ -29,7 +29,7 @@ def _news_profile(resource):
     if len(found)!=1 or {k:found[0].get(k) for k in expected} != expected:
         raise ValueError('The first-party news schema changed.')
     return {'id':NEWS_PROFILE,'schema_hash':digest(expected),'implementation_hash':IMPLEMENTATION,
-        'input_notice':'English Hacker News stories for public technology keywords. Queries use at most 160 characters; each call returns up to five stories, newest first, from the requested start time.'}
+        'input_notice':'Technology news articles from English technology outlets, found through the GDELT Project, for public technology keywords. Queries use at most 160 characters; each call returns up to five stories, newest first, from the requested start time.'}
 
 
 def profile(resource, contract, tool):
@@ -76,7 +76,7 @@ def _normalize_news(supplied, output):
     # Stories before the requested start are omitted, never re-dated.
     kept=[r for r in rows if datetime.fromisoformat(r['published_at'].replace('Z','+00:00'))>=start]
     items=[{'title':r['title'],'url':r['url'],'source':r['source'],'published_at':r['published_at'],
-        'retrieved_at':observed,'summary':'Hacker News story submitted '+r['published_at'][:10]+'.'} for r in kept]
+        'retrieved_at':observed,'summary':'Article from '+r['source']+' seen by the GDELT Project on '+r['published_at'][:10]+'; title and link only.'} for r in kept]
     value={'items':items,'partial':bool(output['data']['partial'] or len(kept)<len(rows)
         or output['cache']['status']=='stale_cache' or supplied['limit']>5)}
     validate(NEWS_CONTRACT,supplied,value)

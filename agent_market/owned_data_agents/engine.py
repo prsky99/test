@@ -38,6 +38,24 @@ OSV_SOURCES = {
 }
 
 
+# Technology outlets the news agent keeps (GDELT domain filter, PM 11-16): every result is from one of them.
+TECH_OUTLETS = ('techcrunch.com', 'theverge.com', 'arstechnica.com', 'wired.com', 'zdnet.com', 'engadget.com',
+                'venturebeat.com', 'theregister.com', 'techradar.com', 'cnet.com')
+
+
+def live_ledger(url):
+    """Count a live GDELT call in the shared provider ledger (provider_budget.live_reserve); a refusal past 80% of
+    the day's total is 'busy'. A ledger error never stops an answer."""
+    try:
+        from .. import provider_budget
+        ok, _why = provider_budget.live_reserve(url)
+    except Exception:  # noqa: BLE001
+        return
+    if not ok:
+        from .source_limits import SourceBusy
+        raise SourceBusy('The data source is busy. Try again later.')
+
+
 class DataUnavailable(ValueError):
     """A source failed without exposing its raw response or network details."""
 
@@ -81,7 +99,7 @@ def strict_json(raw):
 
 class DataAgents:
     """No registration, background refresh, model, or operating configuration reads."""
-    def __init__(self, *, http=None, clock=time.monotonic, utc_now=None, translator=None):
+    def __init__(self, *, http=None, clock=time.monotonic, utc_now=None, translator=None, news_store=None):
         self.http, self.clock = http, clock
         self.translator = translator
         self.utc_now = utc_now or (lambda: datetime.now(timezone.utc))
@@ -90,6 +108,9 @@ class DataAgents:
         self.lock = threading.RLock()
         self.stripes = tuple(threading.Lock() for _ in range(16))
         self.slots = threading.BoundedSemaphore(4)
+        from .tech_news import Store
+        # PM 11-16: technology news is answered from an hourly GDELT bundle, never a GDELT call per request
+        self.news = news_store or Store(self._gdelt_bundle, utc_now=lambda: self.utc_now())
 
     def execute(self, agent_id, arguments):
         # Include coalescing waits, source retrieval and presentation in one
@@ -121,6 +142,8 @@ class DataAgents:
                     r'https?://|<[^>]*>|\b(?:Bearer|Basic)\s|\b(?:api[_-]?key|token|password)\s*[:=]|'
                     r'[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}|/(?:Users|home)/', query, re.I)):
                 raise ValueError('Use public search keywords.')
+        if agent_id == 'technology-news':
+            return self._technology_news_output(arguments)
         key = (agent_id, json.dumps(arguments, sort_keys=True, allow_nan=False))
         stripe = self.stripes[hash(key) % len(self.stripes)]
         if not stripe.acquire(timeout=min(5.5, budget.remaining())):
@@ -186,7 +209,7 @@ class DataAgents:
         parsed = urlsplit(url)
         if (parsed.scheme != 'https' or parsed.port not in (None, 443) or parsed.username or parsed.password
                 or parsed.query or parsed.fragment or parsed.hostname not in (
-                    'hn.algolia.com', 'api.crossref.org', 'api.worldbank.org', 'registry.npmjs.org', 'api.osv.dev',
+                    'api.crossref.org', 'api.worldbank.org', 'registry.npmjs.org', 'api.osv.dev',
                     'api.github.com')
                 or method != ('POST' if parsed.hostname == 'api.osv.dev' else 'GET')):
             raise DataUnavailable('Source unavailable.')
@@ -211,27 +234,48 @@ class DataAgents:
     def _fetch(self, agent_id, args):
         return getattr(self, '_' + agent_id.replace('-', '_'))(args)
 
-    def _technology_news(self, args):
-        raw = self._request('GET', 'https://hn.algolia.com/api/v1/search_by_date',
-            params={'query': args['query'], 'tags': 'story', 'hitsPerPage': args['limit']})
-        if type(raw.get('hits')) is not list:
-            raise ValueError('Invalid source')
-        items, seen = [], set()
-        for hit in raw['hits'][:10]:
-            identity = str(hit.get('objectID', ''))
-            link = 'https://news.ycombinator.com/item?id=' + identity if re.fullmatch(r'[0-9]{1,20}', identity) else None
-            link = public_link(hit.get('url')) or link
-            title, published = clean(hit.get('title')), clean(hit.get('created_at'), 40)
-            if link and title and published and link not in seen:
-                at = datetime.fromisoformat(published.replace('Z', '+00:00'))
-                if at.tzinfo is None or at > self.utc_now():
-                    continue
-                items.append({'title': title, 'url': link, 'published_at': at.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z'),
-                              'source': 'Hacker News'})
-                seen.add(link)
-        items.sort(key=lambda row: row['published_at'], reverse=True)
-        return {'query': args['query'], 'items': items[:args['limit']],
-                'partial': len(items) < len(raw['hits'])}
+    def _technology_news_output(self, args):
+        """From the stored bundle (tech_news.Store): no source call in the request; the collection time is stated."""
+        from .tech_news import Busy, select
+        try:
+            bundle, age = self.news.get()
+        except Busy as exc:
+            raise DataUnavailable(str(exc)) from None
+        items, note = select(bundle['articles'], args['query'], args['limit'])
+        data = {'query': args['query'], 'items': [dict(r) for r in items], 'partial': bool(note)}
+        if note:
+            data['note'] = note
+        from .tech_news import TTL
+        output = {'agent': 'technology-news',
+                  'source': {'name': SPECS['technology-news']['source_name'], 'url': SPECS['technology-news']['source_url']},
+                  'retrieved_at': bundle['fetched_at'],
+                  # 'live' only when this request's own refresh just collected it (synchronous store), else from the bundle
+                  'cache': {'status': 'live' if age == 0 else 'fresh_cache' if age < TTL else 'stale_cache',
+                            'age_seconds': age}, 'data': data}
+        validate_arguments({'inputSchema': tool_spec('technology-news')['outputSchema']}, output)
+        return output
+
+    def _gdelt_bundle(self):
+        """One GDELT DOC 2.0 request for the newest technology articles (background refresh, at most once an hour).
+        Titles, outlets, dates and links only; the article pages are never requested."""
+        from .tech_news import MAX_RECORDS, URL, bundle_query
+        live_ledger(URL)
+        client = bounded_client(self.http, timeout=20, limit=4 * 1048576,
+            headers={'User-Agent': 'AgentConcierge-DataAgents/1.0 (+https://agentconcierge.biz)', 'Accept': 'application/json'})
+        try:
+            response = client.request('GET', URL, timeout=20, params={'query': bundle_query(), 'mode': 'artlist',
+                'format': 'json', 'maxrecords': MAX_RECORDS, 'timespan': '3d', 'sort': 'datedesc'})
+        finally:
+            client.close()
+        if response.status_code == 429:                       # GDELT's own 429: no more GDELT calls today
+            try:
+                from .. import provider_budget
+                provider_budget.note(URL, 'necklace_live', 429, evidence=provider_budget.PROVIDER_HTTP)
+            except Exception:  # noqa: BLE001
+                pass
+        if response.status_code != 200 or not response.content.lstrip().startswith(b'{'):
+            raise DataUnavailable('Source unavailable.')     # GDELT answers plain text when it refuses or is busy
+        return strict_json(response.content)
 
     def _github_issues(self, args):
         terms = ' '.join(GITHUB_QUALIFIER.sub(' ', args['query']).split())[:160]

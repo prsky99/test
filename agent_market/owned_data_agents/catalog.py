@@ -32,12 +32,16 @@ INDICATORS = {'SP.POP.TOTL': ('Population', 'people'),
 SPECS = {
     'technology-news': {
         'name': 'Technology News', 'tool': 'search_technology_news',
-        'description': 'Find recent Hacker News stories matching public technology keywords.',
-        'source_name': 'Hacker News Search by Algolia', 'source_url': 'https://hn.algolia.com/api',
-        'ttl': 60, 'max_stale': 900,
+        'description': 'Find recent technology news articles (title, outlet, date and link) for public keywords, '
+                       'from the GDELT Project news index; article text is never fetched.',
+        'source_name': 'The GDELT Project (gdeltproject.org), DOC 2.0 API', 'source_url': 'https://www.gdeltproject.org/',
+        'ttl': 3600, 'max_stale': 21600,
         'input': obj({'query': QUERY, 'limit': LIMIT}),
-        'data': obj({'query': text(160), 'items': array(obj({'title': text(), 'url': text(2000),
+        # 'note' (optional, PM 11-16): says when no stored article matched and the latest technology news is given
+        'data': {**obj({'query': text(160), 'items': array(obj({'title': text(), 'url': text(2000),
             'published_at': text(40), 'source': text(100)})), 'partial': {'type': 'boolean'}}),
+            'properties': {'query': text(160), 'items': array(obj({'title': text(), 'url': text(2000),
+                'published_at': text(40), 'source': text(100)})), 'partial': {'type': 'boolean'}, 'note': text(300)}},
         'example': {'query': 'artificial intelligence', 'limit': 3}},
     'research-papers': {
         'name': 'Research Papers', 'tool': 'search_research_papers',
