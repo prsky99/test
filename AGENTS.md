@@ -2,7 +2,7 @@
 
 ## Public frontend content
 
-These rules apply to the public Agent Concierge frontend, its source comments,
+These rules apply to the public AgentValCon frontend (formerly Agent Concierge), its source comments,
 metadata, generated pages, and scripts that modify it. They do not require
 translating backend/admin implementation comments or historical audit artifacts.
 
@@ -62,10 +62,12 @@ translating backend/admin implementation comments or historical audit artifacts.
 
 ## Server operation
 
-- The user runs the development server directly in their terminal. Do not stop,
-  restart, replace, or launch a competing project server unless explicitly asked.
-  Use isolated test apps/databases and temporary ports for verification; explain
-  when source changes require the user's server restart.
+- Production runs on this Mac as launchd services managed with `./agentcon`
+  (four roles: frontend, admin, jobs, execution; PostgreSQL 18). Do not stop,
+  restart, replace, or launch a competing project server by hand, and never kill
+  processes directly; stop, restart and rollback go through `./agentcon` after
+  checking the deploy lock on the status board (`logs/ops/status-board.md`).
+  Use isolated test apps/databases and temporary ports for verification.
 - Several workers deploy to the same managed slots. Before packaging, check
   `./agentcon status` and the newest directories in `gateway-data/services/releases`,
   and build the overlay on the release that is actually active, adding only your

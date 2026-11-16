@@ -1,4 +1,4 @@
-# Project Rules & Guidelines: Agent Concierge (A2A Discovery)
+# Project Rules & Guidelines: AgentValCon (A2A Discovery, formerly Agent Concierge)
 
 ## 1. Strict 100% English Only for Frontend
 - **Frontend Source & Assets**: All frontend source files (`extracted_html.txt`, `agent_market/concierge/front.py`, HTML templates, client-side JavaScript, CSS) must be strictly in **English only**.

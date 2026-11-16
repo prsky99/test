@@ -2,7 +2,7 @@
 
 **AgentValCon — 에이전트 밸류 게이트웨이(Agent Value Gateway)** (사용자 정의 2026-11-14, 이름은 11-14 사용자 결정으로 Agentcon에서 AgentValCon으로 바꿈)
 - 수많은 에이전트(A2A·MCP·x402)를 키 없이 수집하고 품질 등급을 매긴 뒤, 시험 보고서로 검증해 우수한 에이전트("진주")를 찾는다. 진주 후보 = 활성 등급 A, 검증 진주 = 시험 보고서 v2 85점 이상·서로 다른 날 2회 성공, 최종 진주 = 역할 1위(헌장 0절).
-- 진주 2개 이상을 연결해, 단일 에이전트로는 얻을 수 없는 결과를 내는 워크플로우("진주 목걸이" = 새 에이전트)로 공급한다.
+- 서로 다른 역할의 에이전트 3개 이상(검증 진주, 없으면 임시 멤버)을 연결해, 단일 에이전트로는 얻을 수 없는 결과를 내는 워크플로우("진주 목걸이" = 새 에이전트)로 공급한다. (11-15 사용자 지시로 "진주 2개 이상"에서 바뀜, 아래 '수요 먼저·임시 멤버')
 - 홍보 단위는 개별 에이전트가 아니라 우리가 만든 목걸이다.
 - 전략·목표·지표: `reports/agentcon-strategy-2026-11-14/README.md`, `docs/OPERATIONS_CHARTER.md` 0절
 - 현재 기능(수집·평가·탐색·추천)은 진주 발굴의 기반이라 계속 개선한다. Glama 수준에는 뒤처지지 않게 하고, 차별점은 목걸이에 둔다.
@@ -28,12 +28,19 @@
   - `sns.py`
 - `agent_market/concierge/`: 에이전트 전용 프론트 :8400 (영어 전용, 로컬 LLM은 선택)
 - `agent_market/broker/`: 카테고리 정의(`categories.py`), SSRF 검사(`discovery.check_public_url`)
+- `agent_market/necklaces/`: 목걸이(정의 `definitions/`, 실행 `runner.py`, 관문 하네스 `retest.py`, 관문 숫자 `gate_rules.py`, 우리 쪽 거절 코드 `refusals.py`, 판정 `judge.py`, 감시 `watch.py`)
+- `agent_market/fallback_agents/`: 자체 대체 에이전트 / `agent_market/owned_data_agents/`: 자체 데이터 에이전트
+- `agent_market/edge_gateway/`: 엣지 실행 게이트웨이(Cloudflare Worker와 Origin)
+- `agent_market/ad_coin/`: AD Coin과 USDC 결제(v2, 금지 문구 규칙 `v2/ad_rules.py`)
+- `agent_market/provider_budget.py`: 남의 서버 호출 장부(도메인별 하루 몫)
 - 결제·지갑: `payments.py`, `chain.py`, `wallet.py`, `buyer.py` (x402, USDC on Base)
+- 운영 도구(`scripts/`): `pytest_slot.py`·`heavy_slot.py`(시험 자리), `release_gate.py`, `service_deploy.py`(`./agentcon`), `necklace_gate.py`·`gate_round.py`(목걸이 관문), `commit_check.py`(커밋·푸시 검사, `.githooks/`), `prod_ro_sql.py`, `user_slo.py`
 - 문서
   - `COLLECTOR.md`: 수집·평가·A2A, 실측
   - `AGENT_BROKER.md`: 카테고리·요청 조건
   - `AGENT_FRONT.md`, `AGENT_MARKET.md`, `deploy/DEPLOY.md`
-  - `reports/`: 조사 보고서
+  - `deploy/NECKLACE_GATE.md`: 목걸이·대체 관문 / `deploy/PROVIDER_BUDGET.md`: 호출 장부 / `deploy/DATABASE_OPERATIONS.md`: 운영 DB 변경
+  - `reports/`: 조사 보고서(날짜 붙은 기록이라 나중에 고치지 않는다)
 
 ## 실행·테스트
 ```bash
@@ -42,7 +49,8 @@
 ./agentcon status   # 운영 네 역할(frontend·admin·jobs·execution)의 활성 버전과 상태
 ```
 - 시험은 `scripts.pytest_slot`으로만 돌린다(11-12 결정). 이름 없는 `pytest`는 돌리지 않는다.
-  - 파일 여러 개·디렉터리·전체 pytest·playwright 같은 넓은 시험은 `scripts.heavy_slot`으로만 돌린다(현황판 무거운 작업 최대 2개).
+  - 파일 여러 개·디렉터리·전체 pytest·playwright 같은 넓은 시험은 `scripts.heavy_slot`으로만 돌린다(현황판 무거운 작업: 08~24시 1개, 00~08시 2개).
+  - 래퍼가 지키는 것(11-16 PM, 코드 기준): 시험은 nice 15로 돈다. 낮에는 1분 부하가 9.0을 넘으면 새 시험을 시작하지 않는다(정각 측정의 서버 시간이 기준의 1.3배를 넘으면 6.0으로 되돌아감). 낮의 작은 시험은 동시에 2개까지다. 파일 5개 초과나 디렉터리는 자동으로 `heavy_slot`을 거친다. 매시 :55~:10(정각 측정)과 현황판의 측정·리허설 전용 시간에는 시작하지 않는다.
   - 전체 pytest는 하루 1번, 밤에만 돌린다(현황판 규칙). 커밋 전에는 바뀐 부분의 시험 파일만 돌린다.
   - 11-01에 여러 세션이 테스트를 동시에 돌려 CPU를 300% 쓰자, 탐색 서버 시간이 0.96초에서 2.59초(중앙값)로 늘었다.
 - 시험이 운영에 닿지 않게 한다(11-15 사고: 시험이 운영 설정을 물려받아 운영 DB에 정리 작업을 실행).
@@ -95,6 +103,8 @@
   3. PM이 리허설 결과와 복구 SQL을 확인하고 실행한다(11-15 사용자 결정 "모두 맡김". 되돌릴 수 없는 데이터 삭제가 들어가면 사용자 승인).
   4. 실행 직전 `check`가 0이 아니면 실행하지 않는다.
 - 저장소는 공개다. 키·지갑·`deploy/gateway.env`는 커밋하지 않는다.
+  - 푸시 때 `scripts/commit_check.py`가 돈다(`.githooks/pre-push`, `core.hooksPath=.githooks`, 11-16). 일반 `git commit`에서는 `pre-commit`으로도 돌지만, 팀 세션은 임시 인덱스와 `commit-tree`로 커밋하므로 팀 커밋은 푸시 때만 검사된다. 커밋 금지 파일, 키 문자열, 정의되지 않은 이름, concierge의 한글을 본다. 11-17 0시부터 막는다. 건너뛸 때는 `COMMIT_CHECK_SKIP="이유"`를 쓰고 `logs/ops/commit-check.jsonl`에 남는다.
+  - 고치지 않은 결함의 위치가 적힌 보고서는 커밋하지 않는다(로컬 전용, `.git/info/exclude`).
 - GitHub은 외부 유입 채널로 쓰지 않는다(사용자 결정 2026-11-10 "깃허브 공개하지 않음"). 다음은 하지 않는다.
   - 소개용 저장소 만들기
   - README 홍보
@@ -138,7 +148,7 @@
       - 지켜야 할 선(기존 결정): 유료는 USDC 건별 결제(선충전·잔액·보관 없음), 유료 순위·배지 판매 없음(AA는 같은 시험 기준으로 받는다), 원천 약관이 유료 제공을 막으면 그 원천은 쓰지 않는다.
     - 모든 목걸이에 폴백 에이전트(외부 대체)와 자체 대체 에이전트를 붙이고, 문제없이 실행되는지 정기·상시 점검한다(헌장 4단계 대체와 같은 방향, 점검을 빼먹지 않는다).
   - **11-15 사용자 결정: 광고는 항상 나간다.** 에이전트 응답의 광고 칸을 무료로 끄는 `ads=none`은 두지 않는다. 광고 없는 결과는 이용률이 오른 뒤 "광고 제거 구독"(월 정액 USDC)으로만 준다.
-  - **11-15 사용자 결정: 팀 세션의 운영 DB 읽기는 막지 않는다.** 읽기 전용 조회는 `.venv/bin/python -m scripts.prod_ro_sql <파일.sql | -c "SELECT …">`로만 한다(SELECT만, 한 번에 연결 1개, 출력 200줄, 기록 logs/ops/prod-ro-sql.jsonl). 쓰기와 구조 변경은 전과 같이 사용자가 실행한다.
+  - **11-15 사용자 결정: 팀 세션의 운영 DB 읽기는 막지 않는다.** 읽기 전용 조회는 `.venv/bin/python -m scripts.prod_ro_sql <파일.sql | -c "SELECT …">`로만 한다(SELECT만, 한 번에 연결 1개, 출력 200줄, 기록 logs/ops/prod-ro-sql.jsonl). 쓰기와 구조 변경은 PM이 실행한다(같은 날 "모두 맡김" 결정, 위 'PM에 맡긴 실행'). 팀 세션은 운영 DB에 쓰지 않는다.
   - 경계(헌장 1절): AD Coin을 돈이나 코인을 받고 팔거나, 돈으로 바꾸거나, 법정화폐와 교환하는 경로는 만들지 않는다. 광고 상품을 USDC로 파는 것은 이 경계 밖이다(11-11).
   - 지갑의 USDC 같은 실제 자산 송금은 이 결정에 들어가지 않고 사용자가 직접 한다.
 - x402는 실제 결제 시험이 가능할 때까지 수집하지 않는다(사용자 결정 2026-11-10).
@@ -153,11 +163,14 @@
 - 배포는 상시 승인이다(사용자 결정 2026-11-10 "배포에 대해서는 무조건 승인함").
   - 범위: frontend·admin·jobs·execution
   - 조건: 게이트를 통과하고, 활성 버전의 커밋을 기준(`--base`)으로 그 위에 커밋을 얹어 패키징한 릴리스면 묻지 않고 배포한 뒤 결과를 보고한다. 작업본 파일을 운영 버전에 덮어쓰는 방식은 쓰지 않는다(`deploy/DEPLOY.md` "운영 = git").
+  - 활성 버전에만 있는 변경이 새 커밋에 빠져 있으면 `package`가 거부한다(11-16, `git cherry` 기준. 되돌림·cherry-pick으로 같은 변경이 들어 있으면 조상이 아니어도 통과). 의도한 경우에만 `--allow-lineage "<이유>"`를 쓰고, 이유는 릴리스 기록과 `logs/ops/lineage-exceptions.jsonl`에 남는다. 팀 브랜치로 배포했으면 그날 안에 개발 브랜치에 합친다.
+  - 정책 해시 파일(selection.py 등, `explore_documents.policy_hash`)을 바꾸는 배포는 탐색 문서를 다시 만들기 때문에 밤 00:30~01:30에만 한다. frontend와 jobs를 함께 낸다.
   - 팀 세션이 운영 배포를 막히면 총괄 PM 세션이 base와 diff를 확인하고 대신 배포한다.
-  - 계속 먼저 묻는 것(11-15 줄임): 되돌릴 수 없는 운영 데이터 삭제, 지출, 게이트 실패 배포, 커뮤니티 게시(목걸이 100개 뒤). DB 스키마·함수 변경과 DB 재시작은 위 "PM에 맡긴 실행"을 따른다.
+  - 계속 먼저 묻는 것(11-15 줄임): 되돌릴 수 없는 운영 데이터 삭제, 지출, 게이트 실패 배포, 커뮤니티 게시의 실행(첫 목걸이 공개 뒤, 초안은 PM이 준비). DB 스키마·함수 변경과 DB 재시작은 위 "PM에 맡긴 실행"을 따른다.
 - 개발 브랜치: `claude/hopeful-darwin-i3qj6n`
   - 사용자가 맥에서도 푸시한다.
   - 푸시 전에 `git fetch` 후 `git rebase`한다(남의 커밋을 덮어쓰지 않기).
+  - 푸시 전에 `origin..HEAD`를 본다. 남의 커밋이 섞여 있으면 건별로 PM에 묻고, 확인한 sha를 지정해 올린다(사용자 결정 2026-11-16 "지금처럼 건별 승인").
 - 새 기능에는 테스트를 붙이고, 실제 데이터로 한 번 돌려 본 뒤 문서(COLLECTOR.md 등)에 결과를 남긴다.
 
 ## 응답 시간 정책 (사용자 결정 2026-11-10 18시 상향, 11-11 19시 추천·페이지 재상향, 모든 세션 적용)
@@ -184,7 +197,7 @@
 - 목표를 어기는 변경은 하지 않는다. 필요하면 먼저 사용자에게 묻는다.
 
 ## 토큰 절약 작업 방식
-`docs/claude/global-CLAUDE.md`의 6가지 규칙을 따른다(사용자 전역 `~/.claude/CLAUDE.md`와 같은 내용). 이 프로젝트에서 덧붙일 것:
+`docs/claude/global-CLAUDE.md`의 6가지 규칙을 따른다. 이 프로젝트에서 덧붙일 것:
 - 작업 기록은 `WORKLOG.md`. 압축 뒤에는 이것부터 보고, 작업이 끝나면 몇 줄 갱신한다.
 - 테스트는 바뀐 부분의 테스트 파일만 `scripts.pytest_slot`으로. 전체 pytest는 하루 1번 밤에 `scripts.heavy_slot`으로만.
 - 수집 DB 조회는 집계(`count`, `group by`)로 보고, 행 덤프는 scratchpad 파일로.

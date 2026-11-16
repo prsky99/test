@@ -1,25 +1,40 @@
-# A2A Discovery
+# A2A Discovery (AgentValCon)
 
-AI 에이전트가 다른 AI 에이전트(A2A 에이전트, MCP 서버, x402 유료 API)를 **찾고, 확인하고, 소개받는** 서비스입니다.
+**AgentValCon — 에이전트 밸류 게이트웨이**(공개 주소 https://agentconcierge.biz)의 저장소입니다. 저장소 이름과 CLI 이름(`agentcon`)은 옛 이름 그대로입니다.
+
+AI 에이전트가 다른 AI 에이전트(A2A 에이전트, MCP 서버)를 **찾고, 확인하고, 소개받는** 서비스입니다.
 공개 레지스트리와 온체인 등록부에서 에이전트를 모아 살아 있는지 점검하고, 품질을 평가한 뒤, 작업에 맞는 에이전트를 소개합니다.
+시험 보고서로 검증한 우수한 에이전트("진주")를 서로 다른 역할로 3개 이상 이어, 에이전트 하나로는 얻기 어려운 결과를 한 번의 호출로 내는 워크플로우("진주 목걸이")를 만들어 공급합니다. 전략과 목표는 [운영 헌장](docs/OPERATIONS_CHARTER.md) 0절에 있습니다.
 
-## 구성: 세 단계로 발전
+x402 유료 API는 실제 결제 시험이 가능해질 때까지 수집하지 않고 연결 확인만 합니다(`COLLECT_X402` 기본값 0).
+
+## 구성
 
 | 단계 | 모듈 | 하는 일 | 상태 |
 |---|---|---|---|
 | 1. 마켓 | `agent_market/server.py`, `buyer.py` | 에이전트끼리 작업을 사고팔고 USDC로 결제 (HTTP 402) | 예제. 결제·서명 모듈은 공용으로 씀 |
 | 2. 브로커 | `agent_market/broker/` | 판매 에이전트 등록 → Claude로 작업 분류 → 매칭 | 게이트웨이로 대체 중. 카테고리·URL 검사는 공용 |
 | 3. **게이트웨이 + 수집기** | `agent_market/gateway/`, `agent_market/collector/` | 에이전트 수집·헬스체크·평가, 요청에 맞는 에이전트 소개·재소개 | **현재 주력** |
+| 4. 에이전트 전용 프론트 | `agent_market/concierge/` | 공개 화면, 탐색·추천(Chat·MCP·A2A), 성장 페이지 | 운영 중 |
+| 5. **목걸이** | `agent_market/necklaces/`, `agent_market/fallback_agents/`, `agent_market/owned_data_agents/` | 목걸이 정의·실행·관문·판정·감시, 자체 대체 에이전트 | 관문 진행 중 |
+| 6. 실행 게이트웨이 | `agent_market/edge_gateway/` | 남의 에이전트 호출을 Cloudflare Worker와 Origin으로 중계 | 운영 중 |
+| 7. 광고·결제 | `agent_market/ad_coin/` | AD Coin(무상 크레딧), USDC on Base 건별 결제(광고 예약·맞춤 계획·이용권) | 운영 중(v2) |
+| 공용 | `agent_market/provider_budget.py` | 남의 서버 호출 장부(도메인별 하루 몫) | 운영 중 |
 
 ```
  공개 출처                         수집기 (collector/)                      게이트웨이 (gateway/)
- x402 Bazaar ─┐                ┌ 연속 수집 (crawler)               ┌ POST /needs: 작업 → 최적 에이전트 소개
- MCP Registry ─┼──▶ SQLite ◀──┤ 헬스체크 (health)        ◀──────┤ 순위: 관련도·인기·가용성·가격·품질…
- ERC-8004     ─┤               │ 도구·인증 조사, 사용 검증         └ 재평가: 더 좋은 에이전트가 나오면 재소개
- well-known   ─┘               └ 규칙 기반 품질 평가 (A~F)
+ MCP Registry ─┐                ┌ 헬스체크 (health)                  ┌ POST /needs: 작업 → 최적 에이전트 소개
+ ERC-8004     ─┼──▶ 저장소 ◀──┤ 도구·인증 조사, 사용 검증  ◀──────┤ 순위: 관련도·인기·가용성·가격·품질…
+ well-known   ─┘               └ 규칙 기반 품질 평가 (A~F)          └ 연속 수집 (gateway/crawler.py), 재소개
 ```
 
-## 빠른 시작
+저장소는 운영에서 PostgreSQL 18 + pgvector이고, SQLite는 시험과 로컬 개발용입니다. x402 Bazaar는 출처 목록에 있지만 수집은 멈춰 있습니다.
+
+운영은 이 맥에서 launchd와 `./agentcon`으로 네 역할(frontend·admin·jobs·execution)을 돌립니다. 상태는 `./agentcon status`로 봅니다. 배포와 운영 절차는 [deploy/DEPLOY.md](deploy/DEPLOY.md)에 있습니다.
+
+## 빠른 시작 (로컬 개발용)
+
+> 아래 명령은 로컬 개발 환경에서만 씁니다. **운영 맥에서는 `gateway.server`나 `collector.server`를 직접 띄우지 않습니다.** 두 번째 수집기가 떠서 남의 서버 호출이 중복됩니다.
 
 Psycopg C 확장 빌드에는 C 컴파일러와 최신 libpq 개발 도구(`pg_config`)가 필요합니다. 현재 Mac에서는 프로젝트 전용 도구 체인을 사용합니다. 운영 의존성은 Python 3.11.18 이상 보안 패치 기준으로 잠금 관리합니다. 운영·개발·선택형 Claude SDK·SQLite 벡터 도구 분리 및 현재 Mac 환경 명령은 [의존성 관리 안내](deploy/DEPENDENCY_MAINTENANCE.md)를 참고하세요. SQLite 벡터가 필요한 기존 로컬 구성은 `requirements-legacy-sqlite.txt`를 별도로 설치해야 합니다.
 
@@ -54,7 +69,7 @@ COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.col
 
 ### 관리 대시보드
 
-게이트웨이를 띄운 뒤 Chrome에서 **http://127.0.0.1:8200/admin/ui** 를 엽니다.
+게이트웨이를 띄운 뒤 Chrome에서 **http://127.0.0.1:8200/admin/ui** 를 엽니다. 아래는 주요 탭이고 전체 탭은 더 많습니다(화면 정의는 `agent_market/gateway/dashboard.html`).
 
 | 탭 | 내용 |
 |---|---|
@@ -74,9 +89,10 @@ COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.col
 - **접근:** `ADMIN_TOKEN`이 없으면 같은 PC에서 `localhost`·`127.0.0.1` 주소로만 열립니다. `ADMIN_TOKEN`이 있으면 화면에서 토큰을 한 번 입력합니다.
 - **배포 환경:** `/admin/*`은 Caddy가 외부에서 막습니다. 서버의 대시보드는 ssh 터널(`ssh -L 8200:127.0.0.1:8200 …`)로 엽니다.
 
-테스트:
+테스트는 래퍼로만 돌립니다. 이 맥이 운영 서버라 넓은 시험이 겹치면 탐색이 느려지기 때문입니다.
 ```bash
-.venv-tests/bin/python -m pytest tests
+.venv/bin/python -m scripts.pytest_slot tests/test_a.py tests/test_b.py   # 바뀐 부분의 시험 파일만(파일 이름 필수)
+.venv/bin/python -m scripts.heavy_slot --team <팀> --what "full pytest" --minutes 20 -- <명령>   # 넓은 시험(전체는 하루 1번, 밤에만)
 ```
 
 ## 문서
@@ -86,7 +102,12 @@ COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.col
 | [COLLECTOR.md](COLLECTOR.md) | 수집·헬스체크·인증 조사·사용 검증·품질 평가·A2A 수집, 실측 결과 |
 | [AGENT_BROKER.md](AGENT_BROKER.md) | 14개 카테고리, 게이트웨이 요청 조건(언어·지역·인증·등급), 브로커 |
 | [AGENT_MARKET.md](AGENT_MARKET.md) | 에이전트 간 USDC 결제 프로토콜과 보안 설계 |
-| [deploy/DEPLOY.md](deploy/DEPLOY.md) | 무료 클라우드 VM에 게이트웨이 배포 |
+| [AGENT_FRONT.md](AGENT_FRONT.md) | 에이전트 전용 프론트 기획과 동작 |
+| [deploy/DEPLOY.md](deploy/DEPLOY.md) | 현재 운영(맥·launchd·PostgreSQL 18)의 배포와 운영 절차 |
+| [deploy/DATABASE_OPERATIONS.md](deploy/DATABASE_OPERATIONS.md) | 운영 DB 변경 순서(사본 리허설, 복구 SQL) |
+| [deploy/NECKLACE_GATE.md](deploy/NECKLACE_GATE.md) | 목걸이와 자체 대체 에이전트의 관문 기준 |
+| [deploy/PROVIDER_BUDGET.md](deploy/PROVIDER_BUDGET.md) | 남의 서버 호출 장부 |
+| [docs/OPERATIONS_CHARTER.md](docs/OPERATIONS_CHARTER.md) | 운영 헌장(전략·목표·원칙) |
 | [reports/](reports/) | 시장 동향, MCP 서버 평가 방법, 에이전트 인프라 분류 보고서 |
 
 ## 안전 원칙
