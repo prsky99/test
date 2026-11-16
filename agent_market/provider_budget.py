@@ -69,10 +69,10 @@ CASSETTE_OVERRIDE = {('cassettes', 'sec.gov'): 4, ('cassettes', 'wikipedia.org')
 SHARE_OVERRIDE = {('substitute_tests', d): 30 for d in ('gleif.org', 'sec.gov', 'nist.gov', 'cisa.gov', 'wikipedia.org',
                                                          'wikidata.org', 'wiktionary.org', 'gdeltproject.org',
                                                          'census.gov', 'npmjs.org')}
-# Search team 11-16 19:4x: one role test is 4 requests, and on a domain whose declared limit is 100 a day our total is 20,
-# so the scaled role_tests share (5 x 20 // 60 = 1) could not test a candidate at all. 12 x 20 // 60 = 4: one role test
-# a day, inside the declared 20% (plumbkit.dev 84607 and datakoot.com 37322, terms allowed).
-SHARE_OVERRIDE.update({('role_tests', 'plumbkit.dev'): 12, ('role_tests', 'datakoot.com'): 12})
+# PM 11-16 19:5x: one role test is 4 requests. On a domain whose total is small (a declared 100 a day gives 20) the
+# scaled role_tests share (5 x 20 // 60 = 1) could never test a candidate, so the share is at least ROLE_TEST_MIN when
+# the domain's day total allows it (the total itself, 20% of the published limit, is never exceeded).
+ROLE_TEST_MIN = 4
 # 11-15 (PM 13:52, agent team): GDELT DOC API news substitute; no published daily number, the API answers 'limit
 # requests to one every 5 seconds', which the agent's host pacing keeps. The domain total stays DAILY_TOTAL.
 # 11-15 (PM 14:25, agent team): Census Geocoder (geocoding.geo.census.gov, a public REST service) for the US-address
@@ -271,7 +271,10 @@ def share_limit(system, name, day=None, directory=None):
     total = domain_total(name, day=day, directory=directory)
     if system == 'gate':
         return total
-    return max(1, base * total // DAILY_TOTAL) if base else 0
+    share = max(1, base * total // DAILY_TOTAL) if base else 0
+    if system == 'role_tests' and total >= ROLE_TEST_MIN:
+        share = max(share, ROLE_TEST_MIN)
+    return share
 
 
 # Hosting platforms give each tenant its own subdomain; the tenant, not the platform, is the provider.

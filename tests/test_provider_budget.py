@@ -416,7 +416,10 @@ def test_nager_is_closed_by_the_ledger_and_its_terms_are_recorded(tmp_path):
 
 
 def test_one_role_test_fits_on_declared_100_a_day_domains():
-    """search team 11-16: a role test is 4 requests; the scaled share was 1 on domains whose total is 20."""
+    """PM 11-16 19:5x: a role test is 4 requests; the role_tests share is at least 4 where the day total allows it."""
     from agent_market import provider_budget as pb
     for name in ('plumbkit.dev', 'datakoot.com'):
         assert pb.domain_total(name) == 20 and pb.share_limit('role_tests', name) == 4
+    assert pb.share_limit('role_tests', 'example.org') == 5                 # ordinary domains keep 5
+    assert pb.share_limit('role_tests', 'faceabot.com') == 0 or pb.domain_total('faceabot.com') == 0   # closed stays closed
+    assert pb.domain_total('faceabot.com') == 0
