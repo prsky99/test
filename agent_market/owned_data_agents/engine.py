@@ -270,7 +270,8 @@ class DataAgents:
         if response.status_code == 429:                       # GDELT's own 429: no more GDELT calls today
             try:
                 from .. import provider_budget
-                provider_budget.note(URL, 'necklace_live', 429, evidence=provider_budget.PROVIDER_HTTP)
+                provider_budget.note(URL, 'necklace_live', 429, evidence={'origin': provider_budget.PROVIDER_HTTP,
+                                     'retry_after': response.headers.get('Retry-After')})   # C16: the provider's own wait
             except Exception:  # noqa: BLE001
                 pass
         if response.status_code != 200 or not response.content.lstrip().startswith(b'{'):

@@ -384,6 +384,19 @@ def test_a_gdelt_429_pauses_the_domain_for_the_day_and_later_refreshes_do_not_ca
     assert len(seen) == 1
 
 
+def test_a_gdelt_429_passes_its_retry_after_to_the_ledger(monkeypatch):
+    """The ledger keeps the provider's own wait (Retry-After, seconds or HTTP-date; ops C16)."""
+    from agent_market import provider_budget
+    noted = []
+    monkeypatch.setattr(provider_budget, 'note', lambda *a, **k: noted.append((a, k)))
+    core = DataAgents(http=httpx.Client(transport=httpx.MockTransport(
+        lambda r: httpx.Response(429, headers={'Retry-After': '7200'}, text='Please limit requests'))))
+    with pytest.raises(DataUnavailable):
+        core._gdelt_bundle()
+    (args, kwargs), = noted
+    assert args[2] == 429 and kwargs['evidence'] == {'origin': provider_budget.PROVIDER_HTTP, 'retry_after': '7200'}
+
+
 def test_ttl_and_terms_for_gdelt_news():
     from agent_market.owned_data_agents.source_terms import LICENSES, SUSPENDED
     from agent_market.owned_data_agents.tech_news import MAX_STALE, TTL
