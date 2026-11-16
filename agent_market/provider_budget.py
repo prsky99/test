@@ -69,6 +69,10 @@ CASSETTE_OVERRIDE = {('cassettes', 'sec.gov'): 4, ('cassettes', 'wikipedia.org')
 SHARE_OVERRIDE = {('substitute_tests', d): 30 for d in ('gleif.org', 'sec.gov', 'nist.gov', 'cisa.gov', 'wikipedia.org',
                                                          'wikidata.org', 'wiktionary.org', 'gdeltproject.org',
                                                          'census.gov', 'npmjs.org')}
+# Search team 11-16 19:4x: one role test is 4 requests, and on a domain whose declared limit is 100 a day our total is 20,
+# so the scaled role_tests share (5 x 20 // 60 = 1) could not test a candidate at all. 12 x 20 // 60 = 4: one role test
+# a day, inside the declared 20% (plumbkit.dev 84607 and datakoot.com 37322, terms allowed).
+SHARE_OVERRIDE.update({('role_tests', 'plumbkit.dev'): 12, ('role_tests', 'datakoot.com'): 12})
 # 11-15 (PM 13:52, agent team): GDELT DOC API news substitute; no published daily number, the API answers 'limit
 # requests to one every 5 seconds', which the agent's host pacing keeps. The domain total stays DAILY_TOTAL.
 # 11-15 (PM 14:25, agent team): Census Geocoder (geocoding.geo.census.gov, a public REST service) for the US-address
