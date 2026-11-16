@@ -190,10 +190,16 @@ def observe(state: dict, root: Path, now: float, quota, probes: dict | None = No
                             "rate_limited": codes["rate_limited"], "fail_streak": mark["fail_streak"]}
         if status == "failing":
             alerts.append(("source_failing:" + agent_id, f"{agent_id} failed {mark['fail_streak']} calls in a row"))
+        ours = [row for row in rows if row.get("code") == "internal_error"]
+        report[agent_id]["internal_errors"] = len(ours)
+        if ours:   # a bug of ours, not the source's: alert at the first one (PM 11-16 source review)
+            kinds = sorted({str(row.get("exception") or "?") for row in ours})
+            alerts.append(("internal_error:" + agent_id,
+                           f"{agent_id} failed {len(ours)} call(s) on our own code ({', '.join(kinds)}) in the hour"))
         if agent_id in (probes or {}):
             result, slots = probes[agent_id]
             report[agent_id]["probe"] = result
-            if result in FAIL_CODES or result in ("not_found", "invalid_input"):
+            if result in FAIL_CODES or result in ("not_found", "invalid_input", "internal_error"):
                 # its contract input should pass: any refusal means the only member of these slots is down
                 alerts.append(("sole_member_failing:" + agent_id,
                                f"{agent_id} probe {result}; it is the only usable member of {', '.join(slots)}"))

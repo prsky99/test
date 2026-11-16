@@ -32,7 +32,29 @@ from .tz_grid import parse_point
 from .nvd_store import CVE_ID, Snapshot, _text, record as nvd_record
 from .versions import in_range
 
-CODES = ("invalid_input", "not_found", "rate_limited", "source_unavailable", "invalid_output", "stale")
+CODES = ("invalid_input", "not_found", "rate_limited", "source_unavailable", "invalid_output", "stale", "internal_error")
+INTERNAL = "internal_error"
+
+
+def failure_code(exc: BaseException) -> str:
+    """What a failure says about whom (PM 11-16 source review): the source asked for a pause (rate_limited), the
+    source failed or sent something unusable (source_unavailable: SourceError, and ValueError, which our parsers
+    raise on purpose for a bad answer and json raises for a broken one), or our own code broke on a case it does not
+    handle (internal_error: KeyError, TypeError, AttributeError, IndexError and anything else). Before, every one of
+    these read as source_unavailable, so our parser bugs looked like source outages."""
+    if isinstance(exc, SourceBusy):
+        return "rate_limited"
+    if isinstance(exc, (SourceError, ValueError)):
+        return "source_unavailable"
+    return INTERNAL
+
+
+def failure_message(code: str, what: str = "The source") -> str:
+    if code == INTERNAL:
+        return "Our substitute failed on this request (an internal error, not the source). No answer was given."
+    if code == "rate_limited":
+        return f"{what} asked us to slow down; try again later."
+    return f"{what} is unavailable. No replacement data was generated."
 # Data age (PM 11-14, user emphasis): every answer states when its source data was updated and how
 # old our copy is. A copy older than MAX_AGE is an error ("stale") so the slot moves to the next member.
 MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "github-advisory": 6 * 3600,
@@ -109,12 +131,13 @@ class FallbackAgents:
             return envelope
         except FallbackUnavailable as exc:
             code = exc.code
+            cause = type(exc.__cause__).__name__ if exc.__cause__ is not None else None
             raise
-        except Exception as exc:  # never leak raw errors upward
-            code = "source_unavailable"
-            raise FallbackUnavailable(code, "The source is unavailable. No replacement data was generated.") from exc
+        except Exception as exc:  # never leak raw errors upward; a bug of ours is said to be ours
+            code, cause = failure_code(exc), type(exc).__name__
+            raise FallbackUnavailable(code, failure_message(code)) from exc
         finally:
-            self._usage(agent_id, envelope, code, started)
+            self._usage(agent_id, envelope, code, started, locals().get("cause"))
 
     # ---------------------------------------------------------------- core
     def _execute(self, agent_id, arguments, started):
@@ -136,10 +159,7 @@ class FallbackAgents:
             jsonschema.Draft202012Validator(c["output_schema"]).validate(result)
         except jsonschema.ValidationError as exc:
             raise FallbackUnavailable("invalid_output", "The source answer did not fit the contract.") from exc
-        if "cve_id" in arguments and result.get("cve_id") != arguments["cve_id"]:
-            raise FallbackUnavailable("invalid_output", "The source answered a different CVE.")
-        if ("cvss_score" in result) != ("cvss_version" in result):
-            raise FallbackUnavailable("invalid_output", "Score and version must come together.")
+        contract_check(spec["contract"], arguments, result)
         return {"agent": agent_id, "tool": spec["tool"], "result": result,
                 "sources": [dict(s) for s in spec["sources"]], "retrieved_at": _now_iso(self.utc_now()),
                 "cache": cache, "partial": bool(partial),
@@ -163,14 +183,11 @@ class FallbackAgents:
             if exc.code != "not_found" and hit and age <= max_stale:
                 return hit[1], {"status": "stale_cache", "age_seconds": int(age)}
             raise
-        except SourceBusy as exc:
+        except Exception as exc:     # a pause, a source failure or a bug of ours (failure_code)
             if hit and age <= max_stale:
                 return hit[1], {"status": "stale_cache", "age_seconds": int(age)}
-            raise FallbackUnavailable("rate_limited", "The source asked us to slow down; try again later.") from exc
-        except (SourceError, ValueError, KeyError, TypeError) as exc:
-            if hit and age <= max_stale:
-                return hit[1], {"status": "stale_cache", "age_seconds": int(age)}
-            raise FallbackUnavailable("source_unavailable", "The source is unavailable. No replacement data was generated.") from exc
+            code = failure_code(exc)
+            raise FallbackUnavailable(code, failure_message(code)) from exc
         with self.lock:
             self.cache[key] = (self.clock(), value)
             self.cache.move_to_end(key)
@@ -251,13 +268,13 @@ class FallbackAgents:
             with self.lock:
                 self.kev = kev
             return kev, {"status": "live", "age_seconds": 0}
-        except (SourceBusy, SourceError, FallbackUnavailable, ValueError, KeyError, TypeError) as exc:
+        except Exception as exc:
             if kev and now - kev[0] <= KEV_MAX_STALE:
                 with self.lock:
                     self.kev = kev
                 return kev, {"status": "stale_cache", "age_seconds": int(now - kev[0])}
-            code = "rate_limited" if isinstance(exc, SourceBusy) else "source_unavailable"
-            raise FallbackUnavailable(code, "The KEV catalog is unavailable. No replacement data was generated.") from exc
+            code = exc.code if isinstance(exc, FallbackUnavailable) else failure_code(exc)
+            raise FallbackUnavailable(code, failure_message(code, "The KEV catalog")) from exc
 
     def _kev_from_disk(self):
         path = self.data_dir / "kev-catalog.json"
@@ -860,11 +877,11 @@ class FallbackAgents:
                 value, as_of = met_forecast(json.loads(response.content), self.utc_now())
             entry = {"value": value, "as_of": as_of, "expires": self.clock() + expires,
                      "last_modified": response.headers.get("last-modified") or "", "at": self.clock()}
-        except (SourceBusy, SourceError, ValueError, KeyError, TypeError, IndexError) as exc:
+        except Exception as exc:
             if hit and now - hit["at"] <= MAX_AGE["met-weather"]:
                 return hit["value"], {"status": "stale_cache", "age_seconds": int(now - hit["at"])}, False, hit["as_of"]
-            code = "rate_limited" if isinstance(exc, SourceBusy) else "source_unavailable"
-            raise FallbackUnavailable(code, "MET Norway is unavailable. No replacement data was generated.") from exc
+            code = failure_code(exc)
+            raise FallbackUnavailable(code, failure_message(code, "MET Norway")) from exc
         with self.lock:
             self.weather[key] = entry
             self.weather.move_to_end(key)
@@ -2034,16 +2051,41 @@ class FallbackAgents:
         return out, cache, False, {"Wikidata": as_of}
 
     # ---------------------------------------------------------------- usage
-    def _usage(self, agent_id, envelope, code, started):
+    def _usage(self, agent_id, envelope, code, started, cause=None):
         line = {"at": _now_iso(self.utc_now()), "agent": agent_id if agent_id in SPECS else "unknown",
                 "ok": envelope is not None, "code": code, "ms": int((self.clock() - started) * 1000),
                 "cache": (envelope or {}).get("cache", {}).get("status")}
+        if cause:
+            line["exception"] = str(cause)[:60]       # the exception type only, never its text
         try:
             self.usage_dir.mkdir(parents=True, exist_ok=True)
             with open(self.usage_dir / f"{line['at'][:10]}.jsonl", "a", encoding="utf-8") as fh:
                 fh.write(json.dumps(line) + "\n")
         except OSError:
             pass
+
+
+# Checks of a contract's own answer rules, by contract (PM 11-16 source review: the CVE checks used to sit in the
+# common path of every agent). Each raises invalid_output when the answer breaks its contract's rule.
+def _check_cve_record(arguments, result):
+    if "cve_id" in arguments and result.get("cve_id") != arguments["cve_id"]:
+        raise FallbackUnavailable("invalid_output", "The source answered a different CVE.")
+    if ("cvss_score" in result) != ("cvss_version" in result):
+        raise FallbackUnavailable("invalid_output", "Score and version must come together.")
+
+
+def _check_same_cve(arguments, result):
+    if "cve_id" in arguments and result.get("cve_id") != arguments["cve_id"]:
+        raise FallbackUnavailable("invalid_output", "The source answered a different CVE.")
+
+
+CONTRACT_CHECKS = {"cve.record.v1": _check_cve_record, "cve.exploited.v1": _check_same_cve}
+
+
+def contract_check(contract_id: str, arguments: dict, result: dict) -> None:
+    check = CONTRACT_CHECKS.get(contract_id)
+    if check:
+        check(arguments, result)
 
 
 def cve_org_record(raw: dict) -> dict:

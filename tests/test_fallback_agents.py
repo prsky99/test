@@ -2457,3 +2457,38 @@ def test_wikipedia_summary_takes_a_title_that_only_adds_a_legal_form(tmp_path):
         with pytest.raises(FallbackUnavailable) as err:
             a.execute("wikipedia-summary", {"title": title})
         assert err.value.code == "not_found", title
+
+
+def test_a_bug_of_ours_is_internal_error_and_a_bad_source_answer_stays_source_unavailable(tmp_path):
+    """PM 11-16 source review: KeyError/TypeError in our parsing read as source_unavailable; now internal_error with
+    the exception type in the usage line, and the watch alerts at the first one. A broken answer (ValueError) and an
+    HTTP failure stay source_unavailable."""
+    from agent_market.fallback_agents import watch as w
+    from agent_market.fallback_agents.agents import failure_code
+    from agent_market.fallback_agents.limits import SourceBusy
+    from agent_market.fallback_agents.net import SourceError
+    assert failure_code(KeyError("x")) == failure_code(TypeError()) == failure_code(AttributeError()) == "internal_error"
+    assert failure_code(ValueError("bad json")) == failure_code(SourceError("down")) == "source_unavailable"
+    assert failure_code(SourceBusy("pause")) == "rate_limited"
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": httpx.Response(200, json={"query": {"pages": [
+        {"title": "X", "extract": None, "fullurl": 7}]}})})
+    a._wikipedia_summary = lambda args, remaining: a._cached(("k",), (1, 1), lambda rem: {}["missing"], remaining)
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("wikipedia-summary", {"title": "X"})
+    assert err.value.code == "internal_error" and "not the source" in str(err.value)
+    line = json.loads((tmp_path / "usage").glob("*.jsonl").__next__().read_text().splitlines()[-1])
+    assert line["code"] == "internal_error" and line["exception"] == "KeyError"
+    import time as _time
+    watched = w.observe({}, tmp_path, _time.time() + 5, None)
+    assert any(x["key"] == "internal_error:wikipedia-summary" for x in watched["alerts"])
+
+
+def test_cve_checks_apply_to_the_cve_contracts_only():
+    from agent_market.fallback_agents.agents import contract_check
+    with pytest.raises(FallbackUnavailable):
+        contract_check("cve.record.v1", {"cve_id": "CVE-2021-1"}, {"cve_id": "CVE-2021-2"})
+    with pytest.raises(FallbackUnavailable):
+        contract_check("cve.record.v1", {"cve_id": "CVE-2021-1"}, {"cve_id": "CVE-2021-1", "cvss_score": 5.0})
+    with pytest.raises(FallbackUnavailable):
+        contract_check("cve.exploited.v1", {"cve_id": "CVE-2021-1"}, {"cve_id": "CVE-2021-9"})
+    contract_check("encyclopedia.summary.v1", {"title": "x"}, {"title": "y", "cvss_score": 1})   # not a CVE contract
