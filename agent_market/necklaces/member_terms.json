@@ -391,6 +391,84 @@
       "source": "https://agentdiet.dev/terms",
       "checked_at": "2026-11-16",
       "basis": "same provider and page as 130453: the page named terms covers privacy and API retirement only; commercial use and redistribution not addressed; free use is a sandbox, regular calls are paid over x402 (ambiguous, paid path)"
+    },
+    "114798": {
+      "status": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "no operator name or terms (/terms, /tos, /privacy answer 404; code MIT only); academic_search is a paid x402 tool (0.02 USDC a call or a 30-day pass), two free MCP calls a day for trial (paid path)"
+    },
+    "413095": {
+      "status": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "no operator name or terms (/terms, /tos, /privacy answer 404; code MIT only); academic_search is a paid x402 tool (0.02 USDC a call or a 30-day pass), two free MCP calls a day for trial (paid path)"
+    },
+    "413097": {
+      "status": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "no operator name or terms (/terms, /tos, /privacy answer 404; code MIT only); academic_search is a paid x402 tool (0.02 USDC a call or a 30-day pass), two free MCP calls a day for trial (paid path)"
+    },
+    "413098": {
+      "status": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "no operator name or terms (/terms, /tos, /privacy answer 404; code MIT only); academic_search is a paid x402 tool (0.02 USDC a call or a 30-day pass), two free MCP calls a day for trial (paid path)"
+    },
+    "413099": {
+      "status": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "no operator name or terms (/terms, /tos, /privacy answer 404; code MIT only); academic_search is a paid x402 tool (0.02 USDC a call or a 30-day pass), two free MCP calls a day for trial (paid path)"
+    },
+    "164489": {
+      "status": "silent",
+      "source": "https://abstractinator.me/privacy.html",
+      "checked_at": "2026-11-16",
+      "basis": "no terms page (privacy policy and README only, code MIT); MCP needs no login; abstracts stay the copyright of their authors and publishers"
+    },
+    "57993": {
+      "status": "prohibits",
+      "source": "https://agingresearch.news/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms: API needs an account and key (free account 10 calls in all); no reselling or bulk republishing of API data without a written agreement"
+    },
+    "278179": {
+      "status": "prohibits",
+      "source": "https://arca.inc/legal/terms-of-service",
+      "checked_at": "2026-11-16",
+      "basis": "Terms of Service: account required; automated access forbidden without prior written consent; no resale or redistribution of the Service"
+    },
+    "83100": {
+      "status": "prohibits",
+      "source": "https://askcerebrum.org/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms: automated access only with express permission; no reselling or redistributing the Service's outputs; own research or internal use only"
+    },
+    "316525": {
+      "status": "prohibits",
+      "source": "https://incitefulmed.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms forbid commercial use and bots or scrapers"
+    },
+    "239172": {
+      "status": "prohibits",
+      "source": "https://peptidesacademy.co/legal/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms: personal, non-commercial, educational use only; no redistribution; automation not permitted"
+    },
+    "414768": {
+      "status": "silent",
+      "source": "https://psychedelicskg.com/api/",
+      "checked_at": "2026-11-16",
+      "basis": "no terms page (/terms 404); agents welcome without auth; own graph data CC0 (LICENSES.md), third-party material under its source terms"
+    },
+    "350148": {
+      "status": "silent",
+      "source": "https://pubroot.com/agents.txt",
+      "checked_at": "2026-11-16",
+      "basis": "no terms page (/terms 404) and no content licence; built for agents, reads need no auth; 60 an hour (unauthenticated GitHub API)"
     }
   },
   "changes": [
@@ -977,6 +1055,110 @@
       "from": "unknown",
       "to": "prohibits",
       "source": "https://agentdiet.dev/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "114798",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "413095",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "413097",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "413098",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "413099",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://agent-kiosk.vercel.app/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "164489",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://abstractinator.me/privacy.html",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "57993",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://agingresearch.news/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "278179",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://arca.inc/legal/terms-of-service",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "83100",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://askcerebrum.org/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "316525",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://incitefulmed.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "239172",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://peptidesacademy.co/legal/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "414768",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://psychedelicskg.com/api/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "350148",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://pubroot.com/agents.txt",
       "at": "2026-11-16",
       "by": "agent team"
     }
