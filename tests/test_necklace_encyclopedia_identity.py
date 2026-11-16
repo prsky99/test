@@ -51,6 +51,10 @@ def test_the_search_name_drops_legal_forms_and_state_tags():
     assert runner.search_name("QUICKLOGIC Corp") == "QUICKLOGIC"
     assert runner.search_name("Southwest Gas Holdings, Inc.") == "Southwest Gas"
     assert runner.search_name("Rand Capital Corp /DE/") == "Rand Capital"
+    # PM 11-16: a legal form right after "&" or "and" is part of the name ("Cohen & Co", not "Cohen &")
+    assert runner.search_name("Cohen & Co Inc.") == "Cohen & Co"
+    assert runner.search_name("JOHNSON & JOHNSON") == "JOHNSON & JOHNSON"
+    assert runner.search_name("Procter and Company Inc") == "Procter and Company"
     reg = runner.normalize("company.registry.v1", {"legal_name": "Kodiak Sciences Inc.", "cik": "1468748"}, {})
     assert reg["search_name"] == "Kodiak Sciences"
 

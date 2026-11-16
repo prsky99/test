@@ -571,7 +571,10 @@ def search_name(legal_name: str) -> str | None:
     text = re.sub(r"\s*/[A-Za-z]{2}/?\s*$", "", str(legal_name or "")).replace("/", " ")
     words = re.sub(r"[,.]", " ", text).split()
     while words and words[-1].lower() in LEGAL_FORMS:
-        words.pop()
+        last = words.pop()
+        if words and words[-1].lower() in ("&", "and"):    # "Cohen & Co Inc." -> "Cohen & Co", never "Cohen &"
+            words.append(last)
+            break
     return " ".join(words) or None
 
 
