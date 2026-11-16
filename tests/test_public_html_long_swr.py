@@ -27,11 +27,23 @@ def test_sign_in_and_account_answers_stay_private(client):  # noqa: F811
         # 11-14 PM: the old sign-in address is one fixed, cookie-free move (308) a cache may keep for a day
         r = site.get('/new/en/sign-in.html', follow_redirects=False)
         assert r.status_code == 308 and r.headers['cache-control'] == 'public, max-age=86400' and 'set-cookie' not in r.headers
-        # PM 11-16 04:3x (46aa1389): the sign-in page carries nothing personal and is kept a short while; it sets no
-        # cookie (the sign-in flow cookie comes from the POST its button sends)
+        # PM 11-16 04:3x (46aa1389) and 09:5x: the sign-in page may be kept only while it is the same bytes for everyone,
+        # sets no cookie and holds no personal value; whether the visitor is signed in comes from the status API after
+        # it opens, and that answer, like every signed-in page, stays no-store.
         from agent_market.customer_sign_in_cache import BROWSER_CACHE
-        r = site.get('/customer/sign-in')
-        assert r.headers['cache-control'] == BROWSER_CACHE and 'set-cookie' not in r.headers
+        session = 'customer_session=private-value-4821'
+        first = site.get('/customer/sign-in')
+        again = site.get('/customer/sign-in')
+        signed = site.get('/customer/sign-in', headers={'Cookie': session})
+        assert first.status_code == 200 and first.headers['cache-control'] == BROWSER_CACHE
+        assert first.content == again.content == signed.content            # no nonce, nothing per visitor
+        assert not any('set-cookie' in r.headers for r in (first, again, signed))
+        assert 'private-value-4821' not in signed.text and 'nonce=' not in first.text
+        for headers in ({}, {'Cookie': session}):
+            status = site.get('/api/customer-auth/status', headers=headers)
+            assert 'no-store' in status.headers['cache-control'], headers
+            plan = site.get('/customer/plan', headers=headers, follow_redirects=False)
+            assert 'no-store' in plan.headers['cache-control'], (headers, plan.status_code)
 
 
 def test_a_cookie_answer_is_never_given_the_shared_policy(page_client):  # noqa: F811
