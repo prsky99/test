@@ -27,15 +27,21 @@ from .postgres_capability_text import SEARCHABLE
 # (A2A about 24%, MCP about 7%: usage_tools stays, it is bound into the document).
 SKIPPED = frozenset(("usage_full_tools", "eval_info", "usage_changes", "content_hash", "last_error"))
 
-# A policy change that leaves every document byte-identical (11-13: the gateway relay verbs change
-# collector/usage.py and execution_policy.py, which policy_hash() covers, but no document input; 2,995 sampled
-# listings, 1,507 of them with changed relay tools, built identically with both releases) declares the previous
-# hash compatible here. Without it every visitor search falls to the complete-contract path for the ~2 h 40 min jobs
-# needs to rebuild 416k documents. Keyed by the current hash, so any later policy change ends it by itself;
-# jobs still rebuilds every document under the new hash, after which the entry does nothing.
+# A policy change that leaves every document byte-identical declares the previous hash compatible here.
+# Without it every visitor search falls to the complete-contract path for the ~2 h 40 min jobs needs to
+# rebuild 416k documents. Keyed by the current hash, so any later policy change ends it by itself; jobs still
+# rebuilds every document under the new hash, after which the entry does nothing.
+# 11-16 (B+C bundle): selection.py admission words (B), the clock and trait rules (C) and the graph cap reader leave
+# every document byte-identical: 2,995 sampled listings built with day15-frontend-20261115-r1 (5d3d8f6a) and this
+# code (1c7ba78b) gave the same sha256 for all 2,995. The a05 entry (5d3d8f6a -> 40851c1a) is replaced: the 11-14
+# rebuild left no 40851c1a document that this release would need.
+# With 97ac9a54 (execution_policy: three reviewed bounded patterns, 운영·SRE 11-15) the hash is 8e4768d8. That change
+# is not byte-identical for 181 resources (396 tools whose schemas use those patterns): their previous documents say
+# the tools are not supported, which is what production does today, until jobs rebuilds them under 8e4768d8 (about
+# six hours); every other sampled document (2,995) is identical.
 COMPATIBLE_POLICIES = {
-    "40851c1a2575526dae44743875407043c6abc5f431f98919692f59f4d6f6def5":
-        ("d1d9688a148c1e19ec001fd76d68f4763e7601e2072cb563ca523e0518535bd4",),
+    "8e4768d8c461651542fad4ee3b0313d1e3ef9cf0562fc2b580de728fac588510":
+        ("5d3d8f6a1d61faac5da83354fa3ebff7a61702a5b89c83a2824d2d3327b9c54c",),
 }
 
 

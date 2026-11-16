@@ -15,7 +15,9 @@ import re
 # ID(user ID), MX(DNS MX 레코드), PE(P/E 비율), AR(증강현실), CO, CA(캘리포니아·인증기관) → 나라 이름으로만 인식
 REGIONS = {
     "us": ("미국", r"\b(US|USA|U\.S\.A?\.?)\b", r"\b(united states|american|sec filings?|edgar|irs|fda|nasdaq|nyse|us-only)\b"),
-    "eu": ("EU·유럽", r"\bEU\b", r"\b(european union|european|europe|esma|gdpr|eur-lex|eurostat|mifid)\b"),
+    "eu": ("EU·유럽", r"\bEU\b|\bPolish\b(?!\s+(?:language|translation|text|grammar|speakers?|words?|your|my|the|up|and|it|this)\b)",
+           r"\b(european union|european|europe|esma|gdpr|eur-lex|eurostat|mifid|poland|gugik|teryt|ceidg|spain|italy|netherlands|"
+           r"portugal|austria|belgium|ireland|sweden|finland|denmark|czechia|czech republic)\b"),
     "gb": ("영국", r"\b(UK|GB)\b", r"\b(united kingdom|british|hmrc|companies house|england|scotland)\b"),
     "br": ("브라질", r"\b(CNPJ|CPF|SEFAZ|INPI|TRT\d*|PIX)\b", r"\b(brazil|brasil|brazilian|receita federal)\b"),
     "in": ("인도", r"\b(GST|NSE|BSE|UPI)\b", r"\b(india|indian|aadhaar)\b"),
@@ -31,6 +33,14 @@ REGIONS = {
     "africa": ("아프리카", r"\b(NG|KE|ZA)\b", r"\b(nigeria|kenya|south africa|africa|african)\b"),
     "sea": ("동남아", r"\b(SGX)\b", r"\b(singapore|indonesia|vietnam|thailand|philippines|malaysia)\b"),
     "me": ("중동", r"\b(UAE|KSA)\b", r"\b(dubai|saudi|qatar|abu dhabi|emirates)\b"),
+    # 11-13 a05: a Polish property register had no region. EU member countries join "eu" (tool parameters
+    # already map their ISO codes there, normalize_region("PL") == "eu"); others get their own code. Country
+    # names only: a language adjective ("Spanish translation", "polish the text") is not a place, except a
+    # capitalised "Polish" before a noun other than the language's own words; "turkey" may be the bird.
+    "no": ("노르웨이", r"(?!x)x", r"\b(norway)\b"),
+    "tr": ("튀르키예", r"(?!x)x", r"\b(t[uü]rkiye|republic of turkey)\b"),
+    "il": ("이스라엘", r"(?!x)x", r"\b(israel)\b"),
+    "nz": ("뉴질랜드", r"(?!x)x", r"\b(new zealand)\b"),
 }
 _REGION_PATTERNS = {code: (re.compile(cs), re.compile(ci, re.I)) for code, (_, cs, ci) in REGIONS.items()}
 # 도구 파라미터 값(ISO 국가 코드 등) → 지역 코드

@@ -96,6 +96,18 @@ def test_past_the_budget_the_closest_listings_come_without_more_retries(monkeypa
     assert result['match'] == 'near' and asked == ['bird song identification', 'bird song identification ~near']
 
 
+def test_explore_drops_the_chat_qualifiers_before_the_first_search():
+    """PM 11-14 03:2x: "crypto price for my team" searched "crypto price team", found nothing and relaxed
+    (documents ~2 s, three times). The same list as Chat; real conditions such as history or korea stay."""
+    from agent_market.concierge.hybrid_explore import cleaned_query
+    assert cleaned_query('crypto price for my team 261') == 'crypto price'
+    assert cleaned_query('image generation small business 12') == 'image generation'
+    assert cleaned_query('book flights in real time') == 'book flights'
+    assert cleaned_query('code review with history 974') == 'code review'  # C bundle: a trait
+    assert cleaned_query('speech to text in korea') == 'speech to text korea'
+    assert cleaned_query('small business') is None          # nothing else to search for
+
+
 def test_trait_phrases_are_never_required_search_words():
     """C bundle (11-15): 'with history' and 'for my team' multiplied the document read 5-16x (11-14 22:02);
     they leave the first search and are named unverified. Place, language and price stay; bare 'history' stays."""

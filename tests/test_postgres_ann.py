@@ -206,6 +206,14 @@ def test_per_kind_halfvec_indexes_are_used_once_present_and_rolled_back_cleanly(
             store.close()
 
 
+def test_an_unknown_kind_never_reaches_the_shared_graph():
+    """11-14 plan A: the shared graph is unused since 11-13 and may be dropped; an unknown kind returns nothing."""
+    from agent_market import postgres_ann
+    calls = []
+    assert postgres_ann.kind_graph_search(object(), 'workflow', lambda *a: calls.append(a) or []) == []
+    assert calls == []
+
+
 def test_per_host_graph_cap_marks_rows_and_is_used_once_present(monkeypatch):
     """P1 ① (11-13): one host adds at most CAP rows of a kind to that kind's graph; new rows enter at once,
     refresh trims them, rollback returns to the per-kind graphs. Public triggers are untouched."""
@@ -288,13 +296,6 @@ def test_per_host_graph_cap_marks_rows_and_is_used_once_present(monkeypatch):
             assert cap.status(conn)['public_triggers']==triggers and not cap.status(conn)['column']
             store.close()
 
-
-def test_an_unknown_kind_never_reaches_the_shared_graph():
-    """11-14 plan A: the shared graph is unused since 11-13 and may be dropped; an unknown kind returns nothing."""
-    from agent_market import postgres_ann
-    calls = []
-    assert postgres_ann.kind_graph_search(object(), 'workflow', lambda *a: calls.append(a) or []) == []
-    assert calls == []
 
 
 def test_the_store_opens_without_the_shared_graph_once_the_kind_graphs_are_valid():

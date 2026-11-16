@@ -4,6 +4,7 @@ from collections import Counter
 from functools import lru_cache
 import json
 import math
+import os
 import re
 import time
 
@@ -61,18 +62,13 @@ ALIASES = {
     # Korean grammatical aliases (escaped Unicode)
     '\uc870\ud68c': 'lookup', '\uc870\ud68c\ud574': 'lookup', '\uc870\ud68c\ud560': 'lookup',
     '\ubb34\ub8cc': 'free', '\uc720\ub8cc': 'paid',
-    # 11-16 (PM 02:5x): '\uc774\uba54\uc77c \ubcf4\ub0b4\uae30' kept only 'email', so a report-link tool led; the verb and
-    # customer support are capability words too.
-    '\ubcf4\ub0b4\uae30': 'send', '\ubcf4\ub0b4\uc918': 'send', '\ubc1c\uc1a1': 'send',
-    '\uace0\uac1d \uc9c0\uc6d0': 'customer support', '\uace0\uac1d\uc9c0\uc6d0': 'customer support', '\uace0\uac1d \uc0c1\ub2f4': 'customer support',
 }
-# 'support' is filler in "supports PDF" but the capability in "customer support" (11-16: 'customer support' kept only
-# 'customer', so a procurement tool whose listing says customer led).
-SUPPORT_CAPABILITY = re.compile(r'\b(?:customer|technical|tech|user|it|help\s*desk)\s+support\b')
 FILLER = set('find recommend recommendation recommendations best highest high quality reliable verified recent latest please need want looking look help show only ones one another alternative options option use using get give tell done accomplish trying without free paid cheap price pricing prices cost costs budget money key keys account accounts auth authentication no required any capable capability capabilities api apis agent agents tool tools server servers mcp a2a x402 for an to me can you i am is the my it its this that and or of in on a with do does which what how'.split())
 FILLER.update('fast faster fastest quick quickly low lower lowest latency accurate accuracy highly top rated ratings grade grades report reports tested evaluation regular returning tier tiers subscription basic premium plan plans very really would could should will provide provides providing supports support current today tomorrow week days easy simple'.split())
 # Prepositions and connectives carry no capability; they only dilute relevance.
 FILLER.update('about into from by at as via per like than then also some other more most such into onto upon up'.split())
+# "price changes over 24 hours": a span limits the answer; it names no capability (Chat gate crypto_price-en2, 11-13).
+FILLER.update('over hour hours minute minutes second seconds'.split())
 FILLER.update(('\ucd94\ucc9c','\ucd94\ucc9c\ud574\uc918','\ucc3e\uc544\uc918','\uc54c\ub824\uc918','\uc5d0\uc774\uc804\ud2b8','\uc11c\ubc84','\ub3c4\uad6c','\ubb34\ub8cc','\uc720\ub8cc','\uac00\uaca9','\uac00\uc7a5','\uc88b\uc740','\ud488\uc9c8','\ub192\uc740','\ud558\ub098','\uac1c','\ud544\uc694\ud574','\ubd80\ud0c1\ud574','\uc870\ud68c','\uc870\ud68c\ud574','\uc870\ud68c\ud560','\uc788\uc5b4','\uc218','\ud560','\ub18d\ub3c4'))
 FILLER.update('quiero necesito busca encuentra recomienda agente que un una unos unas al el la los las de del para por en con sin gratis como es son ingles inglés'.split())
 FILLER.update(('\u306e', '\u3092', '\u306f', '\u304c', '\u306b', '\u3067', '\u3068', '\u3057\u305f\u3044', '\u77e5\u308a\u305f\u3044', '\u6559\u3048\u3066', '\u304f\u3060\u3055\u3044', '\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8', '\u30c4\u30fc\u30eb', '\u7121\u6599', '\u6709\u6599', '\u3042\u308b', '\u3044\u3044', '\u304a\u3059\u3059\u3081'))
@@ -93,11 +89,12 @@ def search_terms(task):
     words = re.findall(r'[a-z][a-z0-9_-]*', text.lower())
     if 'equity' in words or 'equities' in words:
         words.append('stock')
-    keep = {'support'} if SUPPORT_CAPABILITY.search(' '.join(words)) else set()
-    filtered = [word for word in query_terms(' '.join(words), limit=1024) if word not in FILLER or word in keep]
+    filtered = [word for word in query_terms(' '.join(words), limit=1024) if word not in FILLER]
     if set(filtered).intersection({'convert', 'conversion'}) and set(filtered).intersection(UNIT_NAMES) and 'unit' not in filtered:
         filtered.append('unit')
-    if re.search(r'\b(?:bitcoin|btc|ethereum|eth|stocks?|shares|equit(?:y|ies))\b',text)and re.search(r'\b(?:price|quote)s?\b',text):
+    if re.search(r'\b(?:bitcoin|btc|ethereum|eth|solana|sol|xrp|ripple|dogecoin|doge|cardano|litecoin|ltc|avalanche|avax|'
+                 r'polkadot|tron|bnb|toncoin|usdc|usdt|tether|crypto|cryptocurrenc(?:y|ies)|tokens?|coins?|'
+                 r'stocks?|shares|equit(?:y|ies))\b',text)and re.search(r'\b(?:price|quote)s?\b',text):
         filtered.append('price')
     return filtered if len(filtered) <= 12 else filtered[:8] + filtered[-4:]
 
@@ -211,6 +208,31 @@ _EQUIVALENT_PATTERNS = {
 }
 
 
+_VOWELS = set('aeiou')
+ING_NOUNS = frozenset('driving working listing meeting building setting opening earning booking mapping posting '
+                      'serving morning evening spring string thing ceiling clothing'.split())
+
+
+@lru_cache(maxsize=4096)
+def _family_pattern(term):
+    """Word families the endings below miss (Chat gate 11-13, PM 23:5x B1): analyze/analysis, embed/embedding,
+    holding/holders. Only these three shapes, each needing a stem of four letters or more, so "booking" never
+    reaches "books"; -ing reaches -er(s) but not the other way."""
+    # analyze/analysis, not analytics (web analytics is its own capability).
+    m = re.fullmatch(r'(\w{4,}?)(?:yze|yzes|yzed|yzing|ysis|yses)', term)
+    if m:
+        return re.compile(r'\b' + re.escape(m.group(1)) + r'y(?:ze|zes|zed|zing|zer|zers|sis|ses)\b')
+    # From a singular -ing form only: "server" must not reach "serving", "openings" not "openers", and an -ing
+    # noun with its own meaning ("driving" directions, not device drivers) stays as it is.
+    m = re.fullmatch(r'(\w{4,}?)ing', term)
+    if m and not term.endswith('ering') and term not in ING_NOUNS:
+        return re.compile(r'\b' + re.escape(m.group(1)) + r'(?:ing|ings|er|ers)\b')
+    if (len(term) >= 4 and term[-1] not in _VOWELS | set('wxy') and term[-2] in _VOWELS
+            and term[-3] not in _VOWELS):
+        return re.compile(r'\b' + re.escape(term) + re.escape(term[-1]) + r'(?:ing|ings|ed|er|ers)\b')
+    return None
+
+
 @lru_cache(maxsize=4096)
 def _term_pattern(term):
     if term in ('direction', 'directions'):
@@ -230,7 +252,10 @@ def _term_in(term, text):
         return True
     if term in ('direction', 'directions'):
         return False
-    return _term_pattern(term).search(text) is not None
+    if _term_pattern(term).search(text) is not None:
+        return True
+    family = _family_pattern(term)
+    return family is not None and family.search(text) is not None
 
 
 # A tool that finds other APIs or agents ("find a paid API for anything") is a
@@ -392,10 +417,12 @@ def capability_terms(task):
     In "research papers about battery recycling" a paper-search tool will not
     mention batteries; the subject after the boundary is a query, not a skill."""
     task = PRICE_CONDITION.sub(' ', str(task or ''))  # "costs under 1 cent" limits a listing; it names no capability
+    task = QUALIFIER_PHRASES.sub(' ', task)
     focused_task = NARRATIVE_LEAD.sub('', task)
     if focused_task != task:
         focused_task = LEAD_CLAUSE_END.split(focused_task, maxsplit=1)[0]
-    head = TOPIC_BOUNDARY.split(SEEK_PHRASE.sub(r'\1', focused_task), maxsplit=1)[0]
+    split = TOPIC_BOUNDARY.split(SEEK_PHRASE.sub(r'\1', focused_task), maxsplit=1)
+    head = split[0]
     terms = search_terms(head) or search_terms(focused_task) or search_terms(task)
     # Generic verbs match almost any tool ("Get an API key"), and modifiers such
     # as "research" in "research papers" do not name the capability; keep the nouns.
@@ -404,6 +431,23 @@ def capability_terms(task):
     specific = [term for term in terms if term not in GENERIC_ACTIONS]
     specific = [term for term in specific if term not in CAPABILITY_MODIFIERS] or specific
     specific = [term for term in specific if term not in LANGUAGE_NAMES] or specific
+    # "embed documents", "read a figma design file": the file or document is the input, not the capability,
+    # when another word names what is done with it (Chat gate embeddings-en2, figma-ko0, 11-13).
+    specific = [term for term in specific if term not in INPUT_OBJECTS] or specific
+    # A head that only says "details", "data" or "post" names no capability; the object after the boundary does
+    # ("look up details for a CVE", "post to a Discord channel"), when the catalog knows the word well enough that
+    # it is a product or a domain rather than a person ("send a message to John": john is in 20 listings).
+    if len(split) > 1 and specific and set(specific) <= WEAK_HEAD:
+        objects = [term for term in search_terms(split[1]) if term not in WEAK_HEAD and term not in GENERIC_ACTIONS
+                   and term not in CAPABILITY_MODIFIERS and term not in INPUT_OBJECTS and _catalog_count(term) >= 50][:2]
+        # A rare word ("telegram", 269 listings) names the product by itself; a second word ("group") would
+        # require both and can leave nothing. A broad one ("crypto", "domain") needs the next noun (wallet, name).
+        if len(objects) == 2 and _catalog_count(objects[0]) < BROAD_OBJECT:
+            objects = objects[:1]
+        if objects:
+            # "send a message to a Telegram group": the product says where, the message says what is done;
+            # a messaging tool names the message, rarely the product (11-14 03:4x, Fast MCP Telegram send_message).
+            specific = objects + [term for term in specific if term in MESSAGE_HEAD]
     # The place, company or document is what the capability is applied to, not the capability.
     if set(specific).intersection({'weather','forecast','temperature','tide','tides','surf','surfing','swell','air','aqi'}):
         specific = [term for term in specific if term in WEATHER_TERMS] or specific
@@ -442,6 +486,30 @@ def capability_terms(task):
     return specific or terms
 
 
+# When or for whom, not what (PM 11-13 22:3x plan A, 23:5x B2): fast_chat removes these from the catalog search
+# text and capability_terms from the required words. "bulk" stays: batch processing is a capability.
+QUALIFIER_PHRASES = re.compile(r'\b(?:today|in\s+real[\s-]time|quickly|for\s+my\s+team|for\s+agents|(?:for\s+(?:a\s+|my\s+)?)?small\s+business(?:es)?)\b', re.I)
+
+
+INPUT_OBJECTS = frozenset('document documents file files read reads reading'.split())
+WEAK_HEAD = frozenset('details detail info information data message messages post posts send result results content '
+                      'record records lookup channel channels'.split())
+MESSAGE_HEAD = frozenset('message messages'.split())  # not post: 'discord'+'post' left "post to a Discord channel" empty
+BROAD_OBJECT = 2000  # listings; below it the first object word is specific enough alone
+
+
+@lru_cache(maxsize=1)
+def _catalog_words():
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'catalog_vocabulary.json')
+    try:
+        with open(path, encoding='utf-8') as stream:
+            return json.load(stream).get('words') or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _catalog_count(term):
+    return _catalog_words().get(term, 0)
 OPEN_SOURCE = re.compile(r'\bopen[\s-]+source\b', re.I)
 IMAGE_KINDS = {'illustration', 'illustrations', 'drawing', 'drawings', 'painting', 'paintings', 'artwork', 'logo', 'logos'}
 SPEECH_PHRASE = re.compile(r'\b(?:text[\s-]+to[\s-]+(?:speech|voice)|speech[\s-]+to[\s-]+text)\b', re.I)
@@ -477,6 +545,8 @@ LANGUAGE_FIRST = re.compile(r'\b([a-z]+)[- ](?:first|centric|focused|only)\b')
 NEGATIONS = {'not', 'no', 'nor', 'without', 'except', 'excluding'}
 CAPABILITY_MODIFIERS = set('research recent latest online live real realtime time free public simple quick best good new current '
                            'daily accurate reliable fast similar popular top'.split())
+# "the largest wallets": a ranking of the answer, not the capability (Chat gate token_holders-en2, 11-13).
+CAPABILITY_MODIFIERS.update('largest biggest smallest highest lowest cheapest newest oldest least'.split())
 GENERIC_ACTIONS = set('get check make create run build show list return fetch give take put set see view open '
                       'text data information info result results item items line lines keyword keywords'.split())
 
@@ -1099,7 +1169,10 @@ class QualityRecommender(Recommender):
                 item['tools']=[];item['tools_schema']=[]
             if tools:
                 described = {id(t) for t in _described_tools(resource, tools)}
+                from .gateway_exposure import tool_direction_fits
+                # A tool doing the task the other way round never leads (real task a05: reverse_geocode).
                 tool = max(tools,key=lambda t:(
+                    tool_direction_fits(task, t),
                     sum(_term_in(term, _tool_text(t, described)) for term in core),
                     sum(_term_in(term, _tool_text(t, described)) for term in terms),
                     t.get('name')==evidence['report_tool']))

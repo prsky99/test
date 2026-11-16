@@ -214,3 +214,15 @@ def test_caribbean_territory_is_a_regional_scope():
     assert cons.regions_in_text(text) == ['latam']
     assert not _weather_scope_matches(['weather', 'forecast', 'seoul'], text)
     assert _weather_scope_matches(['weather', 'forecast'], 'Worldwide weather forecast for any city.')
+
+
+def test_country_names_added_for_real_task_a05():
+    """11-13: a Polish property register had no region; language words and the bird are not places."""
+    from agent_market.gateway.constraints import regions_in_text
+    assert regions_in_text('Polish real-estate deed prices and parcel checks') == ['eu']
+    assert regions_in_text('Resolve a Polish address to coordinates') == ['eu']
+    assert regions_in_text('Polish your resume') == [] and regions_in_text('Polish translation service') == []
+    assert regions_in_text('Turkey recipes for the holidays') == []
+    assert regions_in_text('Company registry of Türkiye') == ['tr']
+    assert regions_in_text('Weather in Norway') == ['no'] and regions_in_text('Spanish translation') == []
+    assert regions_in_text('Land registry of Spain') == ['eu']

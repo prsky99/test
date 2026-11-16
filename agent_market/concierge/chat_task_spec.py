@@ -194,3 +194,9 @@ def task_proof(tool_name, report, report_ok):
     return {'status': 'verified' if verified else 'not_recorded',
             'tool': tool_name or None, 'report_id': report.get('id') if verified else None,
             'verified_at': report.get('executed_at') if verified else None}
+
+
+# 11-13 Chat answer-quality gate (figma-ko0, cve_scan-ko0): "\uc2a4\uce94" alone is the act of scanning; only
+# "\uc2a4\uce94\ub41c" (a scanned PDF) is the adjective. Product and security words had no alias.
+ALIASES.update({"\uc2a4\uce94": "scan", "\ud53c\uadf8\ub9c8": "figma", "\ub514\uc790\uc778": "design",
+                "\ucde8\uc57d\uc810": "vulnerability", "\uc77d\uae30": "read", "\ud30c\uc77c": "file"})
