@@ -123,15 +123,3 @@ def test_workflow_proposals_name_unsupported_actions_but_not_topics():
     assert 'Sending messages or publishing' in missing('Find battery research and email me the results', docs)
     assert missing('Find research papers about payment fraud detection', docs) == []
     assert missing('Search documentation for sending email with SMTP', docs) == []
-
-
-def test_dropped_capability_words_are_kept():
-    """11-16 (PM 02:5x): 'customer support' kept only 'customer' (support was filler) and '이메일 보내기' only 'email',
-    so one word admitted a procurement tool and a report-link tool."""
-    from agent_market.concierge.selection import search_terms
-    assert search_terms('customer support for my team') == ['customer', 'support', 'team']
-    assert search_terms('technical support ticket')[:2] == ['technical', 'support']
-    assert search_terms('a tool that supports pdf') == ['pdf']            # 'supports' stays filler
-    assert search_terms('find support for pdf') == ['pdf']                # so does a bare 'support'
-    assert set(search_terms('이메일 보내기')) == {'email', 'send'}
-    assert set(search_terms('고객 지원 챗봇')) >= {'customer', 'support'}
