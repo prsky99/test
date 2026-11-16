@@ -135,6 +135,23 @@ def router_for(commercial, bookings, *, resolve_auth) -> APIRouter:
             return await run_in_threadpool(plans.list, advertiser)
         return await respond(call)
 
+    @router.get("/admin/paid-plans")
+    async def plan_queue(request: Request):
+        async def call():
+            ctx = await context(request, write=False)
+            return await run_in_threadpool(plans.operator_queue, access, ctx.principal)
+        return await respond(call)
+
+    @router.post("/admin/paid-plans/{plan_id}/decision")
+    async def plan_decide(plan_id: str, request: Request):
+        async def call():
+            ctx = await context(request, write=True)
+            body = await body_of(request)
+            return await run_in_threadpool(lambda: plans.operator_decide(
+                access, ctx.principal, plan_id, action=body.get("action"), refund_tx_hash=body.get("refund_tx_hash"),
+                reason=body.get("reason"), sanctions_ack=body.get("sanctions_ack") is True))
+        return await respond(call)
+
     @router.get("/admin/paid-bookings")
     async def queue(request: Request):
         async def call():

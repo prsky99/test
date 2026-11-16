@@ -40,6 +40,8 @@ SQL = {
     "attempts=attempts+1 WHERE id=? AND generation=? AND state<>'done'",
     "outbox_finish": "UPDATE adc2_outbox SET state='done',lease_owner=NULL,lease_until_ms=NULL "
     "WHERE id=? AND state='leased' AND lease_owner=? AND generation=? AND lease_until_ms>?",
+    "outbox_park": "UPDATE adc2_outbox SET state='pending',lease_owner=NULL,lease_until_ms=NULL,available_ms=?,"
+    "generation=generation+1 WHERE id=? AND generation=? AND state='leased'",
     "outbox_renew": "UPDATE adc2_outbox SET lease_until_ms=? WHERE id=? AND state='leased' AND lease_owner=? "
     "AND generation=? AND lease_until_ms>?",
     "inbox_get": "SELECT * FROM adc2_inbox WHERE source_id=? AND audience=? AND event_id=?",
@@ -276,6 +278,14 @@ SQL.update(
         "paid_plans_confirming": "SELECT id FROM adc2_paid_plans WHERE state='confirming' ORDER BY quoted_ms LIMIT ?",
         "paid_plans_by_advertiser": "SELECT id FROM adc2_paid_plans WHERE advertiser_id=? ORDER BY quoted_ms DESC LIMIT 20",
         "paid_plans_month": "SELECT * FROM adc2_paid_plans WHERE confirmed_ms>=? AND confirmed_ms<? ORDER BY confirmed_ms",
+        # 11-16 source review: operator path, KRW retry and finality watch for plans; KRW retry for bookings
+        "paid_plans_operator_queue": "SELECT * FROM adc2_paid_plans WHERE state IN ('review','refund_due') ORDER BY quoted_ms LIMIT 200",
+        "paid_plan_operator_set": "UPDATE adc2_paid_plans SET state=?,refund_tx_hash=COALESCE(?,refund_tx_hash),note=COALESCE(?,note) WHERE id=? AND state=?",
+        "paid_plan_set_krw": "UPDATE adc2_paid_plans SET krw_rate=? WHERE id=? AND krw_rate IS NULL",
+        "paid_plan_items_release": "UPDATE adc2_paid_bookings SET state='expired' WHERE state='quoted' AND id IN (SELECT booking_id FROM adc2_paid_plan_items WHERE plan_id=?)",
+        "paid_plans_krw_retry": "SELECT * FROM adc2_paid_plans WHERE state='review' AND note='krw_rate_unavailable' ORDER BY quoted_ms LIMIT ?",
+        "paid_plans_watch": "SELECT * FROM adc2_paid_plans WHERE state IN ('confirmed','review','refund_due') AND tx_hash IS NOT NULL AND confirmed_ms>=? ORDER BY confirmed_ms LIMIT ?",
+        "paid_bookings_krw_retry": "SELECT * FROM adc2_paid_bookings WHERE state='review' AND note='krw_rate_unavailable' AND tx_hash IS NOT NULL ORDER BY quoted_ms LIMIT ?",
         "campaigns_sponsored_paid": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
         "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('confirmed','served') AND c.state='active' AND c.approval_status='approved' "
         "AND a.status='active' AND r.ends_ms>? ORDER BY b.confirmed_ms,b.id LIMIT ?",

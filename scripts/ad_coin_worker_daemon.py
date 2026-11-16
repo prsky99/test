@@ -36,7 +36,11 @@ class WorkerDaemon:
     def run_cycle(self, now_ms: int | None = None) -> dict:
         now_ms = now_ms or int(time.time() * 1000)
         reclaimed_leases = self.workers.reclaim_stale_leases(now_ms=now_ms)
-        processed_outbox = self.workers.process_outbox(now_ms=now_ms)
+        try:                                  # 11-16: the outbox never stops payment confirmation below
+            processed_outbox = self.workers.process_outbox(now_ms=now_ms)
+        except Exception:
+            logger.warning("Outbox pass failed; payments and settlement still run", exc_info=True)
+            processed_outbox = 0
         signed_receipts = self.workers.reconcile_pending_receipts(now_ms=now_ms)
         stale_attention = self.workers.reconcile_stale_attention(now_ms=now_ms)
         from agent_market.ad_coin.v2.sponsored_booking import SponsoredBookings

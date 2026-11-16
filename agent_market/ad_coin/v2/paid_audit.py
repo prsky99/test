@@ -16,6 +16,7 @@ import time
 from uuid import uuid4
 
 FINALITY_WATCH_DAYS = 7
+MISSING_GAP_MS = 10 * 60_000   # a missing receipt counts as gone only when it is missing again 10 minutes later
 DAY_MS = 86_400_000
 KINDS = ("receipt", "finality", "reorg", "operator", "reconcile")
 FINALITY = ("unsafe", "safe", "finalized")
@@ -95,8 +96,14 @@ def watch(bookings, *, now_ms=None, limit=50):
         with store.atomic():
             last = last_block_event(store, row["id"])
             if receipt is None:
-                if last is not None and last["detail"] and "receipt_missing" in last["detail"]:
-                    _reorg(store, row, "receipt missing twice", now_ms)
+                missing = last is not None and last["detail"] and "receipt_missing" in last["detail"]
+                if missing and now_ms - int(last["at_ms"]) < MISSING_GAP_MS:
+                    # 11-16 source review: a public node can answer null for a moment; the daemon runs every few
+                    # seconds, so two misses in a row are not evidence. Keep the first miss and look again later.
+                    out["missing_once"] += 1
+                elif missing:
+                    _reorg(store, row, "receipt missing twice, %d minutes apart" % ((now_ms - int(last["at_ms"])) // 60_000),
+                           now_ms)
                     out["reorg"] += 1
                 else:
                     record(store, row["id"], "finality", tx_hash=row["tx_hash"], detail={"receipt_missing": True},

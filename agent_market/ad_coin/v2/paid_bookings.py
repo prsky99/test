@@ -232,6 +232,32 @@ def default_rpc(primary_url=None):
     return AgreeingRPC(make(primary_url), make(SECOND_RPC_URL))
 
 
+def tx_used_elsewhere(store, tx_hash, *, booking_id=None, plan_id=None):
+    """One check for every USDC table (11-16 source review): a transaction pays or refunds one thing only.
+    True when tx_hash already pays another booking or plan, or is any booking's or plan's refund."""
+    used = store.one("paid_booking_by_tx", (tx_hash,))
+    if (used is not None and used["id"] != booking_id) or store.one("paid_booking_by_refund_tx", (tx_hash,)):
+        return True
+    if store.one("paid_plans_table")["present"]:
+        plan = store.one("paid_plan_by_tx", (tx_hash,))
+        if (plan is not None and plan["id"] != plan_id) or store.one("paid_plan_by_refund_tx", (tx_hash,)):
+            return True
+    return False
+
+
+def tail_used(store, amount, since):
+    """True when a booking or plan quoted this exact amount since `since` (R32 across both tables)."""
+    if store.one("paid_booking_amount_recent", (amount, since)) is not None:
+        return True
+    return bool(store.one("paid_plans_table")["present"]) and store.one("paid_plan_amount_recent", (amount, since)) is not None
+
+
+def krw_value(rate, units):
+    """KRW for USDC units at a recorded rate, exact decimal arithmetic, rounded half up to whole won (11-16)."""
+    from decimal import ROUND_HALF_UP, Decimal
+    return str((Decimal(str(rate)) * Decimal(int(units)) / Decimal(USDC_UNITS)).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
 def received_units(store, row):
     """Units that actually arrived for a booking (R31): the receipt event's record when there is one; otherwise the
     quote, since a payment is attached only when it matches the quote exactly (R32). None when unknown."""
@@ -304,7 +330,7 @@ class PaidBookings:
                 raise ContractError("sponsored_day_full", 409)
             for _ in range(20):                         # a tail no booking of the last 7 days used (R32)
                 amount = self.config.price_units + secrets.randbelow(9999) + 1
-                if self.store.one("paid_booking_amount_recent", (amount, now_ms - TAIL_UNIQUE_DAYS * DAY_MS)) is None:
+                if not tail_used(self.store, amount, now_ms - TAIL_UNIQUE_DAYS * DAY_MS):
                     break
             else:
                 raise ContractError("try_again", 409)
@@ -374,9 +400,27 @@ class PaidBookings:
                 self._record_receipt(current, tx_hash, seen.get("receipt"), finality, now_ms, screened)
             return _view(self.store.one("paid_booking_get", (booking_id,)))
 
+    def retry_krw(self, *, now_ms=None, limit=20):
+        """A booking held only because the KRW rate could not be read is confirmed once the rate is back (11-16)."""
+        now_ms, done = self._now(now_ms), 0
+        with self.store.atomic():
+            rows = list(self.store.all("paid_bookings_krw_retry", (limit,)))
+        for row in rows:
+            rate = self.krw_rate()
+            if rate is None:
+                break                                   # the rate source is down: try again next pass
+            with self.store.atomic():
+                self.store.lock("paid_booking:" + row["id"])
+                current = self.store.one("paid_booking_get", (row["id"],))
+                if current["state"] != "review" or current["note"] != "krw_rate_unavailable":
+                    continue
+                self.store.execute("paid_booking_set_state", ("confirmed", None, rate, None,
+                                                              current["confirmed_ms"] or now_ms, row["id"]))
+                done += 1
+        return done
+
     def _refuse_used(self, tx_hash, booking_id):
-        used = self.store.one("paid_booking_by_tx", (tx_hash,))
-        if (used is not None and used["id"] != booking_id) or self.store.one("paid_booking_by_refund_tx", (tx_hash,)):
+        if tx_used_elsewhere(self.store, tx_hash, booking_id=booking_id):
             raise ContractError("payment_already_used", 409)
 
     def _settle_state(self, booking_id, state, payer, screened, rate, now_ms):
@@ -460,6 +504,7 @@ class PaidBookings:
                     changed += 1
             except ContractError:
                 changed += 1
+        changed += self.retry_krw(now_ms=now_ms)            # 11-16 source review: a missing KRW rate is retried
         try:                                            # custom plans (11-15): their payments, once the tables exist
             from .paid_plans import PaidPlans
             changed += PaidPlans(self).recheck(now_ms=now_ms, limit=limit)
@@ -539,8 +584,7 @@ class PaidBookings:
             received = received_units(self.store, row)
             if refund_tx_hash and refund_tx_hash == (row["tx_hash"] or "").lower():
                 raise ContractError("refund_is_the_payment", 409)
-            if refund_tx_hash and (self.store.one("paid_booking_by_refund_tx", (refund_tx_hash,))
-                                   or self.store.one("paid_booking_by_tx", (refund_tx_hash,))):
+            if refund_tx_hash and tx_used_elsewhere(self.store, refund_tx_hash):
                 raise ContractError("refund_tx_already_used", 409)
         detail, rate = {"action": action}, None
         if action == "clear":
@@ -645,7 +689,7 @@ class PaidBookings:
             rate = r["krw_rate"]
             got = received[r["id"]]
             base = got if got is not None else int(r["amount_units"])
-            krw = "%.0f" % (float(rate) * base / USDC_UNITS) if rate else ""
+            krw = krw_value(rate, base) if rate else ""
             writer.writerow([datetime.datetime.fromtimestamp(int(r["confirmed_ms"]) / 1000, datetime.timezone.utc)
                              .strftime("%Y-%m-%d %H:%M:%S"), r["id"], r["state"], _usdc(r["amount_units"]),
                              r["payer"], r["tx_hash"], rate or "", krw, r["refund_tx_hash"] or "",

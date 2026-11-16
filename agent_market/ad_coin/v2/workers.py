@@ -48,6 +48,45 @@ class ModelWorkers:
         leases = self.outbox.claim(worker_id, now_ms=now_ms, limit=limit)
         completed = 0
         for lease in leases:
+            try:
+                completed += self._process_one(lease, current_ms)
+            except Exception as exc:     # 11-16 source review: one failing item never stops the cycle
+                self._park(lease, exc, current_ms)
+        return completed
+
+    OUTBOX_MAX_ATTEMPTS = 8               # then the item is set aside for 30 days and reported (isolated)
+    OUTBOX_ISOLATE_MS = 30 * DAY_MS
+
+    def _park(self, lease, exc, clock):
+        """Put a failed item back with a growing delay; after OUTBOX_MAX_ATTEMPTS set it aside (isolated) so it never
+        blocks the rest, and record why. Nothing is lost: the item stays pending and an operator can see it."""
+        import logging
+        from .security_guards import AuditLogger
+        reason = type(exc).__name__ + (": " + exc.code if isinstance(exc, ContractError) else "")
+        if isinstance(exc, ContractError) and exc.code == "stale_worker_lease":
+            return              # the lease ran out: it is no longer ours and is reclaimed as before
+        now_ms = clock()
+        try:
+            with self.store.atomic():
+                row = self.store.one("outbox_lease_locked", (lease.id,))
+                if row is None or row["state"] != "leased" or row["lease_owner"] != lease.worker_id \
+                        or int(row["generation"]) != lease.generation:
+                    return                                    # someone else holds it now
+                attempts = int(row["attempts"])
+                isolated = attempts >= self.OUTBOX_MAX_ATTEMPTS
+                delay = self.OUTBOX_ISOLATE_MS if isolated else min(30_000 * 2 ** max(0, attempts - 1), 6 * 3_600_000)
+                self.store.execute("outbox_park", (now_ms + delay, lease.id, lease.generation))
+                if isolated:
+                    AuditLogger.log(self.store, "outbox_isolated", "failed", target_id=lease.id,
+                                    details={"event": str(lease.payload.get("event", ""))[:60], "attempts": attempts,
+                                             "reason": reason[:200]})
+            logging.getLogger(__name__).warning("Outbox item %s failed (%s); attempt %d, %s", lease.id, reason, attempts,
+                                                "set aside for 30 days" if isolated else "retried later")
+        except Exception:                                 # the lease simply expires and is reclaimed later
+            logging.getLogger(__name__).warning("Outbox item %s failed and could not be parked", lease.id, exc_info=True)
+
+    def _process_one(self, lease, current_ms):
+        if True:
             payload = lease.payload
             event = payload.get("event")
             with self.store.atomic():
@@ -70,8 +109,7 @@ class ModelWorkers:
                 else:
                     raise ContractError("unsupported_worker_event", 409)
                 self.outbox.complete(lease, now_ms=current_ms())
-                completed += 1
-        return completed
+                return 1
 
     def _handle_review_requested(self, payload: dict):
         review_id = identifier(payload["review_id"])

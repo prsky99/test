@@ -66,7 +66,10 @@ def test_reorg_that_drops_the_payment_sends_the_booking_to_review_and_off_the_sl
     del rpc.txs[tx]                                       # the block with the payment was reorganised away
     assert paid_audit.watch(service, now_ms=LATER + 5000)['missing_once'] == 1
     assert row(store, q['id'])['state'] == 'confirmed'    # one miss can be a lagging node: wait for a second read
-    assert paid_audit.watch(service, now_ms=LATER + 6000)['reorg'] == 1
+    # 11-16 source review: a second miss seconds later is not evidence; the advert keeps running
+    assert paid_audit.watch(service, now_ms=LATER + 6000)['reorg'] == 0
+    assert row(store, q['id'])['state'] == 'confirmed'
+    assert paid_audit.watch(service, now_ms=LATER + 5000 + paid_audit.MISSING_GAP_MS)['reorg'] == 1
     booking = row(store, q['id'])
     assert (booking['state'], booking['note']) == ('review', 'reorg')
     assert events(store, q['id'])[-1]['kind'] == 'reorg' and events(store, q['id'])[-1]['to_state'] == 'review'
@@ -455,3 +458,17 @@ def test_reconciliation_notices_a_changed_receive_address_without_writing_it(tmp
                             export_rows=[{'booking_id': 'b1', 'amount_usdc': '0.000001', 'tx_hash': ''}],
                             day_ms=NOW - NOW % 86_400_000, pay_to=PAY_TO)
     assert 'booking_to_other_receive_address' in [f['kind'] for f in findings]
+
+
+def test_a_receipt_that_comes_back_within_the_gap_keeps_the_booking(audited):
+    """11-16 source review: a public node answering null for a moment never stops a paid advert."""
+    suite, service, rpc, _ = audited
+    store = suite.service.store
+    q, tx, _ = paid(audited)
+    kept = rpc.txs.pop(tx)
+    assert paid_audit.watch(service, now_ms=LATER + 5000)['missing_once'] == 1
+    assert paid_audit.watch(service, now_ms=LATER + 10_000)['reorg'] == 0
+    rpc.txs[tx] = kept                                     # the node answers again
+    paid_audit.watch(service, now_ms=LATER + 15_000)
+    assert paid_audit.watch(service, now_ms=LATER + 5000 + paid_audit.MISSING_GAP_MS + 1)['reorg'] == 0
+    assert row(store, q['id'])['state'] == 'confirmed'

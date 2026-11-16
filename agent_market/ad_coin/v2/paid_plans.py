@@ -22,7 +22,8 @@ from uuid import uuid4
 
 from .contracts import ContractError
 from .ledger import identifier
-from .paid_bookings import QUOTE_TTL_MS, STALE_CONFIRMING_MS, TAIL_UNIQUE_DAYS, USDC_UNITS, verify_transfer
+from .paid_bookings import (QUOTE_TTL_MS, STALE_CONFIRMING_MS, TAIL_UNIQUE_DAYS, USDC_UNITS, tail_used,
+                            tx_used_elsewhere, verify_transfer)
 from .sponsored_booking import DAY_MS, HORIZON_DAYS, PLACEMENTS_PER_DAY, day_ms_of
 
 PLAN_STATEMENTS = (
@@ -225,8 +226,7 @@ class PaidPlans:
             since = now_ms - TAIL_UNIQUE_DAYS * DAY_MS
             for _ in range(20):                       # a tail no booking or plan of the last 7 days used (R32)
                 amount = n * unit + secrets.randbelow(9999) + 1
-                if (self.store.one("paid_booking_amount_recent", (amount, since)) is None
-                        and self.store.one("paid_plan_amount_recent", (amount, since)) is None):
+                if not tail_used(self.store, amount, since):
                     break
             else:
                 raise ContractError("try_again", 409)
@@ -272,9 +272,7 @@ class PaidPlans:
                 "paid_plans_by_advertiser", (identifier(advertiser_id),))]}
 
     def _refuse_used(self, tx_hash, plan_id):
-        used = self.store.one("paid_plan_by_tx", (tx_hash,))
-        if ((used is not None and used["id"] != plan_id) or self.store.one("paid_booking_by_tx", (tx_hash,))
-                or self.store.one("paid_booking_by_refund_tx", (tx_hash,)) or self.store.one("paid_plan_by_refund_tx", (tx_hash,))):
+        if tx_used_elsewhere(self.store, tx_hash, plan_id=plan_id):
             raise ContractError("payment_already_used", 409)
 
     def submit(self, advertiser_id, plan_id, tx_hash, *, now_ms=None):
@@ -400,7 +398,179 @@ class PaidPlans:
                     changed += 1
             except ContractError:
                 changed += 1
+        changed += self.retry_krw(now_ms=now_ms, limit=limit)
+        changed += self.watch(now_ms=now_ms, limit=limit)["reorg"]
         return changed
+
+    # ---- 11-16 source review: KRW retry, finality watch, operator path ------------------------------------------
+    def retry_krw(self, *, now_ms=None, limit=20):
+        """A plan held only because the KRW rate could not be read is confirmed by the worker once the rate is back,
+        while its placements are still held (they are held for another PLAN_GRACE_MS on every failed try)."""
+        now_ms, done = self.bookings._now(now_ms), 0
+        with self.store.atomic():
+            rows = list(self.store.all("paid_plans_krw_retry", (limit,)))
+        for row in rows:
+            rate = self.bookings.krw_rate()
+            with self.store.atomic():
+                self.store.lock("paid_plan:" + row["id"])
+                current = self.store.one("paid_plan_get", (row["id"],))
+                if current["state"] != "review" or current["note"] != "krw_rate_unavailable":
+                    continue
+                if rate is None:
+                    self.store.execute("paid_plan_items_hold", (now_ms + PLAN_GRACE_MS, row["id"]))
+                    continue
+                moved = self.store.execute("paid_plan_items_confirm", (current["payer"], rate, now_ms, row["id"])).rowcount
+                note = None if moved == int(current["items"]) else "placements_released"
+                self.store.execute("paid_plan_set_state", ("confirmed" if note is None else "review", None, rate, note,
+                                                           current["confirmed_ms"] or now_ms, row["id"]))
+                done += 1
+        return done
+
+    def watch(self, *, now_ms=None, limit=50):
+        """Re-read each recent plan payment until its block is finalized, like paid_audit.watch for bookings; the
+        memory is the plan's first placement's payment events. A receipt missing twice, at least MISSING_GAP_MS apart,
+        or a payment no longer as recorded sends the plan and its placements to review."""
+        from .paid_audit import FINALITY_WATCH_DAYS, MISSING_GAP_MS, _Fixed, block_of, finality_of, last_block_event, \
+            ready, record
+        now_ms = self.bookings._now(now_ms)
+        out = {"checked": 0, "finalized": 0, "reorg": 0}
+        with self.store.atomic():
+            if not ready(self.store):
+                return out
+            plans = list(self.store.all("paid_plans_watch", (now_ms - FINALITY_WATCH_DAYS * 86_400_000, limit)))
+        if plans and not self.bookings._on_base():
+            return out
+        for plan in plans:
+            with self.store.atomic():
+                items = list(self.store.all("paid_plan_items", (plan["id"],)))
+                last = last_block_event(self.store, items[0]["id"]) if items else None
+            if not items or (last is not None and last["finality"] == "finalized"):
+                continue
+            out["checked"] += 1
+            try:
+                receipt = self.bookings.rpc.receipt(plan["tx_hash"])
+            except Exception:
+                continue
+            why = None
+            if receipt is None:
+                missing = last is not None and last["detail"] and "receipt_missing" in last["detail"]
+                if missing and now_ms - int(last["at_ms"]) >= MISSING_GAP_MS:
+                    why = "receipt missing twice"
+                elif not missing:
+                    with self.store.atomic():
+                        record(self.store, items[0]["id"], "finality", tx_hash=plan["tx_hash"],
+                               detail={"receipt_missing": True, "plan_id": plan["id"]},
+                               block_number=last["block_number"] if last else None,
+                               block_hash=last["block_hash"] if last else None, now_ms=now_ms)
+            else:
+                state, _ = verify_transfer(_Fixed(self.bookings.rpc, receipt), plan["tx_hash"], token=plan["token"],
+                                           pay_to=plan["pay_to"], amount_units=int(plan["amount_units"]),
+                                           min_confirmations=1)
+                if state not in ("confirmed", "pending"):
+                    why = "payment no longer as recorded: " + state
+                else:
+                    number, block_hash = block_of(receipt)
+                    level = finality_of(self.bookings.rpc, number) if number is not None else None
+                    if last is None or last["block_hash"] != block_hash or level != last["finality"]:
+                        with self.store.atomic():
+                            record(self.store, items[0]["id"], "finality", tx_hash=plan["tx_hash"],
+                                   block_number=number, block_hash=block_hash, finality=level,
+                                   detail={"plan_id": plan["id"]}, now_ms=now_ms)
+                    out["finalized"] += int(level == "finalized")
+            if why:
+                with self.store.atomic():
+                    if self.store.execute("paid_plan_operator_set", ("review", None, "reorg", plan["id"],
+                                                                     plan["state"])).rowcount:
+                        for item in items:
+                            self.store.execute("paid_booking_reorg", ("reorg", item["id"]))
+                        record(self.store, items[0]["id"], "reorg", from_state=plan["state"], to_state="review",
+                               reason=why, tx_hash=plan["tx_hash"], detail={"plan_id": plan["id"]}, now_ms=now_ms)
+                        out["reorg"] += 1
+        return out
+
+    def operator_queue(self, access, principal):
+        """Plans waiting for an operator (review or refund due), with their placements and a fresh sanctions screen."""
+        access.require_operator(principal)
+        with self.store.atomic():
+            if not self.store.one("paid_plans_table")["present"]:
+                return {"items": []}
+            rows = list(self.store.all("paid_plans_operator_queue", ()))
+            return {"items": [{**self._view(r["id"]), "payer": r["payer"], "note": r["note"], "krw_rate": r["krw_rate"],
+                               "sanctions": self.bookings.sanctions.screen(r["payer"]) if r["payer"] else None}
+                              for r in rows]}
+
+    def operator_decide(self, access, principal, plan_id, *, action, refund_tx_hash=None, reason=None,
+                        sanctions_ack=False, now_ms=None):
+        """As PaidBookings.operator_decide, for a plan: clear (review -> confirmed, its placements with it), refund
+        (review or confirmed -> refund_due: unconfirmed placements are released, today's and later ones become refunds
+        due) and refunded (refund_due -> refunded, with a refund transfer verified on chain)."""
+        import json
+        from uuid import uuid4
+        from .paid_bookings import _TX
+        access.require_operator(principal)
+        plan_id = identifier(plan_id)
+        transitions = {"clear": (("review",), "confirmed"), "refund": (("review", "confirmed"), "refund_due"),
+                       "refunded": (("refund_due",), "refunded")}
+        if action not in transitions:
+            raise ContractError("invalid_paid_decision", 422)
+        if not isinstance(reason, str) or not 3 <= len(reason.strip()) <= 200:
+            raise ContractError("invalid_reason", 422)
+        if action == "refunded" and (type(refund_tx_hash) is not str or not _TX.match(refund_tx_hash)):
+            raise ContractError("invalid_tx_hash", 422)
+        reason, now_ms = reason.strip(), self.bookings._now(now_ms)
+        refund_tx_hash = refund_tx_hash.lower() if refund_tx_hash else None
+        sources, target = transitions[action]
+        with self.store.atomic():
+            row = self.store.one("paid_plan_get", (plan_id,))
+            if row is None:
+                raise ContractError("unknown_resource", 404)
+            if row["state"] not in sources:
+                raise ContractError("paid_booking_state_changed", 409)
+            if refund_tx_hash and (refund_tx_hash == (row["tx_hash"] or "").lower()
+                                   or tx_used_elsewhere(self.store, refund_tx_hash)):
+                raise ContractError("refund_tx_already_used", 409)
+        detail, rate = {"action": action}, None
+        if action == "clear":
+            screened = self.bookings.sanctions.screen(row["payer"]) if row["payer"] else "unavailable"
+            detail["sanctions"] = screened
+            if screened != "clear" and not (sanctions_ack is True and len(reason) >= 20):
+                raise ContractError("sanctions_review_required", 409)
+            rate = row["krw_rate"] or self.bookings.krw_rate()
+            if rate is None:
+                raise ContractError("krw_rate_unavailable", 409)
+        if action == "refunded":
+            detail["refund_units"] = self.bookings._verify_refund(row, refund_tx_hash)
+        with self.store.atomic():
+            self.store.lock("paid_plan:" + plan_id)
+            current = self.store.one("paid_plan_get", (plan_id,))
+            if current["state"] != row["state"]:
+                raise ContractError("paid_booking_state_changed", 409)
+            if action == "clear":
+                moved = self.store.execute("paid_plan_items_confirm", (row["payer"], rate, now_ms, plan_id)).rowcount
+                confirmed = sum(1 for i in self.store.all("paid_plan_items", (plan_id,)) if i["state"] == "confirmed")
+                if confirmed != int(row["items"]):
+                    raise ContractError("placements_released", 409)    # refund instead; nothing is half confirmed
+                self.store.execute("paid_plan_set_krw", (rate, plan_id))
+                detail["placements_confirmed"] = moved
+            if action == "refund":
+                self.store.execute("paid_plan_items_release", (plan_id,))
+                today = now_ms - now_ms % 86_400_000
+                for item in self.store.all("paid_plan_items", (plan_id,)):
+                    if item["state"] == "confirmed" and int(item["day_ms"]) >= today:
+                        self.store.execute("paid_booking_operator_set", ("refund_due", None, item["id"], "confirmed"))
+            if action == "refunded":
+                for item in self.store.all("paid_plan_items", (plan_id,)):
+                    if item["state"] == "refund_due":
+                        self.store.execute("paid_booking_operator_set", ("refunded", None, item["id"], "refund_due"))
+            if not self.store.execute("paid_plan_operator_set", (target, refund_tx_hash, None, plan_id,
+                                                                 row["state"])).rowcount:
+                raise ContractError("paid_booking_state_changed", 409)
+            self.store.execute("audit_log_insert", (
+                str(uuid4()), now_ms, "paid_plan_" + action, str(principal.id),
+                str(principal.owner_id) if getattr(principal, "owner_id", None) else None, plan_id, None, None,
+                "succeeded", json.dumps({"from": row["state"], "to": target, "reason": reason, **detail},
+                                        sort_keys=True, default=str)))
+            return self._view(plan_id)
 
 
 def _units(value):

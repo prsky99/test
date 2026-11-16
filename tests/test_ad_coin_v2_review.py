@@ -337,8 +337,9 @@ def test_expired_worker_lease_rolls_back_handler_effects(p1_suite, monkeypatch):
         created.append(p1_suite.service.ledger.create_account(uid(), "user_available"))
 
     monkeypatch.setattr(p1_suite.service.workers, "_handle_review_requested", effect)
-    with pytest.raises(ContractError, match="stale_worker_lease"):
-        p1_suite.service.workers.process_outbox(now_ms=NOW)
+    # 11-16: a failing item no longer stops the pass; its effects still roll back and the expired lease stays to be
+    # reclaimed as before
+    assert p1_suite.service.workers.process_outbox(now_ms=NOW) == 0
     assert created and p1_suite.service.store.one("account_get", (created[0],)) is None
     assert (
         p1_suite.service.store.one("outbox_get", ("lease-timeout",))["state"]
@@ -350,11 +351,29 @@ def test_unknown_worker_event_is_not_silently_acknowledged(p1_suite):
     p1_suite.service.outbox.enqueue(
         "unknown-event", {"event": "future_unsupported"}, available_ms=NOW
     )
-    with pytest.raises(ContractError, match="unsupported_worker_event"):
-        p1_suite.service.workers.process_outbox(now_ms=NOW)
-    assert (
-        p1_suite.service.store.one("outbox_get", ("unknown-event",))["state"] != "done"
-    )
+    p1_suite.service.outbox.enqueue("after-it", {"event": "campaign_paused"}, available_ms=NOW)
+    # 11-16 source review: the unknown item is not acknowledged, and it does not stop the item after it
+    assert p1_suite.service.workers.process_outbox(now_ms=NOW) == 1
+    store = p1_suite.service.store
+    with store.atomic():
+        unknown, after = store.one("outbox_get", ("unknown-event",)), store.one("outbox_get", ("after-it",))
+    assert unknown["state"] == "pending" and int(unknown["available_ms"]) > NOW and after["state"] == "done"
+
+
+def test_an_item_that_keeps_failing_is_set_aside_and_reported(p1_suite):
+    from agent_market.ad_coin.v2.workers import ModelWorkers
+    workers, store = p1_suite.service.workers, p1_suite.service.store
+    p1_suite.service.outbox.enqueue("always-bad", {"event": "future_unsupported"}, available_ms=NOW)
+    at = NOW
+    for _ in range(ModelWorkers.OUTBOX_MAX_ATTEMPTS + 1):
+        with store.atomic():
+            at = max(at, int(store.one("outbox_get", ("always-bad",))["available_ms"]))
+        workers.process_outbox(now_ms=at)
+    with store.atomic():
+        row = store.one("outbox_get", ("always-bad",))
+        audit = store.one("audit_by_target_event", (row["id"], "outbox_isolated"))
+    assert row["state"] == "pending" and int(row["available_ms"]) >= at + ModelWorkers.OUTBOX_ISOLATE_MS
+    assert audit is not None and "unsupported_worker_event" in audit["details_json"]
 
 
 def test_real_v2_principal_constraints_are_upgraded_for_agents(p1_suite):

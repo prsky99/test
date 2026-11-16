@@ -69,10 +69,10 @@ def test_temporary_failure_keeps_the_job_for_a_retry(setup):
 
     def broken(*_):
         raise ConnectionError('credits store down')
-    with pytest.raises(ConnectionError):
-        ModelWorkers(store, credit_grant=broken).process_outbox(now_ms=now_ms())
+    # 11-16: the failure no longer stops the pass; the job is put back with a short delay (30 s on the first try)
+    assert ModelWorkers(store, credit_grant=broken).process_outbox(now_ms=now_ms()) == 0
     granted = []
-    later = now_ms() + 60_000  # after the lease expires
+    later = now_ms() + 60_000  # after the retry delay
     ModelWorkers(store).reclaim_stale_leases(now_ms=later)
     assert ModelWorkers(store, credit_grant=lambda *a: granted.append(a)).process_outbox(now_ms=later) == 1
     assert len(granted) == 1 and ledger.account(wallet)['balance_atoms'] == str(80 * COIN)
@@ -97,9 +97,10 @@ def test_same_exchange_id_debits_once_and_limits_hold(setup):
 def test_worker_without_a_grant_function_retries_later(setup):
     store, ledger, owner, wallet = setup
     request(store, owner, credits=1)
-    with pytest.raises(ContractError) as error:
-        ModelWorkers(store).process_outbox(now_ms=now_ms())
-    assert error.value.code == 'credit_grant_unavailable'
+    assert ModelWorkers(store).process_outbox(now_ms=now_ms()) == 0      # not done; retried later (11-16: no raise)
+    with store.atomic():
+        rows = [r for r in store.all('outbox_stale_leases', (2 ** 62, 50))]
+    assert rows == []                                                       # parked as pending, not left leased
 
 
 from tests.test_customer_credits import acceptance, credits  # noqa: E402,F401

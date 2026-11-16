@@ -1330,12 +1330,28 @@
    "sha256": "a252be254f3d622de0363f6f6c7bacfc6cee61c719c08d288d93ebc86e9c8fbf"
   },
   {
+   "sql": "SELECT * FROM adc2_paid_bookings WHERE state='review' AND note='krw_rate_unavailable' AND tx_hash IS NOT NULL ORDER BY quoted_ms LIMIT ?",
+   "sha256": "97c83782f722d8b9a023baceb0dd176869c11780f296f2c66cdbca94fc122a42"
+  },
+  {
    "sql": "SELECT * FROM adc2_paid_plans WHERE confirmed_ms>=? AND confirmed_ms<? ORDER BY confirmed_ms",
    "sha256": "fb4b3475fc1dd098e3772c3a617e7fa3c557abc932aa6a37fc4c8323feadfdfa"
   },
   {
    "sql": "SELECT * FROM adc2_paid_plans WHERE id=?",
    "sha256": "74a1d27fcfafaaf054cdd2c637bc229b4cda1fdff7aad3a82d1742228b6d81ff"
+  },
+  {
+   "sql": "SELECT * FROM adc2_paid_plans WHERE state IN ('confirmed','review','refund_due') AND tx_hash IS NOT NULL AND confirmed_ms>=? ORDER BY confirmed_ms LIMIT ?",
+   "sha256": "bb36984b8009ae1dacf32ed9f7e8edd4caa547b240c965473b633b4b179e4d16"
+  },
+  {
+   "sql": "SELECT * FROM adc2_paid_plans WHERE state IN ('review','refund_due') ORDER BY quoted_ms LIMIT 200",
+   "sha256": "395c9177a0957b27747c003c94c5a9958a7261dd0fdf5444950c634bed667d76"
+  },
+  {
+   "sql": "SELECT * FROM adc2_paid_plans WHERE state='review' AND note='krw_rate_unavailable' ORDER BY quoted_ms LIMIT ?",
+   "sha256": "38a2a91cbd1d3f1a8878e44db2cc59515475461446be86b496a4e2d4e88a6d88"
   },
   {
    "sql": "SELECT * FROM adc2_principals WHERE id=?",
@@ -2362,6 +2378,10 @@
    "sha256": "b10e5c547468efd16fc7cfc1c53de2039783d19b5e6be0a4798e6fc0f62fb491"
   },
   {
+   "sql": "UPDATE adc2_outbox SET state='pending',lease_owner=NULL,lease_until_ms=NULL,available_ms=?,generation=generation+1 WHERE id=? AND generation=? AND state='leased'",
+   "sha256": "1ddc1a238adef3ef6968dbe1a8f15ef79d4401b66f12743c0279950085bad84f"
+  },
+  {
    "sql": "UPDATE adc2_outbox SET state='pending',lease_owner=NULL,lease_until_ms=NULL,generation=generation+1 WHERE id=? AND generation=?",
    "sha256": "612adf3faa77bf07da5ed7b1fe21fd2f02d0b9ab26764c660385acbca21dfd11"
   },
@@ -2380,6 +2400,10 @@
   {
    "sql": "UPDATE adc2_paid_bookings SET state='expired' WHERE state='quoted' AND expires_ms<?",
    "sha256": "55c04f6f50db851fa03c9399cbfe2cd0734500b511667bfca6ad4d0fefa1003c"
+  },
+  {
+   "sql": "UPDATE adc2_paid_bookings SET state='expired' WHERE state='quoted' AND id IN (SELECT booking_id FROM adc2_paid_plan_items WHERE plan_id=?)",
+   "sha256": "639c7f108eb77fa62e38616181d0138cb0bdbb40cc8b8e8ee0fa215c210625e4"
   },
   {
    "sql": "UPDATE adc2_paid_bookings SET state='expired',tx_hash=NULL,note='no_payment_seen' WHERE state='confirming' AND payer IS NULL AND expires_ms<?",
@@ -2414,12 +2438,20 @@
    "sha256": "4aa45ea4dcbe3b35a3e7029ae1d870c9ea2b7adbe565eaee9fc6150aa38dd773"
   },
   {
+   "sql": "UPDATE adc2_paid_plans SET krw_rate=? WHERE id=? AND krw_rate IS NULL",
+   "sha256": "8ede519b2389ed1598cba8b5cf5e6b5154aa9eef9b70a7133b3dc65d66190d18"
+  },
+  {
    "sql": "UPDATE adc2_paid_plans SET state='expired' WHERE state='quoted' AND expires_ms<?",
    "sha256": "fc59bd5a31eda66a252f2348f2ed9e7964fe23197989ab8555d6ff36dbec04ce"
   },
   {
    "sql": "UPDATE adc2_paid_plans SET state=?,payer=COALESCE(?,payer),krw_rate=?,note=?,confirmed_ms=? WHERE id=?",
    "sha256": "3c637092b177ddef2f8f1041f0d878e6479e0f067e84a79f4ae52ee893b01104"
+  },
+  {
+   "sql": "UPDATE adc2_paid_plans SET state=?,refund_tx_hash=COALESCE(?,refund_tx_hash),note=COALESCE(?,note) WHERE id=? AND state=?",
+   "sha256": "bdf33392c5fc63d20e6c1ab43f87c986bb148334c11a6223bb48d92dba0d7522"
   },
   {
    "sql": "UPDATE adc2_paid_plans SET tx_hash=? WHERE id=? AND tx_hash IS NULL",
