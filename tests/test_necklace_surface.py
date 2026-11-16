@@ -35,6 +35,7 @@ def necklace(slug, status='live', **extra):
              'completion': {'runs': 30, 'completed': 29, 'completed_external_only': 26, 'since': '2026-11-13T03:00:00Z',
                             'retested_at': iso(NOW - timedelta(hours=3))},
              'quality': {'cases_7d': 30, 'success_rate': 0.9, 'best_single_rate': 0.7, 'delta_pp': 20.0,
+                         'delta_pairs': 30, 'delta_necklace_rate': 0.9,   # daily.paired_delta (the judge copies it)
                          'tested_at': iso(NOW - timedelta(hours=3))},
              'cost': {'usdc_per_run': 0, 'p50_ms': 3200, 'p95_ms': 4800}, 'replaces_templates': [], 'replaced_at': None}
     value.update(extra)
@@ -78,7 +79,8 @@ def test_only_gated_fresh_better_multi_pearl_necklaces_are_offered(snapshot):
 def test_a_live_page_shows_measured_numbers_completion_and_pearls(snapshot):
     status, value = ns.page('trip-brief', snapshot=snapshot, now=NOW)
     assert status == 200
-    for text in ('+20.0 points (90% vs 70%)', '27/30 cases (last 7 days)', 'free', '3.2 s; slowest 5% within 4.8 s',
+    for text in ('On the same 30 cases, the best single member agent answering the whole task alone got 70%; '
+                 'the necklace got 90% (+20.0 points).', '27/30 cases (last 7 days)', 'free', '3.2 s; slowest 5% within 4.8 s',
                  '29 of 30 test runs finished (since 2026-11-13)', 'Without AgentValCon fallbacks', '26 of 30',
                  '1 external + 1 AgentValCon fallback', 'Last retest', '/agent/133020', 'necklace_trip_brief',
                  'necklace-trip-brief', 'index, follow'):

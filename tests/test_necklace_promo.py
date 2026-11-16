@@ -85,3 +85,19 @@ def test_a_window_of_runs_is_dated_from_first_to_last():
     assert ns.public_comparison(ns.comparison({'comparison': {**COMPARISON, 'since': '2026-11-11'}}))['since'] == '2026-11-11'
     for odd in ('2026-11-17', '2026-11-18', 'last week', None):        # not before the last run: the last date alone
         assert '(2026-11-17): one call,' in ns.comparison_line({'comparison': {**COMPARISON, 'since': odd}})
+
+
+def test_the_single_baseline_says_what_was_compared_on_paired_cases():
+    """PM 11-16: a member answering the whole task alone covers one step; name the comparison and use the rates of the
+    same paired cases (daily.paired_delta), never the week's overall success rate."""
+    q = {'cases_7d': 60, 'success_rate': 0.98, 'best_single_rate': 0.03, 'delta_pp': 90.0, 'delta_pairs': 30,
+         'delta_necklace_rate': 0.93}
+    assert ns.single_line(q) == ('On the same 30 cases, the best single member agent answering the whole task alone '
+                                 'got 3%; the necklace got 93% (+90.0 points).')
+    for missing in ({**q, 'delta_pairs': 0}, {k: v for k, v in q.items() if k != 'delta_necklace_rate'},
+                    {k: v for k, v in q.items() if k != 'delta_pp'}, None):
+        assert ns.single_line(missing) is None
+    entry = {'slug': 'x', 'quality': q, 'pearls': []}
+    shown = ns.public_item(entry)['quality']
+    assert shown['single_basis'] == ns.SINGLE_BASIS and shown['delta_pairs'] == 30 and shown['delta_necklace_rate'] == 0.93
+    assert '98% vs' not in (ns.single_line(q) or '')

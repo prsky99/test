@@ -290,8 +290,10 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
                         'alternates': {'external': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'external'),
                                        'agentcon': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'agentcon')}}
                        for p in entry.get('pearls') or [] if isinstance(p, dict)],
-            'quality': {**{k: quality.get(k) for k in ('success_rate', 'best_single_rate', 'delta_pp', 'tested_at')
+            'quality': {**{k: quality.get(k) for k in ('success_rate', 'best_single_rate', 'delta_pp', 'delta_pairs',
+                                                        'delta_necklace_rate', 'tested_at')
                            if quality.get(k) is not None},
+                        **({'single_basis': SINGLE_BASIS} if quality.get('best_single_rate') is not None else {}),
                         **({'passed': tested(quality)[0], 'cases': tested(quality)[1]} if tested(quality) else {}),
                         'verified_95': verified(quality) is not None},
             'completion': {k: completion.get(k) for k in ('runs', 'completed', 'completed_external_only', 'since', 'retested_at')
@@ -454,6 +456,23 @@ def verified(quality):
 
 def _pct(value):
     return str(round(value * 100)) + '%' if isinstance(value, (int, float)) else None
+
+
+SINGLE_BASIS = ('On the same cases and days, each member agent alone was given the whole task; the best of them is '
+                'compared with the necklace on those cases.')
+
+
+def single_line(quality):
+    """PM 11-16: the single-agent baseline says what was compared. Each member answering the whole task alone usually
+    covers one step, so a bare "+N points" reads as more than it is. Both rates come from the same paired cases
+    (delta_necklace_rate and best_single_rate over delta_pairs, daily.paired_delta); without those, nothing is said."""
+    q = quality if isinstance(quality, dict) else {}
+    pairs, mine, theirs, delta = q.get('delta_pairs'), q.get('delta_necklace_rate'), q.get('best_single_rate'), q.get('delta_pp')
+    if type(pairs) is not int or pairs < 1 or not _pct(mine) or not _pct(theirs) or not isinstance(delta, (int, float)):
+        return None
+    return ('On the same ' + str(pairs) + ' cases, the best single member agent answering the whole task alone got '
+            + _pct(theirs) + '; the necklace got ' + _pct(mine) + ' (' + ('+' if delta >= 0 else '') + str(round(delta, 1))
+            + ' points).')
 
 
 def _value_html(value, esc, depth=0):
@@ -788,10 +807,8 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
                      + esc(text[len(title):].strip()) + '</p>' + link + '</section>')
     facts = []
     quality = item['quality']
-    if 'delta_pp' in quality:
-        facts.append(('Better than the best single agent', '+' + str(round(quality['delta_pp'], 1)) + ' points'
-                      + (' (' + _pct(quality.get('success_rate')) + ' vs ' + _pct(quality.get('best_single_rate')) + ')'
-                         if _pct(quality.get('success_rate')) and _pct(quality.get('best_single_rate')) else '')))
+    if single_line(entry.get('quality')):
+        facts.append(('Against its best single member', single_line(entry.get('quality'))))
     window = tested(entry.get('quality') or {})
     if window:
         facts.append(('Recent test success', str(window[0]) + '/' + str(window[1]) + ' cases (last 7 days)'))
@@ -881,7 +898,7 @@ def llms_section(base='https://agentconcierge.biz', snapshot=None, now=None):
     for e in rows:
         q = e.get('quality') or {}
         lines.append('- ' + (e.get('name') or e['slug']) + ': ' + (e.get('summary') or '')
-                     + (' Better than the best single agent by ' + str(round(q['delta_pp'], 1)) + ' points.' if isinstance(q.get('delta_pp'), (int, float)) else '')
+                     + (' ' + single_line(q) if single_line(q) else '')
                      + ' MCP tool `' + tool_name(e['slug']) + '`, A2A skill `' + skill_id(e['slug']) + '`, page `'
                      + base + '/necklaces/' + e['slug'] + '`' + _input_note(e) + ('. Free to run for now' if free_now(e) else '')
                      + ('. ' + comparison_line(e) if comparison_line(e) else '')
