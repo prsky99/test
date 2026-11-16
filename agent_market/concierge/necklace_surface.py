@@ -806,7 +806,6 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
         parts.append('<section class="notice" role="status"><h2>' + esc(title) + '</h2><p>'
                      + esc(text[len(title):].strip()) + '</p>' + link + '</section>')
     facts = []
-    quality = item['quality']
     if single_line(entry.get('quality')):
         facts.append(('Against its best single member', single_line(entry.get('quality'))))
     window = tested(entry.get('quality') or {})
