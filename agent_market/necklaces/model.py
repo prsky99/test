@@ -178,7 +178,13 @@ USABLE_TERMS = ("allowed", "silent")
 def runnable(member: dict) -> bool:
     """PM 11-16 20:21 (C14): only members whose terms are allowed or silent are called; unknown waits for a verdict
     (pending review) and prohibits never runs. One rule for the run chain, singles, standing and the gate check."""
-    return terms_status(member) in USABLE_TERMS
+    status = terms_status(member)
+    if status in USABLE_TERMS:
+        return True
+    # PM 11-16 22:xx: our own substitute that ops passed through its 30-case gate (approved or provisional; the run
+    # chain marks it substitute_state) runs while its source terms are not on file yet; a prohibition still stops it
+    return (member.get("kind") == "agentcon" and member.get("substitute_state") in ("approved", "provisional")
+            and status != "prohibits")
 
 
 TERMS_TABLE = Path(__file__).resolve().parent / "member_terms.json"

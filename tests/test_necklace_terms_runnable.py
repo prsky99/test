@@ -34,3 +34,19 @@ def test_engine_caller_hands_the_slot_time_to_the_registered_call():
     member = {"kind": "external", "resource_id": 39577, "tool": "search_papers"}
     assert call(member, {"query": "x"}, 1.25) == {"ok": True}
     assert seen["timeout"] == 1.25 and seen["node"]["resource_id"] == 39577
+
+
+def test_our_own_agents_run_by_source_licence_or_by_their_substitute_gate(monkeypatch):
+    """PM 11-16 22:xx: a catalogue fallback whose sources name a licence is allowed; an approved or provisional
+    substitute runs while its terms are not on file; a prohibition stops even our own."""
+    from agent_market.necklaces import model as m
+    own = {"kind": "agentcon", "agent_id": "tz-time", "tool": "get_local_time"}
+    monkeypatch.setattr(m, "terms_status", lambda member: {"tz-time": "allowed", "new-agent": "unknown",
+                                                           "banned": "prohibits"}[member["agent_id"]])
+    assert m.runnable(own)
+    new = {"kind": "agentcon", "agent_id": "new-agent", "tool": "t"}
+    assert not m.runnable(new)
+    assert m.runnable(dict(new, substitute_state="approved")) and m.runnable(dict(new, substitute_state="provisional"))
+    assert not m.runnable({"kind": "agentcon", "agent_id": "banned", "tool": "t", "substitute_state": "approved"})
+    assert not m.runnable({"kind": "external", "agent_id": "new-agent", "resource_id": 9, "tool": "t",
+                           "substitute_state": "approved"})
