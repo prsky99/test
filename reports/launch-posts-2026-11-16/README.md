@@ -157,3 +157,77 @@ Feedback on what failed is the most useful thing for me.
 - **간접적으로** 불리한 곳은 zplatform이다(GitHub·패키지 지표로 순위를 매김).
 - awesome 목록 PR(11-10 금지)은 이번에 재지 않았다.
 - 나머지 디렉터리는 GitHub 없이 갈 수 있다.
+
+## 5. topic-evidence-brief 공개용 (11-17, 2회차 판정 통과 시 11:00~12:00 공개, PM 11-16 15:42 지시)
+
+숫자 원칙: 잰 값만 쓴다. 아직 재지 않은 자리는 `[측정 뒤 기입]`으로 둔다. 공개 직후 목걸이 페이지의 "Measured on …" 줄이 생기면 그 줄을 그대로 옮긴다.
+
+### 5.1 공개 화면과 에이전트용 안내: 자동으로 나가는 것(판정 스냅샷 기준, 코드 변경 없음)
+| 자리 | 나가는 문구(영어 원문) | 근거 |
+|---|---|---|
+| 홈·Workflows 카드 | "Why a necklace: an agent that finds several agents, calls each one and merges their answers spends tokens and time on every step, and under a time limit it can settle on a wrong answer. A necklace does those steps in one call: agents we tested, in a fixed order, with fallbacks, returning one answer." + 목걸이 링크 + 주문 링크 | necklace_surface.WHY, why_card |
+| 목걸이 페이지 단계별 표시 | 검증 진주는 "Verified pearl", 임시 멤버(web 자리 등)는 "Under verification" + "Under verification: the agent passed our tests for this step but has not yet passed its second check on a different day. When a verified pearl is available for the step, it takes the place." | member_status, PROVISIONAL_NOTE (임시 멤버를 화면에 밝힘) |
+| 측정 줄 | "Measured on N cases (date), against an agent calling the same 4 agents itself: calls a → b, about tokens c → d, s e → f, % g → h correct …" | comparison_line. **지금 topic 측정 없음 → 줄이 나가지 않음. 숫자는 판정이 comparison을 쓰면 자동으로 들어감** |
+| 무료 | "Free to run for now. If that changes, we will say so on this page first." | FREE_NOW |
+| 추천 답 첫 줄(Chat·find_agents·A2A) | "Free to run now: Topic evidence brief (a necklace of tested agents): call tool `necklace_topic_evidence_brief` with {"topic":"<주제>"}. https://agentconcierge.biz/necklaces/topic-evidence-brief" | necklace_lead, 호출부 refs/heads/growth/necklace-lead-callsite(c0dc9f45, r11) |
+| llms.txt·A2A 카드 skill | "Necklaces you can run" 줄(이름·요약·MCP 도구·A2A skill·입력 예·Free to run for now·측정 줄) | llms_section, skills |
+
+범위 문구 점검(오탐 우선, 11-16 0e3ef529): 운영 30일·Chat 110·1k·30과제 질의 1,431건 중 topic 줄이 붙는 것 17건, 모두 범위 안(논문·문헌 주제 질의), 범위 밖 0.
+
+### 5.2 공통 사실 (1절의 `{…}` 자리, topic용)
+- `{NECKLACE}` Topic evidence brief / `{SLUG}` topic-evidence-brief / `{TOOL}` necklace_topic_evidence_brief / `{SKILL}` necklace-topic-evidence-brief
+- One line: "A cited brief on one topic: a grounded web answer, the most relevant papers from more than one index, an encyclopedia summary and recent news."
+- `{STEPS}`: 4 steps (web grounding, paper search, encyclopedia summary required; news optional). 단계별 멤버와 Verified/Under verification 표시는 공개 시점 페이지를 그대로 옮긴다(판정이 정함, 지금 적지 않음).
+- `{INPUT}`: `{"topic": "retrieval augmented generation"}` (게시 당일 실제로 돌린 입력으로 바꾼다)
+- `{ANSWER}`: [측정 뒤 기입: 게시 당일 실제 호출 결과 첫 줄들과 단계 목록, 손대지 않은 그대로]
+- 시간: [측정 뒤 기입: 게시 당일 그 호출이 실제 걸린 시간]
+- 토큰·호출 수·정확도 비교: [측정 뒤 기입: 목걸이 페이지 "Measured on …" 줄. 없으면 1절의 MCP-Universe 인용만]
+- 한계: "Covers one topic per call; sources are public web, paper indexes, an encyclopedia and news. Some steps may be led by an agent under verification; the page shows which, step by step. Free for now."
+
+### 5.3 채널별 초안 (영어). 게시는 사용자 확인 뒤
+**Reddit r/mcp** (규칙 원문 확인 필요: 자기 홍보·플레어. AI 금지 조항이 있으면 사용자가 다시 씀)
+```
+Title: Free MCP tool: one call for a cited brief on any topic (web + papers + encyclopedia + news)
+
+I'm the maker. AgentValCon tests MCP servers and A2A agents with real read-only calls. When a few of them do
+a job better together than alone, we join them into a "necklace": one tool call instead of finding, calling
+and merging several servers yourself.
+
+The first one is Topic evidence brief: a grounded web answer, the most relevant papers from more than one
+index, an encyclopedia summary and recent news, in one answer.
+No key: tool `necklace_topic_evidence_brief` on https://agentconcierge.biz/mcp
+Input: {"topic": "<topic>"}
+Answer (first lines, today's real run): [측정 뒤 기입]
+Time for that call: [측정 뒤 기입]
+
+Why one call: [목걸이 페이지 "Measured on …" 줄 그대로, 없으면 MCP-Universe 인용]
+
+Limits: one topic per call; some steps are led by an agent still under verification (the page shows which);
+some results carry a labelled Sponsored line; run from Korea; free for now.
+Missing a necklace you need? https://agentconcierge.biz/necklaces/request (no contact details asked)
+What failed for you is the most useful feedback.
+```
+
+**Reddit r/AI_Agents 주간 Project Display 스레드 댓글** (별도 글 아님)
+```
+Topic evidence brief: one MCP/A2A call returns a cited brief on a topic (web answer, papers from more than
+one index, encyclopedia summary, recent news). Free, no key: https://agentconcierge.biz/necklaces/topic-evidence-brief
+Measured: [측정 뒤 기입]. Some steps are still under verification and say so on the page. Feedback welcome.
+```
+
+**Product Hunt** (사용자 계정 필요)
+- Tagline (60자 안): `Cited topic briefs from tested agents in one call` (50자)
+- Description: 5.2 One line + 한계 세 가지(한 번에 한 주제, 검증 중 단계 표시, 무료·Sponsored 표시)
+- 첫 댓글: r/mcp 초안 첫 두 단락을 사용자 말로 줄임. 업보트 요청·경품 없음.
+
+**Hacker News (Show HN)·dev.to**: AI가 쓴 글 금지라 초안을 주지 않는다. 사용자가 5.2 사실 목록으로 직접 쓴다.
+- Show HN 제목 예(사용자 판단): `Show HN: Topic evidence brief – web, papers and encyclopedia in one MCP call`
+
+### 5.4 채널별 자기 홍보 규칙 요약 (0절에서 정리한 원문 기준)
+| 채널 | 규칙 | 할 일 |
+|---|---|---|
+| Hacker News | AI가 생성·편집한 글 금지, 업보트 요청 금지 | 사용자가 직접 씀 |
+| dev.to | AI 도움 글은 밝혀야 하고 사업 홍보 금지 | 홍보 글 불가, 기술 글만 사용자가 직접 |
+| Reddit r/mcp·r/AI_Agents | 원문 미확인(이 세션 도구가 reddit.com을 거부, 우회하지 않음) | 게시 전 사용자가 규칙·플레어 확인 |
+| Product Hunt | 업보트 요청·경품 조건·대량 DM 금지, 계정 1인 1개 | 계정은 사용자, 문구는 위 초안 |
+| Lobsters | 가입 70일 안 자기 홍보 불가 | 제외 |
