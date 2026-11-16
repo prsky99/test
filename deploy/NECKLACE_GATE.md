@@ -90,6 +90,10 @@
 - **원자료 먼저**: 건마다 한 줄씩 아래 경로에 바로 쓴다. 요약은 원자료에서 다시 계산한다.
   - 경로: `gateway-data/necklaces/gate/<slug>-v<version>-r<round>-<YYYYMMDD-HHMM>.jsonl`
   - 한 줄 형식: `{case_id, kind: necklace|single, resource_id, tool, ok, graded_ok, completed, slots[], latency_ms, http_status, error_class, at}`
+- **정답 세트 확인**(PM 11-16 15:47): 정답을 확인할 때는 **정답을 만든 방법과 다른 방법**을 쓴다.
+  - 11-16 오전 company holdout-r5의 "문서 없음" 표본 15건을 확인해 오류 0이라고 했다. 그런데 표본 확인이 정답을 만든 것과 같은 검색과 같은 일치 조건이어서 같은 사각지대를 공유했고, 확인이 되지 못했다.
+  - 그래서 재확인은 만든 방법(Wikidata CIK, 제목 한 번, 검색 상위 3)과 다른 세 방법으로 한다: 제목 변형 여러 개, Wikidata 이름·별칭, 전문 검색 상위 10과 후보의 CIK 대조.
+  - 확인 결과와 쓴 방법은 manifest의 그 세트 항목에 남긴다. 고친 정답은 관문 전에만 바꾼다.
 - **시간대**
   - 낮 :55~:10(매시 공개 측정)과 03:50~05:10(real_task_score)은 피한다.
   - 11-15 00:30~03:30 같은 리허설 전용 시간에는 heavy_slot이 막는다.

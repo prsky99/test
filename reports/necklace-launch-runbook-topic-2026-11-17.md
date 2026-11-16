@@ -24,6 +24,7 @@ PM 11-16 15:42 지시. 2회차 판정이 나온 순간부터 공개까지의 단
 | 1-1 관문 나머지 기준 확인 | 운영·SRE | 합계 57/60, Δ>0(전체·같은 역할), 완주율 57/60, p95 ≤ 5초, 보안 4항목, 지문. 판정 파일 `logs/ops/necklace-gate/topic-evidence-brief-v1.json`과 장부 한 줄 | 하나라도 미달이면 2절 실패 갈래 |
 | 1-2 공개 승인 | 운영·SRE | `gateway-data/necklaces/approvals.json`에 `{slug, version: 1, definition_digest, gate_record, state: "approved", at}`를 원자적 교체로 추가 | 같은 항목 `state: "revoked"` → 다음 판정 주기에 `held` |
 | 1-3 메뉴 반영 | 워크플로우(jobs 작성기) | `necklaces.json` 작성기가 승인·버전·digest가 맞으면 `status: live`를 씀. 다음 주기를 기다리거나 jobs의 necklaces 단계를 한 번 돌림 | 운영·SRE가 `necklaces.json` 항목을 `held`로 원자적 교체 |
+| 1-3a 측정값을 스냅샷으로 | 운영·SRE·워크플로우 | 승인 뒤 다음 매일 요약과 judge(`python -m agent_market.necklaces.judge`)가 돌면, 지난 7일 case 줄(관문 회차 포함)의 `value`가 `necklaces.json` topic 항목의 `comparison`(with와 without의 calls·tokens·seconds·accuracy, 사례 수, 측정 날짜)으로 들어감. 항목에 `comparison`이 null이 아닌지 확인. null이면 요약 단계를 한 번 돌린 뒤 judge를 다시 돌림 | 승인을 `revoked`로 하면 comparison도 빠짐 |
 | 1-4 화면·안내 반영 | 성장·유통 | 메뉴 카드, `/necklaces/topic-evidence-brief`, 에이전트용 안내(MCP 도구 목록). 표면 코드가 운영에 이미 있으면 배포 없음. 없으면 frontend(+jobs) 상시 승인 배포(`--no-prune`) | 직전 frontend 버전으로 배포 |
 | 1-5 폴백·자체 대체 점검 | 워크플로우 | 자리마다 사슬 확인: `scripts/necklace_gate.py check topic-evidence-brief`(멤버 상태·지문·약관). 자체 대체(wiki-grounding, arxiv-search, wikipedia-summary, gdelt-news)의 승인 상태는 approvals `substitutes`로 확인 | 문제 멤버는 watch가 제외. 필수 자리가 비면 보류(7절) |
 | 1-6 공개 주소 확인 | 운영·SRE | 공개 주소·새 연결로: 메뉴와 상세 페이지 200, MCP 도구 목록에 목걸이 도구, 처음 보는 주제로 실제 실행 3건(`X-Agentcon-QA`). 대량 요청 금지(이 맥 IP 차단 위험) | 실행 실패면 1-2를 `revoked` |
@@ -31,6 +32,14 @@ PM 11-16 15:42 지시. 2회차 판정이 나온 순간부터 공개까지의 단
 | 1-8 기록 | 운영·SRE | 현황판 '운영 중인 버전' 칸에 한 줄. PM에 보고 | — |
 
 - 홍보 문구(토큰 절약·속도·정확도)는 관문에서 잰 값만 쓴다. 재지 않은 숫자는 쓰지 않는다.
+- 관문이 실제로 재는 것과 재지 않는 것(PM 15:47 질문, `agent_market/necklaces/value.py`)
+  - 잼: 목걸이 쪽 호출 1회, 걸린 시간(요청부터 답까지), 정답 여부(채점기).
+  - 같은 실행에서 계산함: 목걸이 없는 쪽의 호출 수(실제로 보낸 멤버 호출), 시간(같은 단계 멤버 시간 중 최댓값의 합), 문자 수.
+  - 따로 재지 않는 것
+    - 토큰: 실제 토크나이저가 아니라 문자 수 ÷ 4 추정이다. 화면에 "추정"으로 밝히거나 비워 둔다.
+    - 목걸이 없는 쪽의 정확도: 따로 실행하지 않는다. "목걸이가 맞았고 모든 필수 자리를 첫 멤버가 답했다"로 대신한다. 단일 기준선(singles)은 회차에 `--singles`를 줄 때만 잰다.
+    - 찾기·합치기 비용(`without_full`의 find_agents·tools_list): 추정값이고 `estimated`로 표시된다. 검색과 RAG가 실측하기 전까지 화면에 쓰지 않는다.
+  - 공개는 이 빈칸 때문에 늦추지 않는다. 없는 숫자는 비워 둔 채 공개하고, 공개 뒤 따로 잰다.
 
 ## 2. 실패했을 때 (어느 회차든 `fail`)
 - 공개하지 않는다. 판정 파일과 장부에 `fail`과 이유를 적고, 현황판 '넘기는 일'에 워크플로우 앞으로 남긴다.
