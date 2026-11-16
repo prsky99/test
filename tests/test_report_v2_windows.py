@@ -120,3 +120,25 @@ def test_papers_candidates_all_go_first_in_terms_order():
     terms = {1: 'prohibits', 2: None, 5: 'silent', 6: 'allowed'}
     out = V.new_queue([], cands, limit=9, terms=terms, priority=V.queue_priority([], {}, roles=['weather.forecast.v1']))
     assert [x['id'] for x in out][:5] == [6, 5, 2, 3, 4] and 1 not in [x['id'] for x in out]
+
+
+def test_the_queue_keeps_only_members_the_ledger_still_lets_role_tests_call(tmp_path):
+    import json as _json
+    from agent_market import provider_budget as B
+    day = B.today()
+    (tmp_path / f'{day}.json').write_text(_json.dumps({'domains': {
+        'used.com': {'total': 4, 'by': {'role_tests': 4}}, 'paused.com': {'total': 0, 'by': {}, 'paused': True}}}))
+    (tmp_path / f'plan-{day}.json').write_text(_json.dumps({'holds': {'held.com': {'gate': 10 ** 6}}}))
+    item = lambda rid, kind='new': {'role': 'fx.rate.v1', 'id': rid, 'tool': 't', 'kind': kind}
+    hosts = {(1, 't'): 'a.used.com', (2, 't'): 'paused.com', (3, 't'): 'held.com', (4, 't'): 'free.com',
+             (5, 't'): 'x.free.com', (6, 't'): 'other.com', (7, 't'): 'r.com'}
+    out = V.fit_budget([item(7, 'retest')], [], [item(i) for i in range(1, 7)], hosts, directory=tmp_path)
+    assert [x['id'] for x in out] == [7, 4, 6]      # used share, paused, gate hold and a second free.com member left out
+
+
+def test_tools_outside_their_role_are_never_ranked():
+    v = lambda rid: {'resource_id': rid, 'role': 'fx.rate.v1', 'tool': 'get_rate', 'outcome': 'succeeded', 'quality': {'score': 90.0},
+                     'tested': time.time(), 'registrable_domain': f'd{rid}.com', 'domain': 'finance', 'judgement': {}}
+    assert ('fx.rate.v1', 59569) in V.NOT_THIS_ROLE and ('stock.quote.v1', 46568) in V.NOT_THIS_ROLE
+    ranked = V.rank([v(59569)])
+    assert 'fx.rate.v1' not in ranked or not ranked['fx.rate.v1']['members']

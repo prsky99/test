@@ -87,7 +87,7 @@ def test_web_grounding_seeds_follow_the_pm_decision():
 
 def test_build_queue_never_retests_a_member_whose_terms_prohibit(monkeypatch):
     monkeypatch.setattr(V, 'latest_versions', lambda: [])
-    monkeypatch.setattr(V, 'retest_queue', lambda versions, skip=(): [{'role': 'web.grounding.v1', 'id': 50972, 'kind': 'retest'},
+    monkeypatch.setattr(V, 'retest_queue', lambda versions, **_: [{'role': 'web.grounding.v1', 'id': 50972, 'kind': 'retest'},
                                                               {'role': 'web.grounding.v1', 'id': 7, 'kind': 'retest'}])
     monkeypatch.setattr(V, 'catalog_candidates', lambda: [])
     monkeypatch.setattr(V, 'member_terms', lambda: {50972: 'prohibits'})
@@ -178,12 +178,12 @@ def test_old_verdicts_are_rejudged_from_the_new_budget_in_demand_order(monkeypat
     share = V.current_evaluator_share(versions)
     assert share == {'evaluator_version': V.EVALUATOR_VERSION, 'current': 1, 'of': 7}
     monkeypatch.setattr(V, 'latest_versions', lambda: versions)
-    monkeypatch.setattr(V, 'retest_queue', lambda vs, skip=(): [])
+    monkeypatch.setattr(V, 'retest_queue', lambda vs, **_: [])
     monkeypatch.setattr(V, 'rank', lambda vs: {})          # these short records carry no ranking fields
     monkeypatch.setattr(V, 'catalog_candidates', lambda: [('news.search.v1', 100 + n, 't', f'n{n}.example') for n in range(90)])
     monkeypatch.setattr(V, 'member_terms', lambda: {})
     q = V.build_queue(seed_file='/nonexistent.json')
-    assert sum(x['kind'] == 'rejudge' for x in q) == 5 and sum(x['kind'] == 'new' for x in q) <= V.NEW_A_DAY - 5
+    assert sum(x['kind'] == 'rejudge' for x in q) == 5 and sum(x['kind'] == 'new' for x in q) <= V.NEW_A_DAY * V.STANDBY // 2 - 5   # run() stops at the cap; the rest stand by
 
 
 def test_company_profile_names_reach_their_own_role_only():

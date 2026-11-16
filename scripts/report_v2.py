@@ -924,13 +924,26 @@ def recent_tasks(v, now=None):
     return list(newest.values()) or [v]
 
 
+# Tools a generic name put in a role they do not serve (workflow and agent team 11-16 18:3x; fx top 20 checked):
+# never ranked, never queued for that role. A rule for the kind (a generic name whose task input reached no
+# argument) follows on 11-17; old cases used other inputs, so the plain argument test would drop real members.
+NOT_THIS_ROLE = {
+    ('stock.quote.v1', 46568),    # bayareamobiledogwash.com get_quote: a dog wash price quote
+    ('fx.rate.v1', 59569),        # sbor.xyz get_rate: BTC-collateral dollar lending rate
+    ('fx.rate.v1', 249458),       # commercial.mortgage get_rates: mortgage rates
+    ('fx.rate.v1', 278342),       # tfrooms.com get_rates: lodging rate card
+    ('fx.rate.v1', 57897),        # praegant.net get_rates: holiday apartment prices
+    ('fx.rate.v1', 86087),        # roomexpert.com get_rates: room rates
+}
+
+
 def rank(versions):
     """Per role: by the pass rate over the recent role tasks, then quality score; one place per registrable domain;
     #1 is the final pearl when at least half of its recent tasks passed at 85+ on two different days (R12)."""
     roles = defaultdict(list)
     for v in versions:
-        if not is_own_fallback(v['resource_id']):          # own fallbacks never compete with external pearls
-            roles[v['role']].append(v)
+        if not is_own_fallback(v['resource_id']) and (canonical(v['role']), v['resource_id']) not in NOT_THIS_ROLE:
+            roles[v['role']].append(v)          # own fallbacks never compete with external pearls
     out = {}
     now = time.time()
     for role, members in roles.items():
@@ -1360,7 +1373,8 @@ def catalog_candidates():
             for tool in tools if isinstance(tools, list) else []:
                 if isinstance(tool, dict) and tool.get('name') and is_relay_safe_tool({**tool, 'required': tool.get('required') or []}):
                     for role in role_catalog.roles_for_tool(tool['name']):
-                        found.append((role, rid, tool['name'], host))
+                        if (role, rid) not in NOT_THIS_ROLE:
+                            found.append((role, rid, tool['name'], host))
     return found
 
 
@@ -1471,7 +1485,7 @@ def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3, prior
     return out
 
 
-def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115.json'):
+def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115.json', budget_dir=None):
     versions = latest_versions()
     try:
         seeds = json.loads(Path(seed_file).read_text())
@@ -1479,16 +1493,74 @@ def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115
         seeds = []
     terms = member_terms()
     ranked = rank(versions)
+    candidates = catalog_candidates()
     # PM 11-16 17:5x: a member tested today is not tested again in a later window (a second success the same day
     # does not count as a second day).
     today = tested_today(versions)
     prohibited = {(v['resource_id'], canonical(v['role'])) for v in versions if terms.get(v['resource_id']) == 'prohibits'}
-    retests = [x for x in retest_queue(versions, skip=today | prohibited)   # never call a member whose terms forbid it
+    retests = [x for x in retest_queue(versions, skip=today | prohibited, limit=10 ** 6)   # never call a member whose terms forbid it
                if terms.get(x['id']) != 'prohibits']
     ranks = {(m['resource_id'], canonical(role)): m['rank'] for role, entry in ranked.items() for m in entry['members']}
-    rejudge = rejudge_queue(versions, {(x['id'], canonical(x['role'])) for x in retests} | today, terms, ranks=ranks)
-    return retests + rejudge + new_queue(versions, catalog_candidates(), seeds, limit=NEW_A_DAY - len(rejudge), terms=terms,
-                                         priority=queue_priority(versions, ranked))
+    rejudge = rejudge_queue(versions, {(x['id'], canonical(x['role'])) for x in retests} | today, terms, ranks=ranks,
+                            limit=10 ** 6)
+    new = new_queue(versions, candidates, seeds, limit=10 ** 6, terms=terms, priority=queue_priority(versions, ranked))
+    hosts = {(v['resource_id'], v['tool']): v.get('host') for v in versions}
+    hosts.update({(rid, tool): host for _, rid, tool, host in candidates})
+    hosts.update({(s_['id'], s_['tool']): s_.get('host') for s_ in seeds if s_.get('host')})
+    return fit_budget(retests, rejudge, new, hosts, budget_dir)
+
+
+STANDBY = 3             # 3/2 of each cap is queued (PM 11-16 18:4x: use the whole window)
+ROLE_TEST_CALLS = 4     # R16: an MCP role test is initialize, initialized, tools/list and tools/call
+
+
+def fit_budget(retests, rejudge, new, hosts, directory=None, now=None):
+    """The window's queue, only with members the shared provider ledger still lets role_tests call today (11-16 18:22
+    window: 48 of 120 were skipped at run time, the domain's role_tests share of 5 already used by a morning test or
+    held for a gate), and one member per registrable domain in the window (a second would find the share used).
+    Caps: RETEST_A_DAY retests, REJUDGE_A_DAY rejudges, the rest of NEW_A_DAY new candidates, each with half again
+    standing by; nothing is reserved."""
+    from agent_market import provider_budget as B
+    day = B.today(now)
+    try:
+        ledger = json.loads((Path(directory or B.DIR) / f'{day}.json').read_text()).get('domains') or {}
+    except (OSError, ValueError, AttributeError):
+        ledger = {}
+    holds = B.plan(day, directory)
+    room = {}
+
+    def fits(name):
+        if name not in room:
+            entry = {'total': 0, 'by': {}, **(ledger.get(name) or {})}
+            total = B.domain_total(name, day=day, directory=directory)
+            room[name] = not (entry.get('paused') or entry['total'] + ROLE_TEST_CALLS > total
+                              or entry['total'] + ROLE_TEST_CALLS + B.held_for_others(entry, holds.get(name, {}), 'role_tests') > total
+                              or entry['by'].get('role_tests', 0) + ROLE_TEST_CALLS > B.share_limit('role_tests', name, day, directory))
+        return room[name]
+
+    used, out = set(), []
+
+    def take(items, cap):
+        n = 0
+        for x in items:
+            if n >= cap:
+                break
+            host = hosts.get((x['id'], x.get('tool')))
+            name = B.domain(host) if host else None
+            if name and (name in used or not fits(name)):
+                continue
+            if name:
+                used.add(name)
+            out.append(x)
+            n += 1
+        return n
+
+    # Half again as many as the caps stand by: run() stops each kind at its cap, so a member still refused at run time
+    # (a host's place, a pause) is replaced by the next one and the window's 80 + 40 are used.
+    take(retests, RETEST_A_DAY * STANDBY // 2)
+    taken = take(rejudge, REJUDGE_A_DAY * STANDBY // 2)
+    take(new, (NEW_A_DAY * STANDBY // 2) - taken)
+    return out
 
 
 def tested_today(versions, now=None):
