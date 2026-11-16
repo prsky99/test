@@ -1,0 +1,5 @@
+#!/bin/bash
+# PM 11-16 source review 5.3: a plain `git commit` checks the staged files (scripts/commit_check.py).
+cd "$(git rev-parse --show-toplevel)" || exit 0
+PY=.venv/bin/python; [ -x "$PY" ] || exit 0
+exec "$PY" -m scripts.commit_check --staged
