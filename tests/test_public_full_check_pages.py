@@ -114,3 +114,28 @@ def test_navigation_timing_in_a_real_browser():
         nav = page.evaluate(pfc.NAV_LOAD_JS)
         browser.close()
     assert nav is None or 0 < nav < 5
+
+
+def test_a_slow_sample_keeps_its_own_steps_and_the_load(monkeypatch):
+    """PM 11-16 18:1x: a 13.87 s HIT at 17:29 could not be told apart (path, TLS or the check itself) afterwards."""
+    class Traced:
+        def request(self, method, url, **kw):
+            trace = kw['extensions']['trace']
+            for name in ('connection.connect_tcp.complete', 'connection.start_tls.complete',
+                         'http11.send_request_headers.started', 'http11.receive_response_headers.complete',
+                         'http11.receive_response_body.complete'):
+                trace(name, {})
+            resp = Response()
+            resp.headers = {'cf-ray': 'x-LAX', 'cf-cache-status': 'HIT'}
+            return resp
+    clock = iter([0.0, 0.1, 0.4, 0.5, 0.8, 0.9, 1.0])
+    monkeypatch.setattr(pfc, 'GAP', 0)
+    monkeypatch.setattr(pfc.time, 'time', lambda: next(clock))
+    monkeypatch.setattr(pfc.os, 'getloadavg', lambda: (6.87, 5.0, 4.0))
+    monkeypatch.setattr(pfc, 'path_floor', lambda: None)
+    took, r, err = pfc.timed(Traced(), 'GET', 'https://example.test/x')
+    assert (took, err) == (1.0, None)
+    ref = pfc.split(r, took)
+    assert ref['phases'] == {'tcp_s': 0.1, 'tls_s': 0.4, 'first_byte_s': 0.8, 'body_end_s': 0.9, 'requests': 1,
+                             'body_s': 0.1, 'load_1': 6.87}
+    assert ref['edge'] == 'LAX HIT'  # the verdict and the other fields are unchanged

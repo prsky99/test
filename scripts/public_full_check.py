@@ -68,14 +68,39 @@ def client():
     return httpx.Client(timeout=30, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=True, http2=False)
 
 
+def phases(marks, start):
+    """Seconds from the request start to each step of the last request (httpx/httpcore trace events): TCP connect,
+    TLS, first byte (response headers) and the end of the body, the number of requests sent (redirects) and whether
+    the connection was new. PM 11-16 18:1x: a 13.87 s HIT at 17:29 could not be told apart afterwards."""
+    def last(name):
+        found = [t for n, t in marks if n == name]
+        return round(found[-1] - start, 3) if found else None
+    out = {'tcp_s': last('connection.connect_tcp.complete'), 'tls_s': last('connection.start_tls.complete'),
+           'first_byte_s': last('http11.receive_response_headers.complete'),
+           'body_end_s': last('http11.receive_response_body.complete'),
+           'requests': sum(1 for n, _ in marks if n == 'http11.send_request_headers.started')}
+    if out['first_byte_s'] is not None and out['body_end_s'] is not None:
+        out['body_s'] = round(out['body_end_s'] - out['first_byte_s'], 3)
+    try:
+        out['load_1'] = round(os.getloadavg()[0], 2)
+    except OSError:
+        pass
+    return out
+
+
 def timed(c, method, url, **kw):
     time.sleep(GAP)
+    marks = []
+    kw.setdefault('extensions', {})['trace'] = lambda name, info: marks.append((name, time.time()))
     t = time.time()
     try:
         r = c.request(method, url, **kw)
     except Exception as e:  # noqa: BLE001 - any failure is a finding
         return round(time.time() - t, 2), None, f'{type(e).__name__}'
-    return round(time.time() - t, 2), r, None
+    took = round(time.time() - t, 2)
+    if marks:   # kept on the response itself, so split() of this sample reads this sample's steps
+        r.phases = phases(marks, t)
+    return took, r, None
 
 
 def edge(r):
@@ -145,6 +170,8 @@ def split(r, took):
     m = re.search(r'(?:^|,)\s*server;dur=([\d.]+)', r.headers.get('server-timing', ''))
     server = round(float(m.group(1)) / 1000, 2) if m else None
     ref = {'server_s': server, 'outside_s': round(took - server, 2) if server is not None else None, 'edge': edge(r)}
+    if getattr(r, 'phases', None):   # this sample's own steps and the load at its end (PM 11-16 18:1x)
+        ref['phases'] = r.phases
     # PM 11-15 22:2x: 21:52 A2A server 12.45 s could not be split afterwards; keep the request's own segments.
     segments = re.findall(r'([A-Za-z_][\w-]*);dur=([\d.]+)', r.headers.get('server-timing', ''))
     if segments:
