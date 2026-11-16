@@ -154,22 +154,29 @@ class FrozenClock:
         self.t += max(0.0, seconds)
 
 
-def agents_for(transport, data_dir: Path):
-    from agent_market.fallback_agents.agents import FallbackAgents
-    from agent_market.fallback_agents.limits import limiters
-    clock = FrozenClock()
-    work = data_dir / "_run"
+def work_dir(data_dir: Path, name: str = "_run") -> Path:
+    """A fresh folder with the snapshot's local files: big read-only ones linked, the ones an agent rewrites
+    (the KEV catalog) copied, so recording and replay read the very same local data."""
+    work = data_dir / name
     if work.exists():
         shutil.rmtree(work)
     work.mkdir(parents=True)
-    for name in LOCAL_FILES:               # big read-only files linked; the ones an agent rewrites (KEV) copied
-        if (data_dir / name).exists():
-            if name.endswith(".json"):
-                shutil.copy2(data_dir / name, work / name)
+    for file in LOCAL_FILES:
+        if (data_dir / file).exists():
+            if file.endswith(".json"):
+                shutil.copy2(data_dir / file, work / file)
             else:
-                (work / name).symlink_to(data_dir / name)
+                (work / file).symlink_to(data_dir / file)
+    return work
+
+
+def agents_for(transport, data_dir: Path, at: datetime = FROZEN):
+    from agent_market.fallback_agents.agents import FallbackAgents
+    from agent_market.fallback_agents.limits import limiters
+    clock = FrozenClock()
+    work = work_dir(data_dir)
     agents = FallbackAgents(http=httpx.Client(transport=transport), data_dir=work, clock=clock,
-                            wall=lambda: FROZEN.timestamp() + clock.t, utc_now=lambda: FROZEN,
+                            wall=lambda: at.timestamp() + clock.t, utc_now=lambda: at,
                             limiters=limiters(clock=clock, sleep=clock.sleep))
     agents.resolve = agents.connect = None     # TLS reads are not in any approved substitute; never live here
     return agents
@@ -182,6 +189,33 @@ def run_one(agents, agent_id, args) -> dict:
         return {"envelope": envelope}
     except FallbackUnavailable as exc:
         return {"error": exc.code, "message": str(exc)}
+
+
+LEDGER_REFUSAL = "Shared test budget refused"
+GITHUB_REFUSAL = "Shared GitHub allowance refused"
+PACING = "Source "        # limits.HostLimiter: "Source spacing ...", "Source request allowance ...", "Source is busy"
+
+
+def run_with_cause(agents, agent_id, args):
+    """run_one, plus the text of the underlying refusal (the ledger's or our pacing's), for the recorder."""
+    from agent_market.fallback_agents.agents import FallbackUnavailable
+    try:
+        return {"envelope": agents.execute(agent_id, args)}, ""
+    except FallbackUnavailable as exc:
+        cause, why = exc.__cause__, ""
+        while cause is not None:
+            why += " " + str(cause)
+            cause = cause.__cause__
+        return {"error": exc.code, "message": str(exc)}, why
+
+
+def recorded_at(case) -> datetime:
+    """When the case was recorded, in UTC (older lines kept local time only: the Mac's zone is applied)."""
+    if case.get("at_utc"):
+        return datetime.strptime(case["at_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    if case.get("at"):
+        return datetime.strptime(case["at"], "%Y-%m-%dT%H:%M:%S").astimezone().astimezone(timezone.utc)
+    return FROZEN
 
 
 def canonical(row) -> str:
@@ -207,18 +241,41 @@ def record(agent_ids, home=HOME, system="cassettes"):
         path = home / f"{agent_id}.jsonl"
         done = {json.loads(l)["case"] for l in path.read_text().splitlines()} if path.exists() else set()
         todo = [c for c in inputs(agent_id) if c["kind"] + ":" + c["id"] not in done]
-        recorded, refused = 0, 0
+        recorded, refused, out_of_share = 0, 0, False
         with path.open("a") as fh:
             for case in todo:
-                exchanges = []
-                agents = FallbackAgents(http=httpx.Client(transport=RecordingTransport(exchanges.append)))
-                with budget(system):
-                    row = run_one(agents, agent_id, case["args"])
-                if row.get("error") in ("rate_limited", "source_unavailable") and not exchanges:
-                    refused += 1                 # the ledger or our pacing said no: record this case another day
+                if out_of_share:
+                    refused += 1
+                    continue
+                for attempt in range(40):
+                    exchanges = []
+                    started = datetime.now(timezone.utc)
+                    agents = FallbackAgents(http=httpx.Client(transport=RecordingTransport(exchanges.append)),
+                                            data_dir=work_dir(data, "_record"))
+                    with budget(system):
+                        row, why = run_with_cause(agents, agent_id, case["args"])
+                    refusal = row.get("error") in ("rate_limited", "source_unavailable") and (
+                        not exchanges or LEDGER_REFUSAL in why or GITHUB_REFUSAL in why or PACING in why)
+                    if refusal:                  # never keep a case cut short by a refusal (half-recorded)
+                        if LEDGER_REFUSAL in why or GITHUB_REFUSAL in why:
+                            out_of_share = True  # today's share is used up: the rest waits for another day
+                            break
+                        time.sleep(3)            # our own host pacing (spacing, a per-minute window): wait, retry
+                        continue
+                    break
+                if not refusal:
+                    # a refusal an agent absorbs (an optional part such as EPSS left out: a partial answer) never
+                    # reaches us as an error; replaying the case at once shows any request that was not recorded
+                    check = ReplayTransport(exchanges)
+                    run_one(agents_for(check, home / "data", started), agent_id, case["args"])
+                    if check.missing:
+                        refusal, out_of_share = True, True
+                if refusal:
+                    refused += 1
                     continue
                 fh.write(json.dumps({"case": case["kind"] + ":" + case["id"], "args": case["args"],
-                                     "exchanges": exchanges, "at": time.strftime("%Y-%m-%dT%H:%M:%S")}) + "\n")
+                                     "exchanges": exchanges, "at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+                                     "at_utc": started.strftime("%Y-%m-%dT%H:%M:%SZ")}) + "\n")
                 recorded += 1
         report[agent_id] = {"recorded": recorded, "refused_by_ledger": refused, "already": len(done),
                             "of": len(todo) + len(done)}
@@ -234,12 +291,13 @@ def replay(agent_ids, home=HOME) -> dict:
         cases = [json.loads(l) for l in path.read_text().splitlines()] if path.exists() else []
         for case in cases:
             transport = ReplayTransport(case["exchanges"])
-            row = run_one(agents_for(transport, home / "data"), agent_id, case["args"])
+            # the clock of the recording (local files such as the KEV catalog are only fresh relative to it)
+            row = run_one(agents_for(transport, home / "data", recorded_at(case)), agent_id, case["args"])
             rows.append({"case": case["case"], "output": row, "unrecorded": transport.missing})
         if cases:
             first = cases[0]["args"]
             for kind in ERROR_PATHS:
-                row = run_one(agents_for(ErrorTransport(kind), home / "data"), agent_id, first)
+                row = run_one(agents_for(ErrorTransport(kind), home / "data", recorded_at(cases[0])), agent_id, first)
                 rows.append({"case": "error:" + kind, "output": row, "unrecorded": []})
         out[agent_id] = rows
     return out
