@@ -379,6 +379,18 @@
       "source": "https://agentdiet.dev/terms",
       "checked_at": "2026-11-16",
       "basis": "the page named terms covers privacy and API retirement only; commercial use and redistribution not addressed; free use is a sandbox, regular calls are paid over x402 (ambiguous, paid path)"
+    },
+    "55779": {
+      "status": "prohibits",
+      "source": "https://pho.chat/legal/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms (updated 2026-05-11) cover the account-based chat Service: one person per account, no resale or shared access, no redistribution at commercial scale, no scripts or bots running nonstop; the free MCP server is not addressed and commercial use of results is not granted (ambiguous)"
+    },
+    "130450": {
+      "status": "prohibits",
+      "source": "https://agentdiet.dev/terms",
+      "checked_at": "2026-11-16",
+      "basis": "same provider and page as 130453: the page named terms covers privacy and API retirement only; commercial use and redistribution not addressed; free use is a sandbox, regular calls are paid over x402 (ambiguous, paid path)"
     }
   },
   "changes": [
@@ -946,6 +958,22 @@
     },
     {
       "member": "130453",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://agentdiet.dev/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "55779",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://pho.chat/legal/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "130450",
       "from": "unknown",
       "to": "prohibits",
       "source": "https://agentdiet.dev/terms",
