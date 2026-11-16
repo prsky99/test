@@ -27,6 +27,8 @@ header, HTML is escaped, and responses carry no-store / nosniff / CSP headers.
 """
 
 import asyncio
+import concurrent.futures
+import contextvars
 import hashlib
 import logging
 import math
@@ -113,6 +115,11 @@ EMAIL_REGEX = re.compile(r"^[a-zA-Z0-9_.+-]+@(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$")
 
 
 _LOOPBACK = frozenset({'127.0.0.1', '::1'})
+
+
+# PM 11-16 source review 3.5: the per-request security checks (sync Redis and database calls) run here, off the event
+# loop and apart from the default pool that sync routes use.
+_SECURITY_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix='security-check')
 
 
 def _ours(request, ip) -> bool:
@@ -2342,6 +2349,26 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         return response
 
     async def guarded_request(request: Request, call_next, client_ip: str):
+        # PM 11-16 source review 3.5: the checks below call Redis and the database synchronously (ban list, scanner
+        # patterns, read limit, violation records). They run in one hop on a small pool of their own, so the event loop
+        # keeps serving other requests meanwhile and the checks never queue behind slow sync routes.
+        # The request's context goes along (contextvars: the quota sink the public contract reads for RateLimit headers).
+        context = contextvars.copy_context()
+        refusal = await asyncio.get_running_loop().run_in_executor(_SECURITY_POOL, context.run, precheck, request, client_ip)
+        if refusal is not None:
+            return refusal
+        try:
+            response = await call_next(request)
+        except BodyTooLarge:
+            response = JSONResponse({"audience": AUDIENCE, "error": f"Request body too large (max {MAX_BODY} bytes)."}, status_code=413)
+        except TooManyVisitors as exc:
+            response = JSONResponse({"audience": AUDIENCE, "error": "Too many new visitors from your address. Reuse your "
+                                     "visitor token (X-Visitor-Token) or try again later.", "retry_after": exc.retry_after},
+                                    status_code=429, headers={"Retry-After": str(exc.retry_after), "Cache-Control": "no-store"})
+        return response
+
+    def precheck(request: Request, client_ip: str):
+        """The security checks before a route runs: a refusal response, or None to go on."""
         # Fast drop banned IPs
         blocked, reason = front.security.is_blocked(client_ip)
         if blocked:
@@ -2380,19 +2407,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             front.security.record_violation(client_ip, "rate_limit_429", request.url.path, request.method, request.headers.get("user-agent"), "Read limit exceeded")
             quota = request.scope['agent_adoption_quota']
             wait = re.search(r't=(\d+)', quota.get('RateLimit', ''))
-            response = JSONResponse({"audience": AUDIENCE, "error": "Too many requests — please slow down."}, status_code=429,
-                                    headers={"Retry-After": wait[1] if wait else "60", **quota})
-        else:
-            try:
-                response = await call_next(request)
-            except BodyTooLarge:
-                response = JSONResponse({"audience": AUDIENCE, "error": f"Request body too large (max {MAX_BODY} bytes)."}, status_code=413)
-            except TooManyVisitors as exc:
-                response = JSONResponse({"audience": AUDIENCE, "error": "Too many new visitors from your address. Reuse your "
-                                         "visitor token (X-Visitor-Token) or try again later.", "retry_after": exc.retry_after},
-                                        status_code=429, headers={"Retry-After": str(exc.retry_after), "Cache-Control": "no-store"})
-
-        return response
+            return JSONResponse({"audience": AUDIENCE, "error": "Too many requests — please slow down."}, status_code=429,
+                                headers={"Retry-After": wait[1] if wait else "60", **quota})
+        return None
 
     def limited(request: Request) -> JSONResponse | None:
         request.scope['agent_adoption_quota'] = {'RateLimit-Policy': '"conversation";q='+str(CHAT_PER_MINUTE)+';w=60'}

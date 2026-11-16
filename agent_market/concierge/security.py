@@ -313,6 +313,25 @@ class SecurityManager:
         except Exception as exc:
             log.warning("Failed to reload security rules from DB: %s", exc)
 
+    def _refresh_rules_later(self) -> None:
+        """PM 11-16 source review 3.5: the 30-second reload read the rule table on the request path, so every request
+        that arrived then waited for the database. The reload now runs once in the background; requests keep answering
+        from the rules already loaded (at most one reload at a time)."""
+        with self._lock:
+            if getattr(self, '_rules_refreshing', False):
+                return
+            self._rules_refreshing = True
+
+        def work():
+            try:
+                self.reload_rules()
+            finally:
+                with self._lock:
+                    self._rules_refreshing = False
+                    # a failed reload waits the usual 30 s before the next try instead of one per request
+                    self._rules_loaded_at = max(self._rules_loaded_at, time.time() - 25.0)
+        threading.Thread(target=work, name='security-rules-reload', daemon=True).start()
+
     def resolve_ip(self, request: Request) -> str:
         """Safely extract client IP address, guarding against header spoofing."""
         if "agent_market.client_ip" in request.scope:
@@ -339,7 +358,7 @@ class SecurityManager:
 
         now = time.time()
         if now - self._rules_loaded_at > 30.0:
-            self.reload_rules()
+            self._refresh_rules_later()
 
         with self._lock:
             if ip in self._allowed_ips:
