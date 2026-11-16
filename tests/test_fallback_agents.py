@@ -2530,17 +2530,31 @@ def test_gold_met_weather_builder_keeps_celsius_hours():
     assert cases[0]["truth"]["nws_hourly"][0]["temp_c"] == 5.0 and len(POINTS) >= 30
 
 def test_sun_times_agent_computes_without_a_network_call(tmp_path):
-    """sun.times.v1 (workflow 11-16): no outside call; a polar day is an answer with polar set, not an error."""
-    a, _ = agents(tmp_path, {})
-    out = a.execute("sun-times", {"latitude": 51.5074, "longitude": -0.1278, "date": "2024-06-21"})["result"]
-    assert out["polar"] == "none" and out["sunrise"] == "2024-06-21T03:43:00Z" and "sunrise 2024-06-21 03:43 UTC" in out["answer"]
+    """sun.times.v1 (workflow 11-16): no outside call; times in the place's own zone from the offline grid, the date
+    read as that zone's calendar date; UTC with a note where the grid gives no single zone; polar days are answers."""
+    from datetime import datetime, timezone
+    calls = []
+    clock = Clock()
+    bare = FallbackAgents(http=client({}, calls), data_dir=tmp_path / "none", clock=clock, limiters=limiters(clock, clock.sleep))
+    out = bare.execute("sun-times", {"latitude": 51.5074, "longitude": -0.1278, "date": "2024-06-21"})["result"]
+    assert out["polar"] == "none" and out["timezone"] == "UTC" and out["sunrise"] == "2024-06-21T03:43:00Z"
+    assert "sunrise 03:43 UTC" in out["answer"] and "Times in UTC (time zone not certain)." in out["answer"]
+
+    write_tz_grid(tmp_path / "tz-grid.bin")
+    a = FallbackAgents(http=client({}, calls), data_dir=tmp_path, clock=clock, limiters=limiters(clock, clock.sleep),
+                       utc_now=lambda: datetime(2026, 11, 19, 20, 0, tzinfo=timezone.utc))
     seoul = a.execute("sun-times", {"latitude": 37.5665, "longitude": 126.978, "date": "2026-11-20"})["result"]
-    assert "sunrise 2026-11-19 22:17 UTC" in seoul["answer"]   # 07:17 KST on 20 November is the 19th in UTC
-    polar = a.execute("sun-times", {"location": "69.6492,18.9553", "date": "2024-12-21"})["result"]
+    assert seoul["timezone"] == "Asia/Seoul" and seoul["sunrise"] == "2026-11-20T07:17:00+09:00"
+    assert "sunrise 07:17 KST" in seoul["answer"] and "(Asia/Seoul)" in seoul["answer"]
+    today = a.execute("sun-times", {"location": "37.5665,126.978"})["result"]
+    assert today["date"] == "2026-11-20"           # 20:00 UTC on the 19th is the 20th in Seoul
+    border = a.execute("sun-times", {"latitude": 45.0, "longitude": 8.0, "date": "2026-11-20"})["result"]
+    assert border["timezone"] == "UTC" and "time zone not certain" in border["answer"]
+    polar = bare.execute("sun-times", {"location": "69.6492,18.9553", "date": "2024-12-21"})["result"]
     assert polar["polar"] == "always_down" and "sunrise" not in polar and polar["day_length_minutes"] == 0
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("sun-times", {"location": "Seoul"})
-    assert err.value.code == "invalid_input"
+    assert err.value.code == "invalid_input" and calls == []
 
 
 def test_site_reachability_agent_reports_status_and_final_address(tmp_path):

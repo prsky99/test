@@ -1566,27 +1566,55 @@ class FallbackAgents:
                 lat, lon = float(m.group(1)), float(m.group(2))
         if lat is None or lon is None:
             raise FallbackUnavailable("invalid_input", "Give latitude and longitude (a place name is not looked up here).")
+        import zoneinfo
         try:
-            day = date.fromisoformat(args["date"]) if args.get("date") else self.utc_now().date()
-            out = sun_times(float(lat), float(lon), day)
+            lat, lon = float(lat), float(lon)
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                raise ValueError("coordinate out of range")
+        except (TypeError, ValueError) as exc:
+            raise FallbackUnavailable("invalid_input", "Use valid coordinates.") from exc
+        # workflow 11-16: times in the place's own time zone (the offline grid tz-time uses); the date is that zone's
+        # calendar date. Where the grid gives no single zone (a border cell) or is not built, times stay in UTC.
+        zone = None
+        try:
+            zone = self._zone_at(lat, lon).get("zone") or None
+        except FallbackUnavailable:
+            zone = None
+        tz = zoneinfo.ZoneInfo(zone) if zone else timezone.utc
+        try:
+            day = date.fromisoformat(args["date"]) if args.get("date") else self.utc_now().astimezone(tz).date()
+            out = sun_times(lat, lon, day)
         except ValueError as exc:
             raise FallbackUnavailable("invalid_input", "Use a valid date (YYYY-MM-DD) and coordinates.") from exc
+
+        def local(t):
+            at = datetime.strptime(t, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(tz)
+            return at.isoformat() if zone else t
+
+        def said(t):
+            at = datetime.strptime(t, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).astimezone(tz)
+            return at.strftime("%H:%M") + (f" {at.tzname()}" if zone else " UTC")
         state = out["state"]
         polar = "none" if state == "normal" else state
-        hhmm = lambda t: f"{t[:10]} {t[11:16]} UTC" if t else None   # the UTC date too: Seoul rises the day before in UTC
+        where = f"{lat:.4f},{lon:.4f}" + (f" ({zone})" if zone else "")
         if state == "normal":
-            answer = (f"On {day.isoformat()} at {float(lat):.4f},{float(lon):.4f}: sunrise {hhmm(out['sunrise'])}, "
-                      f"sunset {hhmm(out['sunset'])}, day length {out['day_length_minutes']} minutes.")
+            answer = (f"On {day.isoformat()} at {where}: sunrise {said(out['sunrise'])}, sunset {said(out['sunset'])}, "
+                      f"day length {out['day_length_minutes']} minutes.")
         else:
-            answer = (f"On {day.isoformat()} at {float(lat):.4f},{float(lon):.4f} the sun "
+            answer = (f"On {day.isoformat()} at {where} the sun "
                       f"{'stays up all day (no sunset)' if state == 'always_up' else 'stays down all day (no sunrise)'}.")
+        if not zone:
+            answer += " Times in UTC (time zone not certain)."
         result = {"answer": answer, "url": "https://gml.noaa.gov/grad/solcalc/calcdetails.html",
-                  "source": "Computed with the NOAA solar equations (public domain), UTC",
-                  "date": day.isoformat(), "timezone": "UTC", "day_length_minutes": out["day_length_minutes"],
+                  "source": "Computed with the NOAA solar equations (public domain); time zone from the IANA database",
+                  "date": day.isoformat(), "timezone": zone or "UTC", "day_length_minutes": out["day_length_minutes"],
                   "polar": polar}
         if state == "normal":
-            result.update(sunrise=out["sunrise"], sunset=out["sunset"])
-        return result, {"status": "computed", "age_seconds": 0}, False, {"NOAA solar equations": None}
+            result.update(sunrise=local(out["sunrise"]), sunset=local(out["sunset"]))
+        as_of = {"NOAA solar equations": None}
+        if zone and self.tz_grid is not None:
+            as_of["time zone grid built"] = self.tz_grid.header.get("built")
+        return result, {"status": "computed", "age_seconds": 0}, False, as_of
 
     def _site_reachability(self, args, remaining):
         """site.reachability.v1 (workflow 11-16, website-trust-brief v2): one GET through fallback_agents.reach."""
