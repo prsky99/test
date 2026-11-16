@@ -9,7 +9,7 @@ from tests.test_necklace_surface import NOW, necklace, snapshot  # noqa: F401 - 
 COMPARISON = {'cases': 26, 'measured_at': '2026-11-17',
               'with': {'calls': 1, 'tokens': 1800, 'seconds': 2.4, 'accuracy': 0.96},
               'without': {'calls': 7, 'tokens': 9400, 'seconds': 11.2, 'accuracy': 0.81}}
-LINE = ('Measured in our gate runs on 26 cases (2026-11-17): one call, a median of 2.4 s per case, 96% correct, about '
+LINE = ('Measured in our test runs on 26 cases (2026-11-17): one call, a median of 2.4 s per case, 96% correct, about '
         '1,800 tokens (text length \u00f7 4). From the same runs\' records (not a separate run), an agent calling the same '
         'agents itself would make 7 calls and handle about 9,400 tokens (text length \u00f7 4), taking about 11.2 s if it '
         'sent each step\'s calls at the same time. Finding the tools and merging the answers are not counted.')
@@ -75,5 +75,13 @@ def test_unmeasured_and_estimated_numbers_never_reach_a_page_or_an_agent(snapsho
     for text in texts:
         for absent in ('47%', '0.47', '14,200', '14200', '16.8', 'Including finding', '(estimated)', '\u2192'):
             assert absent not in text, (absent, text[:200])
-    assert 'Measured in our gate runs' in page and '(text length \u00f7 4)' in ns.comparison_line({'comparison': full})
+    assert 'Measured in our test runs' in page and '(text length \u00f7 4)' in ns.comparison_line({'comparison': full})
     assert full['without_full']['tokens'] == 14200      # the judge's snapshot itself is unchanged
+
+
+def test_a_window_of_runs_is_dated_from_first_to_last():
+    line = ns.comparison_line({'comparison': {**COMPARISON, 'since': '2026-11-11'}})
+    assert line.startswith('Measured in our test runs on 26 cases (2026-11-11 \u2013 2026-11-17): one call,')
+    assert ns.public_comparison(ns.comparison({'comparison': {**COMPARISON, 'since': '2026-11-11'}}))['since'] == '2026-11-11'
+    for odd in ('2026-11-17', '2026-11-18', 'last week', None):        # not before the last run: the last date alone
+        assert '(2026-11-17): one call,' in ns.comparison_line({'comparison': {**COMPARISON, 'since': odd}})

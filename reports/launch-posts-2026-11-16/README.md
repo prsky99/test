@@ -37,7 +37,7 @@ One real call (run it on the posting day and paste the real result, never an edi
 - Time: the time that call actually took that day, measured from the posting machine, as it is (PM 17:20). No "fast" without that number.
 
 Why one call (our own measurement always comes first; the outside figure only when we have none)
-- Our own measurement, if the necklace page shows it: "Measured in our gate runs on N cases (date): one call, a median of S s per case, A% correct, about T tokens (text length ÷ 4). From the same runs' records (not a separate run), an agent calling the same K agents itself would make C calls …" — copy the line from the necklace page as it is (PM 11-16 display rules: "Measured" only for what was run; numbers from the same runs' records say so; no estimate and no accuracy for the path that was not run).
+- Our own measurement, if the necklace page shows it: "Measured in our test runs on N cases (first – last date): one call, a median of S s per case, A% correct, about T tokens (text length ÷ 4). From the same runs' records (not a separate run), an agent calling the same K agents itself would make C calls …" — copy the line from the necklace page as it is (PM 11-16 display rules: "Measured" only for what was run; numbers from the same runs' records say so; no estimate and no accuracy for the path that was not run).
 - If there is no measurement yet, cite the outside number only:
   - MCP-Universe (Luo et al., arXiv 2508.14704, Aug 2025) tested models on 231 tasks against 11 real MCP servers.
   - The best model in that paper, GPT-5, succeeded on 43.72% of them.
@@ -160,14 +160,14 @@ Feedback on what failed is the most useful thing for me.
 
 ## 5. topic-evidence-brief 공개용 (11-17, 2회차 판정 통과 시 11:00~12:00 공개, PM 11-16 15:42 지시)
 
-숫자 원칙(PM 11-16 표시 규칙): "Measured"는 실제로 실행해 잰 값에만 쓴다. 같은 실행 기록에서 계산한 값은 그렇게 밝혀서만 쓴다. 추정과 재지 않은 정확도는 쓰지 않는다. 토큰은 "(text length ÷ 4)"와 함께만 쓴다. 아직 재지 않은 자리는 `[측정 뒤 기입]`으로 둔다. 공개 직후 목걸이 페이지의 "Measured in our gate runs …" 줄이 생기면 그 줄을 그대로 옮긴다.
+숫자 원칙(PM 11-16 표시 규칙): "Measured"는 실제로 실행해 잰 값에만 쓴다. 같은 실행 기록에서 계산한 값은 그렇게 밝혀서만 쓴다. 추정과 재지 않은 정확도는 쓰지 않는다. 토큰은 "(text length ÷ 4)"와 함께만 쓴다. 아직 재지 않은 자리는 `[측정 뒤 기입]`으로 둔다. 공개 직후 목걸이 페이지의 "Measured in our test runs …" 줄이 생기면 그 줄을 그대로 옮긴다.
 
 ### 5.1 공개 화면과 에이전트용 안내: 자동으로 나가는 것(판정 스냅샷 기준, 코드 변경 없음)
 | 자리 | 나가는 문구(영어 원문) | 근거 |
 |---|---|---|
 | 홈·Workflows 카드 | "Why a necklace: an agent that finds several agents, calls each one and merges their answers spends tokens and time on every step, and under a time limit it can settle on a wrong answer. A necklace does those steps in one call: agents we tested, in a fixed order, with fallbacks, returning one answer." + 목걸이 링크 + 주문 링크 | necklace_surface.WHY, why_card |
 | 목걸이 페이지 단계별 표시 | 검증 진주는 "Verified pearl", 임시 멤버(web 자리 등)는 "Under verification" + "Under verification: the agent passed our tests for this step but has not yet passed its second check on a different day. When a verified pearl is available for the step, it takes the place." | member_status, PROVISIONAL_NOTE (임시 멤버를 화면에 밝힘) |
-| 측정 줄 | "Measured in our gate runs on N cases (date): one call, a median of S s per case, A% correct, about T tokens (text length ÷ 4). From the same runs' records (not a separate run), an agent calling the same 4 agents itself would make C calls and handle about U tokens (text length ÷ 4), taking about X s if it sent each step's calls at the same time. Finding the tools and merging the answers are not counted." | comparison_line(PM 11-16 표시 규칙: "Measured"는 목걸이 쪽 잰 값만, 직접 호출 쪽은 같은 실행 기록에서 계산했다고 밝힘, 직접 호출 쪽 정확도·찾기·합치기 추정치는 내지 않음). **지금 topic 측정 없음 → 줄이 나가지 않음** |
+| 측정 줄 | "Measured in our test runs on N cases (first – last date): one call, a median of S s per case, A% correct, about T tokens (text length ÷ 4). From the same runs' records (not a separate run), an agent calling the same 4 agents itself would make C calls and handle about U tokens (text length ÷ 4), taking about X s if it sent each step's calls at the same time. Finding the tools and merging the answers are not counted." | comparison_line(PM 11-16 표시 규칙: "Measured"는 목걸이 쪽 잰 값만, 직접 호출 쪽은 같은 실행 기록에서 계산했다고 밝힘, 직접 호출 쪽 정확도·찾기·합치기 추정치는 내지 않음). **지금 topic 측정 없음 → 줄이 나가지 않음** |
 | 무료 | "Free to run for now. If that changes, we will say so on this page first." | FREE_NOW |
 | 추천 답 첫 줄(Chat·find_agents·A2A) | "Free to run now: Topic evidence brief (a necklace of tested agents): call tool `necklace_topic_evidence_brief` with {"topic":"<주제>"}. https://agentconcierge.biz/necklaces/topic-evidence-brief" | necklace_lead, 호출부 refs/heads/growth/necklace-lead-callsite(c0dc9f45, r11) |
 | llms.txt·A2A 카드 skill | "Necklaces you can run" 줄(이름·요약·MCP 도구·A2A skill·입력 예·Free to run for now·측정 줄) | llms_section, skills |
@@ -181,7 +181,7 @@ Feedback on what failed is the most useful thing for me.
 - `{INPUT}`: `{"topic": "retrieval augmented generation"}` (게시 당일 실제로 돌린 입력으로 바꾼다)
 - `{ANSWER}`: [측정 뒤 기입: 게시 당일 실제 호출 결과 첫 줄들과 단계 목록, 손대지 않은 그대로]
 - 시간: [측정 뒤 기입: 게시 당일 그 호출이 실제 걸린 시간]
-- 토큰·호출 수·정확도: [측정 뒤 기입: 목걸이 페이지 "Measured in our gate runs …" 줄을 그대로. 정확도는 목걸이 쪽만 있음(직접 호출 쪽 정확도는 재지 않아 쓰지 않음). 토큰은 "(text length ÷ 4)"와 함께만. 없으면 1절의 MCP-Universe 인용만]
+- 토큰·호출 수·정확도: [측정 뒤 기입: 목걸이 페이지 "Measured in our test runs …" 줄을 그대로. 정확도는 목걸이 쪽만 있음(직접 호출 쪽 정확도는 재지 않아 쓰지 않음). 토큰은 "(text length ÷ 4)"와 함께만. 없으면 1절의 MCP-Universe 인용만]
 - 한계: "Covers one topic per call; sources are public web, paper indexes, an encyclopedia and news. Some steps may be led by an agent under verification; the page shows which, step by step. Free for now."
 
 ### 5.3 채널별 초안 (영어). 게시는 사용자 확인 뒤
@@ -200,7 +200,7 @@ Input: {"topic": "<topic>"}
 Answer (first lines, today's real run): [측정 뒤 기입]
 Time for that call: [측정 뒤 기입]
 
-Why one call: [목걸이 페이지 "Measured in our gate runs …" 줄 그대로, 없으면 MCP-Universe 인용]
+Why one call: [목걸이 페이지 "Measured in our test runs …" 줄 그대로, 없으면 MCP-Universe 인용]
 
 Limits: one topic per call; some steps are led by an agent still under verification (the page shows which);
 some results carry a labelled Sponsored line; run from Korea; free for now.

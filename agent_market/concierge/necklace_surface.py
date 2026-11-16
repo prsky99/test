@@ -660,6 +660,9 @@ def comparison(entry):
                 return None
         sides[side] = {key: row[key] for key in _SIDES}
     found = {'cases': cases, 'measured_at': at, **sides}
+    since = value.get('since')   # the earliest run in the window (value.comparison); the date shown is then a period
+    if isinstance(since, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}', since) and since < at:
+        found['since'] = since
     if type(value.get('slots')) is int and value['slots'] >= 2:
         found['slots'] = value['slots']
     full = value.get('without_full')   # PM 15:14: the path without a necklace including finding tools and merging answers
@@ -671,7 +674,8 @@ def comparison(entry):
 
 
 COMPARISON_BASIS = {
-    'with': 'Measured in our gate runs on the necklace itself (medians per case; tokens are text length / 4).',
+    'with': ('Measured on the necklace itself in our test runs of the last seven days (gate runs, daily retests and '
+             'our own runs; medians per case; tokens are text length / 4).'),
     'without': ("From the same runs' records, not a separate run: an agent calling the same agents itself; seconds "
                 "assume each step's calls are sent at the same time; tokens are text length / 4. Its accuracy was not "
                 "measured and is not given."),
@@ -681,7 +685,7 @@ COMPARISON_BASIS = {
 def public_comparison(found):
     """The comparison as the public API and notices give it (PM 11-16 display rules): the direct path's accuracy (never
     run) and the full value with finding and merging (estimated) are left out, and each side says where it comes from."""
-    out = {'cases': found['cases'], 'measured_at': found['measured_at'],
+    out = {'cases': found['cases'], 'measured_at': found['measured_at'], **({'since': found['since']} if found.get('since') else {}),
            'with': {**found['with'], 'tokens_unit': 'text length / 4'},
            'without': {**{k: v for k, v in found['without'].items() if k != 'accuracy'}, 'tokens_unit': 'text length / 4',
                        'source': "from the same runs' records, not a separate run"},
@@ -693,7 +697,7 @@ def public_comparison(found):
 
 def comparison_line(entry):
     """The judge's comparison in words, under the PM's display rules (11-16, workflow source table 16:3x):
-    - 'Measured' only for what the gate runs measured on the necklace itself: its seconds and accuracy, with the number
+    - 'Measured' only for what our test runs measured on the necklace itself: its seconds and accuracy, with the number
       of cases and the date; its tokens only with '(text length / 4)' next to the number;
     - the agent calling the members itself was not run separately: its calls, tokens and seconds come from the same
       runs' records and are said to; its seconds assume each step's calls are sent at the same time;
@@ -706,7 +710,10 @@ def comparison_line(entry):
     num = lambda v: format(round(v), ',')
     sec = lambda v: format(round(v, 1), 'g')
     pct = lambda v: str(round(v * 100)) + '%'
-    return ('Measured in our gate runs on ' + str(found['cases']) + ' cases (' + found['measured_at'] + '): one call, '
+    # PM 11-16 16:11 and workflow 16:2x: the cases are every scored run of the last seven days (gate runs, the daily
+    # retests after opening and the workflow team's own runs), so they are 'test runs', dated from first to last.
+    period = (found['since'] + ' \u2013 ' if found.get('since') else '') + found['measured_at']
+    return ('Measured in our test runs on ' + str(found['cases']) + ' cases (' + period + '): one call, '
             'a median of ' + sec(w['seconds']) + ' s per case, ' + pct(w['accuracy']) + ' correct, about ' + num(w['tokens'])
             + ' tokens (text length \u00f7 4). From the same runs\' records (not a separate run), an agent calling the same '
             + (str(found['slots']) + ' ' if found.get('slots') else '') + 'agents itself would make ' + num(wo['calls'])
