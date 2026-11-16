@@ -28,7 +28,7 @@ def client(monkeypatch):
     from agent_market.concierge import front as front_module
     from agent_market.concierge.front import Front, create_front_app, clear_front_caches
     calls, listing = [], {}
-    def fake_explore(store, engine, query, kind, category, verified, no_auth, limit, near=False):
+    def fake_explore(store, engine, query, kind, category, verified, no_auth, limit, near=False):  # near: e0f312ee
         calls.append(query)
         return {'query': query, 'terms': [], 'total': 1, 'total_is_estimate': True,
                 'items': [{'id': listing['id'], 'name': 'Agent'}], 'verified': False, 'captured_at': 0}
