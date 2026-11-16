@@ -523,6 +523,114 @@
       "source": "https://latlng.work/terms",
       "checked_at": "2026-11-16",
       "basis": "Terms require an API key for the Service and forbid harvesting for competing datasets; commercial reuse not addressed; data OpenStreetMap (ODbL)"
+    },
+    "59160": {
+      "status": "prohibits",
+      "source": "https://extreme-media.co.uk/terms-of-service.html",
+      "checked_at": "2026-11-16",
+      "basis": "Software licence terms for paid apps; reselling or renting access is forbidden and nothing permits commercial passing of results."
+    },
+    "38062": {
+      "status": "prohibits",
+      "source": "https://get4agent.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Free utilities (incl. weather) are rate-limited and may not be resold as your own service; commercial passing of results is not clearly allowed."
+    },
+    "39994": {
+      "status": "prohibits",
+      "source": "https://pixelgust.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Acceptable use bans redistributing or reselling data without permission; paid tiers and account-bound API keys."
+    },
+    "358122": {
+      "status": "prohibits",
+      "source": "https://itsninethere.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Free for personal or work use, but forbids scraping at scale or reselling it as your own service; commercial passing on is unclear."
+    },
+    "56022": {
+      "status": "prohibits",
+      "source": "https://macalculatriceenligne.com/mentions-legales/",
+      "checked_at": "2026-11-16",
+      "basis": "Legal notice allows calculators only for personal non-commercial use and bans reproduction or diffusion without written consent (CC BY covers only the CSV datasets)."
+    },
+    "50067": {
+      "status": "prohibits",
+      "source": "https://mcpcentral.io/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Registry/platform terms require an account for features and grant only limited rights; silent on commercial reuse of results."
+    },
+    "84607": {
+      "status": "allowed",
+      "source": "https://plumbkit.dev/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Keyless use for software and AI agents is allowed within 100 calls/day per IP; only reselling or re-hosting as a standalone utility API is barred, commercial use not forbidden.",
+      "declared_limit": {
+        "domain": "plumbkit.dev",
+        "source": "https://plumbkit.dev/terms",
+        "quote": "free use without a key, currently 100 calls per day per IP address",
+        "per_day": 100
+      }
+    },
+    "431669": {
+      "status": "prohibits",
+      "source": "https://mdb-group.info/terms.html",
+      "checked_at": "2026-11-16",
+      "basis": "Apps are free and return results to your assistant, but terms are silent on commercial use or redistribution and defer data to source terms."
+    },
+    "232427": {
+      "status": "prohibits",
+      "source": "https://moosetracker.app/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Music-tool terms forbid redistributing or hosting the Service and put automated-use rules in separate API and MCP terms not fetched; not an FX source."
+    },
+    "40298": {
+      "status": "prohibits",
+      "source": "https://ratevert.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Licence is personal or own Rate Board use only; bans bots without permission and resale, redistribution or commercial data products."
+    },
+    "86087": {
+      "status": "prohibits",
+      "source": "https://roomexpert.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "MCP is free with no account, but bars automated bulk copying to republish elsewhere; commercial passing on is not clearly allowed."
+    },
+    "278342": {
+      "status": "prohibits",
+      "source": "https://tfrooms.com/terms.html",
+      "checked_at": "2026-11-16",
+      "basis": "Rental site terms ban scraping or redistributing content for commercial purposes without written permission."
+    },
+    "34368": {
+      "status": "prohibits",
+      "source": "https://vibebooking.ai/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms address lodging operators only (no false listings, no excess load) and say nothing on third-party commercial reuse of the data."
+    },
+    "39371": {
+      "status": "prohibits",
+      "source": "https://modernmustardseed.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Agency client terms governed by per-engagement agreements; nothing grants free automated or commercial use of its tools."
+    },
+    "88074": {
+      "status": "prohibits",
+      "source": "https://omikuji.dev/terms/",
+      "checked_at": "2026-11-16",
+      "basis": "Terms forbid copying, reprinting or redistributing service data and collecting data without prior written permission."
+    },
+    "266036": {
+      "status": "prohibits",
+      "source": "https://onlinealarmkur.com/terms/",
+      "checked_at": "2026-11-16",
+      "basis": "MCP may be connected to your own AI apps, but access may not be resold or offered to others as your own service."
+    },
+    "168382": {
+      "status": "prohibits",
+      "source": "https://trysuara.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Account-based SaaS terms ban bulk copying or automated sign-up and say nothing permitting commercial reuse of outputs."
     }
   },
   "changes": [
@@ -1293,6 +1401,155 @@
       "from": "unknown",
       "to": "prohibits",
       "source": "https://latlng.work/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "59160",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://extreme-media.co.uk/terms-of-service.html",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "38062",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://get4agent.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "39994",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://pixelgust.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "358122",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://itsninethere.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "56022",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://macalculatriceenligne.com/mentions-legales/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "50067",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://mcpcentral.io/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "84607",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://plumbkit.dev/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "431669",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://mdb-group.info/terms.html",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "232427",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://moosetracker.app/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "40298",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://ratevert.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "86087",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://roomexpert.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "278342",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://tfrooms.com/terms.html",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "34368",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://vibebooking.ai/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "39371",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://modernmustardseed.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "88074",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://omikuji.dev/terms/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "266036",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://onlinealarmkur.com/terms/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "168382",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://trysuara.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "84607",
+      "declared_limit_from": null,
+      "declared_limit_to": {
+        "domain": "plumbkit.dev",
+        "source": "https://plumbkit.dev/terms",
+        "quote": "free use without a key, currently 100 calls per day per IP address",
+        "per_day": 100
+      },
+      "source": "https://plumbkit.dev/terms",
       "at": "2026-11-16",
       "by": "agent team"
     }
