@@ -105,6 +105,22 @@ class PostgresSelectionMixin:
                 fts.execute('ROLLBACK TO ac_selection_projection')
                 fts.execute('RELEASE ac_selection_projection')
 
+    def execution_history(self, since):
+        """Gateway runs per listing since a time: {resource_id: (succeeded, failed or unknown, mean ms)}.
+
+        edge_gateway_runs keeps seven days (prune_runs), so the read is bounded by the table itself.
+        """
+        if type(since) not in (int, float) or not math.isfinite(since) or not -1e12 <= since <= 1e12:
+            _error(self, 'invalid_parameters')
+        with self.tx(readonly=True):
+            rows = self._execute('''SELECT resource_id,
+                count(*) FILTER (WHERE state='succeeded') AS ok,
+                count(*) FILTER (WHERE state IN ('failed','outcome_unknown')) AS bad,
+                avg((finished-created)*1000) FILTER (WHERE state='succeeded' AND finished IS NOT NULL) AS ms
+                FROM edge_gateway_runs WHERE created>=%s GROUP BY resource_id''',
+                (float(since),), max_rows=50000, max_bytes=8 * 1024 * 1024).fetchall()
+        return {int(row['resource_id']): (int(row['ok']), int(row['bad']), row['ms']) for row in rows}
+
     def selection_candidates_for(self, ids, kind, cutoff):
         """Fresh evidence for a bounded hybrid shortlist, with no FTS5 projection."""
         if (type(ids) is not list or len(ids)>600 or any(type(rid) is not int or not 0<rid<2**63 for rid in ids)

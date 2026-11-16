@@ -13,7 +13,7 @@ _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', '
                      'public_agent', 'states', 'describe', 'opensearch', 'documents', 'relax', 'near',
                      'shared_cache', 'revalidate', 'pool_wait', 'lock_wait', 'thread_wait', 'cpu',
                      # Recommendation legs that had no stage (11-12 PM: find_agents 4.7 s, about half unnamed)
-                     'semantic', 'selection_rows', 'report_evidence', 'choice_rank', 'admission_loop', 'registry',
+                     'semantic', 'selection_rows', 'report_evidence', 'execution_history', 'choice_rank', 'admission_loop', 'registry',
                      # Garbage collection (PM 11-13 20:2x: registry 1,538 ms in one request, 68 ms when replayed):
                      # gc = passes run by this request's own thread, gc_all = every pass in the process meanwhile
                      # (the interpreter lock stops all threads during one).

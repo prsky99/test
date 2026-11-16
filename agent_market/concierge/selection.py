@@ -22,6 +22,30 @@ from ..search_quality import observed
 MAX_HEALTH_AGE = 24 * 3600
 INCIDENTAL_LOOKAHEAD = 40  # further candidates examined for a focused listing once bundles fill the places
 RESOURCE_BATCH = 500  # listing contracts read per lookup batch
+EXECUTION_WINDOW = 7 * 24 * 3600  # gateway runs are kept seven days (edge_gateway prune)
+EXECUTION_SPEED_STEP_MS = 5000  # runs within one step of each other count as equally fast
+
+
+def execution_standing(entry):
+    """Rank evidence from real calls through our gateway in the last week.
+
+    entry is (succeeded, failed or unknown, mean milliseconds of the succeeded runs) or None.
+    Returns (tier, success-rate bucket, speed bucket): tier 1 when the listing completed more
+    calls than it failed, -1 when it failed more than it completed, 0 with no calls. The rate is
+    smoothed ((ok+1)/(n+2)) so a listing with two runs does not outrank one with thirty.
+    """
+    if not entry:
+        return (0, 0.0, 0)
+    ok, bad = max(0, int(_number(entry[0]))), max(0, int(_number(entry[1])))
+    if bad > ok:
+        return (-1, 0.0, 0)
+    if not ok:
+        return (0, 0.0, 0)
+    speed = _number(entry[2], None) if len(entry) > 2 else None
+    step = min(6, int(speed // EXECUTION_SPEED_STEP_MS)) if speed is not None and speed >= 0 else 6
+    return (1, round((ok + 1) / (ok + bad + 2), 1), -step)
+
+
 # Common capability phrases are translated locally; protocol filters do not change quality ranking.
 ALIASES = {
     '\uc6f9 \uac80\uc0c9': 'web search', '\uc6f9\uac80\uc0c9': 'web search', '\uc778\ud130\ub137 \uac80\uc0c9': 'web search', '\uac80\uc0c9 \uacb0\uacfc': 'search results',
@@ -939,6 +963,18 @@ class QualityRecommender(Recommender):
         with stage('report_evidence'):
             reports,report_store=(batch_reports(report_ids) if callable(batch_reports) and len(report_ids)<=600
                                   else (None,self.store))
+        # Calls that went through our gateway in the last week: completed, failed, how long.
+        # The latest outcome alone (capability_eligibility) is cleared whenever a listing is
+        # observed again, so a server that completed thirty calls could fall behind one whose
+        # unrelated trial ran most recently (real-task p04/a06, 11-17).
+        history = {}
+        history_of = getattr(self.store, 'execution_history', None)
+        if callable(history_of):
+            try:
+                with stage('execution_history'):
+                    history = history_of(now - EXECUTION_WINDOW) or {}
+            except Exception:
+                history = {}
         ranked_at = time.perf_counter()
         choices = []
         report_resources = {}
@@ -993,7 +1029,7 @@ class QualityRecommender(Recommender):
             score = min(100,max(0,_number(r['report_score'] if report_at >= stamp(r['eval_at']) and r['report_score'] is not None else r['eval_score'])))
             reliability = (_number(r['health_ok_24h'])+1)/(_number(r['health_n_24h'])+2)
             latency = _number(r['report_latency'] if report_ok else r['probe_latency_ms'], float('inf'))
-            rank = (int(bool(success_at)), success_at, active_at,
+            rank = (int(bool(success_at)),) + execution_standing(history.get(r['id'])) + (success_at, active_at,
                     (5-'ABCDF'.index(grade)) if grade else 0, score, reliability, -latency)
             choices.append((rank,r,grade,score,active_at,report_at,report_ok))
         # Verify relevance lazily in recency order. Safety and relevance still gate every candidate.
