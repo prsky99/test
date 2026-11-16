@@ -98,6 +98,15 @@
 - 사용 기록에는 예외의 종류 이름만 남긴다.
 - internal_error는 첫 건에 바로 경보한다(`internal_error:<agent>`).
 
+### arxiv-search의 질의 규칙 (PM 11-16 결정 a, ad580aeb, 11-17 판정 뒤 r11에서 반영)
+
+- 2~4단어(topic 목걸이 papers 자리의 입력): 제목 구절 OR 모든 칸 검색. 전과 같다.
+- 4단어를 넘는 질의: **제목만 검색**한다. 앞 다섯 단어를 제목 구절로 찾거나, 모든 키워드가 제목에 있는 논문을 찾는다.
+  - 이유: 붙여 넣은 제목 뒤에 키워드가 붙은 질의("attention is all you need transformer")는 모든 칸 검색과 OR로 묶으면 원래 논문이 arXiv 결과 50건 밖으로 밀렸다. arXiv는 가중치 표기를 받지 않고, 3초에 1회만 허용해 한 답에서 두 번 물을 수 없다.
+  - **대가:** 제목에 없는 단어로 쓴 긴 설명형 질의(예: "effect of sleep on memory in older adults")는 결과가 줄거나 not_found가 될 수 있다.
+  - 근거: tuning 30건(모두 2~3단어)은 전후 요청·답이 30/30 같다. 역할 과제는 2/3에서 3/3이 됐다(실측 0.33~0.51초).
+- 도구 정의는 바꾸지 않았다(지문 그대로).
+
 ## 4. 호출 장부와 간격
 
 - 우리가 시작한 실행은 `net.budget(system)` 안에서 부른다. 이 안의 바깥 호출은 `provider_budget.reserve(url, system)`로 도메인별 하루 몫을 먼저 잡는다.
