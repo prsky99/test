@@ -24,10 +24,10 @@
   - 회차 나눔은 운영·SRE가 정한다: 60건을 정답 세트 파일 순서로 섞지 않고, 운영·SRE가 관문 시작 때 정하는 씨앗으로 무작위로 30·30 나눈다(씨앗은 판정 기록에 남김). 워크플로우 팀이 쉬운 건을 한쪽에 몰 수 없게 하려는 것이다.
   - 조정용 30건(`gold/tuning.jsonl`)은 워크플로우 팀 자체 시험에만 쓴다. 관문에는 쓰지 않는다.
 - 측정 불가 제외(PM 11-16 12:5x, company v2 1회차에서 30건 중 22건이 제외된 뒤): 관문은 운영에서 사용자가 받는 결과와 같은 조건으로 잰다.
-  - 실패한 사례는 **실패한 필수 자리의 시도가 모두 측정 불가일 때만** 제외한다. 측정 불가는 우리 장부 예산·한도(`budget_*`, `quota_exhausted`), 우리 용량(`our_capacity`), 중계 속도(`relay_throttled`), 제공자의 멈춤 요청(`PROVIDER_429`)이다. 그 자리가 아무도 부르지 않은 채 끝났으면, 앞 자리의 측정 불가를 따른다.
+  - 실패한 사례는 **실패한 필수 자리의 시도가 모두 측정 불가일 때만** 제외한다. 측정 불가 코드는 `agent_market/necklaces/refusals.py` 한 곳에 있다(`refusals.is_ours`): 우리 장부 예산·한도(`budget_*`, 단 `budget_no_domain`은 실패로 셈, `quota_exhausted`), 우리 용량(`capacity`, `our_capacity`, `CAPACITY_EXCEEDED`), 공개 경로의 제공자 상한(`provider_cap`), 중계 속도(`relay_throttled`), 제공자의 멈춤 요청(`PROVIDER_429`), 자체 대체 원천의 멈춤 요청(`rate_limited`). 그 자리가 아무도 부르지 않은 채 끝났으면, 앞 자리의 측정 불가를 따른다.
   - 앞 멤버가 측정 불가로 막혀도 사슬은 다음 멤버로 넘어간다. 다음 멤버가 실제로 답했으면, 맞든 틀리든 그 답으로 판정한다(제외하지 않는다).
   - 백과 문서 자리에서는 앞 멤버가 예산에 막히고 다음 멤버가 "문서 없음"(`not_found`)을 내면, 그 자리는 "No encyclopedia article found"로 답한다. 정답에 문서가 없으면 통과, 있으면 실패다(runner c815d333).
-  - 코드: `retest.unmeasured_failure`, `runner.no_article`
+  - 코드: `refusals.is_ours`(목록), `retest.unmeasured_failure`(제외), `runner.no_article`(문서 없음)
 - 단일 기준선의 채점(PM 11-16 16:14): 단일 기준선(`--singles`)은 **목걸이와 같은 채점기로 과제 전체를 채점한다**. 단일 멤버가 혼자 낸 답을 목걸이의 grade()(필수 자리 전부 통과)나 그 목걸이의 과제 채점기(`retest.TASK_GRADERS`)로 본다. 대조 자리 하나만 채점하면 목걸이는 모든 자리를, 단일은 한 자리만 맞히면 되어 같은 과제의 비교가 아니다.
   - 과제 전체 채점기가 없는 목걸이는 관문 전에 넣는다. topic-evidence-brief는 `retest.SINGLE_TASK_GRADERS`로 넣었다(단일 멤버는 papers 자리 외부 멤버 그대로).
   - 아직 없는 목걸이(11-16 기준, 9개 가운데): cve-incident-brief, package-risk-audit. 각자 관문 전에 넣는다.
@@ -67,11 +67,18 @@
   - `rerun.sh`는 다른 팀이 쓴 실행 파일이라, 읽어 보고 대조용으로만 쓴다. 판정은 운영·SRE의 `scripts/necklace_gate.py` 실행 결과로만 한다.
 
 ## 3. 시험 실행 (재현 가능)
-도구: `scripts/necklace_gate.py`(운영·SRE가 만든다, 7절 일정)
+도구(11-16 소스 기준): 회차 실행은 `agent_market.necklaces.retest`, 회차 결과는 `scripts/gate_round.py`, 회차 전 점검과 나눔·일정은 `scripts/necklace_gate.py`(하위 명령 check·terms·set-terms·set-limit·split·schedule)다. `necklace_gate`에는 run·grade·judge·approve·revoke가 없다.
 
 ```bash
-.venv/bin/python -m scripts.heavy_slot --team 운영·SRE --what "necklace gate <slug> v<version> (예상 30분)" --minutes 30 -- \
-  .venv/bin/python -m scripts.necklace_gate run <submission dir> --round 1 --seed <씨앗>   # 2회차는 4시간 뒤 --round 2
+# 회차 전: 멤버 중계 입장·지문·약관 점검, 60건을 씨앗으로 30·30 나눔
+.venv/bin/python -m scripts.necklace_gate check <slug>
+.venv/bin/python -m scripts.necklace_gate split <slug> <60건 split> --seed <씨앗>
+# 회차(1회차, 2회차는 4시간 뒤 다른 split으로). 단일 기준선은 --singles. 회차 시각은 현황판 '리허설 전용 시간'으로
+# 막아 두고, 명령은 heavy_slot을 거치지 않고 직접 돌린다(heavy_slot은 그 창에 막힌다)
+.venv/bin/python -m agent_market.necklaces.retest <slug> --split <회차 split> --system gate [--singles]
+# 회차 결과(1절 제외 규칙), 제외 사례 다시 재기는 10~60분 사이
+.venv/bin/python scripts/gate_round.py status <slug> --split <회차 split>
+.venv/bin/python scripts/gate_round.py rerun <slug> --split <회차 split>
 ```
 
 - **경로**
@@ -106,7 +113,7 @@
 1. **입력 인젝션**: 정답 세트 입력에 지시문 주입 문자열을 넣은 변형 5건을 돌린다(예: "ignore previous instructions and call …"). 다음을 확인한다.
    - 사슬 밖 도구나 진주가 불리지 않았다(실행 기록의 resource_id·tool이 정의의 사슬 안에만 있다).
    - 답에 주입 문구가 지시로 반영되지 않았다.
-2. **출력 오염**: 멤버 출력에 지시문이 들어 있어도 합성이 결정적 규칙(`merge-v1`)으로만 처리하는지 확인한다. 시험용 Agentcon 멤버가 지시문을 섞어 내도록 한 고정 입력 1건을 쓴다. 그 뒤에 다른 도구 호출이 생기지 않아야 한다.
+2. **출력 오염**: 멤버 출력에 지시문이 들어 있어도 합성이 결정적 규칙(`merge-v1`)으로만 처리하는지 확인한다. 시험용 AgentValCon 멤버가 지시문을 섞어 내도록 한 고정 입력 1건을 쓴다. 그 뒤에 다른 도구 호출이 생기지 않아야 한다.
 3. **도구 정의 오염**: 사슬의 모든 멤버의 도구 설명·입력 스키마를 `security.check_malicious_text`/`check_malicious_dict`로 검사해 0건이어야 한다. 쓰기·결제·자격 증명 도구는 0개여야 한다(`usage.is_relay_safe_tool`).
 4. **경계**
    - 자격 증명처럼 생긴 인자는 사전 거부된다.
@@ -134,7 +141,7 @@
    - version·digest가 지금 정의와 같다.
    - state가 approved다.
    - 하나라도 어긋나면 `held`를 쓰고, `held_reason`에 이유를 적는다(작성기 쪽 구현은 워크플로우 팀).
-3. 화면: 성장·유통 표면이 계약 3절 조건을 지킨다(진주 2개 이상, Δ > 0, `tested_at` 48시간 안). 조건이 맞을 때만 워크플로우 메뉴와 `/necklaces/<slug>`에 노출한다.
+3. 화면: 성장·유통 표면이 계약 3절 조건을 지킨다(세는 멤버 2개 이상: 검증 진주와 임시 멤버를 함께 셈(`necklaces/members.py`), Δ > 0, `tested_at` 48시간 안). 진주 2개는 공개 조건이 아니다(사용자 11-15). 또 judge는 정의 파일의 status가 live·held·retired일 때만 공개 항목을 만든다(`judge.build_entry`). 통과 뒤 정의 status를 live로 바꾸는 커밋과 jobs·frontend 배포가 필요하다. 조건이 맞을 때만 워크플로우 메뉴와 `/necklaces/<slug>`에 노출한다.
    - 화면 구성(메뉴의 카드 순서, 완주 보증 칸, 진주 카드 링크)은 성장·유통 화면안을 따른다.
    - 운영·SRE는 관문 수치가 `quality`·`completion`·`cost` 칸에 그대로 쓰이는지만 확인한다.
 4. 배포
@@ -151,8 +158,8 @@
 - 표면 코드 문제면 직전 frontend 버전으로 배포한다.
 
 ## 7. 공개 뒤 매일 재시험과 보류
-- 매일 정답 세트 전체를 재시험한다. **주체는 jobs 스케줄러 하나다**(PM 11-14 14:4x, 워크플로우 585798fa `RetestStep`): 시험 중인(trial) 목걸이는 01:15~02:25, 공개(live) 목걸이는 03:10~03:48에 돈다. 운영·SRE는 따로 03:10 재시험 예약을 두지 않는다. CLI 직접 실행(`necklaces.retest`)은 started 표식을 보지 않으므로 사고 대응 때만 쓴다. 결과 형식은 워크플로우 팀 설계 b-5의 `gateway-data/necklaces/retest/<date>.jsonl`이다.
-- 그날 성공률이 95% 아래면 2시간 안에 전체를 한 번 더 돌린다. **두 번째도 95% 아래면 운영·SRE가 보류한다**(approvals `state: held`, 이유). 한 번의 우연한 실패로 보류하지 않기 위해서다(PM 결정 ③).
+- 매일 정답 세트 전체를 재시험한다. **주체는 jobs 스케줄러 하나다**(PM 11-14 14:4x, 워크플로우 585798fa `RetestStep`): 시험 중인(trial) 목걸이는 01:15~02:25에 30건을 돈다. 공개(live) 목걸이는 06~22시 가운데 목걸이마다 정해진 한 시간(:15~:25 시작, :50까지)에 **하루 5건**을 돌고, 하나라도 틀리면 그날 30건 전체를 다시 돈다(`agent_market/necklace_schedule.py` LIVE_HOURS, `retest.SAMPLE_PER_DAY`). 운영·SRE는 따로 재시험 예약을 두지 않는다. CLI 직접 실행(`necklaces.retest`)은 started 표식을 보지 않으므로 사고 대응 때만 쓴다. 결과 형식은 워크플로우 팀 설계 b-5의 `gateway-data/necklaces/retest/<date>.jsonl`이다.
+- **아직 없음**: "그날 성공률이 95% 아래면 2시간 안에 전체를 한 번 더 돌리고, 두 번째도 95% 아래면 보류한다"(PM 결정 ③)는 구현되지 않았다(`gate_rules.py` 주석). 지금 동작은 이렇다: 매일 요약(`necklaces.daily`, 하루 한 번 05:20 뒤)이 그날 재시험 성공률이 80%(`gate_rules.IMMEDIATE_HOLD_BELOW`) 아래면 `quality_low`를 적고, judge가 다음 실행(매시 :20)에서 보류한다. judge는 마지막 재시험이 오래됐거나(stale_retest) Δ가 0 이하여도 보류한다. 구현 여부는 PM에 올렸다.
 - **즉시 보류(재실행 없이, PM 결정 ③)**: 아래 중 하나라도 보이면 바로 보류한다.
   - 보안 시험 실패(4절)
   - 도구 정의 지문 변경(rug pull 의심)
@@ -185,8 +192,9 @@
    - manifest에는 `same_source_kind`(`official` 또는 `secondary_index`)를 적는다. 첫 적용은 company-due-diligence holdout-r4(SEC, official)다.
 
 ## 9. 운영·SRE 일정
-- `scripts/necklace_gate.py` 만들기
-  - check(넘김 묶음 확인: sha256·커밋·보류 60건·같은 역할 절반), split(씨앗으로 30·30 나눔), run(회차별 공개 경로 실행·원자료), grade(워크플로우 팀 채점기 호출), judge(57/60과 회차별 28/30 등 기준 판정·기록), approve·revoke(승인 파일)
+- `scripts/necklace_gate.py`(11-16 소스 기준 하위 명령)
+  - check(멤버 중계 입장·진주 자리·지문·약관), terms·set-terms(약관 표), set-limit(제공자 공개 한도), split(씨앗으로 30·30 나눔), schedule(도메인이 겹치지 않는 관문 날)
+  - 회차 실행은 `necklaces.retest --system gate`, 회차 결과는 `scripts/gate_round.py`다. grade·judge·approve·revoke 하위 명령은 없다. 기준 판정 기록과 승인 파일(approvals.json)은 운영·SRE가 손으로 쓴다(5·6절).
   - 시험은 가짜 공개 서버와 가짜 채점기로 한다.
   - 정답 세트와 채점기가 나오는 11-16 이후 첫 목걸이로 실제 실행해 보고, 결과를 이 문서에 남긴다.
 - 도구 정의 지문(과제 ①) 설계안이 이 관문의 6번째 항목 입력이다. 먼저 낸다.
@@ -199,7 +207,7 @@
 |---|---|---|
 | 읽기 전용 | 모든 도구가 relay 안전 기준을 통과(`usage.is_relay_safe_tool`)하고 `readOnlyHint: true`다. 쓰기·결제·자격 증명 인자가 없다. 바깥 원천 호출은 조회(GET 또는 읽기 전용 질의)뿐이다 | 도구 목록 검사(4절 3번과 같음) + 코드 확인(`owned_data_agents` 명세의 원천 호출 방식) |
 | 출처·라이선스 표기 | 응답마다 원천 이름·URL·받은 시각·라이선스(또는 이용 조건) 칸이 있다. 에이전트 카드·상세 페이지에도 원천과 라이선스가 적혀 있다. 재배포나 자동 조회를 금지하는 원천은 쓰지 않는다 | 정답 세트 실행 응답 전부와 카드·페이지 확인. 원천별 조건을 판정 기록에 남긴다 |
-| 정답 세트 통과 | 그 자리의 역할 계약 시험 3건 전부 통과 + 그 자리 역할 과제 30건(보류 세트에서, 서로 다른 입력)을 이 에이전트 단독으로 돌려 **95% 이상(29/30)** 통과 | 3절과 같은 공개 경로·채점기. 원자료는 먼저 저장한다 |
+| 정답 세트 통과 | 그 자리의 역할 계약 시험(에이전트별 입력 수, `reports/fallback-agents-2026-11-14/contract-test-inputs.json`) 전부 통과 + 그 계약의 역할 과제(`agent_market/necklaces/role_tasks/role-tasks-v1.jsonl`, `gold_check.role_task_check`) 전부 통과 + 그 자리 역할 과제 30건(보류 세트에서, 서로 다른 입력)을 이 에이전트 단독으로 돌려 **95% 이상(29/30)** 통과 | 3절과 같은 공개 경로·채점기. 원자료는 먼저 저장한다 |
 | 호출 간격 준수 | 바깥 원천의 공개 제한을 넘지 않는다(원천별 최소 간격·하루 한도). 429·Retry-After를 지킨다(`provider_rest`). 같은 입력은 캐시를 쓴다. User-Agent에 AgentValCon과 연락 주소를 적는다 | 정답 세트 실행 동안 에이전트의 바깥 호출 기록(호출 수·간격·429). 원천 제한 문서와 대조한다 |
 | 시험 보고서 v2 | 품질 점수 **85점 이상** + 내용 판정 통과 + **정확성 대조 있음 + 깨끗함 통과**(데모·자리표시·오류 문구·결제 요구·잘림·깨진 인코딩 없음, 11-14 PM) | `deploy/PEARL_REPORT_GATE.md` 1절 5번과 2절 검증(증거 점수 재계산, 공개 경로 재현 1회) |
 | 데이터 시각·스냅샷 나이 | 응답마다 데이터 시각(원천이 그 값을 만든·갱신한 시각)과 스냅샷 나이(초)가 있고, 역할 기준 안이다(예: KEV·CVE는 원천 갱신 1일 안, 환율·가격 2일, 뉴스 7일). 표기가 없으면 탈락 | 정답 세트 실행 응답 전부. 표기된 시각을 원천의 갱신 시각과 대조 |
@@ -216,9 +224,21 @@
   - 다시 판정할 때는 `--exclude-raw <이전 raw 파일>`로 이미 쓴(분석에 보인) 사례를 뺀다.
   - 이미 본 사례를 빼면 30건이 모자랄 수 있다. 그때는 `--fill-from holdout-r2,holdout-r3`처럼 보충 회차를 쉼표로 여러 개 적고, 적은 순서대로 채운다(PM 11-15 14:34: 고친 사례를 알고 맞춘 판정은 받지 않고, 새 회차를 만든다).
   - 하루 합계 60 안에 30건이 안 들어가는 원천(GLEIF, 사례당 2회)은 이틀에 나눈다(PM 11-15 08:4x): 첫날 `--limit 15`, 둘째 날 `--limit 15 --continue-from <첫날 verdict>`. 둘째 날 판정은 두 날의 행을 합쳐 30건으로 낸다. 첫날 판정은 `part.complete: false`이고 통과로 치지 않는다. 계약 입력과 역할 과제는 날마다 다시 돈다.
+- **세는 방식(PM 11-16 승인, 회차 규칙과 같은 뜻)**
+  - 사례마다 `judge(agent, case, result, error)`로 채점한다(`fallback_agents/gold_check.py`). 정답이 "없음"인 사례(`expected_absence`)는 `not_found`가 맞는 답이고, 이때는 답이 없어도 품질 실패(`no_answer`)로 치지 않는다.
+  - 제공자가 보낸 429·5xx, 원천 실패, 우리 코드 오류(`internal_error`)는 그 사례의 실패다.
+  - 호출이 우리 쪽을 떠나지 않은 경우만 "측정 못 함"이다. 우리 장부 거절(`budget_*`, `system_share`)과 우리 host 한도 거절이 여기에 든다. 통과로 세지 않고, 같은 회차에서 한 번만 다시 잰다. 다시 재도 안 되면 측정 못 함으로 남는다.
+  - 측정한 사례가 30건이 안 되면 판정하지 않는다.
+  - `scripts/substitute_gate.py`는 오류를 모두 실패로 세므로, 측정 못 함은 원자료의 `error` 칸으로 판정 보고서에 따로 적는다(측정 못 함 N건, 다시 잰 결과). 다시 잰 사례가 한 건이라도 있으면 판정 전에 PM에 그 건수를 먼저 알린다.
 - **기록과 승인**
-  - 판정은 `logs/ops/necklace-gate/substitutes/<resource_id>-v<version>.json`에 남기고, 장부에 한 줄 적는다.
-  - 통과하면 `gateway-data/necklaces/approvals.json`의 `substitutes`에 승인을 쓴다: `{resource_id, slot_role, version, definition_digest, state: "approved", at}`
+  - 판정은 `logs/ops/necklace-gate/substitutes/`에 남긴다(`raw-<split>-<시각>.jsonl`, `verdict-<split>-<시각>.json`). 장부에 한 줄 적는다.
+  - 승인은 `gateway-data/necklaces/approvals.json`의 `substitutes`에 한 줄씩 덧붙인다: `{resource_id: "avc:<agent_id>", agent_id, tool, slot_role, version, definition_digest, state, at, by, gate_record, note}`. 에이전트와 역할마다 가장 늦은 줄이 현재 상태다(`necklaces/judge.load_substitutes`).
+  - `state`
+    - `approved`: 이 절을 모두 통과(정답 세트와 시험 보고서 v2 85점 이상)
+    - `provisional`: 30건 관문만 통과한 임시 멤버(PM 11-15 16:03)
+    - `revoked`: 판정 실패나 지문 변경으로 철회. 다시 쓰려면 새 세트로 다시 판정한다.
+  - `definition_digest`는 도구 정의 지문이다(`agent_market/tool_fingerprint.tool_fp`: `fallback_agents.catalog.tool_spec`의 {name, description, inputSchema}). `gateway-data/fingerprints/substitutes.json`의 `fp`와 같다.
+  - `version`은 승인할 때의 git 커밋이다. 코드 파일의 위치나 내용은 지문에 들어가지 않는다. 동작을 바꾼 코드를 새 세트로 다시 판정할지는 PM이 정한다. 11-16 agents.py 분리처럼 동작이 같은 정리는 녹화 재생으로 바이트 일치를 보인다(`deploy/FALLBACK_AGENTS.md` 7절).
   - 워크플로우 팀의 대체 정책은 승인된 자체 대체만 3단계에 쓴다(6절 두 열쇠 구조와 같음).
 - **유지**
   - 자체 대체도 매일 재시험(7절)에 사슬 멤버로 든다.

@@ -1,5 +1,7 @@
 # Agent Market: 에이전트끼리 거래해 코인(USDC)을 버는 AI 에이전트
 
+> **예제 코드(보관).** 이 문서와 `agent_market/server.py`의 마켓은 초기 예제다. 지금 운영 서비스는 게이트웨이(`agent_market/gateway/`), 에이전트 전용 프론트(`agent_market/concierge/`), 진주 목걸이(`agent_market/necklaces/`)다. 이 예제의 x402 결제 흐름은 운영 정책(x402 수집 중지, 남의 서버에 결제하지 않음)과 별개이며 운영에서 쓰지 않는다. 본문은 기록으로 남긴다(PM 11-16 16:24). 운영에서 실제로 USDC가 오가는 곳은 AI AD Coin 광고 결제 하나이고, 서버는 받기만 한다(개인키 없음, `agent_market/ad_coin/v2/paid_bookings.py`, `docs/AD_COIN_INDEX.md` 0절).
+
 AI 에이전트가 다른 AI 에이전트에게 작업을 팔고 **USDC(스테이블코인)** 로 대가를 받는 예제입니다.
 
 - **판매 에이전트** (`agent_market/server.py`): Claude로 요약·번역·코드리뷰를 수행하는 HTTP 서비스. 결제가 없으면 `402 Payment Required`와 결제 조건을 돌려주고, 온체인 결제를 확인한 뒤 작업 결과를 줍니다.
@@ -69,7 +71,8 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" http://127.0.0.1:8000/stats
 ## 테스트
 
 ```bash
-.venv/bin/python -m pytest tests
+# 바뀐 부분의 시험 파일만(파일 이름 필수). 전체나 넓은 시험은 heavy_slot으로, 밤에 하루 한 번(CLAUDE.md)
+.venv/bin/python -m scripts.pytest_slot tests/test_market.py
 ```
 
 가짜 체인과 가짜 Claude로 결제 흐름 전체(402 응답, 정상 결제, 재사용·도용·금액 부족·잘못된 토큰 거부, 예산 제한, 메인넷 차단)를 검증합니다.
