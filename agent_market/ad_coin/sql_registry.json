@@ -1750,6 +1750,10 @@
    "sha256": "b7ae83611e4a15825018f629d09c18ae4683448f533841569706bec5d7d42f65"
   },
   {
+   "sql": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('confirmed','served') AND c.state='active' AND c.approval_status='approved' AND a.status='active' AND r.ends_ms>? AND NOT EXISTS (SELECT 1 FROM adc2_paid_plan_items i JOIN adc2_paid_plans p ON p.id=i.plan_id WHERE i.booking_id=b.id AND p.state<>'confirmed') ORDER BY b.confirmed_ms,b.id LIMIT ?",
+   "sha256": "616ed1c4dd2a71beec0b4a58971136e1747f058e12cf6f6067a872c90753aedf"
+  },
+  {
    "sql": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('confirmed','served') AND c.state='active' AND c.approval_status='approved' AND a.status='active' AND r.ends_ms>? ORDER BY b.confirmed_ms,b.id LIMIT ?",
    "sha256": "ec08ef2e42a190ed803ce851e1c5dd1e66ebedeb9d1d2e405066286b24fdb3a3"
   },

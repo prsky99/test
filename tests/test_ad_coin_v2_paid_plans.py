@@ -240,3 +240,62 @@ def test_krw_is_exact_decimal_arithmetic():
     assert krw_value('1380.5', 5_004_217) == '6908'            # 6908.32: no float drift
     assert krw_value('1391.05', 10_000_001) == '13911'          # 13910.51 rounds half up
     assert krw_value('1000', 500_000) == '500'
+
+
+def _expire_one(store, plan_id):
+    """One placement of the plan let go meanwhile (its hold ran out or an operator released it)."""
+    from agent_market.ad_coin.sql_registry import unchecked
+    with store.atomic():
+        first = store.all('paid_plan_items', (plan_id,))[0]['id']
+    with unchecked(), store.atomic():
+        store._connection().execute("UPDATE adc2_paid_bookings SET state='expired' WHERE id=?", (first,))
+    return first
+
+
+def test_a_plan_with_one_day_let_go_confirms_nothing_and_shows_nothing(planned, monkeypatch):
+    """C08 (source review 11-16): all placements or none. A plan that can no longer confirm every day goes to review
+    with every placement unconfirmed, and the Sponsored slot shows no day of a plan that is not confirmed."""
+    from agent_market.ad_coin.v2 import paid_bookings
+    from agent_market.ad_coin.v2.sponsored import SponsoredSlots
+    suite, plans, rpc, campaign = planned
+    store = suite.service.store
+    q = plans.quote(suite.advertiser, campaign_id=campaign['id'], items=_two_days(1), now_ms=NOW)
+    tx = rpc.send(int(q['amount_units']), block=99)                    # two confirmations of three: it waits
+    assert plans.submit(suite.advertiser, q['id'], tx, now_ms=NOW + 60_000)['state'] == 'confirming'
+    _expire_one(store, q['id'])
+    rpc.head = 105
+    plans.recheck(now_ms=NOW + 120_000)
+    view = plans.get(suite.advertiser, q['id'])
+    with store.atomic():
+        row = store.one('paid_plan_get', (q['id'],))
+    assert (view['state'], row['note']) == ('review', 'placements_released')
+    assert 'confirmed' not in {i['state'] for i in view['items']}       # no half-confirmed plan
+    # the operator cannot clear it either; a refund is the way out
+    with pytest.raises(ContractError) as cleared:
+        plans.operator_decide(suite.service.access, operator(suite), q['id'], action='clear',
+                              reason='x' * 25, now_ms=NOW + 130_000)
+    assert cleared.value.code == 'placements_released'
+    assert 'confirmed' not in {i['state'] for i in plans.get(suite.advertiser, q['id'])['items']}
+    # and even a placement confirmed by some other path stays off the air while its plan is not confirmed
+    from agent_market.ad_coin.sql_registry import unchecked
+    with unchecked(), store.atomic():
+        store._connection().execute(
+            "UPDATE adc2_paid_bookings SET state='confirmed',confirmed_ms=? WHERE state='quoted' AND id IN "
+            "(SELECT booking_id FROM adc2_paid_plan_items WHERE plan_id=?)", (NOW, q['id']))
+    monkeypatch.setattr(paid_bookings, 'enabled', lambda: True)
+    slots = SponsoredSlots(store, taxonomy={'research'}, regions={'US'}, clock=lambda: NOW / 1000)
+    assert slots._build(TODAY + DAY_MS + 60_000) == {}                  # the plan's first day
+
+
+def test_a_confirmed_plan_shows_its_day_and_keeps_one_tax_line(planned, monkeypatch):
+    """The normal path is unchanged: every placement confirms and today's day is on the air."""
+    from agent_market.ad_coin.v2 import paid_bookings
+    from agent_market.ad_coin.v2.sponsored import SponsoredSlots
+    suite, plans, rpc, campaign = planned
+    store = suite.service.store
+    q = plans.quote(suite.advertiser, campaign_id=campaign['id'], items=_two_days(1), now_ms=NOW)
+    done = plans.submit(suite.advertiser, q['id'], rpc.send(int(q['amount_units'])), now_ms=NOW + 60_000)
+    assert done['state'] == 'confirmed' and {i['state'] for i in done['items']} == {'confirmed'}
+    monkeypatch.setattr(paid_bookings, 'enabled', lambda: True)
+    slots = SponsoredSlots(store, taxonomy={'research'}, regions={'US'}, clock=lambda: NOW / 1000)
+    assert [c['id'] for c in slots._build(TODAY + DAY_MS + 60_000)[('research', 'US')]] == [campaign['id']]

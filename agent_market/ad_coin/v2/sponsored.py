@@ -59,7 +59,10 @@ class SponsoredSlots:
             rows = self.store.all("campaigns_sponsored_booked", (day_ms, now_ms, SNAPSHOT_LIMIT))
             from .paid_bookings import enabled as paid_enabled
             if paid_enabled():  # paid USDC bookings appear the same way once confirmed
-                rows = list(rows) + self.store.all("campaigns_sponsored_paid", (day_ms, now_ms, SNAPSHOT_LIMIT))
+                # C08 (11-16): with plan tables, a plan's day needs its plan confirmed too
+                name = "campaigns_sponsored_paid_planned" if self.store.one("paid_plans_table")["present"] \
+                    else "campaigns_sponsored_paid"
+                rows = list(rows) + self.store.all(name, (day_ms, now_ms, SNAPSHOT_LIMIT))
         index = {}
         for row in rows:
             payload = json.loads(row["payload_json"])

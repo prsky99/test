@@ -333,14 +333,30 @@ class PaidPlans:
         note = None if screened == "clear" else "sanctions_" + screened
         if note is None and rate is None:
             note = "krw_rate_unavailable"
-        if note is None:
-            moved = self.store.execute("paid_plan_items_confirm", (payer, rate, now_ms, note_key)).rowcount
-            if moved != int(row["items"]):
-                note = "placements_released"            # a day was let go meanwhile: an operator decides
+        if note is None and not self._confirm_all(row, payer, rate, now_ms):
+            note = "placements_released"                # a day was let go meanwhile: an operator decides
         self.store.execute("paid_plan_set_state", ("confirmed" if note is None else "review", payer, rate, note,
                                                    now_ms, plan_id))
         if note is not None:
             self.store.execute("paid_plan_items_hold", (now_ms + PLAN_GRACE_MS, note_key))
+
+    def _confirm_all(self, row, payer, rate, now_ms):
+        """The one transition from held to confirmed (C08, 11-16): every placement of the plan or none of them.
+
+        Holding first takes a row lock on each placement still quoted, so the bookings' own expiry cannot let one go
+        between the count and the confirm (it waits, then finds it confirmed, or it already ran and the count sees
+        it). Placements already confirmed (a plan sent back to review after it was confirmed) count as done. If any
+        placement is neither, nothing is confirmed and the caller sends the plan to review or refuses."""
+        plan_id = row["id"]
+        self.store.execute("paid_plan_items_hold", (now_ms + PLAN_GRACE_MS, plan_id))
+        states = [item["state"] for item in self.store.all("paid_plan_items", (plan_id,))]
+        held = states.count("quoted")
+        if len(states) != int(row["items"]) or held + states.count("confirmed") != len(states):
+            return False
+        moved = self.store.execute("paid_plan_items_confirm", (payer, rate, now_ms, plan_id)).rowcount if held else 0
+        if moved != held:                       # cannot happen under the locks above; refuse rather than half confirm
+            raise ContractError("placements_released", 409)
+        return True
 
     def _record(self, row, tx_hash, receipt, now_ms, screened):
         """The receipt goes on every placement's audit trail (adc2_paid_booking_events), with the plan it paid."""
@@ -419,8 +435,7 @@ class PaidPlans:
                 if rate is None:
                     self.store.execute("paid_plan_items_hold", (now_ms + PLAN_GRACE_MS, row["id"]))
                     continue
-                moved = self.store.execute("paid_plan_items_confirm", (current["payer"], rate, now_ms, row["id"])).rowcount
-                note = None if moved == int(current["items"]) else "placements_released"
+                note = None if self._confirm_all(current, current["payer"], rate, now_ms) else "placements_released"
                 self.store.execute("paid_plan_set_state", ("confirmed" if note is None else "review", None, rate, note,
                                                            current["confirmed_ms"] or now_ms, row["id"]))
                 done += 1
@@ -546,12 +561,10 @@ class PaidPlans:
             if current["state"] != row["state"]:
                 raise ContractError("paid_booking_state_changed", 409)
             if action == "clear":
-                moved = self.store.execute("paid_plan_items_confirm", (row["payer"], rate, now_ms, plan_id)).rowcount
-                confirmed = sum(1 for i in self.store.all("paid_plan_items", (plan_id,)) if i["state"] == "confirmed")
-                if confirmed != int(row["items"]):
+                if not self._confirm_all(current, row["payer"], rate, now_ms):
                     raise ContractError("placements_released", 409)    # refund instead; nothing is half confirmed
                 self.store.execute("paid_plan_set_krw", (rate, plan_id))
-                detail["placements_confirmed"] = moved
+                detail["placements_confirmed"] = int(current["items"])
             if action == "refund":
                 self.store.execute("paid_plan_items_release", (plan_id,))
                 today = now_ms - now_ms % 86_400_000

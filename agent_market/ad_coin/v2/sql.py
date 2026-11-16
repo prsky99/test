@@ -289,6 +289,12 @@ SQL.update(
         "campaigns_sponsored_paid": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
         "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('confirmed','served') AND c.state='active' AND c.approval_status='approved' "
         "AND a.status='active' AND r.ends_ms>? ORDER BY b.confirmed_ms,b.id LIMIT ?",
+        # 11-16 source review C08: once plan tables exist, a placement that belongs to a plan is shown only while its
+        # plan is confirmed, so a plan in review, refund_due or refunded never has a day on air
+        "campaigns_sponsored_paid_planned": "SELECT c.id,r.payload_json,r.ends_ms,b.task_category,b.region FROM adc2_paid_bookings b JOIN adc2_campaigns c ON c.id=b.campaign_id JOIN adc2_campaign_revisions r ON r.id=c.current_revision_id "
+        "JOIN adc2_advertisers a ON a.id=c.advertiser_id WHERE b.day_ms=? AND b.state IN ('confirmed','served') AND c.state='active' AND c.approval_status='approved' "
+        "AND a.status='active' AND r.ends_ms>? AND NOT EXISTS (SELECT 1 FROM adc2_paid_plan_items i JOIN adc2_paid_plans p ON p.id=i.plan_id "
+        "WHERE i.booking_id=b.id AND p.state<>'confirmed') ORDER BY b.confirmed_ms,b.id LIMIT ?",
         "sponsored_offers_table": "SELECT to_regclass('adc2_sponsored_offers') IS NOT NULL AS present",
         "sponsored_offer_upsert": "INSERT INTO adc2_sponsored_offers (campaign_id,advertiser_id,offer_json,state,submitted_ms) VALUES (?,?,?,'pending',?) ON CONFLICT (campaign_id) DO UPDATE SET offer_json=EXCLUDED.offer_json,state='pending',reason=NULL,submitted_ms=EXCLUDED.submitted_ms,decided_ms=NULL,decided_by=NULL",
         "sponsored_offer_get": "SELECT * FROM adc2_sponsored_offers WHERE campaign_id=?",
