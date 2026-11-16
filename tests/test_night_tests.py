@@ -82,3 +82,16 @@ def test_a_run_without_a_result_goes_to_the_board():
     lines = []
     nt.no_result({'day': '2026-11-16', 'error': 'timeout', 'seconds': 3000}, handoff=lambda k, t: lines.append((k, t)))
     assert lines == [('night_tests_run', '밤 전체 시험 2026-11-16: 50분 시간 초과, 3000초 — 그날 밤 전체 시험 결과가 없습니다')]
+
+
+def test_it_runs_the_working_tree_also_from_the_pinned_code_folder(tmp_path):
+    """PM 11-16: from gateway-data/ops-code/<commit> (no tests/, no .git) the run still uses the working tree."""
+    repo = tmp_path / 'repo'
+    (repo / 'tests').mkdir(parents=True)
+    (repo / '.git').mkdir()
+    (repo / 'gateway-data').mkdir()
+    pinned = repo / 'gateway-data/ops-code/abc'
+    pinned.mkdir(parents=True)
+    (pinned / 'gateway-data').symlink_to(repo / 'gateway-data')
+    assert nt.repo_root(repo) == repo
+    assert nt.repo_root(pinned) == repo.resolve()

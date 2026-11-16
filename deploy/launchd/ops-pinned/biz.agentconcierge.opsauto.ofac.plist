@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>biz.agentconcierge.opsauto.ofac</string>
+	<key>Nice</key>
+	<integer>10</integer>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/bash</string>
+		<string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/ops-code/current/deploy/ops/ofac-refresh-daily.sh</string>
+	</array>
+	<key>StandardErrorPath</key>
+	<string>/Users/kingstonelee/workspace/A2A_Discovery/logs/ops/ofac/launchd.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/kingstonelee/workspace/A2A_Discovery/logs/ops/ofac/launchd.log</string>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>6</integer>
+		<key>Minute</key>
+		<integer>20</integer>
+	</dict>
+	<key>WorkingDirectory</key>
+	<string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/ops-code/current</string>
+</dict>
+</plist>

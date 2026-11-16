@@ -24,7 +24,10 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 CODE = ('agent_market', 'scripts', 'deploy/ops')
-DATA_LINKS = ('gateway-data', 'logs', 'exports', '.venv', '.venv-tests')
+# 11-16 (PM: the watch, pearl tests, reconciliation and four more jobs move here): the watch starts real_task_score
+# (reads tests/data, writes reports/real-task-score/), the payment flow report and the stability gate (tests/), and
+# night_tests (finds the working tree through gateway-data). tests/ and reports/ are linked like the data.
+DATA_LINKS = ('gateway-data', 'logs', 'exports', '.venv', '.venv-tests', 'tests', 'reports')
 KEEP = 5
 
 

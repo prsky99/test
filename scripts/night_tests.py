@@ -29,7 +29,19 @@ import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+def repo_root(here=None):
+    """The working tree, also when this file runs from gateway-data/ops-code/<commit> (PM 11-16: launchd jobs move to
+    the pinned code folder, which has no tests/ and no .git). Its gateway-data link points into the working tree."""
+    here = Path(here or Path(__file__).resolve().parents[1])
+    if (here / 'tests').is_dir() and (here / '.git').exists():
+        return here
+    data = here / 'gateway-data'
+    if data.is_symlink():
+        return data.resolve().parent
+    return here
+
+
+ROOT = repo_root()
 OUT = ROOT / 'logs/ops/night-tests'
 LOG = ROOT / 'logs/ops/night-tests.jsonl'
 STATE = ROOT / 'logs/ops/night-tests-state.json'
