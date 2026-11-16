@@ -1,6 +1,9 @@
 """Approve reviewed workspace model contracts and verify them with one real public read each.
 
-Usage: python -m scripts.approve_model_contracts
+Usage: python -m scripts.approve_model_contracts [--only KEY ...]
+
+--only limits the run to the named resource keys (e.g. agentconcierge-owned:technology-news) so a re-approval
+after one agent changes does not call the other members again (PM 11-16: 34807 openkrill is closed by its terms).
 
 Uses the same Registry.approve and capability contract test as the administrator
 screen. Only the fixed reviewed pairs below are approved; each is then checked
@@ -21,10 +24,24 @@ PAIRS = (
     ('agentconcierge-owned:research-papers', 'Research Papers', 'docs.search.v1', 'search_research_papers'),
     ('agentconcierge-owned:technical-docs', 'Technical Documentation', 'docs.search.v1', 'search_technical_docs'),
 )
+def selected(pairs, only):
+    """The pairs whose key is in ONLY (all pairs when ONLY is empty); an unknown key is an error, not a silent no-op."""
+    if not only:
+        return pairs
+    unknown = sorted(set(only) - {pair[0] for pair in pairs})
+    if unknown:
+        raise SystemExit('unknown --only key: ' + ', '.join(unknown))
+    return tuple(pair for pair in pairs if pair[0] in only)
+
+
 QUERIES = {'search_technical_docs': 'AbortController fetch'}  # MDN only since PM 11-15 17:02
 
 
-def main():
+def main(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser(description='Approve reviewed workspace model contracts')
+    parser.add_argument('--only', action='append', default=[], metavar='KEY')
+    pairs = selected(PAIRS, parser.parse_args(argv).only)
     from scripts.apply_category_refresh import open_store
     from agent_market.capability_contracts import run_test
     from agent_market.capability_registry import Registry
@@ -34,7 +51,7 @@ def main():
     results = []
     try:
         registry, proxy = Registry(store), McpProxy(store)
-        for key, name, contract, tool in PAIRS:
+        for key, name, contract, tool in pairs:
             found = store.query('SELECT id FROM resources WHERE key=?', (key,))
             resource = store.resource(found[0]['id']) if found else None
             if (not resource or resource.get('name') != name or not resource.get('active') or resource.get('kind') != 'mcp'
