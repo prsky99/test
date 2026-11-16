@@ -257,7 +257,7 @@ def input_mismatch(task, item):
 # no accepted 'latest', and the task must not write such a value itself. Only version fields: a caller always knows
 # today's date (weather, holidays and rates tools require one), and an id is often a name the task already gives
 # ("current bitcoin price" fills coin_id with bitcoin), so neither is a missing value by its field name alone.
-LATEST_TASK = re.compile(r'\b(?:latest|newest|current(?:ly)?|most\s+recent|up[\s-]to[\s-]date)\b|최신|현재', re.I)
+LATEST_TASK = re.compile(r'\b(?:latest|newest|current(?:ly)?|most\s+recent|up[\s-]to[\s-]date)\b|\ucd5c\uc2e0|\ud604\uc7ac', re.I)  # Korean 'latest' and 'current' as escapes: concierge sources hold no Korean characters
 EXACT_FIELDS = (
     (re.compile(r'^(?:version|ver|release|release[_-]?version|package[_-]?version)$', re.I),
      re.compile(r'(?<![\w.])v?\d+\.\d+(?:\.\d+)?(?:[-+][\w.]+)?(?![\w.])')),

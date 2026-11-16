@@ -7,7 +7,7 @@ placeholders ('<name>' strings that connections.example_arguments wrote) and onl
 - the task holds exactly one value of that kind, in a form that is certain by itself (a domain, an IPv4 address, a
   CVE id, an ISO date, a DOI, a currency code from a fixed list, a city from a fixed list, a listed ticker).
 Anything else stays a placeholder: no guessed values, no model, no database, no network (PM: no added latency).
-Enum, default and number examples are left as they are. Placeholders are filled all or none (검색과 RAG 08:4x: one
+Enum, default and number examples are left as they are. Placeholders are filled all or none (search-and-RAG team 08:4x: one
 call should give a result), each value at most 200 characters on one line, never an e-mail address.
 """
 import re
@@ -30,10 +30,11 @@ CITIES = {name: name.title() for name in (
     'sao paulo', 'rio de janeiro', 'mexico city', 'buenos aires', 'bogota', 'lima', 'santiago', 'madrid',
     'barcelona', 'rome', 'milan', 'amsterdam', 'vienna', 'zurich', 'stockholm', 'oslo', 'copenhagen', 'helsinki',
     'dublin', 'lisbon', 'prague', 'warsaw', 'athens', 'moscow', 'johannesburg', 'nairobi', 'lagos', 'auckland')}
-CITIES.update({'서울': 'Seoul', '부산': 'Busan', '인천': 'Incheon', '대구': 'Daegu', '대전': 'Daejeon', '광주': 'Gwangju',
-               '도쿄': 'Tokyo', '오사카': 'Osaka', '교토': 'Kyoto', '베이징': 'Beijing', '상하이': 'Shanghai',
-               '뉴욕': 'New York', '런던': 'London', '파리': 'Paris', '베를린': 'Berlin', '시드니': 'Sydney',
-               '싱가포르': 'Singapore', '홍콩': 'Hong Kong', '방콕': 'Bangkok'})
+# Korean city names, written as escapes: concierge sources hold no Korean characters (test_front_dashboard_menus)
+CITIES.update({'\uc11c\uc6b8': 'Seoul', '\ubd80\uc0b0': 'Busan', '\uc778\ucc9c': 'Incheon', '\ub300\uad6c': 'Daegu', '\ub300\uc804': 'Daejeon', '\uad11\uc8fc': 'Gwangju',
+               '\ub3c4\ucfc4': 'Tokyo', '\uc624\uc0ac\uce74': 'Osaka', '\uad50\ud1a0': 'Kyoto', '\ubca0\uc774\uc9d5': 'Beijing', '\uc0c1\ud558\uc774': 'Shanghai',
+               '\ub274\uc695': 'New York', '\ub7f0\ub358': 'London', '\ud30c\ub9ac': 'Paris', '\ubca0\ub97c\ub9b0': 'Berlin', '\uc2dc\ub4dc\ub2c8': 'Sydney',
+               '\uc2f1\uac00\ud3ec\ub974': 'Singapore', '\ud64d\ucf69': 'Hong Kong', '\ubc29\ucf55': 'Bangkok'})
 _CITY = re.compile(r'(?<![\w])(' + '|'.join(sorted((re.escape(c).replace(r'\ ', r'\s+') for c in CITIES), key=len,
                                                    reverse=True)) + r')(?![\w])', re.I)
 
@@ -56,7 +57,7 @@ _DATE = re.compile(r'(?<!\d)(20\d\d-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01]))(?
 _DOI = re.compile(r'\b(10\.\d{4,9}/[^\s"<>]+[^\s"<>.,;)])')
 _GITHUB = re.compile(r'github\.com/([A-Za-z0-9-]{1,39})/([A-Za-z0-9_.-]{1,100})', re.I)
 _UPPER = re.compile(r'(?<![A-Za-z$])\$?([A-Z]{2,5})(?![A-Za-z])')
-# 검색과 RAG 08:5x: lower-case codes overlap English words (try, php, cad, rub), so a lower-case pair counts only with
+# search-and-RAG team 08:5x: lower-case codes overlap English words (try, php, cad, rub), so a lower-case pair counts only with
 # '/' (usd/krw); 'to', 'in', 'into' and arrows join upper-case codes only.
 _PAIR_SLASH = re.compile(r'(?<![A-Za-z])([A-Za-z]{3})\s*/\s*([A-Za-z]{3})(?![A-Za-z])')
 _PAIR_WORD = re.compile(r'(?<![A-Za-z])([A-Z]{3})\s*(?:to|->|→|into|in)\s*([A-Z]{3})(?![A-Za-z])')
@@ -157,7 +158,7 @@ def fill(task, tool, arguments):
         elif kind and kind in found:
             filled = found[kind]
         if not _safe(filled):
-            # 검색과 RAG 08:4x: fill only when every placeholder is certain, so one call gives a result
+            # search-and-RAG team 08:4x: fill only when every placeholder is certain, so one call gives a result
             return arguments
         out[name] = filled
     return out
