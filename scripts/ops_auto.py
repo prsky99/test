@@ -351,6 +351,7 @@ GOLD_BUILDS = (('agent_market.necklaces.gold_repos', 'package-risk-audit', 'hold
                ('agent_market.necklaces.gold_topics_r4', 'topic-evidence-brief', 'holdout-r4'),
                # PM 11-16 07:00: round 2 of the topic launch gate
                ('agent_market.necklaces.gold_topics_r5', 'topic-evidence-brief', 'holdout-r5'))
+GOLD_SKIP = {('holdout-r4', '2026-11-17')}   # PM 11-16 17:36: OpenAlex 50 a day; r5 (round 2's answers) first
 
 
 def gold_quiet(local) -> bool:
@@ -374,6 +375,8 @@ def gold_builds(clock=time.time, run=None, state_path=None, log_path=None, gold=
     hour = local.strftime('%Y-%m-%dT%H')
     lines = []
     for module, slug, split in builds:
+        if (split, local.strftime('%Y-%m-%d')) in GOLD_SKIP:
+            continue
         manifest = gold / slug / 'manifest.json'
         try:
             if split in (json.loads(manifest.read_text()).get('files') or {}):
