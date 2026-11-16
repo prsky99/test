@@ -1181,6 +1181,13 @@ def watch():
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 환불 대기 확인 실패: {type(error).__name__}')
     try:
+        import request_timing_report   # PM 11-16: per-request server time, kept 14 days
+        removed = request_timing_report.prune()
+        if removed:
+            append(ACTIONS, f'{now()} 요청별 서버 시간 기록 {len(removed)}일치 정리(14일 보관)')
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} 요청별 서버 시간 기록 정리 실패: {type(error).__name__}')
+    try:
         payments_today()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} USDC 결제 확정 확인 실패: {type(error).__name__}')

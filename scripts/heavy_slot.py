@@ -285,9 +285,30 @@ def server_guard(path=SLO_LOG, now=None, window=24, ratio=GUARD_RATIO):
     return None
 
 
+REAL_MIN = 10   # real (non-QA) requests of a kind in the last 20 minutes before that kind is judged on them
+
+
+def real_guard(now=None, ratio=GUARD_RATIO, read=None):
+    """PM 11-16: the same 1.3x rule on real public requests (logs/ops/request-timing, written by the frontend from
+    r11): a kind with at least REAL_MIN requests in the last 20 minutes whose median server_ms is over RATIO times its
+    median of the 24 hours before. None when there are too few lines (then the hourly measurement decides)."""
+    try:
+        if read is None:
+            from scripts import request_timing_report as read
+        when = (now or datetime.now()).timestamp()
+        current, base = read.recent(when), read.baseline(when)
+    except Exception:   # noqa: BLE001 - a missing or broken log never blocks tests
+        return None
+    for kind, (median, count) in sorted(current.items()):
+        if count >= REAL_MIN and base.get(kind) and median > base[kind] * ratio:
+            return (f'real {kind} requests: median server time {median:.0f} ms over the last 20 minutes ({count} '
+                    f'requests) is over {ratio:.1f}x the median {base[kind]:.0f} ms of the day before')
+    return None
+
+
 def load_limit(now=None, guard=None):
     """The day load limit for starting tests: 9.0, or 6.0 while server_guard() holds (noted once per measurement)."""
-    reason = server_guard(now=now) if guard is None else guard
+    reason = (real_guard(now=now) or server_guard(now=now)) if guard is None else guard
     if not reason:
         return LOAD_MAX
     if guard is None and not os.environ.get('PYTEST_CURRENT_TEST'):
@@ -298,7 +319,11 @@ def load_limit(now=None, guard=None):
 def _note_guard(reason):
     """Tell the PM once per measurement through the status board (the hand-off section)."""
     import json
-    stamp = reason.split(' at ', 1)[1][:16] if ' at ' in reason else ''
+    if ' at ' in reason:
+        stamp = reason.split(' at ', 1)[1][:16]          # the hourly measurement's time
+    else:                                                # real requests: once per 20-minute window
+        moment = datetime.now()
+        stamp = moment.strftime('%Y-%m-%d %H:') + '%02d' % (moment.minute // 20 * 20)
     try:
         if json.loads(GUARD_NOTE.read_text()).get('at') == stamp:
             return

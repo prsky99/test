@@ -196,3 +196,20 @@ def test_the_load_limit_goes_back_to_six_when_server_time_rises_30_percent(tmp_p
     reason = hs.server_guard(up, now=now)
     assert reason and '1100 ms' in reason and hs.load_limit(now, guard=reason) == hs.LOAD_MAX_GUARDED == 6.0
     assert hs.server_guard(up, now=datetime(2026, 11, 16, 17, 0)) is None   # a measurement older than 90 minutes
+
+
+def test_real_requests_decide_the_guard_when_there_are_enough_of_them():
+    """PM 11-16: per-request server time (logs/ops/request-timing) judges the raised limit when at least ten real
+    requests of a kind came in the last 20 minutes; with fewer, the hourly measurement decides."""
+    from types import SimpleNamespace
+    now = datetime(2026, 11, 17, 15, 0)
+    slow = SimpleNamespace(recent=lambda t: {'recommend': (2600.0, 12), 'explore': (500.0, 40)},
+                           baseline=lambda t: {'recommend': 1700.0, 'explore': 700.0})
+    reason = hs.real_guard(now=now, read=slow)
+    assert reason and 'recommend' in reason and '2600 ms' in reason
+    few = SimpleNamespace(recent=lambda t: {'recommend': (2600.0, 9)}, baseline=lambda t: {'recommend': 1700.0})
+    assert hs.real_guard(now=now, read=few) is None
+    calm = SimpleNamespace(recent=lambda t: {'recommend': (1800.0, 30)}, baseline=lambda t: {'recommend': 1700.0})
+    assert hs.real_guard(now=now, read=calm) is None
+    broken = SimpleNamespace(recent=lambda t: 1 / 0, baseline=lambda t: {})
+    assert hs.real_guard(now=now, read=broken) is None
