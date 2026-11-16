@@ -172,6 +172,9 @@ def by_role(path: Path = FILE, today: str | None = None) -> dict[str, list[dict]
     return out
 
 
+DECIMAL = re.compile(r"-?[0-9]+\.[0-9]+")
+
+
 def _has(text: str, word: str) -> bool:
     """WORD as a whole word or identifier in TEXT (lower case): "MIT" is not found in "commits" (R10)."""
     word = word.lower()
@@ -179,6 +182,11 @@ def _has(text: str, word: str) -> bool:
         return False
     before = r"(?<![a-z0-9])" if word[0].isalnum() else ""     # "°C" still follows a number: "9°C"
     after = r"(?![a-z0-9])" if word[-1].isalnum() else ""
+    if DECIMAL.fullmatch(word):
+        # PM 11-16: a decimal truth ("38.89", "-77.03") is the same value when the answer gives it to more places
+        # ("38.8975862"); a different rounding ("38.90") is not, and a longer integer part never is ("138.89").
+        before = r"(?<![0-9.])" if word[0] == "-" else r"(?<![0-9.\-])"
+        after = r"[0-9]*(?![0-9a-z])"
     return re.search(before + re.escape(word) + after, text) is not None
 
 

@@ -108,3 +108,21 @@ def test_refresh_is_weekly_and_load_adds_the_case(tmp_path, monkeypatch):
     ids = [c["case_id"] for c in role_tasks.load()]
     assert ids.count("kev-recent-cve-2026-3333") == 1
     assert "kev-recent-cve-2026-3333" not in [c["case_id"] for c in role_tasks.load_plain(role_tasks.FILE)]
+
+
+def test_a_decimal_truth_matches_more_places_but_not_another_rounding():
+    """PM 11-16 (search team finding): geocode members answered 38.8975862 / -77.0365298 and scored 0 because the
+    whole-word rule did not find "38.89" / "-77.03" in them. More places of the same value count; another rounding,
+    another sign or a longer integer part does not; words keep the whole-word rule."""
+    has = role_tasks._has
+    answer = "lat 38.8975862, lon -77.0365298"
+    assert has(answer, "38.89") and has(answer, "-77.03") and has(answer, "38.8975862")
+    assert not has("lat 38.90, lon -77.04", "38.89")                 # another rounding
+    assert not has("lon -77.0365298", "77.03")                       # another sign
+    assert not has("lat 138.89", "38.89") and not has("lat 38.89", "138.89")
+    assert not has("v38.89x", "38.89")                               # glued to a word
+    assert not has("commits", "mit") and has("license mit", "mit")   # words unchanged
+    case = {"case_id": "x", "input": {"address": "1600 Pennsylvania Ave NW, Washington, DC"},
+            "expect": {"must_include_all": ["38.89", "-77.03"]}}
+    assert role_tasks.score(case, '{"lat": 38.8975862, "lon": -77.0365298}')[0]
+    assert not role_tasks.score(case, '{"lat": 38.9012, "lon": -77.0365298}')[0]
