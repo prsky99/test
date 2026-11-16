@@ -77,7 +77,7 @@
   ],
   "completeness_rule": "the share of the role's required output present, times the share of non-blank values, times the items returned against the items asked for; a text answer by the share of its fact checks passed; an empty search with no error is complete, an empty or error answer is not",
   "freshness_rule": "only the role's own kind of time counts (published, observed, valid, or a clock in the named zone); retrieval times and unlabelled dates do not",
-  "evaluator_version": "dq-2026-11-15e"
+  "evaluator_version": "dq-2026-11-16a"
  },
  "verified_pearl": {
   "min_score": 85,

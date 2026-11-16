@@ -100,7 +100,7 @@ COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.col
 | 문서 | 내용 |
 |---|---|
 | [COLLECTOR.md](COLLECTOR.md) | 수집·헬스체크·인증 조사·사용 검증·품질 평가·A2A 수집, 실측 결과 |
-| [AGENT_BROKER.md](AGENT_BROKER.md) | 14개 카테고리, 게이트웨이 요청 조건(언어·지역·인증·등급), 브로커 |
+| [AGENT_BROKER.md](AGENT_BROKER.md) | 20개 카테고리, 게이트웨이 요청 조건(언어·지역·인증·등급), 브로커 |
 | [AGENT_MARKET.md](AGENT_MARKET.md) | 에이전트 간 USDC 결제 프로토콜과 보안 설계 |
 | [AGENT_FRONT.md](AGENT_FRONT.md) | 에이전트 전용 프론트 기획과 동작 |
 | [deploy/DEPLOY.md](deploy/DEPLOY.md) | 현재 운영(맥·launchd·PostgreSQL 18)의 배포와 운영 절차 |
