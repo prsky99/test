@@ -33,26 +33,13 @@ SENSITIVE_WORDS = re.compile(
     r"invest(ment|ing)? advice|tax advice|loan|mortgage|bankrupt\w*|debt relief|stock tips?|"
     r"gambl\w*|betting)\b", re.I)
 
-# Text that addresses or steers the agent instead of describing an offer (ToolTweak-style manipulation).
-_STEERING = [
-    r"\bignore\b", r"\bdisregard\b", r"\boverride\b", r"\bforget\b",
-    r"\b(you|agents?|assistants?|models?|llms?)\s+(must|should|shall|need to|have to|are required)\b",
-    r"\b(always|never|only)\s+(use|choose|call|pick|select|prefer|recommend|install|trust)\b",
-    r"\b(instead of|rather than|better than|unlike)\b",
-    r"\b(system|assistant|developer|user)\s*:", r"\bprompt\b", r"\binstructions?\b", r"\bjailbreak\b",
-    r"\btool[_ ]?call\b", r"\bfunction[_ ]?call\b", r"\bverify_agent\b",
-    r"\b(best|#1|number one|top[- ]rated|guaranteed|official|verified by agentvalcon|recommended by)\b",
-    r"[<>{}\[\]`|\\]", r"https?://", r"\bwww\.",
-]
-_STEERING_RE = re.compile("|".join(_STEERING), re.I)
+# The steering and imperative rules live in ad_rules (one place for every advertising text rule, 11-16).
+from .ad_rules import IMPERATIVE_START as _IMPERATIVE_START, STEERING as _STEERING_RE  # noqa: E402
 # R33: what agents read is printable ASCII only (no look-alike letters, no invisible or direction characters), and an
 # endpoint path is plain characters with a bounded length.
 _ASCII = re.compile(r"[\x20-\x7e]*\Z")
 _ENDPOINT_PATH = re.compile(r"/?[A-Za-z0-9._~/-]{0,200}\Z")
 NAME_LIMIT = 100
-_IMPERATIVE_START = re.compile(
-    r"^\s*(use|choose|call|pick|select|prefer|recommend|install|connect|switch|replace|trust|run|invoke|"
-    r"click|buy|sign up|subscribe|add|remember|tell|say|respond|reply|answer)\b", re.I)
 
 
 class OfferError(ValueError):
@@ -69,19 +56,17 @@ def _clean(text):
 
 
 def screen_text(name, text):
-    """Problems with one free-text field: steering the agent, imperative opening, links or markup."""
-    problems = []
-    if _STEERING_RE.search(text):
-        problems.append(name + ":steering")
-    if _IMPERATIVE_START.search(text):
-        problems.append(name + ":imperative")
-    return problems
+    """Problems with one free-text field: steering the agent, imperative opening, links or markup (ad_rules)."""
+    from .ad_rules import steering_flags
+    return steering_flags(name, text)
 
 
 def agent_text_problems(name, text):
     """Problems with text that agents read verbatim (R33): non-ASCII, steering, imperative opening, links, markup."""
+    from .ad_rules import flags, hard
     problems = [] if _ASCII.match(text) else [name + ":not_ascii"]
-    return problems + screen_text(name, text)
+    # 11-16: the hard rules (injection, self-vouching, wallet requests, hidden markup) apply to agent text too
+    return problems + screen_text(name, text) + [f for f in hard(flags(name, text)) if f not in problems]
 
 
 def advertiser_name_ok(name):

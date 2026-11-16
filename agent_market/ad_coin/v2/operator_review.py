@@ -47,6 +47,10 @@ def decide(commercial, principal, review_id, *, verdict, reason_code):
     with store.atomic():
         review = commercial._review(review_id)
         commercial.access.guards.current(review["advertiser_id"])
+        if verdict == "eligible":            # 11-16: the hard text rules again, at the moment a person approves
+            from .ad_rules import campaign_flags, require_approvable
+            revision = store.one("revision_get", (review["revision_id"],))
+            require_approvable(campaign_flags(json.loads(revision["payload_json"]) if revision else {}))
         evidence_ref = commercial.record_evidence(review_id, digest)
         store.lock("2:campaign:" + review["campaign_id"])
         campaign = commercial._campaign(review["campaign_id"], True)

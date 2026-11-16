@@ -65,17 +65,9 @@ def principal(access):
 
 # ---- checks -----------------------------------------------------------------------------------------------------
 def screen_words(name, text):
-    """Flags for one free-text field: hidden characters, steering or imperative wording, restricted classes."""
-    from .advertiser_applications import _HOLD
-    from .sponsored_offer import screen_text
-    text = text if isinstance(text, str) else ""
-    flags = [name + ":hidden_characters"] if any(unicodedata.category(c) in ("Cc", "Cf", "Co", "Cs")
-                                                 for c in text.replace("\n", " ")) else []
-    plain = unicodedata.normalize("NFKC", text)
-    flags += screen_text(name, plain)
-    if _HOLD.search(plain):
-        flags.append(name + ":restricted_class")
-    return flags
+    """Flags for one free-text field (ad_rules: hard rules, steering or imperative wording, restricted classes)."""
+    from .ad_rules import flags
+    return flags(name, text if isinstance(text, str) else "")
 
 
 def screen_campaign(payload):

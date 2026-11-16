@@ -14,6 +14,7 @@ No new table: the application is a suspended advertiser record with the applican
 name, addresses and flags are kept in the audit log ("advertiser_applied"). Nothing here moves money.
 """
 
+import json
 import re
 import unicodedata
 from uuid import NAMESPACE_URL, uuid5
@@ -23,7 +24,6 @@ from .contracts import ContractError
 from .identity import Kind
 from .ledger import MODEL_ASSET, identifier
 from .security_guards import AuditLogger
-from .sponsored_offer import screen_text
 
 APPLIED, APPROVED, REJECTED = "advertiser_applied", "advertiser_approved", "advertiser_rejected"
 APPLICANT_CAPABILITIES = ("campaign.edit", "campaign.read", "campaign.pause", "budget.approve", "reports.read")
@@ -32,24 +32,13 @@ _NAME = re.compile(r"[^\x00-\x1f\x7f]{2,80}\Z")
 _WEBSITE = re.compile(r"https://[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?(/[A-Za-z0-9._~/%?=&#+-]{0,300})?\Z")
 MAX_APPLICATIONS_PER_PERSON = 5
 AUTO_APPROVER = "auto-check"
-# Classes we do not sell, and claims a person must look at (docs/AD_COIN_SALES_POLICY.md 5), English and Korean.
-_HOLD = re.compile(
-    r"casino|gambl|betting|\bbet\b|lottery|poker|slot machine|porn|adult|xxx|escort|weapon|firearm|\bgun|ammo|"
-    r"\bdrugs?\b|cannabis|marijuana|\bcbd\b|vape|pharma|prescription|medical|clinic|therapy|diet pill|weight loss|"
-    r"election|campaign for|political|\bparty\b|loan|payday|forex|\bfx\b|crypto|token sale|\bico\b|airdrop|"
-    r"guaranteed|risk[- ]free|miracle|cure|"
-    r"카지노|도박|베팅|토토|복권|성인|무기|총기|마약|대마|의료|병원|치료|다이어트|선거|정치|정당|대출|외환|코인|가상자산|에어드랍|보장|무위험|기적",
-    re.I)
+from .ad_rules import RESTRICTED as _HOLD  # noqa: E402,F401 - one place for the rules (11-16)
 
 
 def screen_application(name, website_url=None, *, check_url=None):
     """Flags that hold an application for a person (empty: approve at once). Raises for a private website."""
-    flags = []
-    if any(unicodedata.category(c) in ("Cc", "Cf", "Co", "Cs") for c in name):
-        flags.append("name:hidden_characters")
-    flags += screen_text("name", unicodedata.normalize("NFKC", name))
-    if _HOLD.search(unicodedata.normalize("NFKC", name)):
-        flags.append("name:restricted_class")
+    from .ad_rules import flags as rule_flags
+    flags = rule_flags("name", name)
     if website_url is not None:
         if check_url is None:
             from ...broker.discovery import check_public_url as check_url
@@ -164,6 +153,11 @@ def decide(access, economy, principal, application_id, *, approve, reason=""):
     with store.atomic():
         if status_of(store, advertiser_id) != "pending":
             raise ContractError("application_not_pending", 409)
+        if approve:                          # 11-16: a person never approves a name the hard rules refuse
+            from .ad_rules import flags as rule_flags, require_approvable
+            applied = _last(store, advertiser_id, APPLIED)
+            name = json.loads(applied["details_json"]).get("display_name", "") if applied else ""
+            require_approvable(rule_flags("name", name), "application_refused")
         if not approve:
             if type(reason) is not str or not 3 <= len(reason.strip()) <= 200:
                 raise ContractError("invalid_reason", 422)
