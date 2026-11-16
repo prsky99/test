@@ -126,6 +126,11 @@ def _connect(dsn):
 
 
 READ_POOL_SIZE = 6
+# PM 11-16 source review 1: with one idle session kept, a second request at once opened a new session and checked the
+# schema of every table again (40-230 ms for the column check alone on production, 11-16). Idle sessions kept per
+# pool; the most sessions a process opens is unchanged (6 + 4 + its main one = 11). Set back to 1 to undo.
+READ_POOL_MAX_IDLE = 3
+INTERACTIVE_POOL_MAX_IDLE = 2
 
 
 def open_runtime_storage(sqlite_path, *, values=None, connector=None):
@@ -196,11 +201,11 @@ def open_runtime_storage(sqlite_path, *, values=None, connector=None):
         # Explore reads two protocols at once and Chat, insights and warm-ups share this pool; three
         # sessions queued requests under load (11-11: about 12 s of a find_agents answer unmeasured,
         # 16 of 48 database connections in use). Six per process; idle sessions still close after a while.
-        store._admin_read_pool = AdminReaderPool(create_admin_reader,maximum=READ_POOL_SIZE,max_idle=1,
+        store._admin_read_pool = AdminReaderPool(create_admin_reader,maximum=READ_POOL_SIZE,max_idle=READ_POOL_MAX_IDLE,
                                                  idle_seconds=IDLE_SESSION_SECONDS)
         # Chat has visitor writes, so it uses separate bounded sessions rather
         # than borrowing read-only metrics sessions or a collector's Python lock.
-        store._interactive_pool = AdminReaderPool(create_interactive_session,maximum=4,wait_seconds=8,max_idle=1,
+        store._interactive_pool = AdminReaderPool(create_interactive_session,maximum=4,wait_seconds=8,max_idle=INTERACTIVE_POOL_MAX_IDLE,
             idle_seconds=IDLE_SESSION_SECONDS)
         return RuntimeStorage(store, connection)
     except BaseException as error:
