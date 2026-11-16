@@ -15,7 +15,12 @@ import time
 import unicodedata
 
 log = logging.getLogger(__name__)
-REFRESH_SECONDS = 600
+# PM 11-16 16:21: the rebuild now takes 490-695 s on the serving frontend (11-16 log: 20,904-20,926 listings, one end
+# about every 20 minutes), so the serving process spent about half the day rebuilding while visitors waited on the same
+# interpreter and store lock; three gateway handshakes timed out inside the 15:46-15:55 rebuild. Reports change slowly
+# and the policy allows snapshot answers: rebuilt every hour, current() keeps a snapshot for two periods. Set back to
+# 600 to undo; moving the rebuild out of the serving process is the follow-up.
+REFRESH_SECONDS = 3600
 # Each chunk holds the front store lock that every visitor request also takes. 200 rows held it
 # about 1.1 s at a time, and Python locks are not fair, so a waiting Explore request took 14 s
 # (2026-11-01 18:34). Short chunks and a pause let waiting requests in between. A session of
