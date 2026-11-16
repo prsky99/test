@@ -64,7 +64,7 @@ RULES = {'verified_pearl': {'min_score': 85, 'successes_on_different_days': 2},
          'provisional': {'min_score': 70, 'within_days': 7, 'reports': 1}}
 
 
-def test_the_provisional_note_states_the_bars_and_our_own_agent_is_named_apart(snapshot):  # noqa: F811
+def test_the_provisional_note_states_the_bars_and_our_own_agent_is_named_apart(snapshot, monkeypatch):  # noqa: F811
     """PM 11-16 (workflow 17:3x): the outside provisional members scored 79.9-84.7, below the verified bar, so the note
     may not say they 'passed and await a second day'; our own fallback leading a step is said to be ours."""
     assert ns.provisional_note({'member_rules': RULES}) == (
@@ -73,12 +73,18 @@ def test_the_provisional_note_states_the_bars_and_our_own_agent_is_named_apart(s
         'step, it takes the place.')
     assert ns.provisional_note({'member_rules': {}}) == ns.PROVISIONAL_NOTE and 'second check' not in ns.PROVISIONAL_NOTE
     entry = dict(snapshot['necklaces'][0])
-    own = {**entry['pearls'][1], 'standing': 'provisional', 'kind': 'agentcon', 'resource_id': None}
+    own = {**entry['pearls'][1], 'standing': 'provisional', 'kind': 'agentcon', 'resource_id': 'avc:wiki-grounding',
+           'tool': 'answer_from_wikipedia'}
     entry['pearls'] = [dict(entry['pearls'][0]), own]
     snap = {**snapshot, 'member_rules': RULES, 'necklaces': [entry] + snapshot['necklaces'][1:]}
+    monkeypatch.setattr(ns, 'substitute_checked', lambda pearl, path=None: True)
     status, page = ns.page(entry['slug'], snapshot=snap, now=NOW)
     text = page.replace('&#x27;', "'")
     assert status == 200 and ns.OWN_PROVISIONAL_NOTE in text and 'necklace-provisional-note' not in page
+    monkeypatch.setattr(ns, 'substitute_checked', lambda pearl, path=None: False)     # revoked or no record
+    status, page = ns.page(entry['slug'], snapshot=snap, now=NOW)
+    text = page.replace('&#x27;', "'")
+    assert ns.OWN_UNCHECKED_NOTE in text and 'passed our substitute check' not in text
 
 
 def test_the_sources_sentence_follows_the_summary_where_one_is_kept(snapshot, monkeypatch):  # noqa: F811
@@ -98,3 +104,21 @@ def test_the_topic_sentence_names_wikipedia_and_two_paper_indexes():
     note = ns.sources_note({'slug': 'topic-evidence-brief'})
     assert note and 'English Wikipedia' in note and 'not a web search' in note and 'both come from Wikipedia' in note
     assert 'OpenAlex' in note and 'Europe PMC' in note
+
+
+
+def test_a_substitute_counts_as_checked_only_by_its_latest_passed_record(tmp_path):
+    """PM 11-16: approvals.json substitutes; the latest record for the same resource_id and tool decides."""
+    import json
+    rows = [{'resource_id': 'avc:a', 'tool': 't', 'state': 'provisional', 'at': '2026-11-16T06:52+0900', 'gate_record': {'verdict': 'x'}},
+            {'resource_id': 'avc:b', 'tool': 't', 'state': 'provisional', 'at': '2026-11-16T08:11+0900', 'gate_record': {'verdict': 'x'}},
+            {'resource_id': 'avc:b', 'tool': 't', 'state': 'revoked', 'at': '2026-11-16T12:35+0900', 'gate_record': {'verdict': 'y'}},
+            {'resource_id': 'avc:c', 'tool': 't', 'state': 'approved', 'at': '2026-11-15T08:50+0900', 'gate_record': {}},
+            {'resource_id': 'avc:d', 'tool': 't', 'state': 'approved', 'at': '2026-11-15T08:50+0900', 'gate_record': {'verdict': 'z'}}]
+    path = tmp_path / 'approvals.json'
+    path.write_text(json.dumps({'approvals': [], 'substitutes': rows}))
+    check = lambda rid: ns.substitute_checked({'resource_id': rid, 'tool': 't'}, path)   # noqa: E731
+    assert check('avc:a') and check('avc:d')
+    assert not check('avc:b')                      # revoked after passing: not said to have passed
+    assert not check('avc:c') and not check('avc:x')   # no gate record, or no record at all
+    assert not ns.substitute_checked({'resource_id': 'avc:a', 'tool': 't'}, tmp_path / 'missing.json')

@@ -184,6 +184,41 @@ PROVISIONAL_NOTE = ('Under verification: the agent answered our test for this st
                     'verified-pearl bar. When a verified pearl is available for the step, it takes the place.')
 OWN_PROVISIONAL_NOTE = ('AgentValCon agent, under verification: our own agent for this step, which passed our substitute '
                         'check; it leads until a verified pearl is available.')
+OWN_UNCHECKED_NOTE = ('AgentValCon agent, not yet checked: our own agent for this step has no passed substitute check on '
+                      'record.')
+CHECKED_SUBSTITUTE = ('approved', 'provisional')
+
+
+def approvals_path():
+    root = os.environ.get('AGENTCON_PROJECT_ROOT')
+    return Path(root) / 'gateway-data/necklaces/approvals.json' if root else None
+
+
+_APPROVALS = {'key': None, 'value': {}}
+
+
+def substitute_checked(pearl, path=None):
+    """PM 11-16: our own agent leading a step is said to have passed its substitute check only when the latest
+    record for it in approvals.json substitutes (same resource_id and tool) is approved or provisional with a gate
+    record; revoked, unknown or unreadable is not."""
+    if not isinstance(pearl, dict):
+        return False
+    path = Path(path) if path else approvals_path()
+    try:
+        stat = path.stat()
+        key = (str(path), stat.st_mtime_ns, stat.st_size)
+        if _APPROVALS['key'] != key:
+            latest = {}
+            for row in json.loads(path.read_text(encoding='utf-8')).get('substitutes') or []:
+                if isinstance(row, dict) and isinstance(row.get('at'), str):
+                    k = (row.get('resource_id'), row.get('tool'))
+                    if k not in latest or row['at'] >= latest[k]['at']:
+                        latest[k] = row
+            _APPROVALS.update(key=key, value=latest)
+    except (OSError, ValueError, AttributeError, TypeError):
+        return False
+    row = _APPROVALS['value'].get((pearl.get('resource_id'), pearl.get('tool')))
+    return bool(row) and row.get('state') in CHECKED_SUBSTITUTE and bool(row.get('gate_record'))
 
 
 # PM 11-16 06:5x: a required step with no usable outside member runs on our own agent alone; the page and the agent
@@ -330,7 +365,9 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
                         'role': p.get('role'), 'tool': p.get('tool'), 'kind': p.get('kind') or 'external',
                         'verified_pearl': member_status(p) == 'verified_pearl', 'standing': member_status(p),
                         # an AgentValCon lead (kind agentcon) has no catalog resource, so no catalog card
-                        'card': base + '/agent/' + str(p['resource_id']) if p.get('resource_id') is not None else None,
+                        # a catalog card only for an outside member with a catalog id; our own agents ('avc:…') have none
+                        'card': (base + '/agent/' + str(p['resource_id']) if p.get('kind') != 'agentcon'
+                                 and re.fullmatch(r'[1-9][0-9]{0,9}', str(p.get('resource_id') or '')) else None),
                         'external_usable': usable_external(p), 'external_pending': external_pending(p),
                         'alternates': {'external': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'external'),
                                        'agentcon': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'agentcon')}}
@@ -900,8 +937,10 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
                                   if p.get('external_pending') else '') + '</li>' for p in item['pearls'])
                      + '</ul>' + ('<p class="muted necklace-provisional-note">' + esc(provisional_note(snapshot)) + '</p>'
                                   if any(p['standing'] == 'provisional' and p.get('card') for p in item['pearls']) else '')
-                     + ('<p class="muted necklace-own-note">' + esc(OWN_PROVISIONAL_NOTE) + '</p>'
-                        if any(p['standing'] == 'provisional' and not p.get('card') for p in item['pearls']) else '')
+                     + ''.join('<p class="muted necklace-own-note">' + esc(note) + '</p>' for note in dict.fromkeys(
+                         OWN_PROVISIONAL_NOTE if substitute_checked(p) else OWN_UNCHECKED_NOTE
+                         for p in (entry.get('pearls') or []) if isinstance(p, dict) and p.get('kind') == 'agentcon'
+                         and member_status(p) == 'provisional'))
                      + '</section>')
     if runs:
         example = example_input(entry)
