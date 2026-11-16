@@ -221,8 +221,11 @@ def test_security_violation_audit_logged(w):
     sec = world.app.state.front.security
     assert sec is not None
     events = list(sec._recent_events)
-    matching = [e for e in events if e.get("ip") == "198.51.100.130" and e.get("event_type") == "stored_xss_attempt"]
+    # Events keep only the /24 network (privacy decision 11-10, SecurityManager.log_event via coarse_ip); this test
+    # compared the full address and failed from then on although the violation was recorded (PM 11-17 night run).
+    matching = [e for e in events if e.get("ip") == "198.51.100.0/24" and e.get("event_type") == "stored_xss_attempt"]
     assert len(matching) >= 1, "Security violation was not recorded in security telemetry events"
+    assert not any(e.get("ip") == "198.51.100.130" for e in events), "the full client address must not be kept"
 
 
 def test_zero_leakage_in_error_responses(w):
