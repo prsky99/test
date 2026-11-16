@@ -96,4 +96,7 @@ def machine(entries, updated=None):
     current, past = rows(entries)
     return {'version': 1, 'updated': updated, 'current': current, 'past': past,
             'rules': {'label': 'Sponsored', 'position': 'after results and answers, never inside them',
-                      'changes_results': False}}
+                      'changes_results': False,
+                      'affects': {'ranking': False, 'selection': False, 'test_results': False},
+                      'statement': 'Advertising does not affect ranking, selection or test results.',
+                      'agent_field': 'sponsored[].disclosure'}}

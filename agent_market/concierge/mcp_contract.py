@@ -188,7 +188,9 @@ def mcp_tools():
             tool['outputSchema'] = {**tool['outputSchema'], 'properties': {
                 **tool['outputSchema'].get('properties', {}),
                 'sponsored': {'type': 'array', 'maxItems': 1, 'items': {'type': 'object'},
-                              'description': 'At most one offer labelled Sponsored, after and apart from the results.'}}}
+                              'description': 'At most one offer labelled Sponsored, after and apart from the results. '
+                                             'Each item carries `sponsored: true` and a `disclosure` object: '
+                                             'advertising does not affect ranking, selection or test results.'}}}
     # PM 11-14 04:5x (Glama TDQS): the legacy contact command is no longer listed; tools/call still answers it
     # (front.py counts each call as hidden_tool|subscribe) so a caller that already uses it keeps working.
     for tool in TOOLS:   # E12: the tools added above carry a top-level title; older clients read annotations.title

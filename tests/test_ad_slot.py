@@ -64,6 +64,13 @@ def test_offer_follows_the_results_and_the_organic_answer_is_unchanged(client, p
     assert item['facts']['independent'] is True and item['facts']['report_score'] is None and item['facts']['grade'] != 'A+'
     assert set(item['facts']) == {'grade', 'report_score', 'report_url', 'report_signature', 'data_at', 'health_7d',
                                   'independent', 'note'}
+    # machine-readable disclosure, set on the organic side (11-16 PM assignment)
+    assert item['sponsored'] is True
+    assert item['disclosure'] == {'sponsored': True, 'paid_placement': True,
+                                  'affects': {'ranking': False, 'selection': False, 'test_results': False},
+                                  'statement': 'Advertising does not affect ranking, selection or test results.',
+                                  'policy_url': 'https://agentconcierge.biz/ads/library',
+                                  'policy_json': 'https://agentconcierge.biz/ads/library.json'}
     ctx = provider[-1]
     assert ctx['surface'] == 'mcp' and ctx['tool'] == 'find_agents' and ctx['task'] == 'research sources'
     assert set(ctx) == {'surface', 'tool', 'category', 'categories', 'role', 'role_field', 'task', 'region', 'counted'}
@@ -137,3 +144,17 @@ def test_rest_agents_are_told_where_the_offer_is(client):  # noqa: F811
     llms = client.get('/llms.txt').text
     assert '/api/ad-coin/v2/sponsored/offer?category=<site category>&surface=rest' in llms and '/ads/library' in llms
     assert 'sponsored' not in client.get('/api/explore?q=research').text.lower()
+
+
+def test_an_advertiser_cannot_change_or_drop_the_disclosure(client):  # noqa: F811
+    """The provider may send its own `disclosure` or `sponsored` fields; the slot replaces them with the fixed ones."""
+    forged = dict(OFFER, sponsored=False, disclosure={'affects': {'ranking': True}, 'statement': 'Ranked first by us'})
+    ad_slot.register(lambda ctx: dict(forged))
+    try:
+        r = call(client, 'find_agents', {'task': 'research sources'})
+    finally:
+        ad_slot.register(None)
+    item, = r['structuredContent']['sponsored']
+    assert item['sponsored'] is True and item['disclosure'] == ad_slot.disclosure()
+    assert set(item['disclosure']['affects'].values()) == {False}
+    assert 'sponsored' not in [k for rec in r['structuredContent'].get('recommendations', []) for k in rec]

@@ -29,6 +29,11 @@ _FACTS = {}
 LABEL = 'Sponsored'
 DESCRIPTION_LINE = ('Ads: at most one offer labelled "Sponsored" may follow the results in a separate `sponsored` field; '
                     'it never changes the results.')
+# Machine-readable disclosure on every offer (PM 11-21 assignment, 11-16): set here on the organic side after the
+# provider's fields are cleaned, so an advertiser can neither drop nor change it. The ad stays in its own `sponsored`
+# field, apart from the results, the ranking and the evidence (`facts` are ours and say so).
+AFFECTS = {'ranking': False, 'selection': False, 'test_results': False}
+STATEMENT = 'Advertising does not affect ranking, selection or test results.'
 MAX_LINE = 400
 MAX_FIELD = 2000
 SLOW_SECONDS = 0.05      # the provider is an in-memory lookup; a slower call is noted, never retried
@@ -119,10 +124,19 @@ def offer(ctx):
         return None
     endpoint = (value.get('offer') or {}).get('endpoint') if isinstance(value.get('offer'), dict) else None
     value['facts'] = facts_for(endpoint)
+    value['sponsored'] = True
+    value['disclosure'] = disclosure()
     if isinstance(value.get('click_url'), str) and value['click_url'].startswith('/'):
         value['click_url'] = _SOURCES['base'] + value['click_url']
     _STATS['filled'] += 1
     return value
+
+
+def disclosure():
+    """The fixed statement an agent can read without parsing text: paid placement, no effect on what we found."""
+    base = _SOURCES['base']
+    return {'sponsored': True, 'paid_placement': True, 'affects': dict(AFFECTS), 'statement': STATEMENT,
+            'policy_url': base + '/ads/library', 'policy_json': base + '/ads/library.json'}
 
 
 def _read_facts(endpoint):
