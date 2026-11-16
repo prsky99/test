@@ -477,3 +477,23 @@ def test_a_receipt_that_comes_back_within_the_gap_keeps_the_booking(audited):
     paid_audit.watch(service, now_ms=LATER + 15_000)
     assert paid_audit.watch(service, now_ms=LATER + 5000 + paid_audit.MISSING_GAP_MS + 1)['reorg'] == 0
     assert row(store, q['id'])['state'] == 'confirmed'
+
+
+def test_a_payment_across_utc_midnight_is_not_money_without_a_booking():
+    """PM 11-16: quoted just before UTC midnight, mined just before it, confirmed just after it. The day of the
+    transfer must not report it as money in without a booking; the payment is checked on the day it was received."""
+    from scripts.ad_coin_paid_reconcile import reconcile
+    DAY = 86_400_000
+    day = 1_763_164_800_000                                   # a UTC midnight
+    tx = '0x' + 'ab' * 32
+    booking = {'id': 'b1', 'tx_hash': tx, 'state': 'confirmed', 'confirmed_ms': day + DAY + 30_000,
+               'day_ms': day + 3 * DAY, 'amount_units': 5_000_123, 'pay_to': PAYER, 'payer': PAYER, 'token': '',
+               'krw_rate': '1400', 'campaign_id': 'c', 'task_category': 'research', 'region': 'US'}
+    args = dict(receipts={}, transfers=[(tx, PAYER, 5_000_123)], impressions={}, last_blocks={}, export_rows=[],
+                day_ms=day)
+    _, before = reconcile([], **args)                          # what the day of the transfer saw until now
+    assert [f['kind'] for f in before] == ['receipt_without_booking']
+    counts, findings = reconcile([], paid_elsewhere=[booking], **args)
+    assert findings == [] and counts['received'] == 0          # matched, and counted on its own day only
+    _, unconfirmed = reconcile([], paid_elsewhere=[{**booking, 'state': 'confirming'}], **args)
+    assert [f['kind'] for f in unconfirmed] == ['receipt_for_unconfirmed_booking']

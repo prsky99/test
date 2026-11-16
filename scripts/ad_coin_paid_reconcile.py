@@ -49,12 +49,16 @@ def address_change(pay_to, state_file):
     return finding, {"sha": digest}
 
 
-def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export_rows, day_ms, pay_to=None, plans=()):
+def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export_rows, day_ms, pay_to=None, plans=(),
+              paid_elsewhere=()):
     """Pure check. bookings: dict rows; receipts: tx -> receipt|None|'unavailable'; transfers: [(tx, from, units)]
     into the receive address that day; impressions: (day, campaign, category, region) -> served count;
     last_blocks: booking id -> block hash recorded; export_rows: rows of the monthly CSV; plans: custom plan rows
     (11-15), each one payment for several placements. A plan's placements carry no tx: the plan row is checked as
-    the payment and the placements only as placements. Returns (counts, findings)."""
+    the payment and the placements only as placements. paid_elsewhere: booking or plan rows found by the tx hash of a
+    transfer that day but received on another day (quoted before UTC midnight, mined just before it and confirmed
+    after it, or a tx hash sent in late, PM 11-16); they only match that transfer and are checked on their own day.
+    Returns (counts, findings)."""
     from agent_market.chain import normalize, transfers_in
     findings, counts = [], {"bookings": len(bookings), "received": 0, "placed": 0, "transfers_in": len(transfers),
                             "received_units": 0}
@@ -105,8 +109,9 @@ def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export
             counts["placed"] += 1
             if b["state"] == "served" and not impressions.get((day_ms, b["campaign_id"], b["task_category"], b["region"])):
                 find("served_without_impressions", b)
+    elsewhere = {(b["tx_hash"] or "").lower(): b for b in paid_elsewhere if b["tx_hash"]}
     for tx, frm, units in transfers:
-        booking = by_tx.get(tx.lower())
+        booking = by_tx.get(tx.lower()) or elsewhere.get(tx.lower())
         if booking is None:
             find("receipt_without_booking", None, tx=tx, sender=frm, amount=_units(units))
         elif booking["state"] in ("quoted", "confirming", "expired"):
@@ -287,9 +292,26 @@ def main(argv=None):
             findings_extra.append({"kind": "receive_address_unknown", "booking_id": None})
     except Exception as error:   # recorded, never hidden
         findings_extra.append({"kind": "chain_unreadable", "booking_id": None, "error": type(error).__name__})
+    paid_elsewhere = []
+    known = {(b["tx_hash"] or "").lower() for b in bookings + plans if b["tx_hash"]}
+    unmatched = sorted({tx.lower() for tx, _f, _u in transfers} - known)[:200]
+    if unmatched:   # a payment that crossed UTC midnight (or was sent in late) is matched by its hash, not its day
+        runtime = _connect(args)
+        try:
+            store = store_from_application(runtime.store)
+            with unchecked(), store.atomic():
+                db = store.database
+                tables = ["adc2_paid_bookings"] + (["adc2_paid_plans"] if db.one(
+                    "SELECT to_regclass('adc2_paid_plans') IS NOT NULL AS present")["present"] else [])
+                for table in tables:
+                    for tx in unmatched:
+                        paid_elsewhere += [dict(r) for r in db.all(
+                            "SELECT * FROM " + table + " WHERE lower(tx_hash)=?", (tx,))]
+        finally:
+            runtime.close()
     counts, findings = reconcile(bookings, receipts=receipts, transfers=transfers, impressions=impressions,
                                  last_blocks=last_blocks, export_rows=export_rows, day_ms=day_ms,
-                                 pay_to=locals().get("pay_to"), plans=plans)
+                                 pay_to=locals().get("pay_to"), plans=plans, paid_elsewhere=paid_elsewhere)
     findings += findings_extra
     counts["received_usdc"] = _units(counts.pop("received_units"))
     result = {"day": day, "at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "ok": not findings,
