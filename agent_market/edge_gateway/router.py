@@ -300,6 +300,8 @@ def install(app, front):
                 return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
             log.info('Edge public prepare: the provider handshake failed; handed to the Origin gateway')
             fallback('handshake')
+            from .native import note_handshake_failure
+            note_handshake_failure(value['resource_id'])   # the Origin gateway calls it directly, not via the edge again
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         return JSONResponse({'backend': backend, **grant, 'input': payload, **({'binding': binding} if binding else {})},
                             headers={'Cache-Control': 'private, no-store'})

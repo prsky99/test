@@ -93,6 +93,10 @@ def test_an_unusable_handshake_is_a_provider_failure_handed_to_origin(limited_mc
     assert response.status_code == 200 and response.json() == {'backend': 'origin'}
     assert recorder.snapshot()['funnel'] == {'edge_fallback|handshake': 1}
     assert not BOOK._until                            # a 502 is not a request to wait
+    # 11-17 (PM 08:4x): the Origin gateway then calls this provider directly, not through the edge again
+    from agent_market.edge_gateway import native
+    assert native.handshake_failed_recently(rid)
+    native._handshake_failed.pop(rid, None)
 
 
 def test_the_claim_endpoint_tells_provider_failures_from_our_own(edge, monkeypatch):

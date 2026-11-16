@@ -55,6 +55,32 @@ def service_for(store, courier=None):
     return Service(front, config)
 
 
+HANDSHAKE_SKIP_SECONDS = 120
+_handshake_failed = {}   # resource id -> when the edge last handed it to the Origin gateway after a failed handshake
+
+
+def note_handshake_failure(resource_id, now=None):
+    """The Worker's claim could not finish the provider handshake and handed the request to the Origin gateway.
+
+    11-17 (운영·SRE, PM 08:4x): the Origin gateway then ran the same request through the edge again (this module),
+    where the claim tried the same provider handshake for another 5 s: 48883, 37322 and 39422 on 11-16 failed twice
+    and the caller waited past 10 s. For a short while the Origin gateway calls that provider directly instead."""
+    import time
+    now = time.time() if now is None else now
+    if type(resource_id) is int:
+        _handshake_failed[resource_id] = now
+        if len(_handshake_failed) > 512:
+            for rid, at in list(_handshake_failed.items()):
+                if now - at > HANDSHAKE_SKIP_SECONDS:
+                    _handshake_failed.pop(rid, None)
+
+
+def handshake_failed_recently(resource_id, now=None):
+    import time
+    at = _handshake_failed.get(resource_id)
+    return at is not None and (time.time() if now is None else now) - at < HANDSHAKE_SKIP_SECONDS
+
+
 NATIVE_PREFIX = 'native-'
 
 
@@ -78,6 +104,8 @@ def execute(store, resource, payload, *, scope=None, courier=None, http=None):
         return None
     if not has_dispatch_guard() or credential_input(payload):
         return None
+    if handshake_failed_recently(resource.get('id')):
+        return None   # the edge just failed this provider's handshake: existing Origin IO, no second edge try
     attempt = current_attempt(store)
     scope = scope or (attempt.id if attempt else None)
     if type(scope) is not str or not scope or len(scope) > 240:

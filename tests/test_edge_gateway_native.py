@@ -160,3 +160,21 @@ def test_native_runs_carry_a_marked_principal_so_counts_keep_them_apart(edge):
             principals.append(rows(db,'run',(req.url.path.split('/')[5],))[0]['principal'])
     assert all(p.startswith(native.NATIVE_PREFIX) and len(p)==len(native.NATIVE_PREFIX)+64 for p in principals)
     assert len(set(principals))==2   # still one principal per attempt (idempotency)
+
+
+def test_a_provider_whose_edge_handshake_just_failed_is_not_sent_through_the_edge_again(edge, monkeypatch):
+    # 11-17 (PM 08:4x): on 11-16 the Origin gateway retried 48883, 37322 and 39422 through the edge after the edge
+    # handshake had failed, and the same 5 s handshake failed again. For a short while: existing Origin IO.
+    monkeypatch.setattr(native, '_handshake_failed', {})
+    native.note_handshake_failure(edge.rid, now=1000.0)
+    assert native.handshake_failed_recently(edge.rid, now=1000.0 + native.HANDSHAKE_SKIP_SECONDS - 1)
+    assert not native.handshake_failed_recently(edge.rid, now=1000.0 + native.HANDSHAKE_SKIP_SECONDS)
+    native.note_handshake_failure(edge.rid)
+    seen=[]
+    with transport(edge,seen) as client,dispatch_scope(lambda:pytest.fail('No Edge dispatch right after a failed handshake')):
+        assert call(edge,client) is None
+    assert not seen
+    native._handshake_failed.clear()
+    with transport(edge,seen) as client,dispatch_scope(lambda:None):
+        assert call(edge,client)['ok']
+    assert len(seen)==1
