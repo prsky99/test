@@ -13,7 +13,8 @@ The rule (deploy/NECKLACE_GATE.md section 1):
      A case that got an answer (passed or failed) is never measured again.
   3. Excluded again: the case is "unmeasured", kept apart from wrong answers.
   4. Round result: pass (28 or more passed), fail (3 or more answered cases failed), or unmeasured (2 or fewer
-     failures but fewer than 28 passed because of exclusions).
+     failures but fewer than 28 passed because of exclusions). Fewer than 30 cases measured is "incomplete" (not a
+     verdict), and a case line seen twice in one split counts once, first line first, with a warning (PM 15:10).
 
 Each result is written to logs/ops/necklace-gate/round-<slug>-v<version>-<split>-<time>.json (never overwritten).
 """
@@ -53,11 +54,13 @@ def round_lines(lines: list[dict], slug: str, split: str, version: int | None = 
 
 def result(lines: list[dict], split: str) -> dict:
     """The round result under the rule from the first measurement and, for excluded cases, the rerun."""
-    first = {}
-    for l in lines:
-        if l["set"] == split:
-            first[l["case_id"]] = l                     # the latest first-measurement line of a case
-    again = {l["case_id"]: l for l in lines if l["set"] == split + RERUN_SUFFIX}
+    first, again, duplicates = {}, {}, []
+    for l in lines:                       # PM 15:10: the first line of a case counts; a later one never replaces it
+        into = first if l["set"] == split else again
+        if l["case_id"] in into:
+            duplicates.append(f"{l['set']}:{l['case_id']}")
+            continue
+        into[l["case_id"]] = l
     passed, failed, unmeasured, pending = [], [], [], []
     for case_id, line in sorted(first.items()):
         final = line
@@ -72,7 +75,9 @@ def result(lines: list[dict], split: str) -> dict:
             passed.append(case_id)
         else:
             failed.append(case_id)
-    if len(passed) >= ROUND_PASS:
+    if len(first) < ROUND:
+        verdict = "incomplete"                          # stopped or still running: not a verdict (PM 15:10)
+    elif len(passed) >= ROUND_PASS:
         verdict = "pass"
     elif len(failed) >= FAIL_LIMIT:
         verdict = "fail"
@@ -83,7 +88,8 @@ def result(lines: list[dict], split: str) -> dict:
     ends = [_ts(l["at"]) for l in lines if l["set"] == split and l.get("at")]
     return {"verdict": verdict, "denominator": ROUND, "pass_needed": ROUND_PASS, "measured": len(first),
             "passed": len(passed), "failed": len(failed), "unmeasured": len(unmeasured), "rerun_due": pending,
-            "failed_cases": failed, "unmeasured_cases": unmeasured,
+            "failed_cases": failed, "unmeasured_cases": unmeasured, "duplicates": duplicates,
+            "warning": (f"{len(duplicates)} case lines measured twice: the first line counts" if duplicates else None),
             "first_measurement_ended": max(ends) if ends else None,
             "versions": sorted({l.get("version") for l in lines})}
 
@@ -175,8 +181,8 @@ def main(argv=None, now=time.time, runner_fn=rerun_cases) -> int:
     body.update(slug=args.slug, version=version, split=args.split, day=args.day,
                 rule="deploy/NECKLACE_GATE.md section 1 (PM 11-16 15:02)")
     path = write_result(args.out, args.slug, version, args.split, body)
-    print(json.dumps({"file": str(path), **{k: body[k] for k in ("verdict", "passed", "failed", "unmeasured",
-                                                                  "rerun_due")}}, ensure_ascii=False))
+    print(json.dumps({"file": str(path), **{k: body[k] for k in ("verdict", "warning", "measured", "passed", "failed",
+                                                                  "unmeasured", "rerun_due")}}, ensure_ascii=False))
     return 0
 
 

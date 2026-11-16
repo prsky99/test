@@ -73,3 +73,15 @@ def test_rerun_measures_only_the_excluded_cases_once(tmp_path, monkeypatch):
     # run again: nothing is due any more, nothing is measured again, and the first file stays
     assert G.main(argv, now=lambda: G._ts(AT) + 20 * 60, runner_fn=fake) == 0 and asked == [["x0", "x1"]]
     assert len(list((tmp_path / "out").glob("round-*.json"))) == 2
+
+
+def test_the_first_line_of_a_case_counts_and_a_short_round_is_incomplete():
+    """PM 15:10: running the same split again never turns an answered failure into a pass; under 30 is no verdict."""
+    lines = first(27, 3, 0) + [line("f0", "case", True), line("f1", "case", True)]
+    body = G.result(lines, "holdout-r4-wiki")
+    assert (body["verdict"], body["passed"], body["failed"]) == ("fail", 27, 3)
+    assert body["duplicates"] == ["holdout-r4-wiki:f0", "holdout-r4-wiki:f1"] and "first line counts" in body["warning"]
+    assert G.result(first(28, 2, 0), "holdout-r4-wiki")["warning"] is None
+    short = G.result(first(20, 0, 0), "holdout-r4-wiki")
+    assert (short["verdict"], short["measured"]) == ("incomplete", 20)
+    assert G.result(first(25, 0, 3), "holdout-r4-wiki")["verdict"] == "incomplete"
