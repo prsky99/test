@@ -50,9 +50,13 @@ the receiver discards them. Re-register and verify new test watches after a rest
 ## Reproduce end-to-end tests
 
 ```sh
-.venv/bin/pytest -q tests/test_notification_inbox_integration.py \
-  tests/test_notification_inbox_browser.py
+.venv/bin/python -m scripts.pytest_slot tests/test_notification_inbox_integration.py
+.venv/bin/python -m scripts.heavy_slot --team <team> --what "notification inbox browser test" --minutes 10 -- \
+  .venv-tests/bin/python -m pytest -q tests/test_notification_inbox_browser.py
 ```
+
+Tests run only through these wrappers (CLAUDE.md, 11-12): a single file through `scripts.pytest_slot`, a browser
+test through `scripts.heavy_slot`. A bare `pytest` is not used on this Mac.
 
 These tests automatically start and stop the receiver on temporary ports. They use
 the real Courier, a temporary catalog/session, public task-update APIs, a real

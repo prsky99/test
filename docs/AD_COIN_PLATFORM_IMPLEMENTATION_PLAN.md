@@ -2,6 +2,20 @@
 
 > 최신 조사에 따른 [v6.2 보강 설계](AD_COIN_PLATFORM_DESIGN_UPGRADE.md)의 DEC-08~13·DES-01~10을 함께 적용한다. 최상위 사업 정책은 v6.1을 유지하며 이전 기계 계약은 역사본으로 보존한다.
 
+> **11-16 읽는 법(소스 대조):** 아래 2절의 파일 이름은 11-07 계획의 *예정* 이름이다. 그중 `identity`, `ledger`, `commercial`, `budgets`, `access`, `receipts`만 같은 이름으로 있고, 나머지(`policy`, `accounts`, `operations`, `outbox`, `offers`, `adapters/mcp` 등)는 그 이름으로 만들지 않았다. 지금 운영 코드의 실제 모듈:
+>
+> | 하는 일 | 실제 모듈 (`agent_market/ad_coin/v2/`) |
+> |---|---|
+> | 저장·SQL 허용 목록·작업자 | `store.py`, `sql.py`, `workers.py`(outbox 처리), `schema.py` |
+> | 광고주 신청·캠페인·심사 | `advertiser_applications.py`, `commercial.py`, `operator_review.py`, `auto_review.py`(스위치 꺼짐) |
+> | 광고 문구 규칙 | `ad_rules.py`(11-16, 금지·사람 판단 규칙 한 곳) |
+> | Sponsored 칸·에이전트 광고 | `sponsored.py`, `sponsored_offer.py`, `sponsored_agent.py`, `sponsored_booking.py`, `ads_library.py` |
+> | USDC 결제(받기만) | `paid_bookings.py`, `paid_plans.py`(맞춤 계획), `paid_audit.py`(대사·영수 최종성) |
+> | 포인트 | `points.py`, `economy.py`, `ledger.py`(실제 가치 `real_value.py`는 꺼짐, 운영 설정으로 켤 수 없음) |
+> | 운영에 등록하지 않은 경로 | `ad_relay*`, `advertiser_platform*`, `agent_payment*` |
+>
+> WP-05(사용자 지갑·실제 AI 작업 결제)와 WP-06(발행·체인·상환)은 하지 않는다(헌장 1절, 11-10·11-11 결정). 실제 결제는 광고·이용권 값을 USDC로 **받기만** 한다.
+
 2026-11-07 · 기준: [개발 설계](AD_COIN_PLATFORM_ARCHITECTURE.md), [데이터·API](AD_COIN_PLATFORM_DATA_API.md), [최종 정책](AD_COIN_PLATFORM_POLICY.md)
 
 2026-11-08 [상세 설계](AD_COIN_V6_2_DETAILED_DESIGN.md)·DTL-01~20을 추가하고 사용자 승인에 따라 R0 개발을 착수했다. 현재 구현/검증은 [개발 기록](../reports/ad-coin-v6.2-development-2026-11-08/PROGRESS.md)에서 따로 관리한다. 아래 계획 전체를 구현 완료로 바꾸지 않는다.

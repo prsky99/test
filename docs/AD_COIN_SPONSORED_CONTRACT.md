@@ -68,7 +68,7 @@ GET /api/ad-coin/v2/sponsored?placement=explore&category=web_search&limit=1
   - 기본키: 앞의 다섯 열
   - 표는 1개이고 트리거는 없다. public 스키마에는 아무것도 만들지 않는다.
 - 생성: `scripts.ad_coin_v2_migrate migrate-impressions --i-have-approval`(앱 검사 전후 실행)
-- **운영 적용 절차(사용자 승인 뒤)**
+- **운영 적용 절차** (11-16 확인: 운영에 이 표가 있다. 다시 만들 일이 생기면 11-15부터는 리허설·복구 SQL·check 0 뒤 PM이 실행)
 
 ```bash
 .venv/bin/python -m scripts.db_change_rehearsal run --command "python -m scripts.ad_coin_v2_migrate migrate-impressions --dsn-file {dsn_file} --key-file {key_file} --i-have-approval"

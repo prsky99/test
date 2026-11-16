@@ -1,6 +1,21 @@
-# AI AD Coin 문서 색인 (2026-11-10 기준)
+# AI AD Coin 문서 색인 (2026-11-16 기준, 처음 11-10)
 
 AD Coin 문서가 많아 무엇이 지금 기준인지 찾기 어려워서 만든 색인이다. 문서를 새로 쓰거나 기준이 바뀌면 이 표를 함께 고친다.
+
+## 0. 지금 켜진 것과 꺼진 것 (11-16, 코드 기본값과 운영 설정 기준)
+
+| 스위치 | 코드 기본값 | 운영 | 어디서 | 뜻 |
+|---|---|---|---|---|
+| `AD_COIN_V2_ENABLED` | 0 | **1** | `gateway-data/agentcon.env` (`scripts/agentcon_config.ALLOWED_KEYS`) | v2 포인트 모드와 `/ad-coin/v2` 작업 공간 |
+| `MAIN_SPONSORED` | 0 | **1** | `gateway-data/sponsored.env` (`SPONSORED_KEYS`) | 메인 탐색·Chat의 Sponsored 칸 |
+| `AD_COIN_PAID_BOOKING_ENABLED` | 0 | **1** (11-14 사용자 결정) | `sponsored.env` | USDC on Base 건별 결제 예약. 작업자 데몬도 같은 파일을 따른다(`scripts/adcoin_worker_env.py`) |
+| 맞춤 광고 계획 | 표가 있으면 열림 | 표 적용 전(11-17 오후 PM) | `ad_coin_v2.adc2_paid_plans` 존재 여부 | 표가 없으면 계획은 제안만 하고 팔지 않는다 |
+| `AD_COIN_AUTO_REVIEW_ENABLED` | 0 | 꺼짐(키 없음) | 데몬이 `sponsored.env`에서 받음 | 캠페인·에이전트 제안 자동 심사. **11-16 현재 `SPONSORED_KEYS`에 없어, 이 키를 `sponsored.env`에 쓰면 frontend 설정 읽기가 실패한다.** 키 추가 코드가 네 역할에 나간 뒤에만 켠다. 차단 목록 출처는 없음(11-16 PM 결정): 에이전트 제안은 사람이 심사 |
+| `AD_COIN_REAL_VALUE_ENABLED` | 0 | 켤 수 없음 | 허용 목록에서 일부러 뺌 | 판매·현금화·체인 출고 없음(헌장 1절) |
+| v1 `AD_COIN_ENABLED` | 0 | 설정 없음 | `agent_market/ad_coin/config.py` | v1은 시험 전용 동결(`AD_COIN_V1_FREEZE.md`) |
+| 이용권(USDC 30일) | — | 구현 안 됨 | `USDC_PASS_DESIGN.md` | 설계만 |
+
+운영에 등록하지 않은 v2 경로: `ad_relay`, `advertiser_platform`, `agent_payment`(`include_unused_routes=False`).
 
 ## 1. 지금 기준 (먼저 읽을 것)
 
@@ -18,6 +33,16 @@ AD Coin 문서가 많아 무엇이 지금 기준인지 찾기 어려워서 만�
 | 판매 정책(v1) | `docs/AD_COIN_SALES_POLICY.md` | v1 광고 판매 정책과 11-05 결정(15초, Chat 분리, 5년 보존) |
 | 목표·관문(v1) | `docs/AD_COIN_TARGETS.md` | 리허설 목표와 보안 관문 |
 | 개요(v1) | `docs/AD_COIN.md` | v1 구조와 운영 방법 |
+| USDC 결제 켜기·끄기 | `docs/AD_COIN_USDC_SWITCH_RUNBOOK.md` | 스위치 한 장, 검토 사례(11-14) |
+| 첫 실제 결제 점검 | `docs/AD_COIN_FIRST_PAYMENT_CHECKLIST.md` | r10 뒤 확인, 계획 표 리허설, 첫 결제 때 볼 것(11-16) |
+| Sponsored 계약 | `docs/AD_COIN_SPONSORED_CONTRACT.md` | 탐색·Chat 공용 Sponsored API 계약(11-11) |
+| 지역 판매 | `docs/AD_COIN_GLOBAL_REGION_DESIGN.md` | '기타 모든 나라(GLOBAL)' 판매(11-12) |
+| 자사 광고 | `docs/AD_COIN_HOUSE_AD_DAILY.md` | 자사 광고 매일 예약(11-12 설계) |
+| 포인트 혜택 | `docs/AD_COIN_BENEFITS.md` | 혜택 후보와 비용 0 근거(11-10) |
+| 매출 약관 | `docs/REVENUE_TERMS_DRAFT_2026-11-15.md` | 이용권·맞춤 계획·광고주 제한 없음(11-15 결정 반영 초안) |
+| 이용권 | `docs/USDC_PASS_DESIGN.md` | 제공자 10·개발자 20 USDC/30일 설계(구현 전). 광고 제거 구독 메모(`AD_FREE_SUBSCRIPTION_DESIGN.md`)는 여기에 합쳐졌다 |
+| 광고 문구 규칙 | `agent_market/ad_coin/v2/ad_rules.py` | 금지(HARD)·사람 판단(REVIEW) 규칙 한 곳(5b0b8b9d). 사람이 승인할 때마다 다시 검사 |
+| 결제 코드 | `agent_market/ad_coin/v2/paid_bookings.py`, `paid_plans.py`, `paid_audit.py`, `scripts/ad_coin_worker_daemon.py` | 견적·확인·확정·환불 검증·대사·영수 최종성. 매일 대사 `scripts/ad_coin_paid_reconcile.py`, 제재 목록 `scripts/ad_coin_ofac_refresh.py` |
 
 ## 2. v2 설계 기준 (v6.2)
 
@@ -26,7 +51,7 @@ AD Coin 문서가 많아 무엇이 지금 기준인지 찾기 어려워서 만�
 | `docs/AD_COIN_PLATFORM_ARCHITECTURE.md` | v6.2 설계 결정 DEC-01~13 |
 | `docs/AD_COIN_PLATFORM_DESIGN_UPGRADE.md` | v6.2 보강 |
 | `docs/AD_COIN_V6_2_DETAILED_DESIGN.md`, `docs/ad_coin_v6_2_detail/` | 상세 설계(도메인·저장·API·작업자·화면) |
-| `docs/AD_COIN_PLATFORM_IMPLEMENTATION_PLAN.md` | 작업 묶음 WP-01~12와 진행 |
+| `docs/AD_COIN_PLATFORM_IMPLEMENTATION_PLAN.md` | 작업 묶음 WP-01~12(11-07 계획, 모듈 이름은 실제와 다름. 문서 머리 표 참고) |
 | `docs/ad_coin_platform_p1_v6_2.openapi.json`, `docs/ad_coin_platform_v6_2_spec.json` | API 계약 |
 | `docs/AD_COIN_PLATFORM_DATA_API.md`, `docs/AD_COIN_PLATFORM_POLICY.md`, `docs/AD_COIN_PLATFORM_ROADMAP.md` | 데이터 API, 정책, 로드맵 |
 
