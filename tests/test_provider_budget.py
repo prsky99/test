@@ -407,5 +407,6 @@ def test_nager_is_closed_by_the_ledger_and_its_terms_are_recorded(tmp_path):
     ok, why = pb.reserve('https://date.nager.at/api/v3/PublicHolidays/2026/US', 'reference_checks', directory=tmp_path)
     assert not ok and why == 'domain_daily_total'
     assert pb.TRUTH_SOURCE_TERMS['nager.at']['status'] == 'prohibits'
-    for host in ('https://cutgpt.app/mcp', 'https://openkrill.app/mcp'):    # terms verdict 4835e5c3
+    for host in ('https://cutgpt.app/mcp', 'https://openkrill.app/mcp', 'https://faceabot.com/tools-mcp/geocode',
+                 'https://agentdiet.dev/mcp'):    # terms verdicts 4835e5c3, daebcd3b
         assert not pb.reserve(host, 'gate', directory=tmp_path)[0]

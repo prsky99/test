@@ -92,6 +92,10 @@ CLOSED_DOMAINS = {
     # PM 11-16 18:1x: the agent team's terms verdict 4835e5c3 put 34550 and 34807 at prohibits.
     'cutgpt.app': 'member 34550 prohibits (agent team terms verdict 4835e5c3, 11-16)',
     'openkrill.app': 'member 34807 prohibits (agent team terms verdict 4835e5c3, 11-16)',
+    # PM 11-16 18:2x, until the ledger reads member_terms prohibits by itself (after r11): the same verdicts put
+    # 143970 and 214764 (faceabot.com, the provider's terms cover all its tools-mcp endpoints) and 130453 at prohibits.
+    'faceabot.com': 'members 143970, 214764 prohibits (agent team terms verdicts daebcd3b, 4835e5c3, 11-16)',
+    'agentdiet.dev': 'member 130453 prohibits (agent team terms verdict 4835e5c3, 11-16)',
 }
 # Truth sources of our answer sets: terms and published limits, checked at the source (PM 11-16 07:5x, workflow
 # gold_company_r5 used Wikidata to mark which companies have an English Wikipedia article). No daily number is
