@@ -6,6 +6,7 @@ import json
 import math
 import os
 import re
+import threading
 import time
 
 from ..gateway.classify import query_terms
@@ -24,26 +25,86 @@ INCIDENTAL_LOOKAHEAD = 40  # further candidates examined for a focused listing o
 RESOURCE_BATCH = 500  # listing contracts read per lookup batch
 EXECUTION_WINDOW = 7 * 24 * 3600  # gateway runs are kept seven days (edge_gateway prune)
 EXECUTION_SPEED_STEP_MS = 5000  # runs within one step of each other count as equally fast
+EXECUTION_CALLERS_MAX = 5  # distinct callers beyond this add nothing
 
 
 def execution_standing(entry):
     """Rank evidence from real calls through our gateway in the last week.
 
-    entry is (succeeded, failed or unknown, mean milliseconds of the succeeded runs) or None.
-    Returns (tier, success-rate bucket, speed bucket): tier 1 when the listing completed more
-    calls than it failed, -1 when it failed more than it completed, 0 with no calls. The rate is
-    smoothed ((ok+1)/(n+2)) so a listing with two runs does not outrank one with thirty.
+    entry is (succeeded, failed or unknown, mean ms of the succeeded runs, distinct callers that succeeded,
+    task standing from the answers) or None; each caller adds at most 10 runs of each kind (store side).
+    Returns (tier, callers, success-rate bucket, speed bucket): tier 1 when the listing completed more calls than
+    it failed, -1 when it failed more, or when its answers were only errors or payment terms
+    (task_outcomes.standing -1), 0 with no calls. Distinct callers come before the rate so that one caller's
+    repeated measurements cannot hold the first place on their own; the rate is smoothed ((ok+1)/(n+2)).
     """
     if not entry:
-        return (0, 0.0, 0)
+        return (0, 0, 0.0, 0)
+    entry = tuple(entry) + (None,) * (5 - len(entry))
     ok, bad = max(0, int(_number(entry[0]))), max(0, int(_number(entry[1])))
-    if bad > ok:
-        return (-1, 0.0, 0)
+    if bad > ok or entry[4] == -1:
+        return (-1, 0, 0.0, 0)
     if not ok:
-        return (0, 0.0, 0)
-    speed = _number(entry[2], None) if len(entry) > 2 else None
+        return (0, 0, 0.0, 0)
+    speed = _number(entry[2], None)
     step = min(6, int(speed // EXECUTION_SPEED_STEP_MS)) if speed is not None and speed >= 0 else 6
-    return (1, round((ok + 1) / (ok + bad + 2), 1), -step)
+    callers = min(EXECUTION_CALLERS_MAX, max(1, int(_number(entry[3], 1))))
+    return (1, callers, round((ok + 1) / (ok + bad + 2), 1), -step)
+
+
+class ExecutionHistory:
+    """Process memory of the last week's gateway runs per listing, refreshed in the background.
+
+    The request path only reads memory (response-time policy: no new live database read per request). A table
+    older than STALE, or none yet, leaves the previous order; the first request after REFRESH starts one
+    background read on its own read session.
+    """
+    REFRESH = 300
+    STALE = 1200
+    RETRY = 60
+
+    def __init__(self, clock=time.time):
+        self.clock = clock
+        self.lock = threading.Lock()
+        self.value, self.at, self.job, self.retry_at = {}, 0.0, False, 0.0
+
+    def read(self, store):
+        source = getattr(store, '_quality_owner', None) or store  # a leased session goes back after the request
+        now = self.clock()
+        with self.lock:
+            if (now - self.at > self.REFRESH and not self.job and now >= self.retry_at
+                    and callable(getattr(source, 'execution_history', None))):
+                self.job = True
+                try:
+                    threading.Thread(target=self.refresh, args=(source,), name='execution-history', daemon=True).start()
+                except Exception:
+                    self.job, self.retry_at = False, now + self.RETRY
+            return self.value if now - self.at <= self.STALE else {}
+
+    def refresh(self, source):
+        try:
+            since = self.clock() - EXECUTION_WINDOW
+            if getattr(source, 'backend', None) == 'postgresql':
+                from .request_store import interactive_store
+                with interactive_store(source, readonly=True) as reader:   # its own read session
+                    reader = reader if callable(getattr(reader, 'execution_history', None)) else source
+                    runs = reader.execution_history(since) or {}
+            else:
+                runs = source.execution_history(since) or {}
+            from .task_outcomes import recent, standing
+            answers = recent([rid for rid in runs if type(rid) is int])
+            value = {rid: tuple(entry)[:4] + (standing(answers.get(rid)),) for rid, entry in runs.items()}
+            with self.lock:
+                self.value, self.at = value, self.clock()
+        except Exception:
+            with self.lock:
+                self.retry_at = self.clock() + self.RETRY
+        finally:
+            with self.lock:
+                self.job = False
+
+
+EXECUTION_HISTORY = ExecutionHistory()
 
 
 # Common capability phrases are translated locally; protocol filters do not change quality ranking.
@@ -963,18 +1024,12 @@ class QualityRecommender(Recommender):
         with stage('report_evidence'):
             reports,report_store=(batch_reports(report_ids) if callable(batch_reports) and len(report_ids)<=600
                                   else (None,self.store))
-        # Calls that went through our gateway in the last week: completed, failed, how long.
-        # The latest outcome alone (capability_eligibility) is cleared whenever a listing is
-        # observed again, so a server that completed thirty calls could fall behind one whose
-        # unrelated trial ran most recently (real-task p04/a06, 11-17).
-        history = {}
-        history_of = getattr(self.store, 'execution_history', None)
-        if callable(history_of):
-            try:
-                with stage('execution_history'):
-                    history = history_of(now - EXECUTION_WINDOW) or {}
-            except Exception:
-                history = {}
+        # Calls that went through our gateway in the last week (completed, failed, how long, by how many callers),
+        # from process memory refreshed in the background. The latest outcome alone (capability_eligibility) is
+        # cleared whenever a listing is observed again, so a server that completed thirty calls could fall behind
+        # one whose unrelated trial ran most recently (real-task p04/a06, 11-17).
+        with stage('execution_history'):
+            history = EXECUTION_HISTORY.read(self.store)
         ranked_at = time.perf_counter()
         choices = []
         report_resources = {}

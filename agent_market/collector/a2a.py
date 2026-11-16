@@ -351,7 +351,7 @@ def is_payment_error(text: str | None) -> bool:
 # under B ("paid call not tested") and it is no pearl candidate. Judged by content: a reply that gives a result and adds
 # a paid upgrade keeps its place (KEEP). Hand-checked on production replies 11-17: 60 sampled of 156, see
 # reports/payment-storefront-a2a-2026-11-17.
-_SF_PAY = re.compile(r"\bx402\b|payment[- ]required|\bHTTP 402\b", re.I)
+_SF_PAY = re.compile(r"\bx402\b|payment[- ]required|\bHTTP 402\b|\"paid\"\s*:\s*true\b", re.I)
 _SF_SALE = re.compile(r"(?:\$\s?\d+(?:\.\d+)?|\b\d+(?:\.\d+)?\s?(?:USDC|USDT|USD1|USD)\b)|"
                       r"\bper[- ](?:call|request|query|answer|check|clip)\b|payment-required", re.I)
 _SF_KEEP = re.compile(r"\bfree (?:preview|previews|reply|answer|result|results)\b|\bfree to read\b|"

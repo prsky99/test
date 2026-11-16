@@ -254,7 +254,7 @@ class Service:
                 raise
         return binding
 
-    def finish(self, run_id, attempt, outcome, output_bytes=0, outcome_code=None):
+    def finish(self, run_id, attempt, outcome, output_bytes=0, outcome_code=None, answer=None):
         self.require_ready()
         if (not re.fullmatch(r'ea_[a-f0-9]{32}', attempt or '')
                 or outcome not in ('succeeded', 'failed', 'outcome_unknown')
@@ -281,7 +281,8 @@ class Service:
                 row = {**row, 'state': outcome, 'finished': now, 'error_code': code}
                 fresh = True
         if fresh:
-            self.count_outcome(row)   # outside the transaction; the first finish only, never a retried acknowledgement
+            # outside the transaction; the first finish only, never a retried acknowledgement
+            self.count_outcome(row, answer)
         # Worker-owned public endpoints can bypass ManagedGateway entirely.
         # Retry this local projection after a lost completion acknowledgement;
         # never repeat provider IO or refresh the original completion time.
@@ -289,7 +290,7 @@ class Service:
         return {'ok': True}
 
     @staticmethod
-    def count_outcome(row):
+    def count_outcome(row, answer=None):
         """Recommendation order reads recent task outcomes (concierge.task_outcomes); a run the Worker finished
         counts once, at its first finish, like a call through ManagedGateway. A provider that asks for its own key
         counts as needs_key. An unknown outcome (the Worker's time limit passed) counts as timeout (PM 11-16 04:3x: for
@@ -299,6 +300,17 @@ class Service:
         state, code = row.get('state'), row.get('error_code')
         outcome = ('succeeded' if state == 'succeeded' else 'needs_key' if code == 'PROVIDER_AUTH_REQUIRED'
                    else 'failed' if state == 'failed' else 'timeout' if state == 'outcome_unknown' else None)
+        # The run itself succeeded (the caller gets the answer as it came), but an answer that is only payment terms,
+        # an error or nothing found did not do the task: count it as the Origin gateway does from the answer
+        # (task_outcomes.classify, 11-17 real task p04: AION's paid-terms reply counted as a success at the edge).
+        # Only an MCP result (content) or an A2A message (parts) is read; x402 terms and A2A task objects keep the state.
+        if (outcome == 'succeeded' and isinstance(answer, dict)
+                and (isinstance(answer.get('content'), list) or isinstance(answer.get('parts'), list))):
+            from ..concierge.task_outcomes import classify
+            try:
+                outcome = classify(answer)
+            except Exception:
+                outcome = 'succeeded'
         if outcome is not None:
             count(row.get('resource_id'), outcome, tool=row.get('tool') if isinstance(row.get('tool'), str) else None)
 

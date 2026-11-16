@@ -92,7 +92,7 @@ def store_result(service, run_id, attempt, wire, wire_hash):
     if not found or found[0]['attempt'] != attempt or found[0]['state'] not in ('dispatch_reserved', 'succeeded'):
         raise EdgeError('ATTEMPT_CHANGED', 409)
     write_once(service, run_id, RESULT, {'attempt': attempt, 'wire': wire, 'wire_hash': wire_hash})
-    service.finish(run_id, attempt, 'succeeded', len(wire.encode()))
+    service.finish(run_id, attempt, 'succeeded', len(wire.encode()), answer=output)
     return {'ok': True, 'run_id': run_id, 'wire_hash': wire_hash}
 
 

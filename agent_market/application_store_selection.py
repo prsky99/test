@@ -106,20 +106,26 @@ class PostgresSelectionMixin:
                 fts.execute('RELEASE ac_selection_projection')
 
     def execution_history(self, since):
-        """Gateway runs per listing since a time: {resource_id: (succeeded, failed or unknown, mean ms)}.
+        """Gateway runs per listing since a time: {resource_id: (succeeded, failed or unknown, mean ms, callers)}.
 
-        edge_gateway_runs keeps seven days (prune_runs), so the read is bounded by the table itself.
+        One caller (principal) adds at most 10 runs of each kind to a listing, so our own
+        measurements (real-task, user_slo: 710 of the 726 runs kept on 11-17) cannot pile up a lead by volume;
+        callers counts the distinct principals with a succeeded run. edge_gateway_runs keeps seven days
+        (prune_runs), so the read is bounded by the table itself. Read in the background, never per request.
         """
         if type(since) not in (int, float) or not math.isfinite(since) or not -1e12 <= since <= 1e12:
             _error(self, 'invalid_parameters')
         with self.tx(readonly=True):
-            rows = self._execute('''SELECT resource_id,
-                count(*) FILTER (WHERE state='succeeded') AS ok,
-                count(*) FILTER (WHERE state IN ('failed','outcome_unknown')) AS bad,
-                avg((finished-created)*1000) FILTER (WHERE state='succeeded' AND finished IS NOT NULL) AS ms
-                FROM edge_gateway_runs WHERE created>=%s GROUP BY resource_id''',
+            rows = self._execute('''SELECT resource_id, sum(least(ok, 10)) AS ok, sum(least(bad, 10)) AS bad,
+                count(*) FILTER (WHERE ok > 0) AS callers, sum(ms) / NULLIF(sum(ok), 0) AS ms
+                FROM (SELECT resource_id, principal,
+                        count(*) FILTER (WHERE state='succeeded') AS ok,
+                        count(*) FILTER (WHERE state IN ('failed','outcome_unknown')) AS bad,
+                        sum((finished-created)*1000) FILTER (WHERE state='succeeded' AND finished IS NOT NULL) AS ms
+                      FROM edge_gateway_runs WHERE created>=%s GROUP BY resource_id, principal) per_caller
+                GROUP BY resource_id''',
                 (float(since),), max_rows=50000, max_bytes=8 * 1024 * 1024).fetchall()
-        return {int(row['resource_id']): (int(row['ok']), int(row['bad']), row['ms']) for row in rows}
+        return {int(row['resource_id']): (int(row['ok']), int(row['bad']), row['ms'], int(row['callers'])) for row in rows}
 
     def selection_candidates_for(self, ids, kind, cutoff):
         """Fresh evidence for a bounded hybrid shortlist, with no FTS5 projection."""

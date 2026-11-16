@@ -82,6 +82,12 @@ def classify(output):
         return 'failed'
     if NEEDS_KEY.search(text[:600]) or PAYWALL.search(text[:1000]):
         return 'needs_key'
+    # Only payment terms, judged by the same rule as the A2A trial (collector.a2a.payment_storefront, 11-17): AION's
+    # read_web_page answered {"paid": true, "price": "$0.002", "endpoint": ...} for real task p04 and counted as a
+    # success, which kept it first. A reply that gives a result and adds a paid upgrade keeps counting as a success.
+    from ..collector.a2a import payment_storefront
+    if payment_storefront(text):
+        return 'needs_key'
     try:
         value = json.loads(text.strip().split('\n')[0])
     except ValueError:
