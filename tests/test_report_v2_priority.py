@@ -122,6 +122,10 @@ def test_usable_pearls_leave_out_prohibited_members(monkeypatch):
     assert out['final_prohibited']['a.v1']['usable_first']['final_pearl_by_itself'] is True
     assert out['final_prohibited']['b.v1']['usable_first']['final_pearl_by_itself'] is False
     assert out['roles_with_a_usable_final_pearl'] == 2
+    ranked['d.v1'] = {'provisional_pearl': 6, 'members': [m(6, 1)]}
+    ranked['e.v1'] = {'provisional_pearl': 7, 'members': [m(7, 1)]}
+    out = V.usable_pearls(versions, ranked, terms={6: 'prohibits', 7: 'silent'})
+    assert out['provisional_prohibited'] == [{'resource_id': 6, 'role': 'd.v1'}] and out['provisional_usable'] == 1
 
 
 def test_provisional_members_follow_the_floor():

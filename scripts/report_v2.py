@@ -1047,6 +1047,7 @@ def usable_pearls(versions, ranked, terms=None, now=None):
     verified_items = [(v['resource_id'], v['role']) for v in versions if v['quality']['score'] >= PASS_MARK
                       and success_days(v['resource_id'], v['role'], v['tool'], now) >= CONFIRM_DAYS]
     finals = {role: r['final_pearl'] for role, r in ranked.items() if r.get('final_pearl')}
+    provisionals = {role: r['provisional_pearl'] for role, r in ranked.items() if r.get('provisional_pearl')}
     replaced = {}
     for role, rid in finals.items():
         if not banned(rid):
@@ -1066,7 +1067,10 @@ def usable_pearls(versions, ranked, terms=None, now=None):
             'verified_usable': sum(1 for rid, _ in verified_items if not banned(rid)),
             'final_prohibited': replaced,
             'final_usable': len(usable_roles),
-            'roles_with_a_usable_final_pearl': len(covered)}
+            'roles_with_a_usable_final_pearl': len(covered),
+            # PM 11-16 18:2x: a provisional pearl whose terms prohibit it is no pearl a necklace could use either
+            'provisional_prohibited': [{'resource_id': rid, 'role': role} for role, rid in provisionals.items() if banned(rid)],
+            'provisional_usable': sum(1 for rid in provisionals.values() if not banned(rid))}
 
 
 DEFINITIONS = ROOT / 'agent_market/necklaces/definitions'
