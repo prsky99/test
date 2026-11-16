@@ -299,6 +299,11 @@ def refresh(store, stop=None, pause_ratio=PAUSE_RATIO):
             raise
         if snapshot is not None:
             _snapshots[id(store)] = snapshot
+            try:                         # PM 11-16 20:2x: the new snapshot is long lived; no collection while serving
+                from .. import gc_tuning
+                gc_tuning.settle('report_snapshot', collect=False)
+            except Exception:
+                log.warning('GC settle after the report snapshot failed', exc_info=False)
             _states[id(store)] = 'ready'
             log.info('Report snapshot: %d listings in %.1f s', len(snapshot.entries), time.monotonic() - started)
         elif id(store) not in _snapshots and not (stop is not None and stop.is_set()):
@@ -314,6 +319,10 @@ def state(store):
 STANDBY_CHECK_SECONDS = 30
 
 
+def _due(snapshot, interval):
+    return snapshot is None or time.time() - snapshot.built_at >= interval
+
+
 def keep_fresh(store, stop, interval=REFRESH_SECONDS, serving=None):
     """Build once at start, then refresh only while SERVING() says this process takes traffic.
 
@@ -322,8 +331,9 @@ def keep_fresh(store, stop, interval=REFRESH_SECONDS, serving=None):
     activated still builds at start, and one activated later refreshes within half a minute."""
     first = True
     while not stop.is_set():
-        snapshot = _snapshots.get(id(store))
-        due = snapshot is None or time.time() - snapshot.built_at >= interval
+        # No local reference to the current snapshot (PM 11-16 20:4x): refresh() freezes the new one, and an old
+        # one still referenced here would stay in memory until the next loop.
+        due = _due(_snapshots.get(id(store)), interval)
         if first or due and _serving(serving):
             # The start build always finishes (a slot about to be activated needs it); a refresh
             # stops when a deploy makes this slot standby, so the old and the new slot do not both

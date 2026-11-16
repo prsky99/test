@@ -192,6 +192,11 @@ def create_service_app(config, role, *, store=None, control=None, release='test'
                         from .concierge.report_snapshot import keep_fresh
                         threading.Thread(target=keep_fresh, args=(front.store, stop), name='report-snapshot', daemon=True,
                                          kwargs={'serving': lambda: serving_slot(role, release)}).start()
+                if warm and role == 'frontend':
+                    # PM 11-16 20:2x: the warmed objects live as long as the process; later collections skip them
+                    from . import gc_tuning
+                    gc_tuning.configure()
+                    await run_in_threadpool(gc_tuning.settle, 'startup')
                 app.state.ready = True
                 try:
                     yield
