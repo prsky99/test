@@ -72,6 +72,10 @@
   - 호출자 = 방문자 토큰 또는 IP 해시. 원문은 남기지 않는다.
 - 뺄 것: 우리 시험, 관문 회차, 자동 반복, QA 헤더, Early-Data 요청
 - 같은 기준을 운영·SRE 지표판에도 쓴다. AI AD Coin은 이 수를 읽기만 하고 문턱 판단만 한다.
+- 도구: `scripts/necklace_meter.py`(워크플로우, 5bcab9de). `.venv/bin/python -m scripts.necklace_meter [--end YYYYMMDD] [--days 30]`
+  - 목걸이별로 `external_runs`, `succeeded`, `days_with_success`, `success_bar_met`을 낸다. north_star.count와 같은 기준이다(run_id 중복 제거, 우리 시험·감시 0, 캐시 답은 실행이 아님).
+  - `callers`는 r12까지 null이다. 호출자는 PM 규칙(a715268b)대로 센다: 30일 동안 서로 다른 방문자 토큰, 토큰 없는 호출은 하루 소금 지문의 합계.
+  - 유료 전환 판단은 `success_bar_met`과 `callers >= 20`을 함께 본다. `callers`가 null이면 조건 미충족으로 본다.
 
 ### 결제 경로 (건별, 선충전 없음)
 1. 하루 무료 몫(호출자당)을 넘은 실행 요청에는 `402`와 견적을 돌려준다.
