@@ -423,3 +423,26 @@ def test_one_role_test_fits_on_declared_100_a_day_domains():
     assert pb.share_limit('role_tests', 'example.org') == 5                 # ordinary domains keep 5
     assert pb.share_limit('role_tests', 'faceabot.com') == 0 or pb.domain_total('faceabot.com') == 0   # closed stays closed
     assert pb.domain_total('faceabot.com') == 0
+
+
+def test_a_gdelt_429_pauses_until_the_next_full_hour_only(tmp_path):
+    """PM 11-16 21:3x: GDELT 429s even at two calls a day; its pause ends at the next full hour, other domains keep
+    the day-long pause, and the live bundle stays at or under 24 calls a day."""
+    url = 'https://api.gdeltproject.org/api/v2/doc/doc'
+    now = at(16, 9) + 600                                    # 09:10
+    assert pb.live_reserve(url, now=now, directory=tmp_path) == (True, 'ok')
+    assert pb.note(url, 'necklace_live', 429, now=now, directory=tmp_path, evidence=pb.PROVIDER_HTTP)
+    assert pb.live_reserve(url, now=at(16, 9) + 3000, directory=tmp_path) == (False, 'paused_429')   # 09:50
+    assert pb.reserve(url, 'substitute_tests', now=at(16, 9) + 3000, directory=tmp_path) == (False, 'paused_429')
+    assert pb.live_reserve(url, now=at(16, 10), directory=tmp_path) == (True, 'ok')                    # 10:00
+    assert pb.reserve(url, 'substitute_tests', now=at(16, 10), directory=tmp_path)[0]
+    other = 'https://a.example.com/'
+    assert pb.note(other, 'role_tests', 429, now=now, directory=tmp_path, evidence=pb.PROVIDER_HTTP)
+    assert pb.reserve(other, 'role_tests', now=at(16, 23), directory=tmp_path) == (False, 'paused_429')
+
+
+def test_the_gdelt_live_bundle_is_capped_at_24_a_day(tmp_path):
+    url = 'https://api.gdeltproject.org/api/v2/doc/doc'
+    granted = [pb.live_reserve(url, now=at(17, 1) + i, directory=tmp_path)[0] for i in range(30)]
+    assert granted.count(True) == pb.LIVE_DAY_CAP['gdeltproject.org'] == 24
+    assert pb.live_reserve(url, now=at(17, 2), directory=tmp_path) == (False, 'quota_exhausted')

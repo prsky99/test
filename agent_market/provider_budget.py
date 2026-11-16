@@ -11,7 +11,8 @@ their own calls, so nobody knew how often one provider was called in a day. They
 Rules (deploy/PROVIDER_BUDGET.md)
 - DAILY_TOTAL calls a registrable domain a day (KST), all systems together.
 - Each system also has its own SHARE; the gate takes what is left of the total.
-- A 429 from a domain stops every system calling it for the rest of the day.
+- A 429 from a domain stops every system calling it for the rest of the day (until the next full hour on
+  HOURLY_PAUSE_DOMAINS, GDELT).
 - The ledger is one JSON file a day under gateway-data/provider-budget/, changed under an exclusive file lock, so the
   scripts and services that share this Mac see the same counts. Nothing here calls a provider or the database.
 """
@@ -199,6 +200,28 @@ def domain_total(name, path=None, day=None, directory=None):
 LIVE_SHARE = 0.8   # PM 17:24: live necklace calls may use a declared provider up to 80% of its day limit
 
 
+# PM 11-16 21:3x: GDELT answers 429 even to two hand calls a day, and a day-long pause would close Technology News
+# (133018's GDELT version) and every necklace news slot until midnight. On these domains a 429 pauses until the next
+# full hour instead; the hourly technology-news bundle (one call an hour) keeps the necklace_live count at or under
+# LIVE_DAY_CAP. Every other domain keeps the day-long pause.
+HOURLY_PAUSE_DOMAINS = {'gdeltproject.org'}
+LIVE_DAY_CAP = {'gdeltproject.org': 24}
+
+
+def _next_hour(now=None):
+    now = time.time() if now is None else now
+    return (int(now) // 3600 + 1) * 3600
+
+
+def is_paused(entry, now=None):
+    """True while ENTRY's 429 pause holds: all day, or until its 'until' (epoch seconds) on an hourly-pause domain."""
+    paused = entry.get('paused')
+    if not paused:
+        return False
+    until = paused.get('until') if isinstance(paused, dict) else None
+    return until is None or (time.time() if now is None else now) < until
+
+
 def live_reserve(url, now=None, directory=None, path=None, default_per_day=None):
     """Count one live necklace call to URL's domain. Refused once our calls of the day (tests and live together) would
     pass 80% of the day limit: the provider's published limit, else DEFAULT_PER_DAY when given (PM 17:32: the public
@@ -211,9 +234,11 @@ def live_reserve(url, now=None, directory=None, path=None, default_per_day=None)
     per_day = published_per_day(name, path) or default_per_day
     with _ledger(today(now), directory) as data:
         entry = data['domains'].setdefault(name, {'total': 0, 'by': {}})
-        if entry.get('paused'):
+        if is_paused(entry, now):
             return False, 'paused_429'
         if per_day and entry['total'] + 1 > int(per_day * LIVE_SHARE):
+            return False, 'quota_exhausted'
+        if name in LIVE_DAY_CAP and entry['by'].get('necklace_live', 0) + 1 > LIVE_DAY_CAP[name]:
             return False, 'quota_exhausted'
         entry['total'] += 1
         entry['by']['necklace_live'] = entry['by'].get('necklace_live', 0) + 1
@@ -368,7 +393,7 @@ def reserve(url, system, n=1, now=None, directory=None):
         return False, 'no_domain'
     with _ledger(today(now), directory) as data:
         entry = data['domains'].setdefault(name, {'total': 0, 'by': {}})
-        if entry.get('paused'):
+        if is_paused(entry, now):
             return False, 'paused_429'
         used = entry['by'].get(system, 0)
         if entry['total'] + n > domain_total(name, day=today(now), directory=directory):
@@ -441,6 +466,8 @@ def note(url, system, status, now=None, directory=None, evidence=None):
             refused['last'] = {'at': stamp, 'by': system, 'why': why}
         else:
             entry['paused'] = {'at': stamp, 'by': system, 'evidence': kept}
+            if name in HOURLY_PAUSE_DOMAINS:
+                entry['paused']['until'] = _next_hour(now)
     if why:
         log.warning('provider_budget: pause of %s by %s refused (%s)', name, system, why)
         return False
@@ -549,7 +576,7 @@ def main(argv=None):
     data = status(args.day)
     rows = sorted(data['domains'].items(), key=lambda kv: -kv[1]['total'])[:args.top]
     print(json.dumps({'day': args.day or today(), 'limit': DAILY_TOTAL, 'domains': len(data['domains']),
-                      'paused': sorted(d for d, e in data['domains'].items() if e.get('paused')),
+                      'paused': sorted(d for d, e in data['domains'].items() if is_paused(e)),
                       'top': {d: e for d, e in rows}}, ensure_ascii=False, indent=1))
 
 
