@@ -559,8 +559,9 @@ _TAG = re.compile(r"<[^>]{0,200}>")
 
 
 def name_words(name: str) -> list[str]:
-    """The distinctive words of a company name: lower case, legal forms and words under three letters left out."""
-    words = re.sub(r"[^a-z0-9 ]", " ", str(name or "").lower().replace("&", " and ")).split()
+    """The distinctive words of a company name: lower case, legal forms and words under three letters left out. An
+    apostrophe joins its word (EDGAR "BJS RESTAURANTS INC" is the article "BJ's Restaurants", agent team 11-16)."""
+    words = re.sub(r"[^a-z0-9 ]", " ", re.sub(r"['\u2019]", "", str(name or "").lower()).replace("&", " and ")).split()
     return [w for w in words if len(w) > 2 and w not in LEGAL_FORMS]
 
 

@@ -152,3 +152,14 @@ def test_another_step_s_not_found_stays_a_failure():
     assert runner.no_article("encyclopedia.summary.v1", [a("budget_domain_daily_total"), a("not_found")])
     assert not runner.no_article("sec.filings.v1", [a("budget_domain_daily_total"), a("not_found")])
     assert runner.no_article("sec.filings.v1", [a(runner.IDENTITY_MISMATCH)])          # the rule before 11-16
+
+
+def test_an_upper_case_edgar_name_matches_its_article_title():
+    """Agent team 11-16: wikipedia-summary now gets EDGAR's upper-case names; the identity check ignores case and
+    reads an apostrophe as part of its word ("BJS" is "BJ's")."""
+    text = "{} is an American {} company."
+    for legal, title in (("BJS RESTAURANTS INC", "BJ's Restaurants"), ("DEXCOM INC", "Dexcom"),
+                         ("ENTRAVISION COMMUNICATIONS CORP", "Entravision Communications")):
+        assert runner.is_about(text.format(title, "public"), title, {"slot.registry.legal_name": legal}), legal
+    assert not runner.is_about(text.format("Restaurants", "public"), "Restaurants",
+                               {"slot.registry.legal_name": "BJS RESTAURANTS INC"})
