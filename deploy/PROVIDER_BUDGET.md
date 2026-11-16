@@ -124,3 +124,13 @@ GitHub 무인증 REST 한도는 이 맥 IP 하나에 시간당 60번(core)이다
 - 600이면 목걸이 재시험 몫은 350, 대체 에이전트 시험 몫은 50(sec.gov는 기존 30의 10배인 300)이다.
 - NVD(nist.gov)와 GLEIF(gleif.org)는 공식 페이지에서 숫자 한도를 확인하지 못해 60을 유지한다. 한도 문서를 확인하면 같은 방식으로 추가한다.
 - 기관별 간격(초당 요청 수)은 `fallback_agents/limits.py`의 호스트 간격이 지킨다. 하루 합계를 늘려도 순간 속도는 바뀌지 않는다.
+
+## 자체 대체의 녹화·매시 점검 몫 (에이전트 팀, 11-16)
+
+- **녹화(`cassettes`)**: agents.py 분리 전후의 답이 같은지 보이려고 대체 에이전트의 관문 입력·계약 입력·역할 과제를 한 번씩 녹화하는 몫이다(`scripts/fallback_cassettes.py`, 사용법은 `deploy/FALLBACK_AGENTS.md` 7절).
+  - 기본 몫은 20(60 기준)이다. 합계가 60이 아닌 도메인은 같은 비율로 바뀐다.
+  - sec.gov와 wikipedia.org는 `CASSETTE_OVERRIDE`로 기본값을 4로 고정했다. 합계가 커서 비율대로면 너무 크기 때문이며, 하루 sec.gov 40, wikipedia.org 66이다.
+  - `CASSETTES_UNTIL`('20261124', 장부의 날짜 형식 YYYYMMDD) 뒤에는 0이 된다.
+- **매시 점검(`fallback_watch`)**: 필수 자리의 유일한 사용 가능 멤버인 대체를 매시 한 번 불러 본다(`fallback_agents/watch.py`). 도메인당 하루 24회이고 몫은 30이다.
+- **몫 조회의 함정**: `share_limit(system, name)`을 날짜 없이 부르면 `ONE_DAY`를 읽지 못하고 기본 몫을 돌려준다(코드는 `ONE_DAY.get(day or '')`). `reserve()`는 날짜를 넘기므로 실제 예약에는 하루 예외가 적용된다. 확인할 때는 `share_limit(system, name, day=today())`로 부른다(11-16, 하루 예외 10이 2로 보였던 일).
+- **대체 에이전트의 되돌리기**: `fallback_agents/net.get`은 `reserve()`를 먼저 하고 host 간격을 나중에 본다. 지금 코드에서는 간격 거절로 나가지 않은 호출도 몫을 쓴다(11-16 녹화 몫이 iana.org·github.com에서 거의 아무것도 보내지 않고 바닥난 원인). 보내기 전 거절을 `release()`로 돌려주는 수정은 c98dc871이며, 11-17 topic 판정 뒤 반영 예정이다. 시간당 GitHub 몫을 돌려주는 `github_release`는 운영·SRE가 r11 뒤에 만든다.

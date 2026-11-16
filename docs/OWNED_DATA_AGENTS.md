@@ -1,11 +1,15 @@
 # Owned data agents — public activation prepared
 
-2026-10-20 KST. The initial development-only package is now explicitly enabled
-by the operating frontend composition following user authorization. A user-run
-server restart loads the routes and performs the idempotent catalog/template
-installation. No project server was restarted by the coding agent.
+2026-10-20 KST, updated 2026-11-16 from the source. The package is enabled by the
+operating frontend composition following user authorization. A deployed frontend
+release loads the routes and performs the idempotent catalog/template installation;
+services run under launchd and are deployed and restarted with `./agentcon`
+(`deploy/DEPLOY.md`), never by hand.
 
-The four Testbench examples and three connected templates use all six tools.
+Current source (2026-11-16): seven agents (`SPECS` in
+`agent_market/owned_data_agents/catalog.py`), five Testbench examples (`TEST_IDS` in
+`staging.py`) and three connected templates. The templates use six of the seven
+tools; GitHub Issues is a Testbench example and a standalone agent only.
 Existing builtin workflows are retired in place, with full definitions and run
 history retained; custom workflows and templates are preserved. Imported package
 factories remain disabled by default. The managed execution gateway uses exact
@@ -51,12 +55,13 @@ contention is counted and logged, and the write may be skipped. This never
 fabricates fresh verification evidence. Dispatch authorization, checkpoints,
 run completion and result delivery retain their mandatory durable transactions.
 
-Live-source acceptance forbids proxy HTTP self-calls while executing all six
-agents, four Testbench examples and three connected workflows. Separate worker,
+Live-source acceptance (2026-10-20, when there were six agents and four Testbench
+examples) forbids proxy HTTP self-calls while executing all six agents, four
+Testbench examples and three connected workflows. Separate worker,
 duplicate binding, cancellation, schema, checkpoint and actual nine-second
 SQLite writer-lock regressions cover the local execution boundary.
 
-## Six independently registered capabilities
+## Seven independently registered capabilities
 
 The implementation lives in `agent_market/owned_data_agents/`. Each agent has
 one stateless MCP endpoint and one read-only tool with bounded input/output
@@ -77,6 +82,9 @@ neither fetches data nor creates routes or catalog entries.
   selects population. Latest available does not mean current-year measurement.
 - Package Security Advisories — OSV lookup for the exact npm package/version.
   A response with no matches is not a claim that the package is secure.
+- GitHub Issues and Pull Requests — GitHub Search API: public issues and pull
+  requests by keywords, with an optional repository, type and state (1 to 5
+  items). Selected for Testbench; not part of a template.
 
 The agents implement data retrieval; they do not require model inference,
 subscription login, a third-party agent service, a wallet or credentials.
@@ -84,7 +92,7 @@ They still depend on public data source availability and usage policies.
 
 ## Three prepared workflows
 
-1. Technology News & Research Brief: news query → the recorded upstream query
+1. Daily Tech News & AI Research Digest: news query → the recorded upstream query
    becomes the research agent input. Both stages return source-backed results.
 2. Country & Economic Indicator Brief: country profile → its resolved country
    code becomes the population indicator input.
@@ -92,14 +100,14 @@ They still depend on public data source availability and usage policies.
    returned package name/version becomes the OSV query. A moving `latest` alias
    is never sent in place of that resolved version.
 
-Each graph contains a manual trigger and two agent nodes. All six agents are
-used across the three graphs. The existing workflow runtime retains structured
+Each graph contains a manual trigger and two agent nodes. Six of the seven agents
+are used across the three graphs (GitHub Issues is not). The existing workflow runtime retains structured
 outputs for data transfer and uses bounded readable text for display. No workflow
 graph semantics and frontend export SDK remain unchanged. The timeout corrections
 above also apply to runtime ownership and local gateway dispatch.
 
-`staging.bundle()` returns six endpoint/tool definitions, four Testbench recipes
-and three graphs. It is declarative only and always reports `applied: false`.
+`staging.bundle()` returns seven endpoint/tool definitions, five Testbench recipes
+and three graphs (checked 2026-11-16). It is declarative only and always reports `applied: false`.
 The operating frontend composition uses its explicit, idempotent activation
 profile; the staging bundle itself performs no installation.
 
@@ -149,9 +157,13 @@ source remains a failed verification; no mock results replace it.
 The automated fixtures deliberately use controlled source JSON only in tests:
 
 ```sh
-.venv/bin/python -m pytest -q tests/test_owned_data_agents.py \
+.venv/bin/python -m scripts.pytest_slot tests/test_owned_data_agents.py \
   tests/test_owned_data_agents_browser.py
 ```
+
+Tests run only through `scripts.pytest_slot` (project rule since 2026-11-12). The
+browser test drives playwright, so run it alone through `scripts.heavy_slot`
+(`CLAUDE.md`, broad tests).
 
 The browser test substitutes future recipes/definitions only inside its own
 process and database, then executes four Testbench examples, three workflows
@@ -169,22 +181,23 @@ transport was isolated ASGI, not a public deployment acceptance test.
 ## Operating rollout
 
 The gateway server composes the frontend with `owned_data_agents_enabled=True`.
-Its activation installer registers six finite source-backed capabilities, records
+Its activation installer registers the finite source-backed capabilities in `SPECS`
+(seven on 2026-11-16), records
 the locally declared schemas, creates three new versioned builtin templates and
 retires only the old builtin templates in place. Startup executes actual source
 lookups to establish readiness; it does not invent remote HTTP status, quality
 grades or contract evidence. Subsequent normal collector observations remain
 in force. Fresh data is served through the existing managed execution gateway.
 
-The user's existing server must be restarted from their terminal to load the
-new modules, route allowlist and installer. The coding task does not start or
-restart the project server. A deployed-origin smoke check after restart remains
+New modules, the route allowlist and the installer are loaded by deploying a
+frontend release (`deploy/DEPLOY.md`: release gate, `./agentcon` deploy under
+launchd). Nobody starts the project server by hand. A deployed-origin smoke check after restart remains
 separate from isolated ASGI and live public-source acceptance. Search Console
 indexing and real crawler/CDN acceptance are external outcomes, not test passes.
 
 Current verification includes `scripts/verify_owned_agent_publication.py`: it
 creates a new isolated DB and uses the actual activated frontend composition,
-Testbench HTTP APIs, all six handlers and three connected workflows with real
+Testbench HTTP APIs, the agent handlers (six when written on 2026-10-20) and three connected workflows with real
 public source HTTPS. It accepts no existing operating DB path. The older
 `verify_owned_data_agents` script continues to verify the standalone MCP transport.
 
