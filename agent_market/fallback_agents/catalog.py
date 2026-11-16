@@ -133,12 +133,12 @@ SITE_TLS = {"name": "The website's own TLS certificate (read in the TLS handshak
             "license": "Public facts a server presents to every visitor; nothing is downloaded beyond the handshake",
             "notice": "Port 443 only, to a public address checked before connecting; the certificate the site serves now."}
 
-SUN_CALC = {"name": "NOAA solar position equations (computed on our server)", "url": "https://gml.noaa.gov/grad/solcalc/calcdetails.html",
+SUN_CALC = {"name": "Computed (no outside data): NOAA solar position equations", "url": "https://gml.noaa.gov/grad/solcalc/calcdetails.html",
             "license": "U.S. Government work, public domain in the United States",
             "notice": "Computed for a sea-level horizon with standard refraction; about a minute of accuracy between the "
                       "polar circles; terrain and elevation are not modelled. Times in UTC."}
 
-SITE_GET = {"name": "The website's own home page (one HTTPS GET from our server)", "url": "https://www.rfc-editor.org/rfc/rfc9110",
+SITE_GET = {"name": "The requested site's public home page, one GET (HTTPS, from our server)", "url": "https://www.rfc-editor.org/rfc/rfc9110",
             "license": "Public facts a server presents to every visitor; the page body is not kept",
             "notice": "One check now from one vantage point, not monitoring; every redirect hop is checked as a public "
                       "HTTPS address before it is followed."}
