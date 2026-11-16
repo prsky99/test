@@ -362,3 +362,12 @@ def test_holdout_r5_wiki_reads_fit_on_11_16_only():
     """PM 11-16: +40 Wikipedia reference reads for the mixed wikipedia-summary re-gate set, that day only."""
     assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261116') == 216
     assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261117') == 166
+
+
+def test_the_cassette_share_is_small_on_commercial_domains_pinned_on_declared_ones_and_ends_after_1124():
+    """agent team 11-16: one recording of the approved substitutes for the agents.py split (PM target 11-24)."""
+    from agent_market import provider_budget as pb
+    assert pb.share_limit('cassettes', 'deps.dev', day='2026-11-16') == 20
+    assert pb.share_limit('cassettes', 'sec.gov', day='2026-11-16') == 40
+    assert pb.share_limit('cassettes', 'wikipedia.org', day='2026-11-16') == 66
+    assert pb.share_limit('cassettes', 'deps.dev', day='2026-11-25') == 0

@@ -46,6 +46,11 @@ SHARE = {
                              # the 30-day recheck (docs/PROVIDER_SELF_CLAIM.md, agent team 11-15)
     'fallback_watch': 30,    # hourly probe of each substitute that is a required slot's only usable member (24 a day per
                              # domain; agent team 02900b54, PM 11-16 06:4x). sec.gov's two (48) fit its declared total: 300.
+    'cassettes': 20,         # agent team 11-16 (PM: agents.py split by 11-24): one recording of each approved
+                             # substitute's gate inputs, contract inputs and role tasks. Asked for 80 a domain; a share
+                             # above DAILY_TOTAL (60) would leave nothing for the necklace retest and the fallback watch on
+                             # the commercial domains, so 20 (recording takes 2-4 days, well before 11-24). Ends by
+                             # itself after CASSETTES_UNTIL (share_limit).
     'fingerprints': 6,       # pearl/necklace-member tools/list every 6 hours (4 a day + 2 for a manual refresh)
     'ad_blocklists': 4,      # AI AD Coin campaign review: URLhaus host list and OpenPhish feed, once a day each
                              # (+2 for a failed day); domain age reads use 'ad_review_rdap' by RDAP server
@@ -57,6 +62,10 @@ SHARE = {
 }
 # PM 11-14 06:4x (decision 3): public-data institutions with stated rate limits that the agents' own per-host pacing
 # keeps (agent_market/fallback_agents/limits.py) take more substitute tests a day; the domain total stays DAILY_TOTAL.
+CASSETTES_UNTIL = '2026-11-24'
+# The share grows with a declared domain's total (x10 on sec.gov, x16 on wikipedia.org); the recording needs about 80
+# there, so its base is pinned to give 40 a day on sec.gov (two days, around the gates) and 66 on wikipedia.org.
+CASSETTE_OVERRIDE = {('cassettes', 'sec.gov'): 4, ('cassettes', 'wikipedia.org'): 4}
 SHARE_OVERRIDE = {('substitute_tests', d): 30 for d in ('gleif.org', 'sec.gov', 'nist.gov', 'cisa.gov', 'wikipedia.org',
                                                          'wikidata.org', 'wiktionary.org', 'gdeltproject.org',
                                                          'census.gov', 'npmjs.org')}
@@ -206,7 +215,10 @@ ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'referenc
 
 
 def share_limit(system, name, day=None, directory=None):
-    base = ONE_DAY.get(day or '', {}).get((system, name)) or SHARE_OVERRIDE.get((system, name), SHARE[system])
+    if system == 'cassettes' and (day or time.strftime('%Y-%m-%d')) > CASSETTES_UNTIL:
+        return 0
+    base = (ONE_DAY.get(day or '', {}).get((system, name)) or CASSETTE_OVERRIDE.get((system, name))
+            or SHARE_OVERRIDE.get((system, name), SHARE[system]))
     total = domain_total(name, day=day, directory=directory)
     if system == 'gate':
         return total
