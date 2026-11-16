@@ -534,6 +534,24 @@ def norm_filings(raw, values):
 # When no member has an article about the company the step answers "No encyclopedia article found" (not_found).
 IDENTITY_MISMATCH = "identity_mismatch"
 NOT_FOUND_NOTE = "No encyclopedia article found for this company."
+# PM 11-16 (company round 1, before the 11-17 06:00 topic gate): a member that says it has no article ("not_found",
+# e.g. our wikipedia-summary) is evidence too, and an attempt our side refused (our ledger budget or quota, our
+# capacity, our relay pace, a provider asking for a pause) says nothing about the article, so it does not break the
+# verdict. 241601 refused by the day budget, then wikipedia-summary "not_found": the step answers "not found", not a
+# failure. Only encyclopedia steps read this; another step's "not_found" stays a failure.
+NO_ARTICLE = (IDENTITY_MISMATCH, "not_found")
+NOT_ABOUT_ARTICLE = ("contract_invalid", "connection_empty", "capacity", "our_capacity", "relay_throttled",
+                     "PROVIDER_429", "quota_exhausted")
+
+
+def no_article(contract: str, attempts) -> bool:
+    """True when an encyclopedia step's members said no article about the subject and nothing else failed."""
+    if NORMALIZERS.get(contract) is not norm_encyclopedia:
+        return any(a.error_class == IDENTITY_MISMATCH for a in attempts) and all(
+            a.error_class in (IDENTITY_MISMATCH, "contract_invalid", "connection_empty") for a in attempts)
+    return any(a.error_class in NO_ARTICLE for a in attempts) and all(
+        a.error_class in NO_ARTICLE or a.error_class in NOT_ABOUT_ARTICLE or (a.error_class or "").startswith("budget_")
+        for a in attempts)
 LEGAL_FORMS = {"inc", "corp", "co", "ltd", "plc", "ag", "se", "sa", "nv", "spa", "asa", "ab", "oyj", "group",
                "holdings", "holding", "company", "corporation", "limited", "incorporated", "the", "and", "of", "llc",
                "lp", "trust", "bancorp", "de", "new"}
@@ -950,8 +968,7 @@ class Runner:
             pool.shutdown(wait=False, cancel_futures=True)
         results = {name: st["result"] for name, st in states.items()}
         for r in results.values():     # PM 11-16: no member had an article about the company -> "not found"
-            if not r.answers and not r.skipped and any(a.error_class == IDENTITY_MISMATCH for a in r.attempts) \
-                    and all(a.error_class in (IDENTITY_MISMATCH, "contract_invalid", CONNECTION_EMPTY) for a in r.attempts):
+            if not r.answers and not r.skipped and no_article(states[r.slot]["slot"]["contract"], r.attempts):
                 r.not_found = True
         failed = [s.slot for s in results.values() if s.required and not s.answers and not s.not_found]
         # PM 11-15, changed 16:03 (user instruction d4670360): a run counts only when enough steps were answered by

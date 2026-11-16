@@ -68,6 +68,8 @@ def run(background):
             return {"answer": "Matched SEC filer: Kodiak Sciences Inc. (SEC CIK 1468748). 2026-11-06 10-Q "
                               "(accession 0001468748-26-000050)"}
         if key in background:
+            if isinstance(background[key], Exception):
+                raise background[key]
             return background[key]
         raise RuntimeError("not this member")
     return runner.Runner(caller, watch_state=STATE).run(defn, {"name": "Kodiak Sciences Inc", "country": "US"}), seen
@@ -122,3 +124,31 @@ def test_a_member_contract_the_slot_does_not_accept_is_refused():
     bg = next(s for s in defn["slots"] if s["slot"] == "background")
     bg["also_contracts"] = []
     assert any("does not accept" in e for e in model.validate(defn))
+
+
+def test_a_budget_refusal_then_the_next_member_s_not_found_is_not_found():
+    """PM 11-16 (company round 1): 241601 refused by our day budget, then wikipedia-summary said it has no article.
+    The step answers 'No encyclopedia article found', not a failed step (19 of the 30 round 1 cases)."""
+    class NoRecord(Exception):
+        code = "not_found"
+    out, _ = run({241601: runner.BudgetDenied("domain_daily_total"), "wikipedia-summary": NoRecord("no record")})
+    errors = [a["error_class"] for a in out["attempts"]["background"]]
+    assert errors[:2] == ["budget_domain_daily_total", "not_found"]
+    assert out["output"]["background"] == {"not_found": True, "note": runner.NOT_FOUND_NOTE}
+    assert out["slots"]["background"]["status"] == "not_found" and out["failed_slot"] != "background"
+
+
+def test_a_real_failure_next_to_not_found_still_fails_the_step():
+    class NoRecord(Exception):
+        code = "not_found"
+    out, _ = run({241601: RuntimeError("upstream broke"), "wikipedia-summary": NoRecord("no record")})
+    assert out["slots"]["background"]["status"] != "not_found" and out["output"]["background"] == {"missing": True}
+    out, _ = run({241601: runner.BudgetDenied("domain_daily_total")})     # nobody said there is no article
+    assert out["output"]["background"] == {"missing": True}
+
+
+def test_another_step_s_not_found_stays_a_failure():
+    a = lambda code: runner.Attempt(1, "t", "external", 1, False, 0, code)
+    assert runner.no_article("encyclopedia.summary.v1", [a("budget_domain_daily_total"), a("not_found")])
+    assert not runner.no_article("sec.filings.v1", [a("budget_domain_daily_total"), a("not_found")])
+    assert runner.no_article("sec.filings.v1", [a(runner.IDENTITY_MISMATCH)])          # the rule before 11-16
