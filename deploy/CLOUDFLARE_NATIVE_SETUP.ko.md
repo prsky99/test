@@ -1,6 +1,6 @@
 # Mac의 native agentcon과 Cloudflare HTTPS 규칙
 
-현재 서비스는 **MacBook 터미널에서 `agentcon`으로 실행하는 서버**다. 연결은 `방문자 → Cloudflare → Tunnel → Mac의 HTTP 서버(localhost:8400)`이며, 이 구성을 유지한다.
+현재 서비스는 **운영 맥에서 launchd로 도는 서비스**다(`./agentcon`과 배포 도구로 관리, `deploy/DEPLOY.md`). 연결은 `방문자 → Cloudflare → Tunnel(cloudflared) → Mac의 caddy 프록시(localhost:8400) → frontend 칸(8401/8402)`이며, 이 구성을 유지한다(11-16 갱신).
 
 2026-10-19 브라우저에서 Cloudflare 규칙을 배포하고 저장값을 다시 확인했다. **설정 배포·활성화 및 12:57 KST 공개 GET 검증을 완료**했다. 아래는 실제 설정과 추후 확인할 메뉴다. [검증 JSON](../reports/cloudflare-https-2026-10-19/verification.json)에 공개 응답을 기록했다.
 
@@ -78,7 +78,8 @@ HEAD 대신 GET을 사용하고 `-L`을 넣지 않아 첫 응답을 확인한다
     ```
   - Cache eligibility: **Eligible for cache**
   - Edge TTL, Browser TTL을 포함한 나머지 설정은 추가하지 않는다(기본값 = 원 서버 `Cache-Control`을 따름).
-- **넣지 않는 것:** `status.json`, `agent-entry.json`, `openapi.json`은 원 서버가 `no-store`를 보내므로 넣지 않는다. HTML 페이지와 `/api/` 아래도 넣지 않는다.
+- **넣지 않는 것(11-03 당시):** `status.json`, `agent-entry.json`, `openapi.json`은 원 서버가 `no-store`를 보내므로 넣지 않는다. HTML 페이지와 `/api/` 아래도 넣지 않는다.
+- **지금의 캐시 규칙(11-16 확인, 4개):** `Agent discovery documents`(이 절), 성장 페이지, 공개 HTML, `Public insights (11-13)`. 11-13 뒤로는 공개 읽기 일부(`/api/insights`, `/api/agents/{id}`, `/api/feed/verified.json`, `/status.json`, `/api/pearl/status`, `/.well-known/agent-entry.json` 등)와 `/customer/sign-in`(11-16)이 `Public insights (11-13)`에 들어가 위 "넣지 않는 것"은 더 이상 맞지 않는다. 쿠키·`Authorization`이 있는 요청은 제외된다. sitemap 조각(`/sitemaps/*.xml`)도 원 서버가 `/sitemap.xml`처럼 보관 헤더를 준다(`public_http_contract.sitemap_part`). 날짜별 변경 기록: `deploy/cloudflare-cache-rule-insights-20261113.md`, `deploy/cloudflare-cache-rule-public-reads-20261113.md`, `deploy/cloudflare-cache-rule-r78-20261115.md`, `deploy/ops/user-cloudflare-checklist-20261113.md`.
 - **확인:** 같은 주소를 두 번 요청해 두 번째 `cf-cache-status`가 `HIT`인지 본다.
   ```bash
   for i in 1 2; do curl -s -o /dev/null -D - https://agentconcierge.biz/llms.txt | grep -i cf-cache-status; done
@@ -89,6 +90,8 @@ HEAD 대신 GET을 사용하고 `-L`을 넣지 않아 첫 응답을 확인한다
   - `security.txt`는 처음에 `BYPASS`였다. 원 서버 미들웨어가 공개 문서 목록(`public_http_contract.PUBLIC_READS`) 밖의 응답을 모두 `no-store`로 덮기 때문이다. 목록에 `/.well-known/security.txt`, `/security.txt`를 넣어 `security-cache-frontend-20261103-r1`로 배포한 뒤 `HIT`를 확인했다.
   - 원 서버는 `max-age=30`을 보내지만 Cloudflare를 거친 응답은 `max-age=14400`이다. 영역(zone)의 Browser Cache TTL 기본값(4시간)이 더 짧은 원 서버 값을 덮는 것이다. 에이전트 쪽에서 최대 4시간 오래된 문서를 볼 수 있다. 문서가 자주 바뀌지 않아 그대로 두었다.
   - `/api/overview`는 규칙 밖이라 계속 `DYNAMIC`이다.
-- **edge 보관 시간 (11-04):** 원 서버가 이 문서들에 `s-maxage=600, stale-while-revalidate=3600`을 함께 보낸다(`public_http_contract.EDGE_DOCUMENTS`). 그 결과 edge는 10분 보관하고, 첫 요청 뒤 1~2분이 지나도 `HIT`다. 문서를 바꿔 배포한 뒤 바로 반영해야 하면 Cache → Configuration → Purge Cache → Custom Purge로 해당 주소를 지운다.
+- **edge 보관 시간 (11-04, 11-12 변경):** 11-04에는 원 서버가 이 문서들에 `s-maxage=600, stale-while-revalidate=3600`을 함께 보냈다. 11-12부터는 `s-maxage`를 보내지 않는다. Cloudflare가 `s-maxage`를 proxy-revalidate로 읽어 오래된 사본을 내주지 않았기 때문이다(swr이 동작하지 않음). 지금은 `max-age`가 edge 보관 시간을 정한다(`public_http_contract.py`).
+  - 발견 문서(`DISCOVERY_DOCUMENTS`: `/llms.txt`, `/llms-full.txt`, agent-card·mcp 문서, openapi 등): `public, max-age=3600, stale-while-revalidate=3600`(11-11 PM 결정, 배포 때 지우지 않으므로 반영까지 최대 1시간)
+  - `/robots.txt`, `/sitemap.xml`, `security.txt` 등(`EDGE_DOCUMENT_CACHE`): `public, max-age=600, stale-while-revalidate=3600` 문서를 바꿔 배포한 뒤 바로 반영해야 하면 Cache → Configuration → Purge Cache → Custom Purge로 해당 주소를 지운다.
 - **Browser Cache TTL (11-04 변경):** 영역 설정을 4시간에서 "Respect Existing Headers"로 바꿨다. 4시간이면 원 서버의 짧은 `max-age`(문서 30초, 정적 자산 300초)를 4시간으로 늘려 에이전트가 오래된 문서를 볼 수 있었다. 되돌리려면 같은 메뉴(Caching → Configuration)에서 고른다.
 - **목록에 문서를 더할 때:** Cloudflare 조건식, `PUBLIC_READS`, `EDGE_DOCUMENTS`를 함께 바꾼다. 원 서버가 `no-store`를 보내면 규칙이 있어도 캐시되지 않는다.

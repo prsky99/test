@@ -1,4 +1,8 @@
-# SQLite maintenance
+# DB 운영
+
+> 운영 DB는 PostgreSQL 18이다. 운영 절차는 아래 "운영 DB 구조 변경 (PostgreSQL, 2026-11-10)"부터다. 그 앞의 SQLite 절은 로컬·시험용 기록이다(11-16 표시).
+
+## SQLite (로컬·시험용)
 
 The gateway and public frontend share the configured `GATEWAY_DB`. Do not run
 another collector or gateway against an unintended database while investigating
@@ -89,18 +93,19 @@ Use the explicit workflow maintenance CLI in [operations hardening](../docs/WORK
      - `copy_unusable_before_change`: 사본이나 도구 문제
      - `restore_failed`
    - 통과하면 변경의 지문(SQL 파일 내용, 또는 명령 문자열의 sha256)이 `logs/ops/db-rehearsal/passed.json`에 기록된다.
-3. **승인을 받는다.** 리허설 보고서, 복구 SQL, 예상 영향(잠금 시간, 재시작 여부)을 붙여 사용자 승인을 받는다(총괄 PM 경유).
+3. **PM이 확인한다(11-15 사용자 결정 "모두 맡김").** PM이 리허설 보고서, 복구 SQL, 예상 영향(잠금 시간, 재시작 여부)을 확인하고 실행을 정한다. 되돌릴 수 없는 데이터 삭제가 들어가면 사용자 승인을 받는다. 팀 세션은 운영 DB에 쓰지 않는다.
 4. **운영 실행 직전에 확인한다.**
    ```bash
    .venv/bin/python -m scripts.db_change_rehearsal check --sql change.sql   # 0이 아니면 실행하지 않는다
    ```
    - 같은 변경이 24시간 안에, 지금 운영 중인 네 역할(frontend·jobs·admin·execution) 버전으로 통과했을 때만 0을 돌려준다(11-15부터, 그전엔 frontend·jobs만). 버전이 바뀌었으면 `active_releases_changed`, 리허설에 빠진 역할이 있으면 `roles_not_rehearsed`(빠진 버전 목록 포함)로 다시 리허설한다. `run`의 기본 `--releases`도 네 역할이다.
-5. **운영에 실행한다.** 사람이 정한 한 번의 실행으로 한다. 다른 세션의 배포·시험과 겹치지 않게 한다.
+5. **운영에 실행한다.** PM이 한 번 실행한다(4의 `check`가 0일 때만). 다른 세션의 배포·시험과 겹치지 않게 한다.
 6. **바로 확인한다.**
    - 홈(`/`), `/llms.txt`, `/api/explore?q=…`, `/mcp`가 200인지 본다.
    - frontend·jobs 로그에서 `schema_invariants_mismatch`, `schema_profile_mismatch`, ERROR가 새로 생기지 않았는지 본다.
    - 문제가 보이면 1의 복구 SQL을 바로 실행한다. 복구 SQL은 복구 목적이라 리허설 없이 실행할 수 있게 미리 승인받아 둔다.
 
+- 백업 복원 연습: `.venv/bin/python -m scripts.db_change_rehearsal drill --backup <스냅샷 폴더> [--data full]`. `--backup`은 필수이고, 결과는 `logs/ops/db-rehearsal/drill-*.json`에 남는다. 운영 DB에는 연결하지 않는다.
 - 시험: `tests/test_db_change_rehearsal.py`
 - 11-10 실측(백업 snapshot-20261110-043005, frontend adcoin-credit-terms r2, jobs growth-md-jobs r5)
   - 표 주석 변경: `passed`, 14.7초

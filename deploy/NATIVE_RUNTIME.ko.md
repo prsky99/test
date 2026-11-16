@@ -1,5 +1,7 @@
 # 현재 macOS + Cloudflare Tunnel 서버 설정
 
+> **폐기 후보 (2026-11-16, 소스와 맞지 않음; 폐기·보관 이동은 PM이 11-17 topic 판정과 r11 뒤 결정)**
+
 2026-10-19 사용자 재시작 후 새 프로세스에서 production/proxy TLS 및 실제 8200·8400 loopback 바인딩을 확인했다. 공개 HTTPS 200, HTTP→HTTPS 308, 공개 관리자 404도 유지된다. [재시작 후 검증 결과](../reports/post-restart-hardening-2026-10-19/README.md).
 
 현재 경로는 방문자 → Cloudflare → cloudflared → 로컬 HTTP frontend다. 이 문서의 설정은 native `agentcon`용이며, Docker/Compose에는 [별도 Caddy 가이드](CADDY_SETUP.ko.md)의 값을 사용한다.

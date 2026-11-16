@@ -12,11 +12,13 @@
   - frontend·jobs의 정책 해시(`explore_documents.policy_hash()`)가 바뀌면 00:30~01:30 밖에서 거부
   - 운영 버전에 있던 등록 SQL이 새 릴리스에서 빠지면 거부(10-30 r14 시작 실패)
   - 네 역할 모두 `scripts.release_gate` 통과가 필요(같은 커밋 24시간 안 통과 기록은 재사용). 실측: frontend 약 277초(Chat 비교 포함), jobs 약 29초
-  - `package --commit`은 `--base` 필수. 패키징한 릴리스는 배포되거나 48시간이 지날 때까지 자동 정리에서 보호(R60)
+  - `package --commit`은 `--base` 필수(`package_base_required`). 패키징한 릴리스는 배포되거나 48시간이 지날 때까지 자동 정리에서 보호(R60, `PACKAGED_PIN_HOURS`)
+  - 계보 검사(11-16): 활성 버전에만 있는 변경이 새 커밋에 빠져 있으면 package 거부(`lineage_base_not_in_commit`, `git cherry`로 판단하므로 쌓인 되돌리기·cherry-pick은 통과). 일부러일 때만 `--allow-lineage "<이유>"`를 붙이고, 이유는 `release.json`과 `logs/ops/lineage-exceptions.jsonl`에 남음. 실패한 package는 만들다 만 릴리스 폴더를 지움
   - `rollback`·`restart`·`stop`도 `--lock-owner <팀>`과 현황판 잠금 줄 필요. 워커 되돌리기는 `./agentcon worker-rollback jobs|execution --lock-owner <팀>`
   - `--force-base`·`--skip-gate`·`--take-stale-lock` 사용은 `logs/ops/deploy-overrides.md`에 남음
-- **사용자가 직접 하는 것**: DB 구조·설정 변경과 재시작, launchd 작업 설치·교체, 시스템 설정, 외부 게시·지출. 명령과 되돌리는 방법은 `deploy/ops/user-*.md`에 준비합니다.
-- **운영 작업 코드**: launchd 운영 작업은 차례로 작업본 대신 커밋으로 만든 `gateway-data/ops-code/current`를 실행하게 옮깁니다(R05, `scripts/ops_code.py`). 광고 원장·백업용 plist는 `deploy/launchd/ops-pinned/`에 있고, 교체는 사용자 단계입니다(`deploy/ops/user-launchd-ops-code-20261115.md`).
+- **PM이 실행하는 것(11-15 사용자 결정 "모두 맡김")**: 운영 DB 구조 변경과 DB 재시작(사본 리허설 통과·복구 SQL 준비·실행 직전 `check` 0 뒤), launchd 작업 설치·교체(bootstrap·bootout·설치 스크립트), 예약 작업 변경, Cloudflare 설정. 명령과 되돌리는 방법은 `deploy/ops/user-*.md`에 준비합니다(파일 이름은 예전 그대로 `user-`).
+- **계속 사용자가 하는 것**: 지출과 실제 자산 송금, 본인만 할 수 있는 일(계정 생성·약관 동의·비밀번호 입력), 되돌릴 수 없는 운영 데이터 삭제, 게이트를 통과하지 못한 배포, 외부 게시 실행, 시스템 설정.
+- **운영 작업 코드**: launchd 운영 작업은 차례로 작업본 대신 커밋으로 만든 `gateway-data/ops-code/current`를 실행하게 옮깁니다(R05, `scripts/ops_code.py`). `deploy/launchd/ops-pinned/`에 plist 10개가 있습니다: 11-15에 옮긴 광고 원장·백업·시험 보고서(`opsauto.housead`·`backup`·`opsauto.testreports`, `deploy/ops/user-launchd-ops-code-20261115.md`)와 11-17에 옮길 7개(`opensearch-sync`, `opsauto.netpath`·`ofac`·`paidreconcile`·`pearltests`·`watch`·`watchstale`). 7개 전환은 `deploy/ops/user-launchd-ops-code-20261117.md`(스크립트 `deploy/ops/launchd-ops-code-switch-20261117.sh`)로 PM이 11-17에 실행합니다. `scripts/ops_code.py`는 데이터 폴더와 함께 `tests/`·`reports/`도 링크합니다(11-16).
 - **감시**: 10분 감시(`scripts/ops_watch.py` → `scripts/ops_auto.py`)가 사이트·메모리·스왑·디스크·launchd 작업·백업·핵심 프로세스·DB 연결 수를 봅니다. 같은 경보가 6번 넘게 닫히지 않으면 바탕화면 알림 파일과 `logs/ops/pm-escalations.md`로 격상합니다.
 
 ### launchd 작업 목록 (11-15 09:5x 이 맥 기준, driveragent 프로젝트 제외)
@@ -34,9 +36,10 @@
 | `biz.agentconcierge.opensearch-sync` | 예 | 상시(KeepAlive) | 작업본 | OpenSearch 동기화 |
 | `biz.agentconcierge.opsauto.edgewarm` | 아니오(저장소에만) | 매일 06:50 | 작업본 | 엣지 데우기 |
 | `biz.agentconcierge.opsauto.housead` | 예 | 매일 09:10 | 작업본 | 자사 광고 매일 예약(원장 쓰기) |
+| `biz.agentconcierge.opsauto.board` | 확인 안 함(11-16 표 추가) | 현황판이 바뀔 때(WatchPaths) | 작업본 | 현황판 사본 `logs/ops/status-board-history/`(`ops_auto.py board-snapshot`) |
 | `biz.agentconcierge.opsauto.netpath` | 예 | 60초마다 | 작업본 | 1분 경로 측정(net_path) |
 | `biz.agentconcierge.opsauto.ofac` | 아니오(저장소에만) | 매일 06:20 | 작업본 | OFAC 제재 주소 갱신(R06) |
-| `biz.agentconcierge.opsauto.paidreconcile` | 아니오(저장소에만) | 매일 09:20 | 작업본 | USDC 결제 매일 대조 |
+| `biz.agentconcierge.opsauto.paidreconcile` | 아니오(저장소에만) | 매일 09:20 | 작업본 | USDC 결제 매일 대조(`deploy/ops/payment-reconcile-daily.sh`: 어제와, 최근 7일 중 결과가 없거나 체인을 읽지 못한 날. `scripts.ad_coin_paid_reconcile --due`, 11-16) |
 | `biz.agentconcierge.opsauto.pearltests` | 예 | 매일 09:12 | 작업본 | 진주 매일 시험 |
 | `biz.agentconcierge.opsauto.testreports` | 예 | 매일 02:30 | 작업본 | 시험 보고서 배치 |
 | `biz.agentconcierge.opsauto.watch` | 예 | 600초마다 | 작업본 | 10분 감시(ops_watch → ops_auto) |
@@ -87,6 +90,8 @@
 의존성 프로필과 선택형 Claude SDK/레거시 SQLite 벡터 설치는 [의존성 관리 안내](DEPENDENCY_MAINTENANCE.md)를 참고하세요.
 
 ## frontend 릴리스 배포 전 점검 (2026-11-02)
+> 11-10 이후 대체됨: 릴리스는 이제 커밋에서 만들고 파일을 얹지 않는다(아래 "배포는 커밋 하나에서"). 사본 점검이 필요한 이유는 같다.
+
 릴리스는 활성 릴리스에 파일을 얹어 만들기 때문에, 작업본에서 시험이 통과해도 릴리스가 맞다는 보장은 없다. 배포 전에 릴리스 사본에서 첫 화면 경로 시험을 돌린다(약 40초(11-02 당시. 11-15 실측은 frontend 약 277초·jobs 약 29초), `nice -n 10`).
 
 ```bash
@@ -104,9 +109,10 @@
 - 시험은 작업본의 `tests/`에서 가져온다. 아직 배포되지 않은 기능의 시험을 `TESTS` 목록의 파일에 넣지 않는다. 넣으면 그 기능이 없는 다른 세션의 릴리스가 점검에서 실패한다. 새 기능의 시험은 별도 파일에 둔다.
 
 ## 기준 판 검사 (2026-11-09)
+> 11-10 이후 대체됨: 릴리스는 커밋에서 만든다. 기준 판 검사(`release_base_mismatch`)는 그대로 쓰인다.
+
 릴리스는 활성 판에 파일을 얹어 만든다. 그사이 다른 세션이 활성 판을 바꾸면, 낡은 판 위에 만든 릴리스가 그 세션의 작업을 되돌린다(11-09 밤 여러 번 겹침). 그래서 배포 도구가 스스로 막는다.
-- 패키징할 때 기준 판을 `release.json`의 `base`에 남긴다. 다음 순서로 정한다.
-  - `package --base <판>`
+- 패키징할 때 기준 판을 `release.json`의 `base`에 남긴다. 커밋 패키징(기본)은 `package --base <판>`이 없으면 거부한다(`package_base_required`). 아래 두 가지는 옛 방식(`--from-tree`)에만 해당한다.
   - 환경 변수 `AGENTCON_RELEASE_BASE`
   - 복사한 릴리스 사본에 남아 있는 `release.json`의 이름(`cp -cR`로 활성 판을 복사했다면 지우지 말 것)
 - `./agentcon deploy …`와 `worker-deploy …`는 기준 판이 지금 활성 판과 다르면 `release_base_mismatch`로 거부한다. 게이트 전에 한 번, 배포 잠금 안에서 한 번 더 본다.
@@ -141,7 +147,7 @@
     - 6시간 안에 만들어졌지만 아직 배포되지 않은 것(`AFTER_DEPLOY_MIN_AGE_HOURS`). 다른 세션이 곧 배포할 수 있다.
   - 배포가 실패하면 아무것도 지우지 않는다. 정리에 문제가 생겨도 이미 성공한 배포는 실패로 바꾸지 않는다. 결과는 출력의 `pruned`에 나온다.
   - 지우지 않으려면 `--no-prune`을 붙인다.
-  - 6시간보다 오래 기다린 미배포 릴리스는 다음 배포 때 지워진다. 그럴 때는 다시 패키지한다.
+  - 11-15(R60)부터 `./agentcon package`로 만든 릴리스는 `pinned-releases.txt`에 스스로 이름을 적어, 배포되거나 48시간(`PACKAGED_PIN_HOURS`)이 지날 때까지 지워지지 않는다. 48시간이 지나도 배포하지 않았으면 다시 패키지한다.
 
 ## 릴리스끼리 Python 환경 공유 (2026-11-10)
 11-10 하루에 릴리스를 28개 만들면서, 릴리스마다 `.venv`를 복제했다. 그래서 macOS 실행 파일 검사(syspolicyd)가 새 사본마다 돌아 CPU를 84%까지 썼다(16GB 맥이 스왑 80%이던 때).
@@ -175,19 +181,21 @@ frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉�
 
 ## 새 frontend 칸 미리 데우기 (2026-11-10)
 - 배포 직후 첫 공개 탐색이 10.7초 걸렸다. 새 프로세스는 캐시가 비어 있고, 메모리 압박으로 검색엔진 메모리가 스왑에 나가 있었다.
-- 이제 `deploy frontend`는 준비 확인 뒤, 트래픽을 넘기기 전에 탐색 검색 4개(`WARM_QUERIES`, 최대 45초)를 새 칸에 보낸다. 실패하거나 느려도 배포는 계속하고, 시간은 출력의 `warmed`에 남는다.
+- (11-11 대체됨: 지금은 아래 "배포 직후 첫 요청 데우기"의 `warm_web`, 최대 90초·처음 보는 질의) 이 때 `deploy frontend`는 준비 확인 뒤, 트래픽을 넘기기 전에 탐색 검색 4개(`WARM_QUERIES`, 최대 45초)를 새 칸에 보냈다. 실패하거나 느려도 배포는 계속하고, 시간은 출력의 `warmed`에 남는다.
 - 11-10 실측(대기 칸): 196 / 113 / 3,283 / 277ms. 처음 보는 검색어는 데우지 않으면 3초를 넘긴다.
 
 ## 배포는 커밋 하나에서 (2026-11-10, 사용자 결정 "운영 = git")
 11-10 점검 결과, 운영 네 역할의 파일 다수가 어떤 커밋과도 같지 않았다. 원인은 "운영 중인 버전 복사 → 작업본 파일 덮어쓰기" 방식이다. 덮어쓴 작업본 파일에 다른 세션의 미커밋 변경이 섞여 함께 나갔다(`reports/운영 = git 1단계 정리 2026-11-10.md`).
-- `./agentcon package <버전> [--commit <커밋>]`
-  - 기본값은 HEAD다. 그 커밋을 `git archive`로 풀어 버전을 만든다. 작업본의 미커밋·추적 안 된 파일은 들어가지 않는다.
+- `./agentcon package <버전> --commit <커밋> --base <활성 릴리스>`
+  - `--base`는 필수다(없으면 `package_base_required`로 거부). `--commit` 기본값은 HEAD다. 그 커밋을 `git archive`로 풀어 버전을 만든다. 작업본의 미커밋·추적 안 된 파일은 들어가지 않는다.
   - `release.json`에 `commit`(전체 해시)을 남긴다.
   - `--from-tree`는 예전 방식이다(커밋 기록 없음). 쓰지 않는다.
 - Python 환경: 커밋으로 만드는 버전은 운영 중인 frontend 버전의 검증된 환경을 공유한다.
   - 작업본 `.venv`에는 11-08부터 pytest·sqlite-vec 같은 시험 도구가 설치돼 있어, 런타임 의존성 검사(`runtime_dependency_profile_mismatch`)에 걸린다.
 - `./agentcon status`의 `commits`에 역할별 커밋이 나온다. 네 역할이 같은 커밋이면 "운영 = 커밋 X"다.
 - 고칠 것은 먼저 브랜치에 커밋하고, 그 커밋으로 버전을 만든다. 겹치기(오버레이)로 운영 버전에 파일을 덮어쓰지 않는다.
+- 전체 순서: `./agentcon package <버전> --commit <커밋> --base <활성 릴리스>` → `.venv-tests/bin/python -m scripts.release_gate <버전>` → `./agentcon deploy frontend|admin <버전> --lock-owner <팀> [--no-prune]` 또는 `./agentcon worker-deploy jobs|execution <버전> --lock-owner <팀> [--no-prune]`
+- 커밋 검사(11-16): `scripts/commit_check.py`가 `.githooks/pre-commit`·`pre-push`(`core.hooksPath=.githooks`)로 돈다. 11-16은 경고만, 2026-11-17부터 막는다. 한 번 통과시키려면 `COMMIT_CHECK_SKIP="<이유>"`(이유는 `logs/ops/commit-check.jsonl`). 팀 세션은 `git commit-tree`로 커밋하므로 그 커밋은 pre-push에서만 검사된다.
 - 11-10 실측: HEAD 3f5e469d로 만든 frontend·jobs 시험 버전이 게이트를 통과했다(frontend 57, jobs 140 passed, 파일 1,064개).
 
 ## 배포 직후 첫 요청 데우기 (2026-11-11)
@@ -237,6 +245,8 @@ macOS의 bash 3.2는 사용자 터미널의 UTF-8 로케일(ko_KR.UTF-8)에서 `
 5. 넘기는 메시지에 명령 한 줄과 함께 3번 dry-run의 출력 끝 몇 줄을 붙인다.
 
 ## 옛 방식 (보관) — 2026-09 무료 서버안, 지금은 쓰지 않음
+
+> **폐기 후보 (2026-11-16, 소스와 맞지 않음; 폐기·보관 이동은 PM이 11-17 topic 판정과 r11 뒤 결정)**
 
 ### 무료 서버 + 무료 도메인에 게이트웨이 올리기
 

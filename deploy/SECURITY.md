@@ -1,6 +1,8 @@
 # Public frontend security deployment
 
-For the current Mac terminal deployment, see the [Cloudflare dashboard guide](CLOUDFLARE_NATIVE_SETUP.ko.md) and the [native runtime guide](NATIVE_RUNTIME.ko.md). The [Caddy setup guide](CADDY_SETUP.ko.md) covers a separate deployment option. Native Cloudflare Tunnel deployments and the Compose/Caddy network have different trusted peers.
+> (11-16 갱신) 현재 운영은 운영 맥의 launchd 서비스 + caddy 프록시 + Cloudflare 터널 + PostgreSQL 18이다([배포와 운영](DEPLOY.md), [Cloudflare 안내](CLOUDFLARE_NATIVE_SETUP.ko.md)). 아래의 Compose/Caddy 설명과 [native runtime guide](NATIVE_RUNTIME.ko.md)는 예전 배포 기록이다(NATIVE_RUNTIME.ko.md·CADDY_SETUP.ko.md는 폐기 후보).
+
+For the earlier Mac terminal deployment, see the [Cloudflare dashboard guide](CLOUDFLARE_NATIVE_SETUP.ko.md) and the [native runtime guide](NATIVE_RUNTIME.ko.md). The [Caddy setup guide](CADDY_SETUP.ko.md) covers a separate deployment option. Native Cloudflare Tunnel deployments and the Compose/Caddy network have different trusted peers.
 
 The Compose profile sets `DEPLOYMENT_MODE=production`. It trusts only Caddy's fixed address (`CADDY_PROXY_IP`, default `172.30.90.2`) on the dedicated `PROXY_SUBNET` network. Never set `FORWARDED_ALLOW_IPS=*` or a trust-all CIDR. If the subnet conflicts with existing infrastructure, override both settings together when rendering Compose.
 
@@ -38,6 +40,8 @@ From the repository root:
 .venv/bin/python -m scripts.check_front_deployment --url https://agentconcierge.biz/
 .venv/bin/python -m scripts.audit_stored_tokens --db gateway-data/gateway.sqlite3
 ```
+
+(11-16 갱신) `audit_stored_tokens --db`는 SQLite 파일 경로를 받는다. 예시 경로는 로컬·시험용 SQLite 파일이며, 운영 DB(PostgreSQL 18)에는 이 명령이 해당하지 않는다.
 
 The HTTPS tool performs one read-only request with certificate verification. Its report contains no cookies, bearer values or response body. Expect a verified chain, HSTS/nosniff/frame protection, a nonce-based `script-src`, `script-src-attr 'none'`, and no inline/eval script allowance. Inline CSS remains permitted for the existing layout; JavaScript event attributes are blocked.
 

@@ -56,12 +56,15 @@ The PR/push workflow audits complete Python locks and npm dependencies, and exer
 Prepare a release only after verification:
 
 ```sh
-./agentcon package RELEASE_NAME
+./agentcon package RELEASE_NAME --commit <커밋> --base <활성 릴리스>
+.venv-tests/bin/python -m scripts.release_gate RELEASE_NAME
 ```
+
+(11-16 갱신) 릴리스는 커밋에서 `git archive`로 만들며 `--base`가 없으면 `package_base_required`로 거부된다. 활성 버전에만 있는 변경이 커밋에 빠지면 거부되고, 일부러일 때만 `--allow-lineage "<이유>"`를 붙인다. 순서 전체는 `deploy/DEPLOY.md` "배포는 커밋 하나에서"를 따른다.
 
 Packaging checks that the copied runtime matches the production lock, preserves all requirement locks and records the private runtime inventory in `runtime-environment.json`. These files must never be exposed on public routes. Preparing a package does not restart a service.
 
-After explicit operator approval, apply the same reviewed release independently to frontend, admin, jobs and execution. Preserve rollback release files. Stop disconnected previous web processes only after confirming that they serve no traffic and have no active requests. A worker replacement can pause new background work briefly. Never substitute a dependency installation for a controlled service rollout.
+(11-16 갱신) 게이트(`scripts.release_gate`)를 통과하고 활성 버전 커밋을 `--base`로 패키징한 릴리스는 상시 승인으로 배포한다(사용자 결정 2026-11-10). 같은 릴리스를 frontend·admin·jobs·execution에 각각 `./agentcon deploy frontend|admin RELEASE_NAME --lock-owner <팀>`, `./agentcon worker-deploy jobs|execution RELEASE_NAME --lock-owner <팀>`으로 적용한다. 게이트를 통과하지 못한 배포는 사용자 확인을 받는다. Preserve rollback release files. Stop disconnected previous web processes only after confirming that they serve no traffic and have no active requests. A worker replacement can pause new background work briefly. Never substitute a dependency installation for a controlled service rollout.
 
 A zero advisory count means no matching known advisories at the audit time. It does not prove the absence of undisclosed vulnerabilities or malicious package releases. Re-review upstream advisories and provenance when updating locks.
 

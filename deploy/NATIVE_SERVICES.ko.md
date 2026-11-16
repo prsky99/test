@@ -9,13 +9,13 @@
 ./agentcon restart admin --lock-owner <팀>
 ```
 
-각 명령은 현재 작업 폴더를 새 배포본으로 보존하고 반대편 슬롯을 준비한다. 내부 준비 확인과 화면·정적 자산·인증 경계 점검을 통과해야 Caddy 연결이 바뀐다. 작업 폴더를 수정하는 것만으로 실행 중인 서비스가 변경되지 않는다.
+각 명령은 그 역할의 운영 중인 버전을 반대편 슬롯에 그대로 다시 띄우고 전환한다. 패키징하지 않으므로 코드는 바뀌지 않는다(11-10부터, `deploy/DEPLOY.md` "restart는 코드를 바꾸지 않는다"). 내부 준비 확인과 화면·정적 자산·인증 경계 점검을 통과해야 Caddy 연결이 바뀐다. 코드를 바꾸려면 아래 "작업 서비스 변경"의 package → release_gate → deploy 순서를 따른다.
 
 ```bash
 ./agentcon restart --lock-owner <팀>
 ```
 
-인자 없는 restart는 프론트앤드와 어드민을 순서대로 교체한다. **수집·평가·헬스 및 실행 worker는 재시작하지 않는다.** 기존 슬롯은 진행 중 요청을 완료하고 즉시 복귀할 수 있도록 보존한다. 다음 배포에서 해당 슬롯을 재사용한다.
+인자 없는 restart는 프론트앤드와 어드민을 순서대로 교체한다. **수집·평가·헬스 및 실행 worker는 재시작하지 않는다.** 이전 슬롯은 진행 중 요청을 완료하고 즉시 되돌릴 수 있도록 남겨 두지만, 30분(`RECLAIM_STANDBY_SECONDS = 1800`) 뒤 프로세스를 멈춘다. 그 뒤의 rollback은 이전 슬롯을 다시 띄우므로 수십 초가 걸린다. 다음 배포는 그 슬롯을 다시 쓴다.
 
 ```bash
 ./agentcon rollback frontend --lock-owner <팀>
@@ -27,13 +27,17 @@ rollback은 해당 웹 서비스의 이전 슬롯으로 연결을 되돌린다. 
 
 ## 작업 서비스 변경
 
-먼저 배포본을 만들고 해당 역할만 교체한다. 아래 release 이름은 운영자가 선택하는 식별자다.
+먼저 커밋으로 배포본을 만들고, 게이트를 통과시킨 뒤 해당 역할만 교체한다. 아래 release 이름은 운영자가 선택하는 식별자다. 배포 전에 `logs/ops/status-board.md`의 `## 배포 잠금`에 자기 팀 줄을 적는다(`deploy/DEPLOY.md` "배포 잠금은 도구가 확인한다").
 
 ```bash
-./agentcon package worker-update-001
-./agentcon worker-deploy execution worker-update-001
-./agentcon worker-deploy jobs worker-update-001
+./agentcon package worker-update-001 --commit <커밋> --base <활성 릴리스>
+.venv-tests/bin/python -m scripts.release_gate worker-update-001
+./agentcon worker-deploy execution worker-update-001 --lock-owner <팀>
+./agentcon worker-deploy jobs worker-update-001 --lock-owner <팀>
 ```
+
+- `--base`가 없으면 `package_base_required`, `--lock-owner`가 없으면 명령이 거부된다. 활성 버전에만 있는 변경이 커밋에 빠지면 package가 거부된다(`--allow-lineage "<이유>"`로만 예외).
+- 웹 역할의 코드 변경 배포도 같은 순서다: `./agentcon deploy frontend|admin <release> --lock-owner <팀> [--no-prune]`.
 
 - `jobs`: 수집·헬스·capabilities·평가·임베딩·요약·유지 관리 작업 묶음.
 - `execution`: 기존 영속 워크플로우와 워크스페이스의 typed/private 실행.
@@ -88,7 +92,7 @@ agentcon status
 ## 파일과 검증 기록
 
 - 배포 상태·프록시·서비스 명세: `gateway-data/services/`.
-- 고정 배포본과 복사된 가상환경: `gateway-data/services/releases/`.
+- 고정 배포본: `gateway-data/services/releases/`. 가상환경은 의존성 키별 공유 환경 `gateway-data/services/venvs/<키>`이고, 릴리스의 `.venv`는 그곳을 가리키는 링크다(11-10).
 - 서비스 시작/종료 출력: `logs/services/`.
 - 역할별 구조화 로그: `logs/service-frontend`, `logs/service-admin`, `logs/service-jobs`, `logs/service-execution`.
 - 설계·시험 기록: `reports/zero-downtime-service-design-2026-10-22/`.
