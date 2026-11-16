@@ -169,7 +169,8 @@ def _forget_deferred(state, vid, done):
 
 class VisitorBook:
     def __init__(self, store: Store):
-        self.store = store
+        self._store = store
+        self._store_here = threading.local()   # a deferred write's own lease, seen only by that write's thread
         self._hit_queue: queue.Queue = queue.Queue(maxsize=HIT_QUEUE_SIZE)
         self._hit_condition = threading.Condition()
         self._hit_worker = None
@@ -179,6 +180,21 @@ class VisitorBook:
         self._hit_counts = dict(accepted=0, persisted=0, unconfirmed=0,
                                rejected_full=0, rejected_closed=0, rejected_invalid=0,
                                rejected_start=0)
+
+    @property
+    def store(self):
+        """The request's store; inside a deferred write (and only in its thread) that write's own lease.
+
+        11-17 (operations): defer() used to assign the lease to self.store. The write starts at once on another thread
+        while Chat is still answering, so the rest of the answer (the reply message, fast_chat) ran on the write's
+        session - a closed SQLite connection in the browser tests (segmentation fault) and, on PostgreSQL, a session
+        that goes back to the pool when the write ends and may be leased to another request."""
+        here = getattr(self.__dict__.get('_store_here'), 'store', None)
+        return self._store if here is None else here
+
+    @store.setter
+    def store(self, value):
+        self._store = value
 
     # ---------------- identification ----------------
     def _load(self, row) -> Visitor:
@@ -454,9 +470,13 @@ class VisitorBook:
         if lease is not None:
             # The request's leased session goes back to its pool when the answer is sent; the write borrows its own.
             def write(original=write, lease=lease):
+                here = self.__dict__.setdefault('_store_here', threading.local())
                 with lease() as store:
-                    self.store = store
-                    original()
+                    here.store = store
+                    try:
+                        original()
+                    finally:
+                        here.store = None
         with state['lock']:
             previous = state['pending'].get(vid)
             future = _DEFERRED_WRITES.submit(_run_deferred, previous, write)

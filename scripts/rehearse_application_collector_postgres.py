@@ -324,6 +324,56 @@ def _contracts(connect):
             finally:
                 store.due_for_capability = original_due
         checks['nul_provider_metadata_commits_complete_survey_without_changing_evidence'] = True
+        # 11-17 (운영·SRE, PM 02:5x): a Chat request's deferred visitor write borrows its own session; while it holds
+        # that lease, the answering thread's own write (the reply message) stays on the request's session and in its
+        # own transaction. defer() used to assign the lease to book.store, so the reply ran on the write's session.
+        from contextlib import contextmanager
+        from agent_market.concierge.memory import VisitorBook
+        request_connection, lease_connection = connect(), connect()
+        request_store = open_store('postgresql', connection=request_connection, workflow_key=b'c' * 32)
+        lease_store = open_store('postgresql', connection=lease_connection, workflow_key=b'c' * 32)
+        try:
+            import threading
+            home = VisitorBook(native)
+            book = VisitorBook(request_store)
+
+            @contextmanager
+            def lease():
+                yield lease_store
+
+            book._deferred_home, book._deferred_lease = home, lease
+            visitor = book.create('mcp', 'synthetic', 'fp-defer-session', 'Defer session')
+            inside, released, seen = threading.Event(), threading.Event(), {}
+
+            def session(store):
+                with store.tx():
+                    return tuple(store._execute('SELECT pg_backend_pid() AS pid, txid_current() AS txid').fetchone())
+
+            def remember():
+                seen['write'] = (book.store is lease_store, session(book.store))
+                book.add_message(visitor, 'agent', 'mcp', 'deferred write')
+                inside.set()
+                released.wait(5)
+
+            book.defer(visitor.id, remember)
+            require(inside.wait(5), 'deferred write started')
+            seen['answer'] = (book.store is request_store, session(book.store))
+            book.add_message(visitor, 'concierge', 'mcp', 'reply while the write holds its lease')
+            released.set()
+            book.settle(visitor.id)
+            write_pid, answer_pid = seen['write'][1][0], seen['answer'][1][0]
+            require(seen['write'][0] and seen['answer'][0], 'each thread sees its own store')
+            require(write_pid != answer_pid and seen['write'][1][1] != seen['answer'][1][1], 'different sessions and transactions')
+            require(write_pid == lease_connection.info.backend_pid and answer_pid == request_connection.info.backend_pid,
+                    'deferred write on the lease, reply on the request session')
+            with native.tx():
+                owners = native._execute('SELECT DISTINCT visitor_id FROM agent_messages WHERE text IN (%s,%s)',
+                                         ('deferred write', 'reply while the write holds its lease')).fetchall()
+            require([tuple(o)[0] for o in owners] == [visitor.id], 'both messages belong to the visitor')
+            require(book.store is request_store, 'book keeps the request session after the write')
+        finally:
+            request_store.close(); lease_store.close(); request_connection.close(); lease_connection.close()
+        checks['chat_deferred_write_and_reply_use_separate_sessions'] = True
         require(all(checks.values()), 'collector contracts')
         return {'checks': checks, 'coverage': native.coverage()}
     finally: native.close(); pg.close(); sqlite._db.close()

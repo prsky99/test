@@ -144,6 +144,36 @@ def test_a_request_scoped_book_writes_on_its_own_lease_and_the_next_request_wait
     started.join()
 
 
+def test_a_deferred_write_never_moves_the_answering_thread_to_its_lease():
+    """11-17 (운영·SRE): the deferred write starts at once on another thread while Chat is still answering. It used
+    to assign its lease to book.store, so the reply that Chat saved next ran on the write's session (a closed SQLite
+    connection in the night pytest: segmentation fault; on PostgreSQL a session back in the pool)."""
+    from contextlib import contextmanager
+    home = VisitorBook.__new__(VisitorBook)
+    inside, released = threading.Event(), threading.Event()
+    seen = {}
+
+    @contextmanager
+    def lease():
+        yield 'fresh-session'
+
+    book = VisitorBook.__new__(VisitorBook)
+    book.store = 'request-session'
+    book._deferred_home, book._deferred_lease = home, lease
+
+    def remember():
+        seen['write'] = book.store
+        inside.set()
+        released.wait(1)
+
+    book.defer('v5', remember)
+    assert inside.wait(1)
+    seen['answer'] = book.store              # Chat goes on (add_message) while the write holds its lease
+    released.set()
+    book.settle('v5')
+    assert seen == {'write': 'fresh-session', 'answer': 'request-session'} and book.store == 'request-session'
+
+
 def test_chat_payload_gives_its_scoped_book_the_shared_queue_and_a_lease():
     import inspect
     from agent_market.concierge import front
