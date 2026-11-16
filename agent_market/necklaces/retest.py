@@ -696,6 +696,19 @@ TASK_GRADERS = {"company-due-diligence": grade_company_task, "quakes-near-addres
                 "quakes-near-airport": grade_quakes_task,
                 "book-author-brief": grade_book_task, "website-trust-brief": grade_site_task,
                 "holidays-at-address": grade_holidays_task}
+# PM 11-16 16:14 (before the topic gate): a single member of topic-evidence-brief is graded on the whole task with the
+# necklace's own rule, grade() over the current definition (every required step passes), as the five necklaces above
+# are (PM 11-15 decision 2: the delta compares the same task on the same case). Graded on its papers part alone, a
+# papers search passed whenever it found a paper while the necklace also needed the web and encyclopedia parts, so
+# the delta could not be positive. The single members stay the papers step's external members (single_members reads
+# TASK_GRADERS, not this table), so no provider beyond those is called for the baseline.
+def grade_topic_task(case, output) -> bool:
+    """topic-evidence-brief as one task: grade() of the current definition, required steps all passing."""
+    defn = next(d for d in model.load_valid() if d["slug"] == "topic-evidence-brief")
+    return grade(defn, case, output or {})["ok"] is True
+
+
+SINGLE_TASK_GRADERS = {"topic-evidence-brief": grade_topic_task}
 CONTRAST["holidays-at-address"] = "holidays"
 CONTRAST["book-author-brief"] = "author"
 CONTRAST["website-trust-brief"] = "crawlers"
@@ -864,7 +877,7 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
                         pacer.wait_for(2)
                     out = runner.Runner(same_case.wrap(reuse=True) if same_case else caller).run(one, case["input"])
                     reused_now = same_case.take_reused() if same_case else 0
-                    task = TASK_GRADERS.get(defn["slug"])
+                    task = TASK_GRADERS.get(defn["slug"]) or SINGLE_TASK_GRADERS.get(defn["slug"])
                     ok = task(case, out["output"]) if task else GRADERS[contrast](case, out["output"].get(contrast))
                     if not ok and not_measured(out["attempts"]):
                         ok = None                             # not measured (R23): never a failure of the single member
