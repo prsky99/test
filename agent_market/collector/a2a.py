@@ -31,7 +31,7 @@ from ..gateway.store import Store
 from ..observation_guards import GuardError
 from .percentile_cache import score_percentile as cached_percentile
 from . import evaluation, usage
-from .auth_discovery import asks_for_key, compact, instructions
+from .auth_discovery import asks_for_auth, asks_for_key, compact, instructions
 
 log = logging.getLogger("agent_market.collector.a2a")
 
@@ -644,11 +644,15 @@ class AgentProber:
                     card.pop("method_style")
             if resp.status_code == 402:
                 out.update(ok=False, payment_required=True, error="Payment required (HTTP 402)")
+            elif resp.status_code in (401, 403):   # PM 11-17 02:2x: the agent itself refuses a keyless message
+                out.update(ok=False, key_required=True, error=f"The agent asked for authorization (HTTP {resp.status_code}).")
             elif data.get("error"):
                 err = data["error"]
                 out.update(ok=False, error=str(err.get("message") if isinstance(err, dict) else err)[:300])
                 if is_payment_error(out["error"]):
                     out["payment_required"] = True
+                elif asks_for_auth(json.dumps(err, ensure_ascii=False)[:2000]):
+                    out["key_required"] = True
             elif "result" in data:
                 summary = response_summary(data["result"])
                 out.update(state=summary["state"], sample_output=summary["text"] or None,
@@ -658,6 +662,8 @@ class AgentProber:
                     "kind":"text","text":summary["text"]}], text)
                 if asks_for_key(summary["text"]):   # 11-13 a07: "Provide an API key…" is not a working answer
                     out.update(ok=False, key_required=True, error="The agent answered that an API key is required.")
+                elif summary["state"] == "auth-required" or asks_for_auth(summary["text"]):   # PM 11-17 02:2x
+                    out.update(ok=False, key_required=True, error="The agent answered that authorization is required.")
                 elif not out["ok"]:
                     out["error"] = "The agent returned no usable task result." if summary["state"] == "completed" else f"Task is not completed: {summary['state'] or 'no response'}."
                     if summary["state"] == "payment-required" or is_payment_error(summary["text"]):
@@ -717,7 +723,9 @@ class AgentProber:
                     trial = self.trial(http, card, picked)
         # 11-13 (PM, a07): the card declares no scheme but the agent's own answer asks for a key, so it is not open.
         said = trial or json.loads(resource.get("trial_info") or "null") or {}
-        if method == "none" and (said.get("key_required") or asks_for_key(f"{said.get('sample_output') or ''} {said.get('error') or ''}")):
+        # PM 11-17 02:2x: also a stored reply that asks for sign-in or authorization, or an auth-required task state.
+        if method == "none" and (said.get("key_required") or said.get("state") == "auth-required"
+                                 or asks_for_auth(f"{said.get('sample_output') or ''} {said.get('error') or ''}")):
             method, autonomy, auth_required = "api_key", "human_once", True
             auth_info = {**auth_info, "observed_in": "agent_reply",
                          "api_key": {"header": "Authorization", "description": "The agent's reply asks for an API key."}}

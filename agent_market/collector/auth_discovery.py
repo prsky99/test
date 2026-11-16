@@ -54,6 +54,21 @@ def asks_for_key(text: str | None) -> bool:
     return any(not _NEGATED.search(text[max(0, m.start() - 40):m.start()]) for m in _ASKS_FOR_KEY.finditer(text))
 
 
+# PM 11-17 02:2x: a reply or error that asks for the provider's own sign-in or authorization (not only a key) means the
+# listing is not keyless. Kept narrow: "token" alone is left out ("requires a token address" is a normal answer).
+_ASKS_FOR_AUTH = re.compile(r"\b(?:unauthori[sz]ed|not authori[sz]ed|authentication (?:is )?(?:required|needed)|"
+                            r"authori[sz]ation (?:is )?(?:required|needed)|invalid api[ _-]?key|provider_auth_required|"
+                            r"separate provider authori[sz]ation|requires? (?:an? |your )?(?:account|login|sign[ -]?in|"
+                            r"authori[sz]ation|authentication))\b", re.I)
+
+
+def asks_for_auth(text: str | None) -> bool:
+    """asks_for_key, or a reply that asks for sign-in or authorization (not when it says none is needed)."""
+    text = str(text or "")
+    return asks_for_key(text) or any(not _NEGATED.search(text[max(0, m.start() - 40):m.start()])
+                                     for m in _ASKS_FOR_AUTH.finditer(text))
+
+
 AS_FIELDS = ("issuer", "authorization_endpoint", "token_endpoint", "registration_endpoint", "device_authorization_endpoint",
              "grant_types_supported", "code_challenge_methods_supported", "token_endpoint_auth_methods_supported",
              "scopes_supported", "client_id_metadata_document_supported")

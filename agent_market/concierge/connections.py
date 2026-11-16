@@ -378,7 +378,7 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     # is not on the gateway's tools/list (an action tool such as send_email) is not connectable through us.
     # 11-15 user_slo 00:04 mcp/36513: a listing that requires the provider's own authorization is refused by the
     # gateway for public callers (execution_policy.admit, x402 aside), so it is not connectable through us either.
-    needs_provider_auth=value.get('auth_required') is True and value.get('kind')!='x402'
+    needs_provider_auth=value.get('auth_required') in (True,1) and value.get('kind')!='x402'  # 0/1 from the hybrid path
     available=bool(gateway) and value.get('tool_unlisted') is not True and not needs_provider_auth
     result['connection_available']=available
     if needs_provider_auth:

@@ -535,7 +535,13 @@ def relayable(item):
         return True
     if item.get('tool_unlisted') is True:
         return False
-    return not (item.get('auth_required') is True and item.get('kind') != 'x402')
+    return not needs_provider_auth(item)
+
+
+def needs_provider_auth(item):
+    """A listing that needs the provider's own authorization (x402 aside). auth_required is a bool from the ranking
+    path and 0/1 from the hybrid path; both count (PM 11-17 02:2x: 'is True' missed the 1)."""
+    return isinstance(item, dict) and item.get('auth_required') in (True, 1) and item.get('kind') != 'x402'
 
 
 # A requirement word alone is no capability phrase for the catalog search ('ocr' finds nothing): the phrase it asks
@@ -560,7 +566,12 @@ def relayable_only(items):
     re-orders (subject_first, condition_first) could otherwise move it back to first. When none is relayed, the
     honest documentation-link answer stays (11-12 PM decision on unrelayed recommendations)."""
     kept = [item for item in items if relayable(item)]
-    return kept or items
+    if kept:
+        return kept
+    # PM 11-17 02:2x (user_slo 01:06 mcp/431838 Kivel, send_email): with nothing relayed the documentation-link answer
+    # put first a listing whose own authorization the gateway refuses at initialize. That answer may still name an
+    # unrelayed keyless tool; a listing that needs the provider's authorization leaves it.
+    return [item for item in items if not needs_provider_auth(item)]
 
 
 FALLBACK_DEADLINE = 8.0  # seconds into a request after which the split and neighbor searches do not start

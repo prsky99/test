@@ -114,3 +114,30 @@ def test_an_unrelayed_lead_is_replaced_by_a_relayed_tool_with_its_capability(cat
     assert recs and recs[0]['id'] == relayed and unrelayed not in [r['id'] for r in recs]
     assert recs[0]['unverified'] == ['invoice']
     assert 'not confirmed (unverified): invoice' in recs[0]['reason']['text']
+
+
+def test_with_nothing_relayed_a_listing_that_needs_provider_authorization_still_leaves():
+    """PM 11-17 02:2x: user_slo 01:06 'send email json output' put mcp/431838 Kivel (send_email, auth_observed=1) first;
+    the gateway refused it at initialize ("requires separate provider authorization"). Not one listing: every listing
+    that needs the provider's own authorization, whether auth_required is True (ranking) or 1 (hybrid path)."""
+    from agent_market.concierge.fast_chat import needs_provider_auth
+    keyed_action = {'id': 431838, 'kind': 'mcp', 'tool_unlisted': True, 'auth_required': True}
+    keyed_int = {'id': 36513, 'kind': 'mcp', 'auth_required': 1}
+    keyed_a2a = {'id': 86992, 'kind': 'a2a', 'auth_required': 1}
+    keyless_action = {'id': 7, 'kind': 'mcp', 'tool_unlisted': True, 'auth_required': False}
+    unknown = {'id': 8, 'kind': 'mcp', 'tool_unlisted': True, 'auth_required': None}
+    x402 = {'id': 9, 'kind': 'x402', 'auth_required': 1}
+    assert [needs_provider_auth(i) for i in (keyed_action, keyed_int, keyed_a2a, keyless_action, unknown, x402)] == [
+        True, True, True, False, False, False]
+    assert not relayable(keyed_int) and not relayable(keyed_a2a) and relayable(x402)
+    # nothing relayed: the documentation-link answer keeps keyless listings only
+    assert relayable_only([keyed_action, keyless_action, keyed_int, unknown]) == [keyless_action, unknown]
+    assert relayable_only([keyed_action, keyed_int]) == []
+    assert relayable_only([keyed_int, x402]) == [x402]
+
+
+def test_a_card_with_auth_required_1_is_not_connectable():
+    from agent_market.concierge.connections import public_agent
+    card = public_agent({'id': 36513, 'kind': 'mcp', 'name': 'OCR', 'url': 'https://ocr.example/mcp', 'auth_required': 1,
+                         'tools': ['ocr'], 'category': 'dev_tools', 'description': 'd'}, create_connections=False)
+    assert card['connection_available'] is False and card['connection_reason'] == 'provider_authorization'
