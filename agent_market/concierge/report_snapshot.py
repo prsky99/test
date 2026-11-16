@@ -23,14 +23,15 @@ log = logging.getLogger(__name__)
 REFRESH_SECONDS = 3600
 # Each chunk holds the front store lock that every visitor request also takes. 200 rows held it
 # about 1.1 s at a time, and Python locks are not fair, so a waiting Explore request took 14 s
-# (2026-11-01 18:34). Short chunks and a pause let waiting requests in between. A session of
-# its own is not an option: the database allows 21 sessions and the services already use 19-20.
+# (2026-11-01 18:34). Short chunks and a pause let waiting requests in between. (11-01 the database
+# allowed 21 sessions and a session of its own was not an option; max_connections is 48 since then.)
 CHUNK = 25
 YIELD_SECONDS = 0.02
 # The rebuild's Python work (cards, text vectors) shares the interpreter with visitor requests.
 # Working without pauses, it made 2 s first-seen searches take 3.2 to 4.2 s (2026-11-01 19:03).
 # Pausing twice as long as each chunk took keeps the rebuild to about a third of the time;
-# a rebuild then took 175 s instead of 52 s, well inside the 10-minute refresh period.
+# a rebuild took 175 s then (11-01, about 10,000 listings) and 490-695 s on 11-16 (about 20,900),
+# which is why REFRESH_SECONDS is an hour now.
 PAUSE_RATIO = 2.0
 KINDS = ('a2a', 'mcp', 'x402')
 WEIGHT_A, WEIGHT_D = 1.0, 0.1

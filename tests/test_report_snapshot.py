@@ -339,3 +339,11 @@ def test_rows_read_page_by_page_are_kept_once_and_a_short_count_still_returns_th
     monkeypatch.setattr(rs, 'CANDIDATE_PAGE', 30)
     found, total = rs._all_candidates(Store(), 'COUNT', 'PAGE', [], ['mcp'])
     assert total == 100 and len(found) == len({r['id'] for r in found}) and 95 <= len(found) < 100
+
+
+def test_the_serving_frontend_rebuilds_the_report_snapshot_hourly():
+    """PM 11-16 16:21: a 490-695 s rebuild every 600 s kept the serving process busy about half the day; hourly, a
+    snapshot is used for two periods. keep_fresh's default interval is the constant."""
+    import inspect
+    assert rs.REFRESH_SECONDS == 3600
+    assert inspect.signature(rs.keep_fresh).parameters['interval'].default == rs.REFRESH_SECONDS
