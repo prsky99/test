@@ -93,3 +93,29 @@ def test_waiting_before_the_app_is_named_queue_and_the_loop_lag_is_watched():
         return lag
     import time
     assert asyncio.run(run()) >= 150
+
+
+def test_each_timed_request_leaves_one_line_without_the_query_or_address(tmp_path, monkeypatch):
+    """운영·SRE / PM 11-16: kind of path, status, server time, all stages, QA mark; written off the request path."""
+    import json as _json
+    import time as _time
+    from starlette.applications import Starlette
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+    from agent_market.concierge import request_timing as rt
+    monkeypatch.setenv('LOG_DIR', str(tmp_path / 'logs' / 'service-frontend'))
+    monkeypatch.setattr(rt, '_writer', {'thread': None})
+    app = Starlette(routes=[Route('/mcp', lambda request: JSONResponse({'ok': True}), methods=['POST'])])
+    app.add_middleware(rt.RequestTiming)
+    TestClient(app).post('/mcp?task=secret', headers={'X-Agentcon-QA': '1', 'User-Agent': 'probe'})
+    folder = tmp_path / 'logs' / 'ops' / 'request-timing'
+    for _ in range(50):
+        if any(folder.glob('*.jsonl')):
+            break
+        _time.sleep(0.05)
+    [line] = [_json.loads(l) for f in folder.glob('*.jsonl') for l in f.read_text().splitlines()]
+    assert line['path'] == 'mcp' and line['status'] == 200 and line['qa'] is True and 'server_ms' in line
+    assert 'secret' not in _json.dumps(line) and 'probe' not in _json.dumps(line)
+    monkeypatch.delenv('LOG_DIR')
+    assert rt.record_line({'at': 0}) is False                   # no LOG_DIR: nothing is kept

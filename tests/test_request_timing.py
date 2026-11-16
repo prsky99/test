@@ -107,6 +107,9 @@ def test_recommendation_legs_without_a_stage_now_have_one():
         return JSONResponse({'ok': True})
     app = Starlette(routes=[Route('/mcp', many, methods=['POST'])])
     app.add_middleware(RequestTiming)
+    # loop_lag (and queue) are added when an earlier test left loop-lag samples; this count is about the stages
+    from agent_market.concierge import request_timing
+    request_timing._lag['samples'].clear()
     timing = TestClient(app).post('/mcp').headers['server-timing']
     assert timing.count(';dur=') == 21  # server plus all twenty stages
 

@@ -7,7 +7,12 @@ Nothing about the task, the visitor or the result is recorded.
 """
 import asyncio
 import collections
+import json
+import os
+import queue
+import threading
 import time
+from pathlib import Path
 
 from starlette.datastructures import MutableHeaders
 
@@ -63,6 +68,51 @@ def queued_ms(scope, now_epoch=None):
     return None
 
 
+# One line per timed request (운영·SRE, PM 11-16): kind of path, status, server time, every stage, loop_lag and queue,
+# a QA mark; never the query, address or user agent. The request only puts the line on a bounded queue; a background
+# thread appends it to <logs>/ops/request-timing/YYYY-MM-DD.jsonl. Without LOG_DIR (tests, ad-hoc runs) nothing is kept.
+_LINES = queue.Queue(maxsize=5000)
+_writer = {'thread': None}
+
+
+def log_directory():
+    value = os.environ.get('LOG_DIR')
+    return Path(value).parent / 'ops' / 'request-timing' if value else None
+
+
+def path_kind(path):
+    for prefix in PATHS:
+        if path == prefix or path.startswith(prefix + '/'):
+            return prefix.strip('/').replace('/', '_')
+    return 'other'
+
+
+def _write_lines(folder):
+    while True:
+        line = _LINES.get()
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            day = time.strftime('%Y-%m-%d', time.localtime(line['at']))
+            with open(folder / f'{day}.jsonl', 'a', encoding='utf-8') as stream:
+                stream.write(json.dumps(line, separators=(',', ':')) + '\n')
+        except OSError:
+            pass                                  # a full disk never slows or fails a request
+
+
+def record_line(line):
+    folder = log_directory()
+    if folder is None:
+        return False
+    if _writer['thread'] is None or not _writer['thread'].is_alive():
+        _writer['thread'] = threading.Thread(target=_write_lines, args=(folder,), name='request-timing-log', daemon=True)
+        _writer['thread'].start()
+    try:
+        _LINES.put_nowait(line)
+        return True
+    except queue.Full:
+        return False
+
+
 class RequestTiming:
     def __init__(self, app):
         self.app = app
@@ -87,6 +137,11 @@ class RequestTiming:
                                       key=lambda item: -item[1])
                     stages += measured[:24]
                     stages += [(name, value) for name, value in before.items() if value is not None]
+                    qa = any(name == b'x-agentcon-qa' for name, _ in scope.get('headers') or ())
+                    record_line({'at': round(time.time(), 3), 'path': path_kind(scope.get('path') or ''),
+                                 'status': message.get('status'), 'server_ms': round(stages[0][1], 1), 'qa': qa,
+                                 'stages': {name: round(value, 1) for name, value in
+                                            [*measured, *[(n, v) for n, v in before.items() if v is not None]]}})
                     headers = MutableHeaders(scope=message)
                     timing = ', '.join(f'{name};dur={value:.0f}' for name, value in stages)
                     headers['Server-Timing'] = (headers['Server-Timing'] + ', ' + timing) if 'server-timing' in headers else timing
