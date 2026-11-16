@@ -777,89 +777,7 @@ def load_cases(root: Path, slug: str, split: str) -> list[dict]:
     return cases
 
 
-def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT, split: str = "tuning",
-            singles: bool = False, budget_s: float = BUDGET_SECONDS, watch_state: dict | None = None,
-            clock=time.monotonic, now=time.time, pacer: RelayPacer | None = None,
-            shared_cache: SharedMemberCache | None = None, drill: bool = False) -> dict:
-    started = clock()
-    day = time.strftime("%Y%m%d", time.localtime(now()))
-    lines, details = [], []
-    done = passed = excluded = reused = same_passed = 0
-    contrast = CONTRAST.get(defn["slug"])
-    exclude = TASK_EXCLUDE.get(defn["slug"]) or (lambda c: None)
-    for case in cases:
-        if clock() - started > budget_s:
-            break
-        why = exclude(case)
-        if why:                         # outside the task: not run, not graded, counted apart (no provider call)
-            lines.append({"type": "excluded", "slug": defn["slug"], "version": defn["version"],
-                          "case_id": case["case_id"], "set": split, "at": _iso(now()), "why": why})
-            excluded += 1
-            continue
-        if pacer is not None:
-            pacer.wait_for(requests_per_case(defn))
-        same_case = CaseAnswers(caller) if singles and contrast else None
-        result = runner.Runner(same_case.wrap() if same_case else caller, watch_state=watch_state,
-                               keep_raw=2000).run(defn, case["input"])
-        verdict = grade(defn, case, result["output"])
-        at = _iso(now())
-        ours = unmeasured_failure(defn, verdict, result["attempts"])
-        if ours and not verdict["ok"] and shared_cache is not None:
-            shared_cache.take_hits()            # the shared count belongs to this case, not the next one
-        if ours and not verdict["ok"]:           # our budget, pace or edge, or a provider pause: not a failure (R23)
-            lines.append({"type": "excluded", "slug": defn["slug"], "version": defn["version"],
-                          "case_id": case["case_id"], "set": split, "at": at, "why": ours})
-            details.append({"case_id": case["case_id"], "excluded": ours, "attempts": result["attempts"]})
-            excluded += 1
-            continue
-        shared = shared_cache.take_hits() if shared_cache is not None else 0
-        if drill:          # fallback drill: its own line, never part of quality, tested_at or the value proof
-            lines.append({"type": "drill", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
-                          "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"],
-                          "dropped": (watch_state or {}).get("drill_dropped") or [], "slots": result["slots"]})
-            details.append({"case_id": case["case_id"], "drill": True, "verdict": verdict, "slots": result["slots"]})
-            done += 1
-            passed += bool(verdict["ok"])
-            continue
-        from .value import measure                 # plan 3.1: the two paths on this same case (R23 pairing)
-        twin = same_source(defn, case, result)
-        if twin and verdict["ok"]:
-            same_passed += 1
-        lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
-                      "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"], "shared": shared,
-                      **({"same_source": twin} if twin else {}),
-                      **({"same_source_official": official} if (official := same_source_official(defn, case, result)) else {}),
-                      "value": measure(defn, case["input"], result, verdict["ok"]),
-                      "completed_external_only": result["completed_external_only"],
-                      "latency_ms": result["latency_ms"], "slots": result["slots"], "graded": verdict["slots"]})
-        for slot, attempts in result["attempts"].items():
-            for a in attempts:
-                lines.append({"type": "member", "slug": defn["slug"], "version": defn["version"], "slot": slot,
-                              "resource_id": a["resource_id"], "tool": a["tool"], "kind": a["kind"], "at": at,
-                              # PM 17:28: an empty connection is ours, not the member's (no ok/fail for it)
-                              "ok": None if not_measured({slot: [a]}) or a["error_class"] == "connection_empty"
-                              else a["ok"],
-                              "contract_valid": a["error_class"] != "contract_invalid",
-                              "latency_ms": a["ms"], "error_class": a["error_class"]})
-        details.append({"case_id": case["case_id"], "verdict": verdict, "output": result["output"],
-                        "slots": result["slots"], "attempts": result["attempts"]})
-        if singles and contrast:
-            for slot_name, member in single_members(defn, contrast, watch_state):
-                one = single_definition(defn, slot_name, member)
-                if pacer is not None and member["kind"] == "external":
-                    pacer.wait_for(2)
-                out = runner.Runner(same_case.wrap(reuse=True) if same_case else caller).run(one, case["input"])
-                reused_now = same_case.take_reused() if same_case else 0
-                task = TASK_GRADERS.get(defn["slug"])
-                ok = task(case, out["output"]) if task else GRADERS[contrast](case, out["output"].get(contrast))
-                if not ok and not_measured(out["attempts"]):
-                    ok = None                             # not measured (R23): never a failure of the single member
-                lines.append({"type": "single", "slug": defn["slug"], "resource_id": member.get("resource_id"),
-                              "agent_id": member.get("agent_id"), "kind": member["kind"], "tool": member["tool"],
-                              "case_id": case["case_id"], "at": at, "ok": ok, "reused": reused_now})
-                reused += reused_now
-        done += 1
-        passed += bool(verdict["ok"])
+def _write_run_lines(root, day, defn, lines, details):
     retest = Path(root) / "retest" / f"{day}.jsonl"
     retest.parent.mkdir(parents=True, exist_ok=True)
     with retest.open("a", encoding="utf-8") as handle:
@@ -870,6 +788,95 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
     with review.open("a", encoding="utf-8") as handle:
         for line in details:
             handle.write(json.dumps(line, ensure_ascii=False, sort_keys=True, default=str) + "\n")
+
+
+def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT, split: str = "tuning",
+            singles: bool = False, budget_s: float = BUDGET_SECONDS, watch_state: dict | None = None,
+            clock=time.monotonic, now=time.time, pacer: RelayPacer | None = None,
+            shared_cache: SharedMemberCache | None = None, drill: bool = False) -> dict:
+    started = clock()
+    day = time.strftime("%Y%m%d", time.localtime(now()))
+    lines, details = [], []
+    done = passed = excluded = reused = same_passed = 0
+    contrast = CONTRAST.get(defn["slug"])
+    exclude = TASK_EXCLUDE.get(defn["slug"]) or (lambda c: None)
+    try:
+        for case in cases:
+            if clock() - started > budget_s:
+                break
+            why = exclude(case)
+            if why:                         # outside the task: not run, not graded, counted apart (no provider call)
+                lines.append({"type": "excluded", "slug": defn["slug"], "version": defn["version"],
+                              "case_id": case["case_id"], "set": split, "at": _iso(now()), "why": why})
+                excluded += 1
+                continue
+            if pacer is not None:
+                pacer.wait_for(requests_per_case(defn))
+            same_case = CaseAnswers(caller) if singles and contrast else None
+            result = runner.Runner(same_case.wrap() if same_case else caller, watch_state=watch_state,
+                                   keep_raw=2000).run(defn, case["input"])
+            verdict = grade(defn, case, result["output"])
+            at = _iso(now())
+            ours = unmeasured_failure(defn, verdict, result["attempts"])
+            if ours and not verdict["ok"] and shared_cache is not None:
+                shared_cache.take_hits()            # the shared count belongs to this case, not the next one
+            if ours and not verdict["ok"]:           # our budget, pace or edge, or a provider pause: not a failure (R23)
+                lines.append({"type": "excluded", "slug": defn["slug"], "version": defn["version"],
+                              "case_id": case["case_id"], "set": split, "at": at, "why": ours})
+                details.append({"case_id": case["case_id"], "excluded": ours, "attempts": result["attempts"]})
+                excluded += 1
+                continue
+            shared = shared_cache.take_hits() if shared_cache is not None else 0
+            if drill:          # fallback drill: its own line, never part of quality, tested_at or the value proof
+                lines.append({"type": "drill", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
+                              "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"],
+                              "dropped": (watch_state or {}).get("drill_dropped") or [], "slots": result["slots"]})
+                details.append({"case_id": case["case_id"], "drill": True, "verdict": verdict, "slots": result["slots"]})
+                done += 1
+                passed += bool(verdict["ok"])
+                continue
+            from .value import measure                 # plan 3.1: the two paths on this same case (R23 pairing)
+            twin = same_source(defn, case, result)
+            if twin and verdict["ok"]:
+                same_passed += 1
+            lines.append({"type": "case", "slug": defn["slug"], "version": defn["version"], "case_id": case["case_id"],
+                          "set": split, "at": at, "ok": verdict["ok"], "completed": result["completed"], "shared": shared,
+                          **({"same_source": twin} if twin else {}),
+                          **({"same_source_official": official} if (official := same_source_official(defn, case, result)) else {}),
+                          "value": measure(defn, case["input"], result, verdict["ok"]),
+                          "completed_external_only": result["completed_external_only"],
+                          "latency_ms": result["latency_ms"], "slots": result["slots"], "graded": verdict["slots"]})
+            for slot, attempts in result["attempts"].items():
+                for a in attempts:
+                    lines.append({"type": "member", "slug": defn["slug"], "version": defn["version"], "slot": slot,
+                                  "resource_id": a["resource_id"], "tool": a["tool"], "kind": a["kind"], "at": at,
+                                  # PM 17:28: an empty connection is ours, not the member's (no ok/fail for it)
+                                  "ok": None if not_measured({slot: [a]}) or a["error_class"] == "connection_empty"
+                                  else a["ok"],
+                                  "contract_valid": a["error_class"] != "contract_invalid",
+                                  "latency_ms": a["ms"], "error_class": a["error_class"]})
+            details.append({"case_id": case["case_id"], "verdict": verdict, "output": result["output"],
+                            "slots": result["slots"], "attempts": result["attempts"]})
+            if singles and contrast:
+                for slot_name, member in single_members(defn, contrast, watch_state):
+                    one = single_definition(defn, slot_name, member)
+                    if pacer is not None and member["kind"] == "external":
+                        pacer.wait_for(2)
+                    out = runner.Runner(same_case.wrap(reuse=True) if same_case else caller).run(one, case["input"])
+                    reused_now = same_case.take_reused() if same_case else 0
+                    task = TASK_GRADERS.get(defn["slug"])
+                    ok = task(case, out["output"]) if task else GRADERS[contrast](case, out["output"].get(contrast))
+                    if not ok and not_measured(out["attempts"]):
+                        ok = None                             # not measured (R23): never a failure of the single member
+                    lines.append({"type": "single", "slug": defn["slug"], "resource_id": member.get("resource_id"),
+                                  "agent_id": member.get("agent_id"), "kind": member["kind"], "tool": member["tool"],
+                                  "case_id": case["case_id"], "at": at, "ok": ok, "reused": reused_now})
+                    reused += reused_now
+            done += 1
+            passed += bool(verdict["ok"])
+    finally:
+        # source review 11-16: the lines of the cases already run are kept even when a later case raises
+        _write_run_lines(root, day, defn, lines, details)
     return {"slug": defn["slug"], "split": split, "cases": done, "passed": passed, "excluded": excluded,
             "of": len(cases),
             "stopped_by_budget": done + excluded < len(cases), "seconds": round(clock() - started, 1),

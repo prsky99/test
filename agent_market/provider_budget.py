@@ -317,6 +317,25 @@ def reserve(url, system, n=1, now=None, directory=None):
         return True, 'ok'
 
 
+def release(url, system, n=1, day=None, directory=None):
+    """Give back N calls of SYSTEM that reserve() counted but that never left our side (our relay's pace or slots,
+    our edge full, our deadline): source review 11-16, the count ran down faster than the calls really made. Only
+    what SYSTEM itself took that day is given back, never below zero. Returns the number given back."""
+    name = domain(url)
+    if not name or n <= 0:
+        return 0
+    with _ledger(day or today(), directory) as data:
+        entry = data['domains'].get(name)
+        if not entry:
+            return 0
+        back = min(n, entry['by'].get(system, 0), entry.get('total', 0))
+        if back:
+            entry['by'][system] -= back
+            entry['total'] -= back
+            entry['released'] = entry.get('released', 0) + back
+        return back
+
+
 # Hosts whose answers are ours (relay, edge, fallbacks): a 429 from them is our own pace, never a provider's.
 OUR_DOMAINS = ('agentconcierge.biz',)
 PROVIDER_HTTP = 'provider_http'      # the status came on a response from the provider's own host, called directly

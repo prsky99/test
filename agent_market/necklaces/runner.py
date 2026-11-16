@@ -1128,6 +1128,10 @@ def live_quota_caller(caller, budget=None, default_per_day=None):
 # Only a pause the provider itself asked for counts against its domain. Our own relay's rate limit
 # (HTTP 429 from agentconcierge.biz, error "relay_throttled") never does (11-14 05:1x incident).
 RATE_LIMITED = ("PROVIDER_429",)
+# A gate or retest call refused before it reached the provider: our relay's pace or slots, our edge full (source
+# review 11-16). The ledger gives such a call back (provider_budget.release). A deadline or timeout is not here: the
+# request may have reached the provider.
+NEVER_LEFT = ("relay_throttled", "our_capacity", "capacity", "CAPACITY_EXCEEDED")
 
 
 def budgeted_caller(caller, system: str, url_of, budget=None):
@@ -1145,10 +1149,16 @@ def budgeted_caller(caller, system: str, url_of, budget=None):
         ok, why = budget.reserve(url, system)
         if not ok:
             raise BudgetDenied(why)
+        day = budget.today() if hasattr(budget, "today") else None
         try:
             return caller(member, args, timeout_s)
         except Exception as exc:
             code = str(getattr(exc, "status", "") or getattr(exc, "error_code", "") or "")
+            if code in NEVER_LEFT and hasattr(budget, "release"):
+                try:                                   # source review 11-16: a call that never left us is given back
+                    budget.release(url, system, 1, day=day)
+                except Exception:                      # noqa: BLE001 - a ledger error never changes the answer
+                    pass
             if any(mark in code.upper() for mark in RATE_LIMITED):
                 # only an error that carries the provider's own pause reaches the ledger as one; anything else
                 # (our relay, our engine) is refused and logged by the ledger's gatekeeper

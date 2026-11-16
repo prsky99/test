@@ -443,14 +443,30 @@ def main(argv=None) -> int:
     import httpx
     with httpx.Client(headers={"User-Agent": "AgentValCon-NecklaceGate/1.0"}) as client:
         result = check(defn, client, args.base)
-    OUT.mkdir(parents=True, exist_ok=True)
-    path = OUT / f"check-{args.slug}-v{defn['version']}-{time.strftime('%Y%m%d-%H%M')}.json"
-    path.write_text(json.dumps(result, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    path = write_check(OUT, args.slug, defn["version"], result)
     print(json.dumps({"file": str(path), "ok": result["ok"], "pearls": result["pearls"],
                       "warnings": result.get("warnings") or [], "terms_unknown": result.get("terms_unknown"),
                       "denied": [(s["slot"], m["id"], m.get("error_code"), m.get("reference")) for s in result["slots"]
                                  for m in s["members"] if m.get("relay") == "denied"]}, ensure_ascii=False))
     return 0 if result["ok"] else 1
+
+
+def write_check(folder, slug, version, result, stamp=None) -> Path:
+    """Write one gate check to its own file (source review 11-16): two checks in one minute used to share a name and
+    the second overwrote the first. The name has seconds, and a name already taken gets -2, -3 ... (never replaced)."""
+    folder = Path(folder)
+    folder.mkdir(parents=True, exist_ok=True)
+    base = f"check-{slug}-v{version}-{stamp or time.strftime('%Y%m%d-%H%M%S')}"
+    text = json.dumps(result, ensure_ascii=False, indent=1) + "\n"
+    for n in range(1, 1000):
+        path = folder / (base + (f"-{n}" if n > 1 else "") + ".json")
+        try:
+            with open(path, "x", encoding="utf-8") as handle:
+                handle.write(text)
+            return path
+        except FileExistsError:
+            continue
+    raise RuntimeError(f"no free file name for {base}")
 
 
 if __name__ == "__main__":
