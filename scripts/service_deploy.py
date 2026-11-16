@@ -176,7 +176,7 @@ class Deployment:
             raise ValueError('release_symlink_refused')
         return path
 
-    def package(self, release, base=None, commit=None):
+    def package(self, release, base=None, commit=None, allow_lineage=None):
         """Copy the tree into a new release. BASE names the release this tree was overlaid on;
         without it, AGENTCON_RELEASE_BASE or a release.json left in a copied release tree is used.
         deploy refuses a release whose base is no longer the active one (11-09: overlays built on
@@ -190,14 +190,38 @@ class Deployment:
             sha, exported = self.export_commit(commit)
             source_root = exported
         self._from_commit = commit is not None
+        target = self.path(release)
+        existed = target.exists()
         try:
-            result = self._package(release, base, source_root, sha)
-            if sha is not None:
-                warnings = self.lineage_warnings(base, sha)
-                if warnings:
-                    result['lineage_warnings'] = warnings
-                    for line in warnings:
-                        print('WARNING ' + line, file=sys.stderr)
+            # 11-16 PM source review: a release that drops work only the active release has is refused, not just
+            # warned about. --allow-lineage "<reason>" packages it anyway and the reason is kept in release.json and
+            # logs/ops/lineage-exceptions.jsonl. Checked before any file is written.
+            warnings = self.lineage_warnings(base, sha) if sha is not None else []
+            breaks = [w for w in warnings if w.startswith('lineage_base_not_in_commit')]
+            if breaks and not allow_lineage:
+                raise RuntimeError(breaks[0] + ' (refused; pass --allow-lineage "<reason>" if this is intended)')
+            try:
+                result = self._package(release, base, source_root, sha)
+            except BaseException:
+                if not existed and target.exists():   # 11-16 source review: no half-made release folder is left
+                    shutil.rmtree(target, ignore_errors=True)
+                raise
+            if warnings:
+                result['lineage_warnings'] = warnings
+                for line in warnings:
+                    print('WARNING ' + line, file=sys.stderr)
+            if breaks:
+                exception = {'reason': str(allow_lineage)[:300], 'warnings': breaks, 'at': time.strftime('%Y-%m-%d %H:%M')}
+                manifest_path = target / 'release.json'
+                manifest = json.loads(manifest_path.read_text())
+                manifest['lineage_exception'] = exception
+                atomic_json(manifest_path, manifest)
+                result['lineage_exception'] = exception
+                log = self.root / 'logs/ops/lineage-exceptions.jsonl'
+                log.parent.mkdir(parents=True, exist_ok=True)
+                with log.open('a') as out:
+                    out.write(json.dumps({'release': release, 'base': base, 'commit': sha, **exception},
+                                         ensure_ascii=False) + '\n')
             return result
         finally:
             self._from_commit = False
@@ -241,14 +265,35 @@ class Deployment:
         # the new commit (the overlay is carried over), so its lineage is judged by the parent.
         overlay = self._kept_overlay(base_commit, sha)
         anchor = (base_commit + '^') if overlay else base_commit
-        if not self._is_ancestor(anchor, sha):
+        # 11-16 (r7-r9): day bundles stack release-only commits (reverts of night-only or ungated commits, and
+        # cherry-picks of branch commits). What matters is whether a change of the active line is missing, so a
+        # commit of the active line whose patch is already in the new commit (git cherry '-') is not a loss.
+        lost = self._unique_commits(sha, base_commit)
+        if not self._is_ancestor(anchor, sha) and (lost is None or lost):
             out.append('lineage_base_not_in_commit: %s (the active %s commit) is not an ancestor of %s; the release '
-                       'drops whatever only the active line has' % (base_commit[:8], base, sha[:8]))
+                       'drops whatever only the active line has%s' % (
+                           base_commit[:8], base, sha[:8], (' (%s)' % ', '.join(c[:8] for c in lost[:5])) if lost else ''))
         if subprocess.run(['git', 'rev-parse', '--verify', '--quiet', branch], cwd=self.root,
                           capture_output=True).returncode == 0 and not self._is_ancestor(anchor, branch):
-            out.append('lineage_active_not_on_branch: %s (the active %s commit) is not in %s; merge that line back '
-                       'before the next bundle' % (base_commit[:8], base, branch))
+            off = self._unique_commits(branch, base_commit)
+            if off is None or [c for c in off if not self._is_revert_of(c, branch)]:
+                out.append('lineage_active_not_on_branch: %s (the active %s commit) is not in %s; merge that line back '
+                           'before the next bundle' % (base_commit[:8], base, branch))
         return out
+
+    def _unique_commits(self, upstream, head):
+        """Commits of HEAD whose change is not in UPSTREAM (git cherry '+'), or None when git cannot tell."""
+        done = subprocess.run(['git', 'cherry', upstream, head], cwd=self.root, capture_output=True, text=True)
+        if done.returncode:
+            return None
+        return [line[2:].strip() for line in done.stdout.splitlines() if line.startswith('+ ')]
+
+    def _is_revert_of(self, commit, branch):
+        """True when COMMIT is git's revert of a commit on BRANCH (a release-only revert, never merged back)."""
+        body = subprocess.run(['git', 'log', '-1', '--format=%B', commit], cwd=self.root, capture_output=True,
+                              text=True).stdout
+        found = re.search(r'This reverts commit ([0-9a-f]{7,40})', body)
+        return bool(found) and self._is_ancestor(found.group(1), branch)
 
     def venv_source(self):
         """The environment a new release clones. A release built from a commit uses the active frontend
@@ -1626,6 +1671,7 @@ def main():
     package.add_argument('--base', help='the release this tree was overlaid on (deploy checks it is still active)')
     package.add_argument('--commit', default='HEAD', help='build from this commit with git archive (default HEAD; 11-10 operations = git)')
     package.add_argument('--from-tree', action='store_true', help='legacy: copy the files on disk instead of a commit (no commit recorded)')
+    package.add_argument('--allow-lineage', metavar='REASON', help='package although the active release has changes the commit lacks (the reason is recorded)')
     deploy = commands.add_parser('deploy'); deploy.add_argument('role', choices=PORTS); deploy.add_argument('release')
     deploy.add_argument('--force-base', action='store_true', help='deploy although the release was built on a release that is no longer active')
     deploy.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a frontend release without scripts.release_gate')
@@ -1666,7 +1712,8 @@ def main():
         if not args.from_tree and not args.base:   # R54: a commit package names the release it was overlaid on
             raise SystemExit('package_base_required: --base <the active release this commit was built on>')
         with manager.lock():
-            result = manager.package(args.release, args.base, None if args.from_tree else args.commit)
+            result = manager.package(args.release, args.base, None if args.from_tree else args.commit,
+                                     allow_lineage=args.allow_lineage)
             pin_packaged(manager.directory, args.release)
     elif args.command in ('deploy', 'worker-deploy'):
         check_board_lock(args.root, args.lock_owner, args.take_stale_lock)
