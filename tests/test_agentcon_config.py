@@ -314,6 +314,15 @@ def test_sponsored_and_usdc_settings_live_in_their_own_file(tmp_path):
           'AD_COIN_PAID_PRICE_USDC': '5', 'AD_COIN_PAID_MIN_CONFIRMATIONS': '3',
           'AD_COIN_PAID_RPC_URL': 'https://mainnet.base.org', 'AD_COIN_OFAC_LIST': '/srv/ofac.txt'}
     assert check_sponsored_settings(on) == on
+    # 11-16: the worker daemon's automatic review switch lives here too; the file must accept it (0 or 1 only)
+    path.write_text('MAIN_SPONSORED=1\nAD_COIN_AUTO_REVIEW_ENABLED=0\n')
+    assert read_sponsored_settings(path) == {'MAIN_SPONSORED': '1', 'AD_COIN_AUTO_REVIEW_ENABLED': '0'}
+    assert check_sponsored_settings({'AD_COIN_AUTO_REVIEW_ENABLED': '1'}) == {'AD_COIN_AUTO_REVIEW_ENABLED': '1'}
+    with pytest.raises(ConfigError):
+        check_sponsored_settings({'AD_COIN_AUTO_REVIEW_ENABLED': 'on'})
+    from scripts.adcoin_worker_env import PASSED
+    assert all(k in SPONSORED_KEYS for k in ('AD_COIN_AUTO_REVIEW_ENABLED', 'AD_COIN_OFAC_LIST'))
+    assert PASSED.match('AD_COIN_AUTO_REVIEW_ENABLED')   # what the daemon takes, the file accepts
     for bad in ({'MAIN_SPONSORED': 'yes'}, {'AD_COIN_PAID_PAY_TO': '0x123'},
                 {'AD_COIN_PAID_PAY_TO_FILE': 'gateway-data/x.txt'}, {'AD_COIN_PAID_PRICE_USDC': '5 USDC'},
                 {'AD_COIN_PAID_MIN_CONFIRMATIONS': '0'}, {'AD_COIN_PAID_RPC_URL': 'http://mainnet.base.org'},

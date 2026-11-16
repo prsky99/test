@@ -45,6 +45,10 @@ ALLOWED_KEYS = frozenset((
 SPONSORED_KEYS = frozenset((
     'MAIN_SPONSORED', 'AD_COIN_PAID_BOOKING_ENABLED', 'AD_COIN_PAID_PAY_TO', 'AD_COIN_PAID_PAY_TO_FILE',
     'AD_COIN_PAID_PRICE_USDC', 'AD_COIN_PAID_MIN_CONFIRMATIONS', 'AD_COIN_PAID_RPC_URL', 'AD_COIN_OFAC_LIST',
+    # 11-16: the AD Coin worker daemon takes its automatic review switch from this file (adcoin_worker_env), so
+    # every role that reads the file must know the name. Write it only after all four roles run a release with it
+    # (./agentcon status, docs/AD_COIN_INDEX.md 0); PM switches it on.
+    'AD_COIN_AUTO_REVIEW_ENABLED',
 ))
 MAX_FILE_BYTES = 65536
 LOCAL_MODEL_KEYS = frozenset(('WORKSPACE_MODEL_ENABLED', 'WORKSPACE_MODEL_URL', 'WORKSPACE_MODEL_NAME',
@@ -233,7 +237,7 @@ def check_ad_coin_v2_settings(settings):
 
 def check_sponsored_settings(settings):
     """Values of gateway-data/sponsored.env (11-11)."""
-    for name in ('MAIN_SPONSORED', 'AD_COIN_PAID_BOOKING_ENABLED'):
+    for name in ('MAIN_SPONSORED', 'AD_COIN_PAID_BOOKING_ENABLED', 'AD_COIN_AUTO_REVIEW_ENABLED'):
         if settings.get(name, '0') not in ('0', '1'):
             raise ConfigError(name + ' must be 0 or 1.')
     pay_to = settings.get('AD_COIN_PAID_PAY_TO', '')
