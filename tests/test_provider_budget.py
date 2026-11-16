@@ -340,7 +340,10 @@ def test_fallback_watch_hourly_probes_fit_every_sole_member_domain():
 def test_holdout_r4_openalex_reads_fit_on_11_17_only():
     """workflow cdccd97e: 29 OpenAlex reads left for topic-evidence-brief holdout-r4, granted for 11-17 alone."""
     assert pb.share_limit('reference_checks', 'openalex.org', day='20261117') == pb.domain_total('openalex.org') == 50
-    assert pb.share_limit('reference_checks', 'openalex.org', day='20261118') == 10 * 50 // 60   # ordinary day
+    assert pb.share_limit('reference_checks', 'openalex.org', day='20261120') == 10 * 50 // 60   # ordinary day
+    # PM 11-16 18:3x: topic v2 answer sets, the gate keeps the rest in the plan files
+    assert pb.share_limit('reference_checks', 'openalex.org', day='20261118') == 38
+    assert pb.share_limit('reference_checks', 'openalex.org', day='20261119') == 40
 
 
 def test_company_r5_sec_reads_fit_on_11_16_only():

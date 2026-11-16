@@ -350,11 +350,16 @@ GOLD_TIMEOUT_S = 230
 GOLD_BUILDS = (('agent_market.necklaces.gold_repos', 'package-risk-audit', 'holdout-v2-activity'),
                ('agent_market.necklaces.gold_topics_r3', 'topic-evidence-brief', 'holdout-r3'),
                ('agent_market.necklaces.gold_cve_fixes', 'cve-incident-brief', 'holdout-v2-fix'),
-               # PM 11-16 07:0x: topic holdout-r4's OpenAlex part (its Wikipedia part, holdout-r4-wiki, is written)
-               ('agent_market.necklaces.gold_topics_r4', 'topic-evidence-brief', 'holdout-r4'),
                # PM 11-16 07:00: round 2 of the topic launch gate
-               ('agent_market.necklaces.gold_topics_r5', 'topic-evidence-brief', 'holdout-r5'))
-GOLD_SKIP = {('holdout-r4', '2026-11-17')}   # PM 11-16 17:36: OpenAlex 50 a day; r5 (round 2's answers) first
+               ('agent_market.necklaces.gold_topics_r5', 'topic-evidence-brief', 'holdout-r5'),
+               # PM 11-16 18:3x: topic v2's two rounds (r4's OpenAlex part is not built for now: arxiv-search is
+               # re-judged on holdout-r5 and wiki-grounding on holdout-r4-wiki)
+               ('agent_market.necklaces.gold_topics_r6', 'topic-evidence-brief', 'holdout-r6'),
+               ('agent_market.necklaces.gold_topics_r7', 'topic-evidence-brief', 'holdout-r7'))
+GOLD_SKIP = set()   # (split, day) pairs a builder rests on
+# Days a builder may run (first, last; None = open): OpenAlex allows 50 a day and the plan gives r6 38 on 11-18 and
+# r7 40 on 11-19, so r6 does not spill into r7's day (PM 11-16 18:3x: a short r6 moves the v2 gate a day instead).
+GOLD_WINDOW = {'holdout-r6': ('2026-11-18', '2026-11-18'), 'holdout-r7': ('2026-11-19', None)}
 
 
 def gold_quiet(local) -> bool:
@@ -378,8 +383,14 @@ def gold_builds(clock=time.time, run=None, state_path=None, log_path=None, gold=
     hour = local.strftime('%Y-%m-%dT%H')
     lines = []
     for module, slug, split in builds:
-        if (split, local.strftime('%Y-%m-%d')) in GOLD_SKIP:
+        today = local.strftime('%Y-%m-%d')
+        if (split, today) in GOLD_SKIP:
             continue
+        first, last = GOLD_WINDOW.get(split, (None, None))
+        if (first and today < first) or (last and today > last):
+            continue
+        if run is None and not (ROOT / (module.replace('.', '/') + '.py')).is_file():
+            continue                            # the builder is not in this tree yet (pushed later): nothing to run
         manifest = gold / slug / 'manifest.json'
         try:
             if split in (json.loads(manifest.read_text()).get('files') or {}):

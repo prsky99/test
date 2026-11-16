@@ -57,10 +57,10 @@ def test_one_builder_per_round_taking_turns(tmp_path, monkeypatch):
     assert ran == ["m.a", "m.b", "m.c"]                     # one each, then nothing left this hour
 
 
-def test_holdout_r4_rests_on_1117_only_so_r5_gets_the_openalex_share(tmp_path, monkeypatch):
-    """PM 11-16 17:36: OpenAlex allows 50 a day; on 11-17 holdout-r5 (round 2's answers, 40) builds first and r4 rests."""
+def test_topic_v2_builders_keep_to_their_days(tmp_path, monkeypatch):
+    """PM 11-16 18:3x: OpenAlex allows 50 a day; holdout-r6 builds on 11-18 only and holdout-r7 from 11-19."""
     monkeypatch.setattr(ops_auto, "ACTIONS", tmp_path / "actions.md")
-    builds = (("m.r4", "topic", "holdout-r4"), ("m.r5", "topic", "holdout-r5"))
+    builds = (("m.r6", "topic", "holdout-r6"), ("m.r7", "topic", "holdout-r7"))
     ran = []
 
     def run(module):
@@ -68,8 +68,11 @@ def test_holdout_r4_rests_on_1117_only_so_r5_gets_the_openalex_share(tmp_path, m
         return subprocess.CompletedProcess([], 0, json.dumps({"done": 1, "left": 1}), "")
     kw = dict(run=run, state_path=tmp_path / "st.json", log_path=tmp_path / "log.jsonl", gold=tmp_path, builds=builds)
     day = lambda d, h, m: time.mktime((2026, 11, d, h, m, 0, 0, 0, -1))   # noqa: E731
-    ops_auto.gold_builds(clock=lambda: day(17, 2, 20), **kw)
     ops_auto.gold_builds(clock=lambda: day(17, 3, 20), **kw)
-    assert ran == ["m.r5", "m.r5"]                                  # r4 never on 11-17
-    ops_auto.gold_builds(clock=lambda: day(18, 2, 20), **kw)
-    assert ran[-1] == "m.r4"                                        # back in turn on 11-18
+    assert ran == []                                                # neither before its day
+    ops_auto.gold_builds(clock=lambda: day(18, 3, 20), **kw)
+    ops_auto.gold_builds(clock=lambda: day(18, 6, 20), **kw)
+    assert ran == ["m.r6", "m.r6"]                                  # r7 waits for 11-19
+    ops_auto.gold_builds(clock=lambda: day(19, 3, 20), **kw)
+    assert ran[-1] == "m.r7"                                        # r6 does not spill into r7's day
+    assert "holdout-r4" not in [split for _, _, split in ops_auto.GOLD_BUILDS]

@@ -248,7 +248,13 @@ ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_check
                          # (article answers ~55, re-check full-text searches ~115, batch lookups). The share moves in
                          # steps of 16 here (x 1000 // 60), so 13 gives 216 (+50, inside the approval); the gate holds
                          # and substitute_tests (500) on wikipedia.org are unchanged, and 216 + 500 stays under 1000.
-                         ('reference_checks', 'wikipedia.org'): 13}}
+                         ('reference_checks', 'wikipedia.org'): 13},
+            # PM 11-16 18:3x: topic v2 answer sets (holdout-r6 on 11-18, holdout-r7 on 11-19), one OpenAlex search a topic
+            # in the builder's fixed order. 46 x 50 // 60 = 38 and 48 x 50 // 60 = 40; the gate keeps 12 and 10 in the
+            # plan files for the papers step's own fallback (v1 live retests, v2 rounds). r6 short of 30 at 38 reads:
+            # the v2 gate moves a day, no more reads.
+            '20261118': {('reference_checks', 'openalex.org'): 46},
+            '20261119': {('reference_checks', 'openalex.org'): 48}}
 # GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
 ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}}
 
