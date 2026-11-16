@@ -137,6 +137,9 @@ _DEFERRED_LOCAL = threading.local()
 
 
 def _deferred_state(book):
+    # A book scoped to one request's leased session (front.chat_payload) keeps its deferred writes on the long-lived
+    # book, so the visitor's next request - which gets another scoped book - waits for them (PM 11-16 source review 4)
+    book = book.__dict__.get('_deferred_home') or book
     state = book.__dict__.get('_deferred_writes')
     if state is None:
         state = book.__dict__.setdefault('_deferred_writes', {'lock': threading.Lock(), 'pending': {}})
@@ -447,6 +450,13 @@ class VisitorBook:
         Chat answered only after saving results and interests (writer lock, up to seconds under
         load); the next request ("details 1", "more") is what reads them, so it waits instead."""
         state = _deferred_state(self)
+        lease = self.__dict__.get('_deferred_lease')
+        if lease is not None:
+            # The request's leased session goes back to its pool when the answer is sent; the write borrows its own.
+            def write(original=write, lease=lease):
+                with lease() as store:
+                    self.store = store
+                    original()
         with state['lock']:
             previous = state['pending'].get(vid)
             future = _DEFERRED_WRITES.submit(_run_deferred, previous, write)

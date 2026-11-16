@@ -420,6 +420,9 @@ class Front:
             scoped=copy(self)
             if store is not self.store:
                 scoped.store=store;scoped.book=VisitorBook(store)
+                # deferred visitor writes run after this lease is returned: their own lease, the shared book's queue
+                scoped.book._deferred_home=self.book
+                scoped.book._deferred_lease=lambda source=self.store: interactive_store(source)
                 scoped.rec=copy(self.rec);scoped.rec.store=store
                 scoped.concierge=copy(self.concierge)
                 scoped.concierge.store=store;scoped.concierge.book=scoped.book

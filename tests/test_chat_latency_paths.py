@@ -116,3 +116,36 @@ def test_the_model_watch_reloads_a_dropped_model_once(monkeypatch):
     except SystemExit:
         pass
     assert calls == [(fast_chat.STRONG_MODEL, fast_chat.STRONG_WARMUP_BUDGET)]
+
+
+def test_a_request_scoped_book_writes_on_its_own_lease_and_the_next_request_waits_for_it():
+    """PM 11-16 source review 4: REST Chat's book is scoped to the request's leased session. Its deferred write
+    borrows its own session (the request's one is back in the pool) and is queued on the long-lived book, so the
+    visitor's next request - another scoped book - waits for it."""
+    from contextlib import contextmanager
+    home = VisitorBook.__new__(VisitorBook)
+    leased, used, gate = [], [], threading.Event()
+
+    @contextmanager
+    def lease():
+        leased.append('fresh')
+        yield 'fresh-session'
+
+    first = VisitorBook.__new__(VisitorBook)
+    first.store = 'request-session'
+    first._deferred_home, first._deferred_lease = home, lease
+    first.defer('v4', lambda: (gate.wait(1), used.append(first.store)))
+    second = VisitorBook.__new__(VisitorBook)
+    second._deferred_home = home
+    started = threading.Thread(target=lambda: (time.sleep(0.05), gate.set()))
+    started.start()
+    second.settle('v4')                      # the next request's book waits for the first one's write
+    assert used == ['fresh-session'] and leased == ['fresh']
+    started.join()
+
+
+def test_chat_payload_gives_its_scoped_book_the_shared_queue_and_a_lease():
+    import inspect
+    from agent_market.concierge import front
+    source = inspect.getsource(front.Front.chat_payload)
+    assert 'scoped.book._deferred_home=self.book' in source and '_deferred_lease' in source
