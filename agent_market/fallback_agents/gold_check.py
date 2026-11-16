@@ -56,9 +56,12 @@ def band(x):
     return sum(x >= b for b in BANDS)
 
 
-def judge(agent_id: str, case: dict, result: dict | None) -> dict:
+def judge(agent_id: str, case: dict, result: dict | None, error: str | None = None) -> dict:
     truth = case["truth"]
     if result is None:
+        if agent_id == "wikipedia-summary" and truth.get("wiki_article") is False:
+            # a company with no article of its own (holdout-r5-wiki, workflow 11-16): not_found is the right answer
+            return {"pass": error == "not_found", "expected_absence": True, "got": error, "want": "not_found"}
         return {"pass": False}
     if agent_id == "cve-org":
         # PM 11-14: the value must equal the value of the source it names (CNA or ADP in the CVE record).
@@ -199,8 +202,10 @@ def judge(agent_id: str, case: dict, result: dict | None) -> dict:
                     "got": text[:160], "want": "no registration"}
         return {"pass": bool(want) and f"(SEC CIK {want})" in text, "got": text[:160], "want": want}
     if agent_id == "wikipedia-summary":
+        # an article where the truth says the company has none is a wrong answer, never a pass
         want = (truth.get("wiki") or {}).get("title")
-        return {"pass": bool(want) and (result or {}).get("title") == want, "got": (result or {}).get("title"), "want": want}
+        return {"pass": truth.get("wiki_article") is not False and bool(want) and (result or {}).get("title") == want,
+                "got": (result or {}).get("title"), "want": want or "not_found"}
     if agent_id == "usgs-quakes":
         # the quake part of quakes-near-address: events against USGS asked when graded (retest.grade_quakes: none
         # beyond the radius, the strongest sure event present); not graded when USGS cannot be read
@@ -432,7 +437,7 @@ def _check(agent_ids, root, split, agents, pause, sleep, limit=None, offset=0, q
             except FallbackUnavailable as exc:
                 code = exc.code
             row = {"case_id": case["case_id"], "stratum": case.get("stratum"), "ms": int((time.monotonic() - started) * 1000),
-                   "error": code, "cache": cache, **judge(agent_id, case, result)}
+                   "error": code, "cache": cache, **judge(agent_id, case, result, code)}
             rows.append(row)
             if pause:
                 sleep(pause)

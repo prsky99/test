@@ -2420,3 +2420,18 @@ def test_wikipedia_summary_never_answers_with_a_longer_title(tmp_path):
         with pytest.raises(FallbackUnavailable) as err:
             a.execute("wikipedia-summary", {"title": title})
         assert err.value.code == "not_found", title
+
+
+def test_wikipedia_summary_gold_counts_not_found_right_for_a_company_without_an_article():
+    """holdout-r5-wiki 11-16 (workflow): truth.wiki_article False means not_found is the right answer; an article
+    there is wrong; companies and topics with an article are graded on the title as before."""
+    from agent_market.fallback_agents import gold_check as g
+    none = {"truth": {"wiki_article": False, "wiki": None}}
+    assert g.judge("wikipedia-summary", none, None, "not_found")["pass"] is True
+    assert g.judge("wikipedia-summary", none, None, "source_unavailable")["pass"] is False
+    assert g.judge("wikipedia-summary", none, {"title": "Grayscale"})["pass"] is False
+    has = {"truth": {"wiki_article": True, "wiki": {"title": "Dexcom"}}}
+    assert g.judge("wikipedia-summary", has, {"title": "Dexcom"})["pass"] is True
+    assert g.judge("wikipedia-summary", has, None, "not_found")["pass"] is False
+    topic = {"truth": {"wiki": {"title": "Telehealth"}}}
+    assert g.judge("wikipedia-summary", topic, {"title": "Telehealth"})["pass"] is True

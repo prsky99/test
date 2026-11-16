@@ -207,8 +207,10 @@ def run(agent_ids, split, raw_path, agents=None, fill_from=None, exclude=frozens
                 raw.write(json.dumps({'agent': agent_id, 'case_id': case['case_id'], 'error': code, 'envelope': envelope},
                                      ensure_ascii=False) + '\n')
                 raw.flush()
-                verdict = judge(agent_id, case, (envelope or {}).get('result'))
-                dq = quality(envelope) if envelope else ['no_answer']
+                verdict = judge(agent_id, case, (envelope or {}).get('result'), code)
+                # not_found where the truth says there is nothing to find is an answer, not a missing one (11-16)
+                dq = quality(envelope) if envelope else ([] if verdict.get('expected_absence') and verdict.get('pass')
+                                                         else ['no_answer'])
                 rows.append({'case_id': case['case_id'], 'pass': bool(verdict.get('pass')), 'data_quality': dq,
                              'error': code, 'ms': int((time.monotonic() - started) * 1000)})
             contract_rows = []

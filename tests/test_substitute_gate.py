@@ -61,7 +61,7 @@ def test_run_maps_gold_inputs_like_the_tuning_runs(tmp_path, monkeypatch):
     contract_inputs = tmp_path / 'contract.json'
     contract_inputs.write_text('{}')
     monkeypatch.setattr(gate, 'CONTRACT_INPUTS', contract_inputs)
-    monkeypatch.setattr(gold_check, 'judge', lambda agent, case, result: {'pass': True})
+    monkeypatch.setattr(gold_check, 'judge', lambda agent, case, result, error=None: {'pass': True})
     monkeypatch.setattr(gold_check, 'role_task_check', lambda ids, agents, before_call=None: {ids[0]: {'passed': 0, 'cases': 0}})
     calls = []
 
@@ -109,7 +109,7 @@ def test_a_verdict_split_over_two_days_is_judged_on_both_parts(tmp_path, monkeyp
     contract_inputs = tmp_path / 'contract.json'
     contract_inputs.write_text(json.dumps({'gleif-lei': [[{'name': 'x'}, 'ok']]}))
     monkeypatch.setattr(gate, 'CONTRACT_INPUTS', contract_inputs)
-    monkeypatch.setattr(gold_check, 'judge', lambda agent, case, result: {'pass': True})
+    monkeypatch.setattr(gold_check, 'judge', lambda agent, case, result, error=None: {'pass': True})
     monkeypatch.setattr(gold_check, 'role_task_check', lambda ids, agents, before_call=None: {ids[0]: {'passed': 1, 'cases': 1, 'rows': [{'case_id': 'lei-role', 'pass': True, 'why': []}]}})
     monkeypatch.setattr(gate, 'quality', lambda envelope: [])
     reserved = []
