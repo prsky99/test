@@ -1418,13 +1418,34 @@ NECKLACE_NEW_ROLES = ('mcp.registry.lookup.v1', 'github.repo.v1',               
                       'geocode.address.v1', 'weather.forecast.v1')                          # weather-outdoor-brief
 
 
-def queue_priority(versions, ranked=None, roles=None):
-    """The role order for today's new candidates (PM 11-16 17:5x)."""
+# PM 11-16 21:13 rule 4: pearls that fill a seat of a necklace going public come first (topic, company and cve
+# families, 11-24), a seat counting as filled only by a final pearl whose terms are allowed or silent.
+PUBLIC_NECKLACES = ('topic-evidence-brief', 'company-due-diligence', 'cve-incident-brief')
+
+
+def public_seat_roles(names=PUBLIC_NECKLACES):
+    """Seat roles of the public necklaces, in definition and seat order."""
+    out = []
+    for name in names:
+        try:
+            seats = json.loads((DEFINITIONS / f'{name}.json').read_text()).get('slots') or []
+        except (OSError, ValueError, AttributeError):
+            continue
+        out += [canonical(s.get('role') or s.get('contract') or '') for s in seats if isinstance(s, dict)]
+    return [r for r in dict.fromkeys(out) if r]
+
+
+def queue_priority(versions, ranked=None, roles=None, terms=None, seats=None):
+    """The role order for today's new candidates (PM 11-16 17:5x, 21:13)."""
     ranked = rank(versions) if ranked is None else ranked
     roles = list(role_catalog.ROLES) if roles is None else list(roles)
+    terms = member_terms() if terms is None else terms
+    seats = public_seat_roles() if seats is None else seats
     tested = {canonical(v['role']) for v in versions if not is_own_fallback(v['resource_id'])}
-    pearl = {canonical(role) for role, entry in ranked.items() if entry.get('final_pearl')}
+    pearl = {canonical(role) for role, entry in ranked.items()
+             if entry.get('final_pearl') and terms.get(entry['final_pearl']) in ('allowed', 'silent')}
     out = [r for r in URGENT_ROLES if r not in pearl]
+    out += [r for r in seats if r not in pearl]
     out += [r for r in roles if r not in tested]
     out += [r for r in NECKLACE_NEW_ROLES if r not in pearl]
     out += [r for r in PRIORITY_ROLES if r not in pearl]
@@ -1503,7 +1524,7 @@ def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115
     ranks = {(m['resource_id'], canonical(role)): m['rank'] for role, entry in ranked.items() for m in entry['members']}
     rejudge = rejudge_queue(versions, {(x['id'], canonical(x['role'])) for x in retests} | today, terms, ranks=ranks,
                             limit=10 ** 6)
-    new = new_queue(versions, candidates, seeds, limit=10 ** 6, terms=terms, priority=queue_priority(versions, ranked))
+    new = new_queue(versions, candidates, seeds, limit=10 ** 6, terms=terms, priority=queue_priority(versions, ranked, terms=terms))
     new = first_picks(candidates, terms, today, tested={(v['resource_id'], canonical(v['role'])) for v in versions}) + new
     # PM 11-16 20:2x: a first pick already tested comes back first among the retests (84607's second day)
     picked = pick_ids()

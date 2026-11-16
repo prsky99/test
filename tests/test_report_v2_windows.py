@@ -41,7 +41,7 @@ def test_queue_priority_puts_untested_roles_then_new_necklace_roles_then_roles_w
     ranked = {'fx.rate.v1': {'final_pearl': 1}, 'news.search.v1': {'final_pearl': None},
               'weather.forecast.v1': {'final_pearl': None}}
     roles = ['fx.rate.v1', 'news.search.v1', 'weather.forecast.v1', 'company.profile.v1', 'holiday.calendar.v1']
-    order = V.queue_priority(versions, ranked, roles=roles)
+    order = V.queue_priority(versions, ranked, roles=roles, terms={1: 'allowed'}, seats=[])
     assert order[0] == 'papers.search.v1'                                       # PM 18:2x: topic necklace's papers seat
     assert order[1:3] == ('company.profile.v1', 'holiday.calendar.v1')          # nothing tested yet
     assert order.index('weather.forecast.v1') < order.index('news.search.v1')    # first-batch necklace role first
@@ -118,7 +118,7 @@ def test_papers_candidates_all_go_first_in_terms_order():
     cands = [('papers.search.v1', i, 't', f'p{i}.example') for i in range(1, 7)] + \
             [('weather.forecast.v1', 10 + i, 't', f'w{i}.example') for i in range(3)]
     terms = {1: 'prohibits', 2: None, 5: 'silent', 6: 'allowed'}
-    out = V.new_queue([], cands, limit=9, terms=terms, priority=V.queue_priority([], {}, roles=['weather.forecast.v1']))
+    out = V.new_queue([], cands, limit=9, terms=terms, priority=V.queue_priority([], {}, roles=['weather.forecast.v1'], terms={}, seats=[]))
     assert [x['id'] for x in out][:5] == [6, 5, 2, 3, 4] and 1 not in [x['id'] for x in out]
 
 
@@ -160,3 +160,15 @@ def test_a_tested_first_pick_leads_the_retests_instead(tmp_path):
     cands = [('timezone.time.v1', 84607, 'current_time', 'plumbkit.dev')]
     assert V.first_picks(cands, {}, set(), path=f, tested={(84607, 'timezone.time.v1')}) == []
     assert V.pick_ids(path=f) == {(84607, 'timezone.time.v1')}
+
+
+def test_public_necklace_seats_without_a_usable_final_pearl_come_next_after_papers():
+    seats = V.public_seat_roles()
+    assert seats[:4] == ['web.grounding.v1', 'papers.search.v1', 'encyclopedia.summary.v1', 'news.search.v1']
+    assert {'sec.filings.v1', 'cve.record.v1', 'cve.exploited.v1'} <= set(seats)
+    versions = [version(1, 'news.search.v1'), version(2, 'cve.record.v1')]
+    ranked = {'news.search.v1': {'final_pearl': 1}, 'cve.record.v1': {'final_pearl': 2}}
+    order = V.queue_priority(versions, ranked, roles=['news.search.v1', 'cve.record.v1', 'fx.rate.v1'],
+                             terms={1: 'silent', 2: 'prohibits'}, seats=['news.search.v1', 'cve.record.v1'])
+    assert order[0] == 'papers.search.v1' and order[1] == 'cve.record.v1'   # a prohibited pearl fills no seat
+    assert 'news.search.v1' not in order                                     # a usable final pearl fills it
