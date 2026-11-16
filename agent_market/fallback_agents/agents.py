@@ -682,9 +682,8 @@ class FallbackAgents:
             if missing or ambiguous:
                 # 11-16 company v2 (workflow): "Bjs Restaurants", "Dexcom" and "Entravision Communications" missed
                 # their articles because titles are case- and punctuation-exact after the first letter. One title
-                # search (read-only, same host) then picks the first article whose title is the asked one up to case and
-                # punctuation, or holds every asked word with at most two more ("Traeger" -> "Traeger (company)");
-                # anything looser stays not_found, so a title lookup never answers about something else.
+                # search (read-only, same host) then takes only an article whose title is the asked one up to case and
+                # punctuation; anything else stays not_found, so a title lookup never answers about something else.
                 page = self._wiki_search_title(title, rem)
                 if page is None:
                     raise FallbackUnavailable("not_found", "This title is a disambiguation page; use a more specific title."
@@ -711,13 +710,10 @@ class FallbackAgents:
                        key=lambda p: p.get("index", 99))
         asked = title_words(title)
         usable = [p for p in pages if "disambiguation" not in (p.get("pageprops") or {}) and p.get("extract")]
-        # the same title first ("DEXCOM" -> "Dexcom", not "Dexcom CGM"), then one with at most two more words
+        # only the same title up to case and punctuation ("DEXCOM" -> "Dexcom", never "Dexcom CGM"); a title with
+        # more words ("Nope (band)", "X Records") is another subject (PM 11-16), so it stays not_found
         for page in usable:
             if title_words(str(page.get("title") or "")) == asked:
-                return page
-        for page in usable:
-            found = title_words(str(page.get("title") or ""))      # "Traeger (company)" -> traeger, company
-            if set(asked) <= set(found) and len(set(found) - set(asked)) <= 2:
                 return page
         return None
 

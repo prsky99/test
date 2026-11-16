@@ -2360,7 +2360,7 @@ def test_census_match_with_another_zip_code_is_not_the_address():
 
 def test_wikipedia_summary_falls_back_to_a_search_with_the_same_title_words(tmp_path):
     """company v2 11-16 (workflow): exact titles are case- and punctuation-exact, so "Bjs Restaurants" missed
-    "BJ's Restaurants"; one search then takes only an article whose title has the asked words (two more at most)."""
+    "BJ's Restaurants"; one title search then takes only an article with the same title up to case and punctuation."""
     from agent_market.fallback_agents.agents import title_words
     calls = []
 
@@ -2397,3 +2397,26 @@ def test_wikipedia_summary_takes_the_same_title_before_a_longer_one(tmp_path):
         return httpx.Response(200, json={"query": {"pages": [{"title": "DEXCOM", "missing": True}]}})
     a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": handler})
     assert a.execute("wikipedia-summary", {"title": "DEXCOM"})["result"]["title"] == "Dexcom"
+
+
+def test_wikipedia_summary_never_answers_with_a_longer_title(tmp_path):
+    """PM 11-16: a short general title must not land on another subject ("Nope" -> "Nope (band)", "Mercury" ->
+    "Mercury Records"); only the same title up to case and punctuation is taken."""
+    def handler(request):
+        params = request.url.params
+        if "gpssearch" in params:
+            word = params["gpssearch"]
+            return httpx.Response(200, json={"query": {"pages": [
+                {"index": 1, "pageid": 11, "title": f"{word} (band)", "fullurl": f"https://en.wikipedia.org/wiki/{word}_(band)",
+                 "extract": f"{word} are a rock band."},
+                {"index": 2, "pageid": 12, "title": f"{word} Records", "fullurl": f"https://en.wikipedia.org/wiki/{word}_Records",
+                 "extract": f"{word} Records is a record label."}]}})
+        if params["titles"] == "Mercury":
+            return httpx.Response(200, json={"query": {"pages": [
+                {"title": "Mercury", "pageprops": {"disambiguation": ""}, "extract": "Mercury may refer to:"}]}})
+        return httpx.Response(200, json={"query": {"pages": [{"title": params["titles"], "missing": True}]}})
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": handler})
+    for title in ("Nope", "Mercury"):
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("wikipedia-summary", {"title": title})
+        assert err.value.code == "not_found", title
