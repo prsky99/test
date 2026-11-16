@@ -270,14 +270,17 @@ def shell_preload():
     found = _re.search(r'href="(/new/en/assets/bundle\.css\?[^"]+)"', shell_assets())
     return '<' + found.group(1).replace('&amp;', '&') + '>; rel=preload; as=style' if found else ''
 
-def shell(*, title, description, canonical, body, structured=None, index=True):
+def shell(*, title, description, canonical, body, structured=None, index=True, follow=True):
     data = json.dumps(structured or {}, ensure_ascii=True).replace('<', '\\u003c')
     nav = ''.join('<a class="nav-tab" href="'+esc(href)+'">'+esc(label)+'</a>' for label, href in NAV)
     links = ''.join('<a class="footer-link-btn" href="'+esc(href)+'">'+esc(label)+'</a>' for label, href in FOOTER)
     return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             '<title>'+esc(title)+'</title><meta name="description" content="'+esc(description)+'">'
-            '<meta name="robots" content="'+('index, follow, max-snippet:-1' if index else 'noindex, follow')+'">'
+            # 11-16 (Search Console, PM): x402 rankings and comparisons are noindex, nofollow so crawling does not queue
+            # the x402 agent pages they list; every other left-out page stays noindex, follow.
+            '<meta name="robots" content="'+('index, follow, max-snippet:-1' if index else 'noindex, follow' if follow
+                                             else 'noindex, nofollow')+'">'
             '<link rel="canonical" href="'+esc(canonical)+'">'
             '<meta property="og:type" content="website"><meta property="og:site_name" content="AgentValCon">'
             '<meta property="og:title" content="'+esc(title)+'"><meta property="og:description" content="'+esc(description)+'">'

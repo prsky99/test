@@ -53,8 +53,9 @@ def test_left_out_pages_still_answer_with_noindex_follow_and_their_own_canonical
         assert r.status_code == 200 and robots(r.text) == 'noindex, follow', rid
         assert r.headers['x-robots-tag'] == 'noindex, follow'
         assert '<link rel="canonical" href="%s/agent/%d">' % (g.ORIGIN, rid) in r.text
+    # 11-16 (Search Console, PM): x402 rankings are noindex, nofollow so crawling does not queue the x402 agent pages
     r = c.get('/agents/best/web_search/x402', headers={'Accept': 'text/html'})
-    assert r.status_code == 200 and robots(r.text) == 'noindex, follow' and r.headers['x-robots-tag'] == 'noindex, follow'
+    assert r.status_code == 200 and robots(r.text) == 'noindex, nofollow' and r.headers['x-robots-tag'] == 'noindex, nofollow'
     kept = c.get('/agent/400', headers={'Accept': 'text/html'})
     assert robots(kept.text).startswith('index') and 'x-robots-tag' not in kept.headers
 

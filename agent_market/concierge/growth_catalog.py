@@ -23,6 +23,11 @@ PAIRS_PER_GROUP = 3
 BASIS = ('Order: a successful execution check in the last 30 days first, then the quality score, the test report score '
          'and the most recent health check. Only agents with recorded evidence are listed.')
 BADGE = g.ORIGIN + '/api/agent/v1/badge/{id}.svg'
+ROBOTS_META = re.compile(r'<meta name="robots" content="([^"]*)"')
+# 11-16 (Search Console, PM): 2,692 of the 3,863 indexed agent pages were linked from no ranking, task or comparison
+# page, so Google knew them only from the sitemap and left them 'discovered, not indexed'. Every category now has a
+# full list of its indexed agents, LIST_PAGE a page, linked from its ranking and from /agents/best.
+LIST_PAGE = 100
 
 
 def categories():
@@ -100,10 +105,26 @@ def compare_path(a, b):
     return f'/agents/compare/{left}-vs-{right}'
 
 
+def listed(snapshot, category):
+    """The indexed agents of a category in ranking order: the full list pages (/agents/best/<category>/all)."""
+    by_cat, _ = groups(snapshot)
+    indexed = indexed_agents(snapshot)
+    return [a for a in by_cat.get(category, ()) if a['id'] in indexed]
+
+
+def list_count(snapshot, category):
+    return -(-len(listed(snapshot, category)) // LIST_PAGE)
+
+
+def list_path(category, page=1):
+    return '/agents/best/' + category + '/all' + ('/' + str(page) if page > 1 else '')
+
+
 def sitemap_paths(snapshot):
     by_cat, by_kind = groups(snapshot)
     paths = ['/agents/best', '/reports/state-of-ai-agents/'+month(snapshot), '/badges']
     paths += ['/agents/best/'+c for c in sorted(by_cat) if len(by_cat[c]) >= g.MIN_AGENTS]
+    paths += [list_path(c, n) for c in sorted(by_cat) for n in range(1, list_count(snapshot, c) + 1)]
     paths += [f'/agents/best/{c}/{k}' for c, k in sorted(by_kind) if k != 'x402']
     paths += [compare_path(a, b) for a, b in sorted(pairs(snapshot)) if compare_indexed(snapshot, a, b)]
     paths += ['/agent/'+str(i) for i in sorted(indexed_agents(snapshot))]
@@ -292,6 +313,7 @@ def best_page(category, kind=None, snapshot=None):
             + '<div class="stack"><div class="note" role="note"><p>'+esc(BASIS)+' Rankings change as checks run; no listing pays for its position.</p></div>'
             + filters + '<div class="grid two" role="list" aria-label="'+esc(title)+'">'
             + ''.join(agent_row(i+1, a) for i, a in enumerate(top))+'</div>'+compare
+            + full_list_link(snapshot, category, name)
             + '<p>All rankings: <a href="/agents/best">categories</a> · Task pages: <a href="/agents/tasks">by task</a></p></div>')
     structured = {'@context': 'https://schema.org', '@type': 'ItemList', 'name': title, 'description': description,
                   'url': g.ORIGIN+'/agents/best/'+category+('/'+kind if kind else ''), 'numberOfItems': len(top),
@@ -300,7 +322,7 @@ def best_page(category, kind=None, snapshot=None):
                                       for i, a in enumerate(top)]}
     return g.shell(title=title+' — AgentValCon', description=description,
                    canonical=g.ORIGIN+'/agents/best/'+category+('/'+kind if kind else ''), body=body, structured=structured,
-                   index=g.fresh(snapshot) and kind != 'x402')
+                   index=g.fresh(snapshot) and kind != 'x402', follow=kind != 'x402')
 
 
 def best_index(snapshot=None):
@@ -313,13 +335,84 @@ def best_index(snapshot=None):
                     '<p class="caption">'+str(len(by_cat[c]))+' agents with evidence</p><div class="row">'
                     + ''.join('<a class="btn small" href="/agents/best/'+esc(c)+'/'+k+'">'+esc(g.KINDS[k])+'</a>' for cc, k in sorted(by_kind) if cc == c)
                     + '</div></section>' for c in sorted(by_cat, key=lambda c: names[c]) if len(by_cat[c]) >= g.MIN_AGENTS)
+    lists = ''.join('<li><a href="'+list_path(c)+'">'+esc(names[c])+'</a> <span class="caption">'
+                    + str(len(listed(snapshot, c)))+' agents</span></li>'
+                    for c in sorted(by_cat, key=lambda c: names[c]) if listed(snapshot, c))
     body = (g.heading('Rankings', 'Best AI agents and MCP servers by category', BASIS)
-            + '<div class="grid two">'+cards+'</div>')
+            + '<div class="grid two">'+cards+'</div>'
+            + ('<section class="card stack" aria-labelledby="all-h"><h2 id="all-h">Every listed agent, by category</h2>'
+               '<ul>'+lists+'</ul></section>' if lists else ''))
     return g.shell(title='Best AI Agents and MCP Servers by Category — AgentValCon',
                    description='Category rankings of AI agents, MCP servers and x402 APIs, ordered by recorded execution checks, trial calls and quality scores.',
                    canonical=g.ORIGIN+'/agents/best', body=body,
                    structured={'@context': 'https://schema.org', '@type': 'CollectionPage', 'name': 'Best AI agents by category', 'url': g.ORIGIN+'/agents/best'},
                    index=g.fresh(snapshot))
+
+
+def full_list_link(snapshot, category, name):
+    count = len(listed(snapshot, category))
+    if not count:
+        return ''
+    return ('<p><a class="btn small" href="'+list_path(category)+'">All '+str(count)+' listed '+esc(name.lower())
+            + ' agents</a></p>')
+
+
+def list_row(position, agent):
+    """One compact row: the name links the agent page; the protocol, grade and a line of its own description."""
+    summary = re.split(r'(?<=[.!?])\s', (agent.get('description') or '').strip(), maxsplit=1)[0][:180]
+    return ('<li class="history-row"><span class="caption">#'+str(position)+'</span>'
+            '<span><a href="/agent/'+str(agent['id'])+'">'+esc(agent['name'])+'</a> '
+            '<span class="badge">'+esc(g.KINDS[agent['kind']])+'</span>'
+            + (' <span class="badge">Grade '+esc(agent['eval_grade'])+'</span>' if agent.get('eval_grade') else '')
+            + ('<br><span class="caption">'+esc(summary)+'</span>' if summary else '')+'</span></li>')
+
+
+def list_page(category, page=1, snapshot=None):
+    """Every indexed agent of a category, LIST_PAGE a page, in ranking order, with the category's own description and a
+    short summary of the list (11-16 Search Console: no indexed agent page is reachable only from the sitemap)."""
+    snapshot = g.SNAPSHOT.read() if snapshot is None else snapshot
+    if not snapshot:
+        return None
+    names = categories()
+    agents = listed(snapshot, category) if category in names else []
+    pages = -(-len(agents) // LIST_PAGE)
+    if not agents or not isinstance(page, int) or not 1 <= page <= pages:
+        return None
+    from ..broker.categories import CATEGORIES
+    name = names[category]
+    about = (getattr(CATEGORIES.get(category), 'description', '') or '').strip()
+    start = (page - 1) * LIST_PAGE
+    shown = agents[start:start + LIST_PAGE]
+    kinds = {}
+    for agent in agents:
+        kinds[g.KINDS[agent['kind']]] = kinds.get(g.KINDS[agent['kind']], 0) + 1
+    graded = sum(1 for a in agents if a.get('eval_grade'))
+    title = f'All listed {name.lower()} agents' + (f' (page {page} of {pages})' if pages > 1 else '')
+    lead = (f'{len(agents)} {name.lower()} agents with recorded checks, in ranking order'
+            + (f'; agents {start + 1}-{start + len(shown)}.' if pages > 1 else '.'))
+    summary = ('<section class="card stack" aria-labelledby="sum-h"><h2 id="sum-h">About this category</h2>'
+               + ('<p>'+esc(about)+'</p>' if about else '')
+               + '<p>'+esc(', '.join(f'{v} {k}' for k, v in sorted(kinds.items(), key=lambda kv: -kv[1])))
+               + (f'; {graded} with a quality grade.' if graded else '.')+' Snapshot '+esc(_date(snapshot['captured']) or '')
+               + '.</p><p class="caption">'+esc(BASIS)+'</p>'
+               + '<p><a href="/agents/best/'+esc(category)+'">Top '+str(TOP)+' ranking</a> · '
+               '<a href="/agents/best">All categories</a></p></section>')
+    nav = ''
+    if pages > 1:
+        nav = ('<nav class="actions" aria-label="List pages">'
+               + ''.join('<a class="btn small'+(' primary" aria-current="page' if n == page else '')+'" href="'
+                         + list_path(category, n)+'">'+str(n)+'</a>' for n in range(1, pages + 1))+'</nav>')
+    body = (g.heading('All agents · '+name, title, lead)
+            + '<div class="stack">'+summary+nav
+            + '<ol class="stack" start="'+str(start + 1)+'" aria-label="'+esc(title)+'">'
+            + ''.join(list_row(start + i + 1, a) for i, a in enumerate(shown))+'</ol>'+nav+'</div>')
+    url = g.ORIGIN + list_path(category, page)
+    structured = {'@context': 'https://schema.org', '@type': 'ItemList', 'name': title, 'url': url,
+                  'numberOfItems': len(shown),
+                  'itemListElement': [{'@type': 'ListItem', 'position': start + i + 1, 'name': a['name'],
+                                       'url': g.ORIGIN+'/agent/'+str(a['id'])} for i, a in enumerate(shown)]}
+    return g.shell(title=title+' — AgentValCon', description=lead+' '+(about[:120] if about else ''), canonical=url,
+                   body=body, structured=structured, index=g.fresh(snapshot))
 
 
 # ---------------------------------------------------------------- comparisons
@@ -374,7 +467,8 @@ def compare_page(left, right, snapshot=None):
                    canonical=g.ORIGIN+compare_path(left, right), body=body,
                    structured={'@context': 'https://schema.org', '@type': 'WebPage', 'name': title, 'url': g.ORIGIN+compare_path(left, right),
                                'about': [{'@type': 'SoftwareApplication', 'name': x['name'], 'url': g.ORIGIN+'/agent/'+str(x['id'])} for x in (a, b)]},
-                   index=g.fresh(snapshot) and compare_indexed(snapshot, left, right))
+                   index=g.fresh(snapshot) and compare_indexed(snapshot, left, right),
+                   follow=compare_indexed(snapshot, left, right))
 
 
 # ---------------------------------------------------------------- badges guide
@@ -555,8 +649,9 @@ def install(router, page_headers, not_found, store=None):
         if not value:
             return not_found()
         # A noindex page says so in its head and in the header (Markdown copies and non-HTML readers see the header).
-        noindex = 'name="robots" content="noindex' in value[:3000]
-        return HTMLResponse(value, headers={**page_headers, **({'X-Robots-Tag': 'noindex, follow'} if noindex else {})})
+        robots = ROBOTS_META.search(value[:3000])
+        noindex = robots is not None and robots[1].startswith('noindex')
+        return HTMLResponse(value, headers={**page_headers, **({'X-Robots-Tag': robots[1]} if noindex else {})})
 
     @router.get('/agent/{rid}', include_in_schema=False)
     async def agent(rid: str):
@@ -592,8 +687,16 @@ def install(router, page_headers, not_found, store=None):
 
     @router.get('/agents/best/{category}/{kind}', include_in_schema=False)
     async def best_kind(category: str, kind: str):
+        if kind == 'all' and re.fullmatch(r'[a-z_]{2,40}', category):
+            return page(await run_in_threadpool(list_page, category, 1))
         ok = re.fullmatch(r'[a-z_]{2,40}', category) and kind in g.KINDS
         return page(await run_in_threadpool(best_page, category, kind) if ok else None)
+
+    @router.get('/agents/best/{category}/all/{number}', include_in_schema=False)
+    async def best_list(category: str, number: str):
+        # page 1 lives at /all only, so one list never answers under two addresses
+        ok = re.fullmatch(r'[a-z_]{2,40}', category) and re.fullmatch(r'[2-9]|[1-9][0-9]{1,2}', number)
+        return page(await run_in_threadpool(list_page, category, int(number)) if ok else None)
 
     @router.get('/agents/compare/{pair}', include_in_schema=False)
     async def compare(pair: str):
