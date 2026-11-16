@@ -217,6 +217,21 @@ class ApplicationStoreError(StorageError, sqlite3.DatabaseError):
 
 WRITER_RETRY_SECONDS = 0.25
 
+# PM 11-16 source review 1: a session's column and constraint check is skipped when the catalog digest equals the one
+# this process validated within this many seconds. 0 turns the cache off (every session checks everything again).
+SCHEMA_CHECK_CACHE_SECONDS = 600
+_SCHEMA_CHECKED = {}
+_SCHEMA_CHECKED_LOCK = threading.Lock()
+_SCHEMA_DIGEST_SQL = (
+    "SELECT md5(coalesce(string_agg(x, '|' ORDER BY x), '')) FROM ("
+    "SELECT c.relname::text||'.'||a.attnum::text||'.'||a.attname::text||'.'||format_type(a.atttypid,a.atttypmod)"
+    "||'.'||a.attnotnull::text AS x FROM pg_attribute a JOIN pg_class c ON c.oid=a.attrelid "
+    "JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname=current_schema() AND c.relkind IN ('r','p','v','f') "
+    "AND a.attnum>0 AND NOT a.attisdropped UNION ALL "
+    "SELECT t.relname::text||':'||c.contype::text||':'||c.conkey::text||':'||coalesce(pg_get_expr(c.conbin,c.conrelid),'') "
+    "FROM pg_constraint c JOIN pg_class t ON t.oid=c.conrelid JOIN pg_namespace n ON n.oid=t.relnamespace "
+    "WHERE n.nspname=current_schema()) s")
+
 
 class WriterBusy(ApplicationStoreError):
     """The writer lock was not granted within lock_timeout; nothing was written.
@@ -550,10 +565,34 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
                 try: row = cur.fetchone()
                 finally: cur.close()
                 if row != (PROFILE,): raise ApplicationStoreError('schema_profile_mismatch')
-                self._validate_native_schema()
+                # PM 11-16 source review 1: every new pooled session compared every table's columns and constraints
+                # (40-230 ms for the columns alone on production). One catalog digest now says whether they are the
+                # ones this process already validated; any change to a column or constraint changes it, and the full
+                # check runs again. Triggers and their functions are still checked on every session.
+                key, digest = self._schema_cache_key(), None
+                if SCHEMA_CHECK_CACHE_SECONDS > 0 and key is not None:
+                    digest = self._execute(_SCHEMA_DIGEST_SQL).fetchone()[0]
+                    with _SCHEMA_CHECKED_LOCK:
+                        seen = _SCHEMA_CHECKED.get(key)
+                    fresh = seen is not None and seen[0] == digest and time.monotonic() - seen[1] < SCHEMA_CHECK_CACHE_SECONDS
+                else:
+                    fresh = False
+                if not fresh:
+                    self._validate_native_schema()
+                    if digest is not None:
+                        with _SCHEMA_CHECKED_LOCK:
+                            _SCHEMA_CHECKED[key] = (digest, time.monotonic())
                 self._validate_native_invariants()
         except ApplicationStoreError: raise
         except Exception: raise ApplicationStoreError('schema_profile_mismatch') from None
+
+    def _schema_cache_key(self):
+        """(host, port, database) of this session, read without SQL, or None (then the full check always runs)."""
+        try:
+            info = self._connection.info
+            return (str(info.host), str(info.port), str(info.dbname))
+        except AttributeError:
+            return None
 
     def _transaction_controls(self, readonly=False):
         # Transaction-local controls never mutate a caller's persistent session
