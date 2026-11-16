@@ -519,6 +519,7 @@ def page_metadata(source_html):
 _assembled = collections.OrderedDict()
 _assembled_lock = threading.Lock()
 ASSEMBLED_KEPT = 64
+WARM_DELAY_S = 5.0   # after a start, before the live pages are assembled in the background
 
 
 def page_response(value, *, public=False, page=None, noindex=None):
@@ -767,6 +768,19 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             shared = request is not None and not _credentials(request.headers, request.url.path)
             return page_response(value, public=shared, page=filename, noindex=True)
         return page_response(value, public=live, page=filename)
+
+    def warm():
+        """Assemble the live pages once in the background after a start (PM 11-16 22:3x): the first request of a
+        page in a new process took 3.1 s at the origin (test.html, r10) against 5 ms once kept. Release files only."""
+        time.sleep(WARM_DELAY_S)
+        for name in sorted(manifest['live_pages']):
+            try:
+                page(name)
+            except Exception:   # noqa: BLE001 - a page that cannot be assembled now is assembled on its first request
+                pass
+
+    if ASSETS_FIXED and root is None and not os.environ.get('PYTEST_CURRENT_TEST'):   # tests ask for it themselves
+        threading.Thread(target=warm, name='pearl-page-warm', daemon=True).start()
 
     shipped = {}
 

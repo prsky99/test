@@ -143,7 +143,12 @@ def test_compact_explore_preview_hydrates_full_page_and_report_metadata_on_first
         'workflow_templates': None}))
     page = state.page
     page.goto(ORIGIN + '/#chat')
-    assert page.locator('#xResults .acard[data-id]').count() == 1
+    if state.presentation == 'published':
+        # PM 11-16 22:3x: the published home page carries no preview (the same bytes every request), so nothing is
+        # shown or asked for Explore until it is opened.
+        assert page.locator('#xResults .acard[data-id]').count() == 0
+    else:
+        assert page.locator('#xResults .acard[data-id]').count() == 1
     assert not any(path == '/api/explore' for _, path in state.requests)
     page.locator('#chatInput').fill('Keep this draft during explicit Explore hydration')
     page.locator('.nav-tab[data-tab="explore"]').click()

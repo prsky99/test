@@ -73,3 +73,24 @@ def test_bundles_and_assets_keep_their_bytes_and_digests(fixed, monkeypatch):
     version = re.search(r'v=([0-9a-f]{16})', css)[1]
     assert 'immutable' in kept[0].headers['cache-control'] and version in kept[0].headers['etag']
     assert fixed.get('/new/en/assets/app.js?v=0000000000000000').headers['cache-control'] == 'no-store'
+
+
+def test_a_release_process_assembles_its_live_pages_after_it_starts(tmp_path, monkeypatch):
+    """PM 11-16 22:3x: the first request of a page in a new process took 3.1 s (test.html, r10)."""
+    import threading
+    from agent_market.concierge.front import Front, create_front_app
+    from agent_market.gateway.store import Store
+    monkeypatch.setattr(pv, 'ASSETS_FIXED', True)
+    monkeypatch.setattr(pv, 'WARM_DELAY_S', 0)
+    monkeypatch.setattr(pv, '_assembled', type(pv._assembled)())
+    monkeypatch.delenv('PYTEST_CURRENT_TEST', raising=False)
+    store = Store(str(tmp_path/'warm.sqlite3'))
+    try:
+        create_front_app(Front(store))
+        warmers = [t for t in threading.enumerate() if t.name == 'pearl-page-warm']
+        assert len(warmers) == 1
+        warmers[0].join(60)
+        pages = {key[1] for key in pv._assembled}
+        assert {'index.html', 'test.html', 'chat.html', 'explore.html'} <= pages
+    finally:
+        store._db.close()

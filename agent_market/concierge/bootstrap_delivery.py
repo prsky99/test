@@ -11,6 +11,8 @@ _slots = threading.BoundedSemaphore(2)
 EMPTY = {key: None for key in ('overview', 'explore', 'insights', 'workflow_default',
                               'workflow_templates', 'testbench_presets', 'testbench_examples')}
 MAX_INLINE_GZIP = 700
+# The same empty bootstrap every time (the public home page, PM 11-16 22:3x), so its bytes do not vary per request.
+EMPTY_JSON = json.dumps(EMPTY, separators=(',', ':'))
 
 
 @lru_cache(maxsize=1)
