@@ -919,7 +919,7 @@ def test_arxiv_agent_ranks_title_matches_and_keeps_ids(tmp_path):
     assert env["result"]["items"][0] == {"title": "Attention Is All You Need", "id": "arXiv:1706.03762",
                                          "url": "https://arxiv.org/abs/1706.03762", "year": 2017}
     assert len(env["result"]["items"]) == 2, "duplicate titles are folded"
-    assert "search_query=all%3Aattention+AND+all%3Aneed" in calls[0]
+    assert "search_query=ti%3A%22attention+is+all+you+need%22+OR+%28ti%3Aattention+AND+ti%3Aneed%29" in calls[0]
     assert "Thank you to arXiv" in env["sources"][0]["notice"]
 
 
@@ -939,6 +939,24 @@ def test_arxiv_agent_puts_the_topic_phrase_in_titles_first(tmp_path):
     items = a.execute("arxiv-search", {"query": "Climate migration", "limit": 3})["result"]["items"]
     assert {i["id"] for i in items[:2]} == {"arXiv:2401.00002", "arXiv:2402.00003"}   # phrase titles before the rest
     assert "ti%3A%22climate+migration%22+OR+%28all%3Aclimate+AND+all%3Amigration%29" in calls[0]
+
+
+def test_arxiv_agent_finds_a_pasted_title_with_a_keyword_after_it(tmp_path):
+    """Role task papers-attention 11-16 (2/3): "attention is all you need transformer" matched so many abstracts that
+    the paper fell outside the 50 results. PM decision a: more than four words are searched in titles only (the first
+    five words as a phrase, or every keyword in the title); two to four words keep the phrase OR all-fields search."""
+    feed = b"""<?xml version="1.0" encoding="UTF-8"?><feed xmlns="http://www.w3.org/2005/Atom">
+<entry><id>http://arxiv.org/abs/2105.00001v1</id><published>2021-05-01T00:00:00Z</published>
+<title>Need for attention in transformer models</title></entry>
+<entry><id>http://arxiv.org/abs/1706.03762v7</id><published>2017-06-12T17:57:34Z</published>
+<title>Attention Is All You Need</title></entry></feed>"""
+    calls = []
+    a, _ = agents(tmp_path, {"https://export.arxiv.org/api/query": httpx.Response(
+        200, content=feed, headers={"content-type": "application/atom+xml"})}, calls)
+    items = a.execute("arxiv-search", {"query": "attention is all you need transformer", "limit": 2})["result"]["items"]
+    assert items[0]["id"] == "arXiv:1706.03762"
+    assert calls[0].endswith("search_query=ti%3A%22attention+is+all+you+need%22+OR+%28ti%3Aattention+AND+ti%3Aneed"
+                             "+AND+ti%3Atransformer%29&start=0&max_results=50")   # titles only, no all-fields part
 
 
 def test_arxiv_feed_with_a_dtd_is_refused(tmp_path):

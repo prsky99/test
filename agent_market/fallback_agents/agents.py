@@ -757,9 +757,20 @@ class FallbackAgents:
         # One request (arXiv asks for 3 s between calls, longer than a call's budget) that also takes titles carrying
         # the phrase itself; those go first below.
         phrase = " ".join(words) if 2 <= len(words) <= 4 and len(terms) >= 2 else None
-        search = " AND ".join("all:" + t for t in terms)
-        if phrase:
-            search = f'ti:"{phrase}" OR ({search})'
+        # 11-16 role task papers-attention (2/3), PM decision a: a query of more than four words is searched in titles
+        # only (its first five words as a phrase, or every keyword in the title). Measured 11-16: ORed with the
+        # all-fields search, arXiv's relevance put "Attention Is All You Need" outside the 50 results; on its own the
+        # title search returned it first. arXiv allows one call every 3 s, so one answer cannot ask twice. The price:
+        # a long descriptive query whose words are not in titles finds fewer papers or none (deploy/FALLBACK_AGENTS.md).
+        # Two to four words (the topic slot's input) keep the earlier search: the title phrase OR all fields.
+        lead = " ".join(words[:5]) if len(words) > 4 else None
+        phrases = [p for p in (phrase, lead) if p]
+        if lead:
+            search = f'ti:"{lead}" OR (' + " AND ".join("ti:" + t for t in terms) + ")"
+        else:
+            search = " AND ".join("all:" + t for t in terms)
+            if phrase:
+                search = f'ti:"{phrase}" OR ({search})'
 
         def live(rem):
             response = get("https://export.arxiv.org/api/query", limiters=self.limiters, http=self.http,
@@ -771,18 +782,18 @@ class FallbackAgents:
         # extra title words, then by the API order.
         def stem(w):
             return w[:-1] if len(w) > 3 and w.endswith("s") else w
-        wanted = [stem(w) for w in words]
 
-        def has_phrase(title_words):
-            """The query's words side by side in the title (plural s aside; two words in either order)."""
-            stems, n = [stem(w) for w in title_words], len(wanted)
+        def has_phrase(title_words, phrase_words):
+            """PHRASE_WORDS side by side in the title (plural s aside; two words in either order)."""
+            want = [stem(w) for w in phrase_words]
+            stems, n = [stem(w) for w in title_words], len(want)
             spans = {tuple(stems[i:i + n]) for i in range(len(stems) - n + 1)}
-            return tuple(wanted) in spans or (n == 2 and tuple(reversed(wanted)) in spans)
+            return tuple(want) in spans or (n == 2 and tuple(reversed(want)) in spans)
 
         def rank(pair):
             title_words = re.findall(r"[a-z0-9]+", pair[1]["title"].lower())
             hit = sum(w in set(title_words) for w in set(words))
-            return (not (phrase and has_phrase(title_words)), -hit,
+            return (not any(has_phrase(title_words, p.split()) for p in phrases), -hit,
                     len([w for w in title_words if w not in set(words)]), pair[0])
         ranked = sorted(enumerate(entries), key=rank)
         items, seen = [], set()
