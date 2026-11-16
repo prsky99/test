@@ -213,7 +213,15 @@ def role_arguments(tool, role, category=None, case_input=None, _catalog=True):
         mapped, missing = case_arguments(tool, case_input)
         if not missing:
             return mapped, None
-        rest, why = role_arguments(tool, role, category, _catalog=False)
+        # PM 11-16 10:5x (C): when none of the task's input reaches the tool (only a limit, or nothing), filling the
+        # rest with generic values asks something else and the answer is judged against this task's answer set.
+        # 136184 search_repos got query='model context protocol' for "facebook/react's license": it passed on 11-15
+        # because an unrelated first result happened to say MIT, and failed on 11-16. Such a call is skipped.
+        if not [name for name in mapped if not re.search(CASE_KEYS['limit'], name, re.I)]:
+            return None, 'missing_args: cannot fill ' + ', '.join(missing) + ' from the task input'
+        # the generic fill supplies only what the task did not (11-16: a mapped 'repo' made the whole call unfillable)
+        rest, why = role_arguments({**tool, 'required': [n for n in tool.get('required') or [] if n not in mapped]},
+                                   role, category, _catalog=False)
         if rest is None:
             return None, why
         return {**rest, **mapped}, None

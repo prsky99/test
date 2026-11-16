@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 OUT = ROOT / 'docs/methodology/methodology.json'
-VERSION = 'v1.2'  # 11-15 16:2x: provisional necklace members (user instruction d4670360); v1.1: retest rules say what runs
+VERSION = 'v1.3'  # 11-16 (PM): re-judged results under a new evaluator, a task input that reaches no parameter is skipped; v1.2: provisional necklace members (user instruction d4670360); v1.1: retest rules say what runs
 
 
 def _gate():
@@ -81,7 +81,11 @@ def build():
                       'tests_per_day': V.ROLE_DAILY_LIMIT, 'new_candidates_per_day': V.NEW_A_DAY, 'retests_per_day': V.RETEST_A_DAY,
                       'per_registrable_domain_per_day': provider_budget.SHARE['role_tests'],
                       'stop_domain_for_the_day_on': 429, 'answer_judged_up_to_bytes': 20000, 'excerpt_kept_chars': 1000,
-                      'answer_hash': 'sha256'},
+                      'answer_hash': 'sha256',
+                      # PM 11-16 10:5x (C): role_tool_test.role_arguments skips such a call (github.repo 136184)
+                      'task_input_must_reach_the_tool': 'when none of a task\u2019s input reaches a parameter of the tool, the '
+                                                        'call is skipped as cannot fill; it is never made with other values '
+                                                        'and judged against that task\u2019s answers'},
         'score': {'total': sum(DQ.WEIGHTS.values()) + sum(DQ.EVIDENCE_WEIGHTS.values()) + DQ.WRITING_WEIGHT,
                   'data_quality': DQ.WEIGHTS, 'evidence': DQ.EVIDENCE_WEIGHTS, 'report_text': DQ.WRITING_WEIGHT,
                   'latency_points': [{'up_to_ms': ms, 'points': p} for ms, p in DQ.LATENCY_STEPS],
@@ -99,7 +103,12 @@ def build():
                   'evaluator_version': V.EVALUATOR_VERSION},
         'verified_pearl': {'min_score': V.PASS_MARK, 'successes_on_different_days': V.CONFIRM_DAYS,
                            'days_count_when': 'accurate and clean, on different KST days, under the same tool, endpoint, '
-                                              'tool definition, evaluator version and answer set'},
+                                              'tool definition, evaluator version and answer set',
+                           # PM 11-16 10:5x (A): what report_v2.rescore already does (R11)
+                           'when_the_evaluator_changes': 'a result whose whole answer was kept at test time is judged again '
+                                                         'by the new evaluator and counts under it; a result without its whole '
+                                                         'answer keeps its earlier verdict and label and never counts together '
+                                                         'with the new evaluator\u2019s successes'},
         'final_pearl': {'rule': 'the top verified pearl of a role', 'one_place_per_registrable_domain_in_a_role': True,
                         'ranked_by': f'the pass rate of the role tasks given over the last {V.RECENT_DAYS} days, then the '
                                      'latest score',

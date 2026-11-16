@@ -1,5 +1,13 @@
 [
  {
+  "version": "v1.3",
+  "date": "2026-11-16",
+  "changes": [
+   "When the evaluator changes, a result whose whole answer was kept is judged again by the new evaluator and counts toward two-day repetition under it; a result without its whole answer is not counted together with the new evaluator’s successes.",
+   "A task whose input reaches no parameter of a tool is skipped as cannot fill instead of being called with other values. One earlier pass was wrong for this reason: github.repo 136184 on 2026-11-15 was asked another search, and its first result happened to show the expected license; it no longer counts."
+  ]
+ },
+ {
   "version": "v1.2",
   "date": "2026-11-15",
   "changes": [

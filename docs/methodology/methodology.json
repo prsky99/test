@@ -1,6 +1,6 @@
 {
  "name": "AgentValCon Verification Method",
- "version": "v1.2",
+ "version": "v1.3",
  "candidates": {
   "grade_minimum": "A",
   "grade_thresholds": {
@@ -27,7 +27,8 @@
   "stop_domain_for_the_day_on": 429,
   "answer_judged_up_to_bytes": 20000,
   "excerpt_kept_chars": 1000,
-  "answer_hash": "sha256"
+  "answer_hash": "sha256",
+  "task_input_must_reach_the_tool": "when none of a task’s input reaches a parameter of the tool, the call is skipped as cannot fill; it is never made with other values and judged against that task’s answers"
  },
  "score": {
   "total": 100,
@@ -81,7 +82,8 @@
  "verified_pearl": {
   "min_score": 85,
   "successes_on_different_days": 2,
-  "days_count_when": "accurate and clean, on different KST days, under the same tool, endpoint, tool definition, evaluator version and answer set"
+  "days_count_when": "accurate and clean, on different KST days, under the same tool, endpoint, tool definition, evaluator version and answer set",
+  "when_the_evaluator_changes": "a result whose whole answer was kept at test time is judged again by the new evaluator and counts under it; a result without its whole answer keeps its earlier verdict and label and never counts together with the new evaluator’s successes"
  },
  "final_pearl": {
   "rule": "the top verified pearl of a role",
@@ -141,6 +143,18 @@
    "example_input": {
     "query": "Pride and Prejudice",
     "title": "Pride and Prejudice"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "company.profile.v1",
+   "field": "other",
+   "example_input": {
+    "company": "CIK 1045810"
    },
    "answer_source": "answer set (withheld)",
    "checks": [
@@ -482,8 +496,6 @@
    "role": "sec.filings.v1",
    "field": "business",
    "example_input": {
-    "cik": "320193",
-    "company": "Apple Inc",
     "ticker": "AAPL"
    },
    "answer_source": "answer set (withheld)",

@@ -116,3 +116,16 @@ def test_public_https_uses_the_project_check_and_refuses_shared_address_space(mo
     assert not RT.public_https('https://cgnat.example/mcp')
     assert RT.public_https('https://public.example/mcp')
     assert not RT.public_https('http://public.example/mcp')
+
+
+def test_a_task_input_that_reaches_no_parameter_is_skipped_not_replaced():
+    """PM 11-16 10:5x (C): github-react-license gave search_repos query='model context protocol' (its example) and
+    judged the answer against facebook/react's license; such a call is skipped as cannot fill."""
+    search = tool(['query'], {'query': {'type': 'string', 'examples': ['model context protocol']},
+                              'limit': {'type': 'integer'}})
+    args, why = role_arguments(search, 'github.repo.v1', case_input={'repo': 'facebook/react'})
+    assert args is None and why.startswith('missing_args: cannot fill query')
+    # a task input that reaches one parameter still lets the generic fill supply the rest
+    repo = tool(['repo', 'format'], {'repo': {'type': 'string'}, 'format': {'type': 'string', 'enum': ['json', 'text']}})
+    assert role_arguments(repo, 'github.repo.v1', case_input={'repo': 'facebook/react'}) == \
+        ({'repo': 'facebook/react', 'format': 'json'}, None)
