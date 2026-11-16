@@ -90,6 +90,8 @@ def not_measured(attempts: dict) -> str | None:
 
 def capacity_exceeded(status: int, headers, data: dict) -> bool:
     error = (data or {}).get("error") or {}
+    if not isinstance(error, dict):     # 11-16 12:12: a refusal with "error": "<code>" (a string) crashed the gate check
+        error = {"message": str(error)}
     detail = error.get("data") if isinstance(error.get("data"), dict) else {}
     text = str(error.get("message") or (data or {}).get("detail") or "")
     return (status == 503 or headers.get("X-Execution-Error") == "CAPACITY_EXCEEDED"

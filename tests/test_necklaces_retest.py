@@ -304,6 +304,9 @@ def test_a_full_edge_is_retried_once_then_counted_as_our_capacity():
         raise AssertionError("no capacity error")
     unavailable = (200, {"jsonrpc": "2.0", "id": 1, "error": {"message": "The execution is unavailable."}}, {})
     assert retest.capacity_exceeded(*unavailable[:1], {}, unavailable[1])
+    # 11-16 12:12: a refusal whose "error" is a string (relay budget code) no longer crashes the check
+    assert retest.capacity_exceeded(429, {}, {"error": "budget_domain_daily_total"}) is False
+    assert retest.capacity_exceeded(200, {}, {"error": "The execution is unavailable."}) is True
 
 
 def test_our_capacity_is_not_a_failure_of_the_case_or_the_member(tmp_path):
