@@ -1,4 +1,25 @@
 {
-  "_doc": "Plain words on what each step of a necklace actually uses, shown after its summary on the page, llms.txt, the MCP tool, the A2A skill and /api/necklaces (PM 11-16: the summary is part of the judged definition and cannot change before a new gate, so a summary that reads wider than the sources is corrected here). Facts from the workflow team for the version judged; update this line whenever the members of a step change. Keys are necklace slugs.",
-  "topic-evidence-brief": "What each step uses (as of 2026-11-17): the web step answers from English Wikipedia, quoting the lead sentences of the best-matching articles with links (not a web search); the background step summarises the one Wikipedia article on the topic, so both come from Wikipedia; papers come from two indexes (OpenAlex or Crossref, and Europe PMC with Crossref); news is optional."
+  "_doc": "Plain words on what each step of a necklace actually uses, shown after its summary on the page, llms.txt, the MCP tool, the A2A skill and /api/necklaces (PM 11-16: the summary is part of the judged definition and cannot change before a new gate, so a summary that reads wider than the sources is corrected here). Facts from the workflow team for the version judged; update this line whenever the members of a step change. Keys are necklace slugs. A value may also be an object: {'sources': sentence, 'accuracy_scope': where the accuracy was measured (added next to the accuracy in the measured line), 'attribution': {'text': ..., 'links': [{'label', 'url' (https)}]} for a source whose terms require it}. Shown only while the necklace is offered.",
+  "topic-evidence-brief": "What each step uses (as of 2026-11-17): the web step answers from English Wikipedia, quoting the lead sentences of the best-matching articles with links (not a web search); the background step summarises the one Wikipedia article on the topic, so both come from Wikipedia; papers come from two third-party paper search agents (one of them uses OpenAlex; neither is verified yet), and from our own Crossref search only when both fail; news is optional.",
+  "weather-outdoor-brief": {
+    "accuracy_scope": "accuracy measured on US locations",
+    "attribution": {
+      "text": "Based on data from MET Norway.",
+      "links": [
+        {
+          "label": "CC BY 4.0",
+          "url": "https://creativecommons.org/licenses/by/4.0/"
+        },
+        {
+          "label": "NLOD 2.0",
+          "url": "https://data.norge.no/nlod/en/2.0"
+        },
+        {
+          "label": "MET Norway licence",
+          "url": "https://api.met.no/doc/License"
+        }
+      ]
+    },
+    "_note": "Agent team 11-16 (PM decision): the met-weather step is checked against US NWS forecasts on 30 US points only; other regions are checked for form and freshness. MET Norway terms require the attribution and licence links. Gate 11-19~20; add a sources sentence when the members are known."
+  }
 }

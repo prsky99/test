@@ -282,25 +282,60 @@ def provisional_note(snapshot=None):
 _SOURCES = {'key': None, 'value': {}}
 
 
-def sources_note(entry):
-    """The 'what each step uses' sentence for a necklace (necklace_sources.json), or None."""
+def _notes(entry):
+    """The kept notes of a necklace (necklace_sources.json): {'sources', 'accuracy_scope', 'attribution'}, any missing."""
     path = Path(__file__).with_name('necklace_sources.json')
     try:
         key = path.stat().st_mtime_ns
         if _SOURCES['key'] != key:
-            data = json.loads(path.read_text(encoding='utf-8'))
-            _SOURCES.update(key=key, value={k: v for k, v in data.items()
-                                            if not k.startswith('_') and isinstance(v, str) and v.strip()})
+            value = {}
+            for slug, raw in json.loads(path.read_text(encoding='utf-8')).items():
+                if slug.startswith('_'):
+                    continue
+                raw = {'sources': raw} if isinstance(raw, str) else raw if isinstance(raw, dict) else {}
+                one = {k: ' '.join(raw[k].split()) for k in ('sources', 'accuracy_scope')
+                       if isinstance(raw.get(k), str) and raw[k].strip()}
+                att = raw.get('attribution') if isinstance(raw.get('attribution'), dict) else {}
+                links = [{'label': ' '.join(str(x.get('label')).split())[:40], 'url': x['url']}
+                         for x in att.get('links') or [] if isinstance(x, dict) and isinstance(x.get('url'), str)
+                         and re.fullmatch(r'https://[A-Za-z0-9.-]+(/[A-Za-z0-9._~/%-]*)?', x['url']) and x.get('label')]
+                if isinstance(att.get('text'), str) and att['text'].strip():
+                    one['attribution'] = {'text': ' '.join(att['text'].split())[:200], 'links': links}
+                if one:
+                    value[slug] = one
+            _SOURCES.update(key=key, value=value)
     except (OSError, ValueError):
+        return {}
+    return _SOURCES['value'].get((entry or {}).get('slug'), {}) if isinstance(entry, dict) else {}
+
+
+def sources_note(entry):
+    """The 'what each step uses' sentence for a necklace, or None."""
+    return _notes(entry).get('sources')
+
+
+def accuracy_scope(entry):
+    """Where the accuracy was measured, when it covers only part of what the necklace answers (e.g. US locations)."""
+    return _notes(entry).get('accuracy_scope')
+
+
+def attribution(entry):
+    """{'text', 'links'} a source's terms require next to its data (e.g. MET Norway), or None."""
+    return _notes(entry).get('attribution')
+
+
+def attribution_text(entry):
+    att = attribution(entry)
+    if not att:
         return None
-    return _SOURCES['value'].get((entry or {}).get('slug')) if isinstance(entry, dict) else None
+    return att['text'] + (' Licence: ' + ', '.join(l['label'] + ' ' + l['url'] for l in att['links']) + '.' if att['links'] else '')
 
 
 def shown_summary(entry):
-    """The judged summary followed by the sources sentence where one is kept."""
+    """The judged summary followed by the sources sentence and a required attribution where kept."""
     summary = (entry.get('summary') or '') if isinstance(entry, dict) else ''
-    note = sources_note(entry)
-    return (summary + ' ' + note).strip() if note else summary
+    extra = ' '.join(x for x in (sources_note(entry), attribution_text(entry)) if x)
+    return (summary + ' ' + extra).strip() if extra else summary
 
 
 def member_status(pearl):
@@ -369,6 +404,7 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
     quality, cost, completion = entry.get('quality') or {}, entry.get('cost') or {}, entry.get('completion') or {}
     item = {'slug': entry['slug'], 'name': entry.get('name'), 'summary': entry.get('summary'),
             **({'sources': sources_note(entry)} if sources_note(entry) else {}),
+            **({'attribution': attribution(entry)} if attribution(entry) else {}),
             'status': entry.get('status'), 'offered': offered(entry, now),
             'url': base + '/necklaces/' + entry['slug'], 'mcp_tool': tool_name(entry['slug']),
             'a2a_skill': skill_id(entry['slug']), 'input_schema': entry.get('input_schema'),
@@ -826,7 +862,8 @@ def comparison_line(entry):
     # retests after opening and the workflow team's own runs), so they are 'test runs', dated from first to last.
     period = (found['since'] + ' \u2013 ' if found.get('since') else '') + found['measured_at']
     return ('Measured in our test runs on ' + str(found['cases']) + ' cases (' + period + '): one call, '
-            'a median of ' + sec(w['seconds']) + ' s per case, ' + pct(w['accuracy']) + ' correct, about ' + num(w['tokens'])
+            'a median of ' + sec(w['seconds']) + ' s per case, ' + pct(w['accuracy']) + ' correct'
+            + (' (' + accuracy_scope(entry) + ')' if accuracy_scope(entry) else '') + ', about ' + num(w['tokens'])
             + ' tokens (text length \u00f7 4). From the same runs\' records (not a separate run), an agent calling the same '
             + (str(found['slots']) + ' ' if found.get('slots') else '') + 'agents itself would make ' + num(wo['calls'])
             + ' calls and handle about ' + num(wo['tokens']) + ' tokens (text length \u00f7 4), taking about '
@@ -879,7 +916,14 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
     esc = lambda value: html.escape(str(value), quote=True)
     item = public_item(entry, base, now)
     runs = offered(entry, now)
-    parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, shown_summary(entry)),
+    att = attribution(entry)
+    lead = ' '.join(x for x in ((entry.get('summary') or ''), sources_note(entry) or '') if x)
+    parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, lead),
+             # a source whose terms require attribution (MET Norway, agent team 11-16) is credited with its licence links
+             ('<p class="muted necklace-attribution">' + esc(att['text'])
+              + (' Licence: ' + ', '.join('<a href="' + esc(l['url']) + '" rel="license noopener">' + esc(l['label']) + '</a>'
+                                          for l in att['links']) + '.' if att['links'] else '') + '</p>' if att else '')
+             +
              '<p class="muted necklace-standing">' + esc(standing_line(entry, now)) + '</p>'
              + ('<p class="necklace-scope"><strong>Scope:</strong> ' + esc(scope_notice(entry)) + '</p>' if scope_notice(entry) else '')
              + ('<p class="muted necklace-fallback">' + esc(fallback_line(entry)) + '</p>' if fallback_line(entry) else '')

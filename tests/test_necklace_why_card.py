@@ -92,8 +92,8 @@ def test_the_provisional_note_states_the_bars_and_our_own_agent_is_named_apart(s
 
 def test_the_sources_sentence_follows_the_summary_where_one_is_kept(snapshot, monkeypatch):  # noqa: F811
     entry = dict(snapshot['necklaces'][0])
-    monkeypatch.setitem(ns._SOURCES, 'value', {entry['slug']: 'What each step uses: Wikipedia only.'})
-    monkeypatch.setattr(ns, 'sources_note', lambda e: ns._SOURCES['value'].get((e or {}).get('slug')))
+    kept = {entry['slug']: {'sources': 'What each step uses: Wikipedia only.'}}
+    monkeypatch.setattr(ns, '_notes', lambda e: kept.get((e or {}).get('slug'), {}))
     assert ns.shown_summary(entry) == (entry.get('summary') or '') + ' What each step uses: Wikipedia only.'
     status, page = ns.page(entry['slug'], snapshot=snapshot, now=NOW)
     assert 'What each step uses: Wikipedia only.' in page
@@ -103,10 +103,12 @@ def test_the_sources_sentence_follows_the_summary_where_one_is_kept(snapshot, mo
     assert ns.shown_summary(other) == (entry.get('summary') or '') and 'sources' not in ns.public_item(other, now=NOW)
 
 
-def test_the_topic_sentence_names_wikipedia_and_two_paper_indexes():
+def test_the_topic_sentence_names_wikipedia_and_unverified_paper_searches():
     note = ns.sources_note({'slug': 'topic-evidence-brief'})
     assert note and 'English Wikipedia' in note and 'not a web search' in note and 'both come from Wikipedia' in note
-    assert 'OpenAlex' in note and 'Europe PMC' in note
+    # 11-16 terms verdict (4835e5c3): papers are a third-party search with OpenAlex, Crossref (ours) only as fallback
+    assert 'OpenAlex' in note and 'third-party paper search agents' in note and 'neither is verified yet' in note
+    assert 'Europe PMC' not in note and 'two indexes' not in note
 
 
 
@@ -125,3 +127,34 @@ def test_a_substitute_counts_as_checked_only_by_its_latest_passed_record(tmp_pat
     assert not check('avc:b')                      # revoked after passing: not said to have passed
     assert not check('avc:c') and not check('avc:x')   # no gate record, or no record at all
     assert not ns.substitute_checked({'resource_id': 'avc:a', 'tool': 't'}, tmp_path / 'missing.json')
+
+
+def test_accuracy_scope_and_attribution_follow_the_kept_notes(snapshot, monkeypatch):  # noqa: F811
+    """Agent team 11-16 (PM decision): a necklace whose accuracy was measured on part of what it answers says where, and
+    a source whose terms require it (MET Norway) is credited with licence links wherever the necklace is described."""
+    entry = dict(snapshot['necklaces'][0])
+    notes = {entry['slug']: {'accuracy_scope': 'accuracy measured on US locations',
+                             'attribution': {'text': 'Based on data from MET Norway.',
+                                             'links': [{'label': 'CC BY 4.0', 'url': 'https://creativecommons.org/licenses/by/4.0/'},
+                                                       {'label': 'NLOD 2.0', 'url': 'https://data.norge.no/nlod/en/2.0'}]}}}
+    monkeypatch.setattr(ns, '_notes', lambda e: notes.get((e or {}).get('slug'), {}))
+    comparison = {'cases': 30, 'measured_at': '2026-11-19', 'with': {'calls': 1, 'tokens': 900, 'seconds': 2.0, 'accuracy': 0.9},
+                  'without': {'calls': 4, 'tokens': 3000, 'seconds': 5.0, 'accuracy': 0.5}}
+    line = ns.comparison_line({**entry, 'comparison': comparison})
+    assert '90% correct (accuracy measured on US locations), about 900 tokens' in line
+    snap = {**snapshot, 'necklaces': [{**entry, 'comparison': comparison}] + snapshot['necklaces'][1:]}
+    status, page = ns.page(entry['slug'], snapshot=snap, now=NOW)
+    assert 'Based on data from MET Norway. Licence: <a href="https://creativecommons.org/licenses/by/4.0/" rel="license noopener">CC BY 4.0</a>' in page
+    assert 'Based on data from MET Norway. Licence: CC BY 4.0 https://creativecommons.org/licenses/by/4.0/' in ns.llms_section(snapshot=snap, now=NOW)
+    assert ns.public_item(entry, now=NOW)['attribution']['text'] == 'Based on data from MET Norway.'
+    other = {**entry, 'slug': 'elsewhere'}
+    assert '(accuracy measured' not in ns.comparison_line({**other, 'comparison': comparison}) and 'attribution' not in ns.public_item(other, now=NOW)
+
+
+def test_the_kept_notes_file_reads_strings_and_objects_and_rejects_odd_links():
+    notes = ns._notes({'slug': 'weather-outdoor-brief'})
+    assert notes['accuracy_scope'] == 'accuracy measured on US locations'
+    assert [l['url'] for l in notes['attribution']['links']] == ['https://creativecommons.org/licenses/by/4.0/',
+                                                                  'https://data.norge.no/nlod/en/2.0',
+                                                                  'https://api.met.no/doc/License']
+    assert ns.sources_note({'slug': 'topic-evidence-brief'}).startswith('What each step uses')
