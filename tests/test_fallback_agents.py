@@ -1519,9 +1519,9 @@ def test_ecb_fx_states_the_rate_date_and_crosses_through_the_euro(tmp_path):
                        limiters=limiters(clock, clock.sleep))
     usd_eur = a.execute("ecb-fx", {"from": "USD", "to": "EUR", "amount": 100})
     assert usd_eur["result"] == {"from": "USD", "to": "EUR", "rate": 0.904814, "date": "2026-11-13",
-                                 "source": "ECB euro foreign exchange reference rates"}
+                                 "source": "ECB euro foreign exchange reference rates; for information only, not for transactions"}
     usd_jpy = a.execute("ecb-fx", {"from": "USD", "to": "JPY"})["result"]
-    assert usd_jpy["rate"] == round(176.83 / 1.1052, 3) and usd_jpy["source"].endswith("(crossed through EUR)")
+    assert usd_jpy["rate"] == round(176.83 / 1.1052, 3) and "(crossed through EUR by AgentValCon); for information only" in usd_jpy["source"]
     assert len(calls) == 1 and usd_eur["freshness"]["data_as_of"] == {"ECB": "2026-11-13"}
     with pytest.raises(FallbackUnavailable) as err:
         a.execute("ecb-fx", {"from": "USD", "to": "XYZ"})

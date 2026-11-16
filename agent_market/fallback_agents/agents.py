@@ -1341,7 +1341,8 @@ class FallbackAgents:
         rate = rates[quote_ccy] / rates[base]
         out = {"from": base, "to": quote_ccy, "rate": float(f"{rate:.6g}"), "date": day,
                "source": "ECB euro foreign exchange reference rates" + ("" if "EUR" in (base, quote_ccy) else
-                                                                        " (crossed through EUR)")}
+                                                                        " (crossed through EUR by AgentValCon)")
+                         + "; for information only, not for transactions"}   # ECB conditions (11-16 terms check)
         return out, cache, False, {"ECB": day}
 
     def _usgs_quakes(self, args, remaining):
