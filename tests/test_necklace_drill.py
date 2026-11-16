@@ -31,7 +31,7 @@ def test_a_drill_writes_its_own_lines_and_never_a_quality_case(tmp_path, monkeyp
     class Engine:
         store = None
 
-        def _call_registered(self, node, args):
+        def _call_registered(self, node, args, binding=None, *, timeout=None):
             called.append(node.get("resource_id"))
             return {}
     monkeypatch.setattr(retest.runner, "budgeted_caller", lambda caller, system, url_of, budget=None: caller)

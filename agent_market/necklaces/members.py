@@ -87,7 +87,7 @@ def standing(member: dict, contract: str, block: dict | None) -> str | None:
     from . import model
     if block is None:
         return None
-    if member.get("state", "active") != "active" or model.terms_status(member) == "prohibits":
+    if member.get("state", "active") != "active" or not model.runnable(member):
         return None
     if member.get("kind") == "agentcon":        # our own substitutes are never official pearls
         return "provisional" if member.get("substitute_state") in ("approved", "provisional") else None

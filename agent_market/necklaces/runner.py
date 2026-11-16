@@ -1274,7 +1274,9 @@ def engine_caller(engine, fallbacks=None):
         from ..concierge.proxy import REUSE_HANDSHAKE     # PM 11-16: a necklace member call reuses the handshake
         token = REUSE_HANDSHAKE.set(True)
         try:
-            return engine._call_registered(node, args)
+            # C05 (PM 11-16): the slot's remaining time goes down to the proxy's MCP call (workflows passes it to
+            # proxy.execute), so a call never outlives its necklace deadline on our side
+            return engine._call_registered(node, args, timeout=max(0.1, float(timeout_s)))
         finally:
             REUSE_HANDSHAKE.reset(token)
     return call

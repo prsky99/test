@@ -869,7 +869,7 @@ def single_members(defn: dict, contrast: str, watch_state: dict | None = None) -
     if defn["slug"] not in TASK_GRADERS and defn["slug"] not in SINGLE_TASK_GRADERS:
         slot = next(s for s in defn["slots"] if s["slot"] == contrast)
         # 11-16: a member whose terms prohibit our use is never called, alone either (the run chain drops it already)
-        return [(contrast, m) for m in model.live_members(slot, "external") if model.terms_status(m) != "prohibits"]
+        return [(contrast, m) for m in model.live_members(slot, "external") if model.runnable(m)]
     from .watch import runtime_chain
     out = []
     for slot in defn["slots"]:

@@ -179,6 +179,7 @@ def test_a_necklace_stays_within_five_required_slots_and_three_stages():
     assert any("at most 3 stages" in e for e in model.validate(defn, check_contracts=False))
 
 
+@pytest.mark.real_terms
 def test_terms_of_use_status_per_member():
     """PM 13:0x (11-15): a terms field per member; fallbacks are confirmed by the licences in their catalogue."""
     member = ext(1, "a.example")
@@ -196,6 +197,7 @@ def test_terms_of_use_status_per_member():
 
 
 
+@pytest.mark.real_terms
 def test_our_own_registered_agents_take_their_terms_from_the_member():
     """PM 12:46: 133018, 133019 and 133023 are judged by their source's terms written on the member."""
     own_agent = {"kind": "agentcon", "agent_id": "owned-news", "resource_id": 999133018, "tool": "t"}   # not in the table
@@ -210,6 +212,7 @@ def test_our_own_registered_agents_take_their_terms_from_the_member():
     assert model.terms_status(banned) == "prohibits"          # a checked member value wins over the catalogue
 
 
+@pytest.mark.real_terms
 def test_terms_come_from_one_table_for_every_definition_and_stamp():
     """PM 13:53: member_terms.json holds each member's terms once; stamps and definitions read the same value."""
     from agent_market.necklaces import templates

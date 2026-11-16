@@ -171,7 +171,7 @@ def runtime_chain(slot: dict, slug: str, state: dict) -> list[dict]:
     usable = [_usable(m, slot, approved, (block or {}).get("own") or {}) for m in slot["chain"]]
     chain = [m for m in usable if m is not None
              and not marks.get(member_key(slug, slot["slot"], m), {}).get("excluded")
-             and model.terms_status(m) != "prohibits"]          # terms forbid automated use (PM 12:27)
+             and model.runnable(m)]          # allowed or silent only; unknown waits (C14, PM 11-16 20:21)
     if block is not None:   # PM 16:03: each member says its standing; a verified pearl leads, provisional next
         chain = [dict(m, standing=standing_rules.standing(m, model.member_contract(slot, m), block)) for m in chain]
     rank = {"verified_pearl": 0, "provisional": 1}

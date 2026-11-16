@@ -239,6 +239,7 @@ def pytest_configure(config):
                                        'production database on purpose (reported to the PM, 11-17)')
     config.addinivalue_line('markers', 'live_network: this test calls a real outside service on purpose; the night '
                                        'full pytest leaves it out (PM 11-18)')
+    config.addinivalue_line('markers', 'real_terms: run with the real member terms table (unknown stays unknown)')
 
 
 @pytest.fixture(autouse=True, scope='session')
@@ -267,3 +268,23 @@ def _no_outside_network(request):
     if refused:
         pytest.fail('outside network refused: ' + ', '.join(sorted({f'{host}:{port}' for _, host, port in refused}))
                     + ' (use a cassette or fake transport, or mark live_network)', pytrace=False)
+
+
+@pytest.fixture(autouse=True)
+def test_members_have_terms(monkeypatch, request):
+    """C14 (PM 11-16): only members whose terms are allowed or silent run. Tests use made-up member ids that are not
+    in agent_market/necklaces/member_terms.json; they read as "silent" here so the harness under test runs them.
+    A real verdict (allowed, silent, prohibits) still wins. A test that checks unknown or prohibits marks itself
+    @pytest.mark.real_terms (or patches model.terms_status itself)."""
+    if request.node.get_closest_marker("real_terms"):
+        return
+    try:
+        from agent_market.necklaces import model
+    except Exception:
+        return
+    real = model.terms_status
+
+    def status(member):
+        found = real(member)
+        return "silent" if found == "unknown" else found
+    monkeypatch.setattr(model, "terms_status", status)

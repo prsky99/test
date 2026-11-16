@@ -334,13 +334,16 @@ def fallback_depth(running: dict) -> dict:
 
 
 def terms_hold(defn: dict, running: dict) -> str | None:
-    """PM 12:27 (11-15): once a necklace's members were checked (terms_reviewed_at), it is not offered while the
-    lead of a required slot has unknown terms. Before the check nothing holds on terms (it would stop every one)."""
-    if not defn.get("terms_reviewed_at"):
-        return None
+    """Why a necklace waits on terms. Since C14 (PM 11-16 20:21) a member whose terms are unknown never runs, so the
+    running chain has none; a required step left with no member while one of its members waits for a terms verdict
+    holds as terms_unknown (not no_member), whether or not the necklace's terms were reviewed (terms_reviewed_at)."""
+    steps = {s["slot"]: s for s in defn.get("slots") or []}
     for slot in running["slots"]:
-        lead = next(iter(slot["chain"]), None)
-        if slot.get("required", True) and lead is not None and model.terms_status(lead) not in model.USABLE_TERMS:
+        if not slot.get("required", True) or slot["chain"]:
+            continue
+        waiting = [m for m in (steps.get(slot["slot"]) or {}).get("chain") or []
+                   if m.get("state", "active") == "active" and model.terms_status(m) == "unknown"]
+        if waiting:
             return "terms_unknown"
     return None
 

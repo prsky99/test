@@ -175,6 +175,12 @@ TERMS_STATES = ("allowed", "silent", "prohibits", "unknown")
 USABLE_TERMS = ("allowed", "silent")
 
 
+def runnable(member: dict) -> bool:
+    """PM 11-16 20:21 (C14): only members whose terms are allowed or silent are called; unknown waits for a verdict
+    (pending review) and prohibits never runs. One rule for the run chain, singles, standing and the gate check."""
+    return terms_status(member) in USABLE_TERMS
+
+
 TERMS_TABLE = Path(__file__).resolve().parent / "member_terms.json"
 _TERMS_CACHE: dict = {}
 

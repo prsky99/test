@@ -160,7 +160,7 @@ def test_engine_caller_turns_reuse_on_for_the_member_call_only():
     seen = []
 
     class Engine:
-        def _call_registered(self, node, args):
+        def _call_registered(self, node, args, binding=None, *, timeout=None):
             seen.append(REUSE_HANDSHAKE.get())
             return {"ok": True}
     token = REUSE_HANDSHAKE.set(False)

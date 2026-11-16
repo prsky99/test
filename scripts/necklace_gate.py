@@ -181,9 +181,10 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
             row = {"rank": rank, "kind": member["kind"], "tool": member["tool"],
                    "id": member.get("resource_id") or member.get("agent_id"), "terms": model.terms_status(member),
                    "standing": member.get("standing"), "substitute_state": member.get("substitute_state")}
-            if row["terms"] == "prohibits":     # never called (runtime_chain drops it); kept here as a second lock
-                row.update(relay="not_checked", why="terms_prohibits", **{SEATED: False})
-                problems.append(f"slot {slot['slot']}: member {row['id']} terms prohibit our use")
+            if not model.runnable(member):      # never called (runtime_chain drops it); kept here as a second lock
+                row.update(relay="not_checked", why="terms_" + row["terms"], **{SEATED: False})
+                problems.append(f"slot {slot['slot']}: member {row['id']} terms "
+                                + ("prohibit our use" if row["terms"] == "prohibits" else "not judged yet (pending review)"))
             elif member["kind"] == "external":
                 row["verified_pearl"] = bool(verified) and (member["resource_id"],
                                                              member.get("contract") or slot["contract"]) in verified
@@ -207,11 +208,14 @@ def check(defn: dict, client, base: str = BASE, verified=None, substitutes=None,
         lead = next((r for r in seated if r["kind"] == "external"), None)
         prohibited = [m.get("resource_id") or m.get("agent_id") for m in slot["chain"]
                       if model.terms_status(m) == "prohibits"]
+        pending = [m.get("resource_id") or m.get("agent_id") for m in slot["chain"]
+                   if m.get("state", "active") == "active" and model.terms_status(m) == "unknown"]
         waiting = [m["agent_id"] for m in slot["chain"]
                    if m.get("kind") == "agentcon" and m.get("state") == "planned" and m not in chain
                    and not any(x.get("agent_id") == m["agent_id"] for x in chain)]
         if slot.get("required", True) and not seated:   # PM 12:46: say exactly why the slot is not ready
             why = [f"terms prohibit {', '.join(map(str, prohibited))}"] if prohibited else []
+            why += [f"terms not judged for {', '.join(map(str, pending))}"] if pending else []
             why += [f"{', '.join(waiting)} not approved as a substitute yet"] if waiting else []
             problems.append(f"slot {slot['slot']}: not ready, no member can run" + (f" ({'; '.join(why)})" if why else ""))
         if lead and lead.get("verified_pearl"):

@@ -347,7 +347,7 @@ def test_a_gate_round_can_take_the_public_engine_path(tmp_path, monkeypatch):
     class Engine:
         store = None
 
-        def _call_registered(self, node, args):
+        def _call_registered(self, node, args, binding=None, *, timeout=None):
             seen.append(node["resource_id"])
             return {"vulns": [], "version": "9.9.9"}
     monkeypatch.setattr(retest.runner, "budgeted_caller", lambda caller, system, url_of, budget=None: caller)
@@ -402,7 +402,7 @@ def test_live_retest_runs_five_cases_and_the_whole_set_after_one_failure(tmp_pat
         store = None
         answer = "9.9.9"
 
-        def _call_registered(self, node, args):
+        def _call_registered(self, node, args, binding=None, *, timeout=None):
             asked.append(args.get("package") or args.get("name"))
             return {"vulns": [], "version": self.answer}
     monkeypatch.setattr(retest.runner, "budgeted_caller", lambda caller, system, url_of, budget=None: caller)
@@ -445,7 +445,7 @@ def test_two_necklaces_escalating_on_one_provider_stay_inside_its_share_and_defe
     class Engine:
         store = None
 
-        def _call_registered(self, node, args):
+        def _call_registered(self, node, args, binding=None, *, timeout=None):
             calls.append(node["resource_id"])
             return {"vulns": [], "version": "0.0.1"}            # always wrong: every sample fails
     lead_domains = {m["registrable_domain"] for s in defn["slots"] for m in model.live_members(s, "external")[:1]}

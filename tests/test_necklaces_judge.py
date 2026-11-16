@@ -1,3 +1,4 @@
+import pytest
 import json
 import time
 
@@ -343,15 +344,17 @@ def test_the_snapshot_check_can_be_left_out_of_a_release(tmp_path, monkeypatch):
 
 
 
+@pytest.mark.real_terms
 def test_reviewed_necklace_waits_for_its_leads_terms_and_prohibited_members_leave(tmp_path):
-    """PM 12:27 (11-15): no terms hold before the review; after it an unknown lead holds, a prohibiting one leaves."""
+    """PM 12:27 (11-15): an unknown lead holds the necklace and a prohibiting one leaves. Since C14 (PM 11-16 20:21) an
+    unknown member never runs, before the terms review too, so the necklace is held either way."""
     from agent_market.necklaces import watch
     defn = live_defn()
     summary(tmp_path, defn["slug"])
     state = {"updated": judge._iso(NOW)}
     entry = judge.snapshot([defn], {defn["slug"]: approval(defn)}, tmp_path, NOW, watch_state=state, judge_state={},
                            verified=BOTH)["necklaces"][0]
-    assert entry["status"] == "live"
+    assert entry["status"] == "held"                       # C14: the unknown leads do not run, so no step can answer
     reviewed = dict(defn, terms_reviewed_at="2026-11-19")
     entry = judge.snapshot([reviewed], {defn["slug"]: approval(reviewed)}, tmp_path, NOW, watch_state=state,
                            judge_state={}, verified=BOTH)["necklaces"][0]
