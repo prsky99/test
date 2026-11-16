@@ -219,15 +219,22 @@ def candidates(
                     (match, kind, kind, category, category),
                 ).fetchall()]
             # OpenSearch (when configured) cuts the same matches by relevance instead of recency.
-            lexical.extend(lexical_ids(words, joiner, kind, category, postgres))
+            from .retrieval_metrics import remembered
+            lexical.extend(remembered(('lexical', tuple(words), joiner, kind, category),
+                                      lambda words=words, joiner=joiner, postgres=postgres:
+                                      list(lexical_ids(words, joiner, kind, category, postgres))))
         lexical = list(dict.fromkeys(lexical))[:500]
     count('lexical_candidates', len(lexical))
+    from .retrieval_metrics import remembered
     with stage('embedding'):
-        vector = engine.discovery_embedding(intent.positive) if enabled(engine) else None
+        vector = (remembered(('embedding', descriptor.digest if descriptor else None, intent.positive),
+                             lambda: engine.discovery_embedding(intent.positive)) if enabled(engine) else None)
     index = store._vector_index
     if vector is not None and index and index.ann_enabled:
         blob = validate_vector(vector, descriptor)[0]
-        with stage('ann'), index.read_snapshot():
+
+        def nearest_current():
+          with stage('ann'), index.read_snapshot():
             from ..postgres_ann import configure_scan, kind_graph_search, layout
             # Without a kind the per-kind graphs are read one by one (11-12 A3), so the scan is filtered too.
             configure_scan(store, filtered=kind is not None or category is not None or layout(store)['kind_indexes'])
@@ -250,7 +257,9 @@ def candidates(
             # ANN statement above.
             from ..vector_provenance_cache import current_ids as remembered_current_ids
             current = remembered_current_ids(index, ids, descriptor)
-            dense = [rid for rid in ids if rid in current]
+            return [rid for rid in ids if rid in current]
+        # the same vector, kind and category within one request give the same ids (PM 11-16 3.3)
+        dense = remembered(('ann', descriptor.digest, intent.positive, kind, category), nearest_current)
     count('dense_candidates', len(dense))
     # Index-time generated requests add recall only; every candidate still passes the
     # same projection, relevance and verification gates on the provider's own text.

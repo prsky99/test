@@ -27,7 +27,43 @@ _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', '
                      # Vector provenance check cache (PM 11-16 06:4x): hits and misses of current_ids
                      'provenance_hit', 'provenance_miss',
                      # A pooled session opened for this request, schema check included (PM 11-16 source review 1)
-                     'session_open'))
+                     'session_open',
+                     # A retrieval step answered from this request's own earlier identical step (PM 11-16 3.3)
+                     'request_memo',
+                     # Before the app: waiting since the proxy took the request (X-Request-Start), and the event
+                     # loop's worst wake-up delay in the last minute (PM 11-16 15:46: not in server time)
+                     'queue', 'loop_lag'))
+
+
+# PM 11-16 source review 3.3: one request asked the same lexical, embedding and ANN retrieval again (the narrow
+# fallback's capability_focus repeats the first search's candidates). Results are kept for the request only; RequestTiming
+# opens the scope, so code outside a timed request never shares anything.
+_memo = ContextVar('retrieval_request_memo', default=None)
+
+
+@contextmanager
+def request_memo():
+    token = _memo.set({})
+    try:
+        yield
+    finally:
+        _memo.reset(token)
+
+
+def remembered(key, compute):
+    """COMPUTE() once per request for KEY (a hashable of everything the result depends on); without a request
+    scope it is simply computed."""
+    memo = _memo.get()
+    if memo is None:
+        return compute()
+    if key in memo:
+        started = perf_counter()
+        value = memo[key]
+        add('request_memo', (perf_counter() - started) * 1000 + 0.001)
+        return value
+    value = compute()
+    memo[key] = value
+    return value
 
 
 _gc_state = threading.local()

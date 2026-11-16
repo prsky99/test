@@ -5,11 +5,13 @@ network and server time, and server time into its stages. This turns on the opt-
 measurements for /mcp, /a2a, /chat, /agents/best, /api/explore, /api/agents and /api/feed and adds them to the Server-Timing header.
 Nothing about the task, the visitor or the result is recorded.
 """
+import asyncio
+import collections
 import time
 
 from starlette.datastructures import MutableHeaders
 
-from .retrieval_metrics import capture, gc_stages, gc_total_ms
+from .retrieval_metrics import capture, gc_stages, gc_total_ms, request_memo
 
 # /api/agents and /api/feed (11-12 PM): the 13:04 full check saw 18.9 s and 11.4 s there with no server stages.
 # /api/agent/v1/discover (11-14 PM 16:2x): 2.77 s in the full check with no server stages (F07).
@@ -18,6 +20,47 @@ PATHS = ('/mcp', '/a2a', '/chat', '/agents/best', '/api/explore', '/api/agents',
 
 def timed_path(path):
     return any(path == prefix or path.startswith(prefix + '/') for prefix in PATHS)
+
+
+LAG_TICK = 0.1         # seconds the loop-lag watch sleeps between wake-ups
+LAG_WINDOW = 60.0      # seconds of wake-up delays it keeps
+_lag = {'task': None, 'samples': collections.deque()}
+
+
+async def _watch_loop_lag():
+    """How late the event loop wakes a 0.1 s sleep: a blocking call in the loop shows here (PM 11-16 15:46)."""
+    samples = _lag['samples']
+    while True:
+        began = time.perf_counter()
+        await asyncio.sleep(LAG_TICK)
+        now = time.perf_counter()
+        samples.append((now, max(0.0, (now - began - LAG_TICK) * 1000)))
+        while samples and now - samples[0][0] > LAG_WINDOW:
+            samples.popleft()
+
+
+def loop_lag_ms():
+    """The worst wake-up delay of the last minute in milliseconds, starting the watch on first use."""
+    task = _lag['task']
+    if task is None or task.done():
+        try:
+            _lag['task'] = asyncio.get_running_loop().create_task(_watch_loop_lag())
+        except RuntimeError:
+            return None
+    return max((lag for _, lag in _lag['samples']), default=None)
+
+
+def queued_ms(scope, now_epoch=None):
+    """Milliseconds since the proxy stamped X-Request-Start (t=<unix ms>), or None without the stamp."""
+    for name, value in scope.get('headers') or ():
+        if name == b'x-request-start':
+            try:
+                stamp = float(value.decode('latin-1').strip().removeprefix('t='))
+            except ValueError:
+                return None
+            waited = (time.time() if now_epoch is None else now_epoch) * 1000 - stamp
+            return waited if 0 <= waited < 60000 else None
+    return None
 
 
 class RequestTiming:
@@ -29,7 +72,8 @@ class RequestTiming:
             return await self.app(scope, receive, send)
         started = time.perf_counter()
         gc_since = gc_total_ms()
-        with capture() as values:
+        before = {'queue': queued_ms(scope), 'loop_lag': loop_lag_ms()}
+        with capture() as values, request_memo():
             values['started'] = started
             async def deliver(message):
                 if message['type'] == 'http.response.start':
@@ -42,6 +86,7 @@ class RequestTiming:
                     measured = sorted({**values['stages_ms'], **steps, **gc_stages(values, gc_since)}.items(),
                                       key=lambda item: -item[1])
                     stages += measured[:24]
+                    stages += [(name, value) for name, value in before.items() if value is not None]
                     headers = MutableHeaders(scope=message)
                     timing = ', '.join(f'{name};dur={value:.0f}' for name, value in stages)
                     headers['Server-Timing'] = (headers['Server-Timing'] + ', ' + timing) if 'server-timing' in headers else timing

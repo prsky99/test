@@ -938,11 +938,22 @@ class FastConcierge(Concierge):
             from .chat_guidance import separate_requests
             from .retrieval_metrics import stage as timed
             step('split')
-            for part in separate_requests(task):
-                # Rank like the part asked alone: a limit of one stops at the first focused listing.
-                with timed('split_search'):
-                    found = self.rec.search(part_text(part), kind=protocol, limit=3, offset=0,
-                                            exclude=excluded | {item['id'] for item in items})
+            split_parts = separate_requests(task)
+            # PM 11-16 source review 3.3: the parts were searched one after another. They start together on
+            # read-pool sessions when the pool allows (_part_searches, as _cover_parts does); a part whose early
+            # first listing an earlier part already took is searched again in turn, so the answer is the in-turn one.
+            with timed('split_search'):
+                early = FastConcierge._part_searches(self, split_parts, protocol, excluded) if len(split_parts) > 1 else None
+            for index, part in enumerate(split_parts):
+                taken = {item['id'] for item in items}
+                found = early[index] if early is not None else None
+                if found is not None and found and found[0]['id'] in taken:
+                    found = None
+                if found is None:
+                    # Rank like the part asked alone: a limit of one stops at the first focused listing.
+                    with timed('split_search'):
+                        found = self.rec.search(part_text(part), kind=protocol, limit=3, offset=0,
+                                                exclude=excluded | taken)
                 if found:
                     items.append({**found[0], 'request_part': part[:120]})
                     parts.append(part[:120])
