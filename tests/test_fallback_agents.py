@@ -2346,3 +2346,12 @@ def test_sec_company_profile_describes_the_filer_from_its_registration(tmp_path)
     assert g.case_arguments("sec-company-profile", case) == {"company": "CIK 320193"}
     assert out["cik"] == "320193" and out["industry"] == "Electronic Computers" and out["tickers"] == ["AAPL"]
     assert g.judge("sec-company-profile", case, out)["pass"]
+
+
+def test_census_match_with_another_zip_code_is_not_the_address():
+    """us-street 11-16: the State House address matched the same street in another ZIP code, 12 km away."""
+    from agent_market.fallback_agents.agents import same_street
+    assert not same_street("24 Beacon St, Boston, MA 02133, USA", "24 BEACON ST, BOSTON, MA, 02136")
+    assert same_street("24 Beacon St, Boston, MA 02133, USA", "24 BEACON ST, BOSTON, MA, 02133")
+    assert same_street("1600 Pennsylvania Avenue NW, Washington, DC", "1600 PENNSYLVANIA AVE NW, WASHINGTON, DC, 20500")
+    assert not same_street("2301 North Highland Avenue, Los Angeles, CA 90068", "2301 HIGHLAND DR, LOS ANGELES, CA, 90016")
