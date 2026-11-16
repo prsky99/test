@@ -503,6 +503,40 @@ def refunds_due(run=None):
     return {'refunds_due': count, 'usdc': units / 1_000_000, 'payer_format_ok': ok_format}
 
 
+PAYMENTS_SQL = ROOT / 'deploy/ops/adcoin-payments-today.sql'
+PAYMENTS_STATE = ROOT / 'logs/ops/adcoin-payments-today-state.json'
+
+
+def payments_today(run=None, clock=time.time):
+    """Every watch run (AI AD Coin 39f0712d, PM 11-16 15:42): USDC payments confirmed since 00:00 KST. The watch only
+    heard about queues and refunds, so the PM learned of a confirmed payment late. When the day's count goes up, the
+    board line '자동 점검 [adcoin_payments]' tells PM in one line (counts and amounts only, never addresses or hashes).
+    The count starts again each day."""
+    if run is None and os.environ.get('PYTEST_CURRENT_TEST'):
+        return None   # a test that runs the whole watch never reads the production database
+    run = run or (lambda: subprocess.run([str(ROOT / '.venv/bin/python'), '-m', 'scripts.prod_ro_sql', str(PAYMENTS_SQL)],
+                                         capture_output=True, text=True, cwd=ROOT, timeout=60))
+    try:
+        done = run()
+        line = [x for x in done.stdout.strip().splitlines() if '|' in x][-1] if done.returncode == 0 else None
+        count, units, review = (int(v) for v in line.split('|')[:3])
+    except (subprocess.TimeoutExpired, ValueError, IndexError, OSError, AttributeError):
+        append(ACTIONS, f'{now()} USDC 결제 확정 확인 실패(prod_ro_sql)')
+        return 'failed'
+    day = datetime.fromtimestamp(clock()).strftime('%Y-%m-%d')
+    try:
+        state = json.loads(PAYMENTS_STATE.read_text())
+    except (OSError, ValueError):
+        state = {}
+    seen = state.get('count', 0) if state.get('day') == day else 0
+    if count > seen:
+        TEAM['adcoin_payments'] = 'PM'
+        board_handoff('adcoin_payments', f'USDC 결제 확정 {count}건(오늘 {day}), 확정 합계 {units / 1_000_000:.2f} USDC, '
+                                         f'검토 중 {review}건 — 운영자 화면의 USDC 결제 대기열에서 확인')
+    PAYMENTS_STATE.write_text(json.dumps({'day': day, 'count': max(count, seen)}))
+    return {'bookings_today': count, 'usdc': units / 1_000_000, 'in_review': review, 'new': max(0, count - seen)}
+
+
 VECTOR_USAGE_STATE = ROOT / 'logs/ops/vector-index-usage-state.json'
 
 
@@ -1146,6 +1180,10 @@ def watch():
         refunds_due()
     except Exception as error:  # noqa: BLE001
         append(ACTIONS, f'{now()} 환불 대기 확인 실패: {type(error).__name__}')
+    try:
+        payments_today()
+    except Exception as error:  # noqa: BLE001
+        append(ACTIONS, f'{now()} USDC 결제 확정 확인 실패: {type(error).__name__}')
     try:
         vector_index_usage()
     except Exception as error:  # noqa: BLE001

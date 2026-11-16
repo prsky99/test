@@ -172,3 +172,25 @@ def test_refunds_due_open_a_line_for_pm_with_counts_only(monkeypatch, tmp_path):
     assert ops_auto.refunds_due(run)['refunds_due'] == 0 and closed == ['adcoin_refunds']
     assert ops_auto.refunds_due(lambda: types.SimpleNamespace(returncode=75, stdout='')) == 'failed'
     assert ops_auto.refunds_due() is None   # inside a test, never the production database
+
+
+def test_a_confirmed_payment_tells_pm_once_per_new_payment(monkeypatch, tmp_path):
+    """AI AD Coin 39f0712d (PM 11-16 15:42): the first real USDC payment reaches PM at the next watch."""
+    handed = []
+    monkeypatch.setattr(ops_auto, 'board_handoff', lambda kind, text: handed.append((kind, text)))
+    monkeypatch.setattr(ops_auto, 'ACTIONS', tmp_path / 'actions.md')
+    monkeypatch.setattr(ops_auto, 'PAYMENTS_STATE', tmp_path / 'state.json')
+    monkeypatch.setattr(ops_auto, 'TEAM', dict(ops_auto.TEAM))
+    out = {'text': 'bookings_today|booking_units_confirmed|bookings_in_review\n0|0|0\n'}
+    run = lambda: types.SimpleNamespace(returncode=0, stdout=out['text'])                      # noqa: E731
+    day1 = lambda: datetime(2026, 11, 16, 16, 0).timestamp()                                    # noqa: E731
+    assert ops_auto.payments_today(run, clock=day1)['new'] == 0 and handed == []
+    out['text'] = '1|5000000|0\n'
+    assert ops_auto.payments_today(run, clock=day1)['new'] == 1
+    assert handed == [('adcoin_payments', 'USDC 결제 확정 1건(오늘 2026-11-16), 확정 합계 5.00 USDC, 검토 중 0건 — 운영자 화면의 USDC 결제 대기열에서 확인')]
+    assert ops_auto.TEAM['adcoin_payments'] == 'PM'
+    assert ops_auto.payments_today(run, clock=day1)['new'] == 0 and len(handed) == 1          # told once
+    day2 = lambda: datetime(2026, 11, 17, 9, 0).timestamp()                                     # noqa: E731
+    assert ops_auto.payments_today(run, clock=day2)['new'] == 1 and len(handed) == 2          # a new day
+    assert ops_auto.payments_today(lambda: types.SimpleNamespace(returncode=75, stdout=''), clock=day2) == 'failed'
+    assert ops_auto.payments_today() is None   # inside a test, never the production database
