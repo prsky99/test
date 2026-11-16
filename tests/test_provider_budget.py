@@ -346,7 +346,8 @@ def test_holdout_r4_openalex_reads_fit_on_11_17_only():
 def test_company_r5_sec_reads_fit_on_11_16_only():
     """gold_company_r5 reads SEC up to 95 times on 11-16 after holdout-r4 took 90 of the usual 100."""
     assert pb.share_limit('reference_checks', 'sec.gov', day='20261116') == 200
-    assert pb.share_limit('reference_checks', 'sec.gov', day='20261117') == 100
+    assert pb.share_limit('reference_checks', 'sec.gov', day='20261117') == 200   # three company sets that day
+    assert pb.share_limit('reference_checks', 'sec.gov', day='20261118') == 100
 
 
 def test_wikidata_truth_source_terms_are_recorded_and_keep_the_default_total():

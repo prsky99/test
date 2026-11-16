@@ -196,7 +196,11 @@ ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_check
             # 60 per domain stays (PM 16:25), so 50 of the 90 asked; the open-source records are read first.
             '20261117': {('reference_checks', 'github.com'): 50,
                          # workflow cdccd97e: topic-evidence-brief holdout-r4, the 29 OpenAlex reads left of 41 topics
-                         ('reference_checks', 'openalex.org'): 60}}   # holdout-r4 rest and r5 (PM 06:5x)
+                         ('reference_checks', 'openalex.org'): 60,    # holdout-r4 rest and r5 (PM 06:5x)
+                         # workflow 11-16 12:4x: three company sets on 11-17 read SEC (holdout-r6 for sec-company-profile,
+                         # holdout-r7 for company v3, wikipedia-summary re-gate companies), 1-2 reads a company, 90-160
+                         # in all; 20 x 600 // 60 = 200, inside sec.gov's checked total of 600
+                         ('reference_checks', 'sec.gov'): 20}}
 # GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
 ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}}
 
