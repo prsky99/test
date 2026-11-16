@@ -901,5 +901,43 @@
    "live",
    {}
   ]
+ ],
+ "met-weather": [
+  [
+   {
+    "city": "New York, NY",
+    "latitude": 40.7128,
+    "longitude": -74.006
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "latitude": 59.9139,
+    "longitude": 10.7522
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "latitude": 91,
+    "longitude": 0
+   },
+   "invalid_input",
+   null,
+   {}
+  ],
+  [
+   {
+    "city": "Seoul"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }

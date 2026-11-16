@@ -2528,3 +2528,25 @@ def test_gold_judge_for_mcp_registry():
     assert judge("mcp-registry", case, {**hit, "version": "1.3.0", "published_at": "2026-11-17T00:00:00Z"})["pass"]
     assert not judge("mcp-registry", case, {**hit, "version": "1.1.0", "published_at": "2026-10-01T00:00:00Z"})["pass"]
     assert not judge("mcp-registry", case, {**hit, "name": "io.github.a/other"})["pass"]
+
+
+def test_gold_judge_for_met_weather_against_nws_hours():
+    """PM 11-16: met-weather's temperature against the NWS hour that contains its time, within 3 C."""
+    from agent_market.fallback_agents.gold_check import judge
+    case = {"truth": {"tolerance_c": 3.0, "nws_hourly": [
+        {"start": "2026-11-17T08:00:00-05:00", "end": "2026-11-17T09:00:00-05:00", "temp_c": 5.0},
+        {"start": "2026-11-17T09:00:00-05:00", "end": "2026-11-17T10:00:00-05:00", "temp_c": 6.0}]}}
+    met = {"temperature_c": 7.4, "time": "2026-11-17T14:00:00Z", "source": "Based on data from MET Norway (CC BY 4.0)"}
+    assert judge("met-weather", case, met)["pass"]                       # 14:00Z = 09:00-05:00, gap 1.4
+    assert not judge("met-weather", case, {**met, "temperature_c": 10.5})["pass"]
+    assert not judge("met-weather", case, {**met, "time": "2026-11-17T20:00:00Z"})["pass"]   # outside the frozen hours
+
+
+def test_gold_met_weather_builder_keeps_celsius_hours():
+    from scripts.gold_met_weather import POINTS, build
+    pages = {"https://api.weather.gov/points/40.7128,-74.0060": {"properties": {"forecastHourly": "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly"}},
+             "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly": {"properties": {"periods": [
+                 {"startTime": "2026-11-17T08:00:00-05:00", "endTime": "2026-11-17T09:00:00-05:00", "temperature": 41, "temperatureUnit": "F"}]}}}
+    cases = build(lambda url: pages[url], POINTS[:1])
+    assert cases[0]["input"] == {"city": "New York, NY", "latitude": 40.7128, "longitude": -74.006}
+    assert cases[0]["truth"]["nws_hourly"][0]["temp_c"] == 5.0 and len(POINTS) >= 30

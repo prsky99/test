@@ -47,7 +47,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "software-incident": "cve-incident-brief",  # cve v2 fix seat; needs truth.fixes (first patched versions)
         "github-releases": "package-risk-audit",    # split holdout-v2-activity (gold_repos.py, workflow 9da8aa94)
         "gdelt-news": "topic-evidence-brief",       # news seat (workflow 36fe030f): judged on the answer itself
-        "mcp-registry": "mcp-server-trust-check"}   # registry seat (agent team 11-16, scripts/gold_mcp_registry.py)
+        "mcp-registry": "mcp-server-trust-check",   # registry seat (agent team 11-16, scripts/gold_mcp_registry.py)
+        "met-weather": "met-weather"}               # 30 US points vs NWS, built right before the gate (PM 11-16)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -64,6 +65,21 @@ def judge(agent_id: str, case: dict, result: dict | None, error: str | None = No
             # a company with no article of its own (holdout-r5-wiki, workflow 11-16): not_found is the right answer
             return {"pass": error == "not_found", "expected_absence": True, "got": error, "want": "not_found"}
         return {"pass": False}
+    if agent_id == "met-weather":
+        # PM 11-16: accuracy on US points against the US National Weather Service, an independent source (met-weather
+        # reads MET Norway). The NWS hour that contains met-weather's time; within the frozen tolerance (3 C).
+        from datetime import datetime as _dt
+        try:
+            at = _dt.fromisoformat(str(result.get("time")).replace("Z", "+00:00"))
+        except ValueError:
+            return {"pass": False, "got": result.get("time"), "want": "a forecast time"}
+        hour = next((h for h in truth.get("nws_hourly") or []
+                     if _dt.fromisoformat(h["start"]) <= at < _dt.fromisoformat(h["end"])), None)
+        if hour is None or not isinstance(result.get("temperature_c"), (int, float)):
+            return {"pass": False, "got": [result.get("time"), result.get("temperature_c")], "want": "an NWS hour"}
+        gap = abs(float(result["temperature_c"]) - float(hour["temp_c"]))
+        return {"pass": gap <= float(truth.get("tolerance_c", 3.0)) and "MET Norway" in str(result.get("source")),
+                "got": result.get("temperature_c"), "want": hour["temp_c"], "gap_c": round(gap, 2)}
     if agent_id == "mcp-registry":
         # agent team 11-16: listed false is the right answer for a made-up name; a listed server must carry the same
         # registry name and the frozen latest version, or a version published after it (the set is frozen before
