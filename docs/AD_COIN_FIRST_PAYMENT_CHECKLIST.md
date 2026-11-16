@@ -12,9 +12,9 @@ r10에서 나가는 AD Coin 커밋은 e1407de6(결제 결함 수정), 5b0b8b9d(�
 | 2 | 데몬 점검 | `.venv/bin/python -c "import sys; sys.path.insert(0,'scripts'); import ops_watch as w; print(w.check_adcoin_daemon()['problems'])"` | `[]`(running, plist 있음, 활성 frontend와 같은 코드) |
 | 3 | 한 주기 로그 | `tail -20 logs/services/biz.agentconcierge.498590e0b3.adcoin-worker.log` | "Worker daemon started" 뒤 오류 없음. "Outbox pass failed", "Automatic review", "outbox_isolated" 줄 없음(자동 심사 스위치는 꺼짐) |
 | 4 | 결제 대기열·환불 대기 | `.venv/bin/python -m scripts.prod_ro_sql deploy/ops/adcoin-review-queue.sql`, `… deploy/ops/adcoin-refunds-due.sql`, `… deploy/ops/adcoin-payments-today.sql` | 0 / 0 / 0(지금 실제 결제 0건) |
-| 5 | 공개 광고 안내 | 내장 브라우저 `https://agentconcierge.biz/ad-coin/v2/advertise` 1건 | 200, "5 USDC" 기준 단가, "Anyone can apply" |
+| 5 | 공개 광고 안내 | 내장 브라우저 `https://agentconcierge.biz/ad-coin/v2/advertise` 1건 | 200, "5 USDC" 기준 단가, "Anyone can advertise"(`ad-coin/v2/web/advertise.html`. 사이트 `/advertise`는 "Anyone can apply") |
 | 6 | 작업 공간 | `https://agentconcierge.biz/ad-coin/v2` 1건 | 200, 콘솔 오류 0. 로그인 뒤 견적·결제 안내는 r10에서 바뀌지 않아 열리는지만 본다 |
-| 7 | 운영자 화면 | `/ad-coin/v2/admin`(직원 로그인) 1건 | "USDC 결제 검토·환불" 영역이 열리고 "불러오기"가 빈 목록을 보여 줌 |
+| 7 | 운영자 화면 | `/ad-coin/v2/admin`(직원 로그인) 1건 | "USDC 결제 검토·환불" 영역이 열리고 "불러오기"가 빈 목록을 보여 줌. 불러오기는 운영자 로그인이 필요하다(11-16 21:38 PM 점검은 영역이 열리는 것까지) |
 
 - 결제·견적 버튼은 누르지 않는다(실제 견적 행이 생기므로).
 - 하나라도 정상과 다르면 데몬을 직전 버전(r9 폴더)으로 다시 설치하는 것이 되돌리기다: `bash deploy/launchd/install-adcoin-worker.sh day-frontend-20261116-r9`.
