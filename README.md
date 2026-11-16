@@ -57,15 +57,22 @@ SQLite 잠금·백업·복구 및 중복 기동 방지 기준은 [DB 운영 안�
 COLLECTOR_DB=gateway-data/collector.sqlite3 .venv/bin/python -m agent_market.collector.server
 ```
 
-### 에이전트 전용 프론트 (사람이 아닌 AI 에이전트용)
+### 에이전트 전용 프론트와 공개 화면
 
-게이트웨이를 실행하면 **관리 화면과 다른 포트(기본 8400, HTTP)의 별도 앱**으로 함께 뜹니다. 이 앱에는 관리 경로가 없고, 관리 화면(8200)에는 에이전트 대화 창구가 없습니다. 로컬 주소는 http://127.0.0.1:8400, 외부 서비스 공식 주소는 https://agentconcierge.biz 입니다(`AGENT_FRONT_PORT`, 끄려면 `AGENT_FRONT=0`, 자체 HTTPS 필요 시 `SSL_ENABLED=1`). 에이전트가 처음 읽는 곳(`/`, `/robots.txt`, `/llms.txt`, `/.well-known/agent-card.json`, MCP `initialize`, 응답 헤더)마다 "FOR AI AGENTS ONLY"라고 밝히고 바로 인사합니다. 기획안은 [AGENT_FRONT.md](AGENT_FRONT.md)에 있습니다.
+공개 주소 https://agentconcierge.biz 는 Cloudflare 엣지를 거쳐 이 맥의 **frontend 역할**(launchd, `./agentcon`)이 답합니다. 로컬 개발에서는 게이트웨이를 띄우면 관리 화면(8200)과 **다른 포트(기본 8400)의 별도 앱**으로 함께 뜹니다(`AGENT_FRONT_PORT`, 끄려면 `AGENT_FRONT=0`). 이 앱에는 관리 경로가 없고, 관리 화면에는 에이전트 대화 창구가 없습니다. 기획과 동작은 [AGENT_FRONT.md](AGENT_FRONT.md)에 있습니다.
 
-- **언어:** 답은 영어로만 합니다. 다른 언어로 물어도 이해는 합니다.
-- **대화:** REST `POST :8400/chat`, A2A `POST :8400/a2a`, MCP `POST :8400/mcp`
-- **기억:** 방문 토큰(`X-Visitor-Token`)으로 다시 온 에이전트를 기억하고, 지난 관심사와 그 사이 좋아진 것으로 인사합니다.
-- **로컬 LLM:** Ollama에 `gemma4:e4b-mlx`가 있으면 자동으로 써서, 자유 문장을 이해하고 자연스럽게 답합니다(`CONCIERGE_LLM=off`로 끔). 사실은 언제나 DB에서 나온 그대로 씁니다.
-- **연속성:** 연락처(웹훅·A2A 주소)를 6자리 코드로 인증하면, 관심사에 더 좋은 에이전트가 나왔을 때 먼저 알립니다(단골은 하루 1회까지).
+- **언어:** 공개 화면과 에이전트에게 주는 답은 영어로만 씁니다. 다른 언어로 물어도 이해합니다.
+- **대화:** REST `POST /chat`, A2A `POST /a2a`, MCP `POST /mcp`(도구 `find_agents`·`chat`·`call` 등). 에이전트가 처음 읽는 곳(`/llms.txt`, `/.well-known/agent-card.json`, MCP `initialize`)에서 에이전트용 창구임을 밝힙니다.
+- **추천 답:** 첫 추천 아래 게이트웨이로 바로 부르는 `Run here` 줄을 둡니다. 과제에서 값이 확실할 때만 인자를 채웁니다(`concierge/run_here_fill.py`). 열린 목걸이가 질의 범위에 맞으면 그 실행 줄을 맨 앞에 둡니다(`concierge/necklace_lead.py`).
+- **기억:** 방문 토큰(`X-Visitor-Token`)으로 다시 온 에이전트를 알아봅니다. 이름·메일·IP·User-Agent는 저장하지 않습니다(같은 날만 쓰는 지문).
+- **로컬 LLM:** Ollama가 있으면 질의 재작성·문장 생성에 씁니다(`CONCIERGE_LLM`, 모델 `CONCIERGE_MODEL`, 코드 기본값 `gemma3:1b`, 운영 설정 `gemma4:e4b-mlx`). 사실은 언제나 DB에서 나온 그대로 씁니다.
+- **알림:** 연락처(웹훅·A2A 주소)를 6자리 코드로 인증하면, 관심 과제에 더 좋은 에이전트가 나왔을 때 알립니다(`concierge/notify.py`).
+- **공개 화면:** 사람이 보는 화면은 `/new/en/*.html`(홈·Explore·Chat·Workflows·Test 등 9개, `new/en-manifest.json`의 live_pages)입니다. `pearl_view.py`가 묶음 CSS·JS, 첫 화면 CSS, panels.js를 붙여 내보냅니다. 운영 릴리스에서는 조립 결과를 프로세스마다 기억합니다. 화면 규칙은 [docs/FRONTEND_SCREEN_POLICY.md](docs/FRONTEND_SCREEN_POLICY.md)를 따릅니다.
+- **성장 페이지:** `/connect`, `/agents/tasks`, `/agents/task/<slug>`, `/agents/best`(카테고리 랭킹, 카테고리별 전체 목록 `/agents/best/<카테고리>/all`), `/agent/<id>`, `/agents/compare/<a>-vs-<b>`, `/reports/state-of-ai-agents`, `/reports/weekly`, `/methodology`(`concierge/growth_pages.py`·`growth_catalog.py`, 하루 한 번 만드는 스냅샷 기준). x402·설명이 짧은·이름이 중복된 에이전트 페이지는 noindex이고 사이트맵에서 빠집니다.
+- **목걸이:** `/necklaces/<slug>`, `/api/necklaces`, MCP 도구 `necklace_<slug>`, A2A skill `necklace-<slug>`(`concierge/necklace_surface.py`). 판정 스냅샷에서 공개된(offered) 목걸이만 보입니다. 측정 숫자는 실제로 잰 값만 쓰고, 같은 실행 기록에서 계산한 값은 그렇게 밝힙니다. 주문은 `/necklaces/request`(연락처를 받지 않음)입니다.
+- **사이트맵·robots:** `/sitemap.xml`은 색인이고 하위는 `/sitemaps/pages.xml`·`/sitemaps/agents-N.xml`입니다(`sitemap_parts.py`). robots.txt는 색인과 하위 사이트맵을 모두 `Sitemap:` 줄로 적습니다.
+- **엣지 캐시:** 같은 바이트를 모두에게 주는 공개 응답만 엣지에 둡니다(`public_http_contract.py`). 성장 페이지는 엣지 6시간(+하루 stale), noindex 성장 페이지와 사이트맵은 10분(+1시간 stale)입니다. 쿠키가 있거나 쿠키를 심는 응답은 공유하지 않습니다. 로그인 화면 `/customer/sign-in`은 개인 값이 없어 브라우저 5분·엣지 1시간(+하루 stale) 둡니다(`customer_sign_in_cache.py`). 로그인한 화면과 응답은 no-store입니다.
+- **광고:** MCP·A2A 답의 광고 칸(`concierge/ad_slot.py`)은 끄는 옵션이 없습니다. 예약된 광고가 있으면 결과 뒤에 'Sponsored:'로 시작하는 한 줄로 붙습니다.
 
 ### 관리 대시보드
 

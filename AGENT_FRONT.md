@@ -42,8 +42,9 @@ Persistent guidance: [AGENTS.md](AGENTS.md) and
 
 ## Selection
 
-1. Match the task using the local FTS index and tool descriptions. A local alias
-   dictionary supports common Korean task terms without generating output copy.
+1. Match the task with the hybrid catalog search: PostgreSQL with pgvector and OpenSearch in production
+   (`concierge/opensearch_lexical.py`, `hybrid_explore.py`; SQLite FTS5 only in tests and local runs) over listing
+   and tool descriptions. A local alias dictionary supports common Korean task terms without generating output copy.
 2. Require a public HTTP(S) endpoint with successful health, test, or usage evidence
    within the last 24 hours. Exclude failing, quarantined, security-review, and
    grade-F candidates, including unresolved recent failures.
@@ -54,6 +55,20 @@ Persistent guidance: [AGENTS.md](AGENTS.md) and
    Use the newer evidence if report and evaluation grades differ.
 5. Resolve ties using quality score, success rate,
    observed latency, relevance, and stable resource ID.
+
+### Order of the (at most three) results (`concierge/fast_chat.py`, `gateway_exposure.py`)
+- `order_key`: listings with an access note (paid, key or account needed) and failing standing go after the others;
+  for a task that names no place, listings serving any place come before region-limited ones; recent real successes
+  first. The sort is stable.
+- `subject_first`: when the first candidate never names the task's subject and another does, that one leads.
+- `mentioned_only_last`: a listing whose description names the subject but none of whose tools does moves behind the
+  candidates whose tools say it.
+- `condition_first`: among candidates naming the subject, the one meeting more requested conditions (fewer violated,
+  then fewer unknown) leads.
+- A relayed alternative leads a tool the gateway does not relay (see below).
+- Closeness check: the first result's chosen tool is compared with the task by a stronger embedding model in a
+  worker, within a time budget. Below `CHOICE_CLOSENESS` (0.70) the answer offers the list as choices
+  (`status: needs_choice`) instead of asserting it.
 
 Explicit A2A, MCP or x402 preferences filter candidates before recency ranking. A
 structured selector takes priority over protocol mentions in the question. Commercial
@@ -70,6 +85,14 @@ session, contact, and notification commands remain separate from discovery.
   - `mcp_config`: `{"mcpServers":{"<name>":{"type":"http","url":"<gateway address>"}}}`
 - The first item of the answer text carries `Run here: call {...}` and `MCP config: {...}` lines (find_agents and
   Chat alike, `fast_chat._brief`).
+- Arguments the task makes certain are filled in (`concierge/run_here_fill.py`, 11-16): a city from a fixed list,
+  a domain, URL, IP, CVE id, ISO date, DOI, listed ticker, coin, currency pair (upper-case codes, or lower case only
+  with '/' or with money words such as rate or exchange) and a GitHub owner/repo. All placeholders are filled or
+  none; a value is at most 200 characters on one line and never an e-mail address. Otherwise the placeholders stay.
+  The card, the line and `continuation_plan.run_here` carry the same filled call.
+- When an offered necklace's phrases match the task (`concierge/necklace_lead.py`, `necklace_leads.json`), the
+  answer's first line is "Free to run now: <necklace> … call tool `necklace_<slug>` with {...}" (A2A: `run necklace
+  <slug> {...}`), with inputs from the task only when certain.
 - `continuation_plan.run_here` holds the same value; `next_steps` still holds only the other lists to use next
   (follow_up_query and the safety-gate contract, test_b2a_retention).
 - Example required fields (`example_arguments`)
@@ -110,13 +133,16 @@ one rule. Collection still stores 0 for these listings; telling 0 from unknown t
 
 ## Request path and security
 
-`FastConcierge` uses `QualityRecommender`, local search, and stored verification
-records. The question path makes no generative-model, embedding, or live endpoint
-check calls. Background collectors continue updating the evidence. Report dates
-support numeric and ISO values, with records linked by resource ID or URL.
+`FastConcierge` uses `QualityRecommender`, the catalog search and stored verification
+records. The question path makes no live endpoint checks; background collectors keep the evidence current. It does
+use embeddings (retrieval and the closeness check above), and when no listing matches words that no listing contains,
+the local model respells or translates the task once for retrieval only (`concierge/chat_query_rewrite.py`: data, never
+a choice of agent or an instruction). Report dates support numeric and ISO values, with records linked by resource ID
+or URL.
 
 Keep visitor tokens in transport and session storage. Preserve token hashing,
-context binding, body and request limits, CSP nonces, public endpoint validation,
+context binding, body and request limits, CSP (sha256 hashes on the shared public pages, nonces on signed-in
+customer pages), public endpoint validation,
 HTML escaping, credential redaction, and session replay masking. Sensitive schema
 values must not appear in browser responses; schema field names remain available
 for connection compatibility.
@@ -134,6 +160,28 @@ Use the browser content, single-agent recommendation, and frontend security test
 to verify rendered content, routing, safe connection details, and output escaping.
 
 Earlier selection validation: [implementation verification](reports/single-agent-2026-10-17/README.md).
+
+## Public surfaces beyond Chat (11-16)
+
+- Pages people read: `/new/en/*.html` (the nine `live_pages` in `new/en-manifest.json`) assembled by
+  `concierge/pearl_view.py` (bundled CSS and JS, first-screen CSS, `panels.js`); a release keeps each assembled page
+  per process. Growth pages: `/connect`, `/agents/tasks`, `/agents/task/<slug>`, `/agents/best`, the per-category
+  full lists `/agents/best/<category>/all[/<n>]`, `/agent/<id>`, `/agents/compare/<a>-vs-<b>`, `/reports/…`,
+  `/methodology` (`growth_pages.py`, `growth_catalog.py`, from the daily task snapshot). x402, thin and duplicate agent
+  pages are `noindex, follow` and left out of the sitemap; x402 rankings and comparisons are `noindex, nofollow`.
+- Necklaces (`concierge/necklace_surface.py`): `/necklaces/<slug>`, `/api/necklaces`, MCP tool `necklace_<slug>`, A2A
+  skill `necklace-<slug>`, the Home and Workflows card. Only offered necklaces appear. Numbers follow the display rules
+  of 11-16: "Measured" only for what the test runs measured on the necklace; the direct path's calls, tokens and
+  seconds are said to come from the same runs' records; its accuracy and estimated finding and merging costs are not
+  shown; tokens always carry "(text length ÷ 4)". Requests: `/necklaces/request` (no contact details).
+- Sponsored slot (`concierge/ad_slot.py`): MCP and A2A answers have no switch to turn it off; a booked offer follows the
+  organic text as one line starting "Sponsored:".
+- Sitemap and robots: `/sitemap.xml` is an index of `/sitemaps/pages.xml` and `/sitemaps/agents-N.xml`
+  (`sitemap_parts.py`); robots.txt names the index and each part on its own `Sitemap:` line.
+- Edge caching (`public_http_contract.py`): only responses that are the same bytes for everyone and set no cookie are
+  shared. Growth pages: browser 5 min, edge 6 h (+1 day stale); noindex growth pages and the sitemap: edge 10 min
+  (+1 h stale). `/customer/sign-in` carries nothing personal and is kept 5 min in the browser and 1 h at the edge
+  (`customer_sign_in_cache.py`); signed-in pages and answers stay `no-store`.
 
 
 ## Optional task updates and admin integration
@@ -158,7 +206,9 @@ protocol, scoped watches, verification status, purpose-choice history and delive
 All public copy and footer policies must describe these actual behaviors. Keep
 private destinations encrypted and out of conversation history, logs and public
 listings. Verify both browser and API security with isolated data after development.
-The user runs the server from their terminal: do not restart it during development.
+Production runs under launchd as four roles (frontend, admin, jobs, execution) managed with `./agentcon`
+(`deploy/DEPLOY.md`). Do not start a second server on this Mac and do not restart services outside `./agentcon` and
+its deploy lock.
 
 ## Customer workspace access
 
