@@ -34,12 +34,12 @@
 - `agent_market/ad_coin/`: AD Coin과 USDC 결제(v2, 금지 문구 규칙 `v2/ad_rules.py`)
 - `agent_market/provider_budget.py`: 남의 서버 호출 장부(도메인별 하루 몫)
 - 결제·지갑: `payments.py`, `chain.py`, `wallet.py`, `buyer.py` (x402, USDC on Base)
-- 운영 도구(`scripts/`): `pytest_slot.py`·`heavy_slot.py`(시험 자리), `release_gate.py`, `service_deploy.py`(`./agentcon`), `necklace_gate.py`·`gate_round.py`(목걸이 관문), `commit_check.py`(커밋·푸시 검사, `.githooks/`), `prod_ro_sql.py`, `user_slo.py`
+- 운영 도구(`scripts/`): `pytest_slot.py`·`heavy_slot.py`(시험 자리), `release_gate.py`, `service_deploy.py`(`./agentcon`), `necklace_gate.py`·`gate_round.py`(목걸이 관문), `substitute_gate.py`(자체 대체 관문), `fallback_cassettes.py`(자체 대체 녹화·재생), `commit_check.py`(커밋·푸시 검사, `.githooks/`), `prod_ro_sql.py`, `user_slo.py`
 - 문서
   - `COLLECTOR.md`: 수집·평가·A2A, 실측
   - `AGENT_BROKER.md`: 카테고리·요청 조건
   - `AGENT_FRONT.md`, `AGENT_MARKET.md`, `deploy/DEPLOY.md`
-  - `deploy/NECKLACE_GATE.md`: 목걸이·대체 관문 / `deploy/PROVIDER_BUDGET.md`: 호출 장부 / `deploy/DATABASE_OPERATIONS.md`: 운영 DB 변경
+  - `deploy/NECKLACE_GATE.md`: 목걸이·대체 관문 / `deploy/FALLBACK_AGENTS.md`: 자체 대체 목록·운영 규칙·녹화 재생 / `deploy/PROVIDER_BUDGET.md`: 호출 장부 / `deploy/DATABASE_OPERATIONS.md`: 운영 DB 변경
   - `reports/`: 조사 보고서(날짜 붙은 기록이라 나중에 고치지 않는다)
 
 ## 실행·테스트

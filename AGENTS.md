@@ -68,8 +68,16 @@ translating backend/admin implementation comments or historical audit artifacts.
   processes directly; stop, restart and rollback go through `./agentcon` after
   checking the deploy lock on the status board (`logs/ops/status-board.md`).
   Use isolated test apps/databases and temporary ports for verification.
-- Several workers deploy to the same managed slots. Before packaging, check
-  `./agentcon status` and the newest directories in `gateway-data/services/releases`,
-  and build the overlay on the release that is actually active, adding only your
-  own reviewed files. After deploying, confirm the active slots and report any
-  release you replaced. Never package the shared working tree directly.
+- Several workers deploy to the same managed slots. Releases are built from a
+  commit, never as an overlay of files on the active release (11-10 "operations =
+  git"): commit your reviewed change on top of the active release's commit, check
+  `./agentcon status` for the active release, then
+  `./agentcon package <release> --commit <commit> --base <active release>`
+  (refused without `--base`; refused when a change only the active release has is
+  missing, unless `--allow-lineage "<reason>"`), then
+  `.venv-tests/bin/python -m scripts.release_gate <release>`, then
+  `./agentcon deploy frontend|admin <release> --lock-owner <team> [--no-prune]` or
+  `./agentcon worker-deploy jobs|execution <release> --lock-owner <team>` with your
+  team's line in the status board's deploy lock section. After deploying, confirm
+  the active slots and report any release you replaced. Never package the shared
+  working tree (`--from-tree`) and never copy working-tree files into a release.
