@@ -28,6 +28,12 @@ def public_page_available():
 
 
 _asset_versions = {'at': None, 'map': {}}
+# PM 11-16 source review 3.6 (user: apply as soon as possible, without system trouble): a release's files never change
+# once it is unpacked, yet every page and asset answer listed and hashed the asset folder, read and hashed the bundle
+# files and hashed each asset again. Running from a release folder (gateway-data/services/releases/<name>/new), asset
+# versions, bundles, single assets and assembled pages are computed once per process and kept. Outside a release
+# (a working tree, tests) everything is checked on each request as before, unless a test sets ASSETS_FIXED.
+ASSETS_FIXED = ROOT.parent.parent.name == 'releases'
 WHY_SLOT = '<div data-necklace-why></div>'   # placeholder in index.html and workflows.html
 ASSET_REFERENCE = re.compile(r'((?:href|src)="/new/en/assets/)([A-Za-z0-9_./-]+?)(?:\?v=[^"]*)?"')
 
@@ -40,6 +46,9 @@ def asset_version(body):
 def versioned(value):
     """Point page references at content-addressed asset URLs, which browsers may keep."""
     assets = ROOT / 'en' / 'assets'
+    if ASSETS_FIXED and _asset_versions['at'] is not None:
+        versions = _asset_versions['map']
+        return ASSET_REFERENCE.sub(lambda m: m[1] + m[2] + ('?v=' + versions[m[2]] if m[2] in versions else '') + '"', value)
     try:
         files = [path for path in assets.rglob('*') if path.is_file() and not path.is_symlink()]
         stamp = (len(files), max((path.stat().st_mtime_ns for path in files), default=0))
@@ -88,10 +97,28 @@ def compact_css(body):
     return found
 
 
+_bundles = {}
+_bundles_lock = threading.Lock()
+
+
 def bundle_body(names, kind, root=None, compact=True):
     """The concatenated files of one bundle, in page order; None if any name is not a shipped asset.
-    compact=False gives the bytes releases before 11-14 served (their digests are still asked by old pages)."""
-    root = root or ROOT
+    compact=False gives the bytes releases before 11-14 served (their digests are still asked by old pages).
+    This release's bundles are built once per process when its files are fixed (ASSETS_FIXED)."""
+    if ASSETS_FIXED and root in (None, ROOT):
+        key = (tuple(names), kind, compact)
+        with _bundles_lock:
+            if key in _bundles:
+                return _bundles[key]
+        body = _bundle_body(names, kind, ROOT, compact)
+        with _bundles_lock:
+            if len(_bundles) < 256:   # names come from page markup and request URLs; bound what a caller can add
+                _bundles[key] = body
+        return body
+    return _bundle_body(names, kind, root or ROOT, compact)
+
+
+def _bundle_body(names, kind, root, compact):
     parts = []
     for name in names:
         path = root / 'en' / 'assets' / (name + '.' + kind)
@@ -489,8 +516,55 @@ def page_metadata(source_html):
     return found
 
 
+_assembled = collections.OrderedDict()
+_assembled_lock = threading.Lock()
+ASSEMBLED_KEPT = 64
+
+
 def page_response(value, *, public=False, page=None, noindex=None):
-    """Use the same nonce policy for the default and named presentation routes."""
+    """Use the same nonce policy for the default and named presentation routes.
+    With fixed release files the assembled page and its policy are kept per (input page, page name, Sponsored switch):
+    the input already carries the daily numbers, the necklace card and the account links, so any change there is a new
+    key. The panels the page moved to panels.js are registered again on a hit (panels_body serves them)."""
+    sponsored = os.environ.get('MAIN_SPONSORED', '0') == '1'
+    key = (hashlib.sha256(value.encode('utf-8')).digest(), page, sponsored) if ASSETS_FIXED else None
+    kept = None
+    if key is not None:
+        with _assembled_lock:
+            kept = _assembled.get(key)
+            if kept is not None:
+                _assembled.move_to_end(key)
+    if kept is not None:
+        value, policy, panels = kept
+        if panels is not None:
+            with _panels_lock:
+                if panels[0] not in _panels:
+                    _panels[panels[0]] = panels[1]
+                    while len(_panels) > PANELS_KEPT:
+                        _panels.popitem(last=False)
+    else:
+        value, policy = _assemble(value, page, sponsored)
+        if key is not None:
+            found = PANELS_TAG.search(value)
+            with _panels_lock:
+                panels = (found[1], _panels[found[1]]) if found and found[1] in _panels else None
+            with _assembled_lock:
+                _assembled[key] = (value, policy, panels)
+                while len(_assembled) > ASSEMBLED_KEPT:
+                    _assembled.popitem(last=False)
+    headers = {'Content-Security-Policy': policy,
+               'Cache-Control': PUBLIC_PAGE_CACHE if public else 'no-store',
+               'X-Content-Type-Options': 'nosniff'}
+    if (not public) if noindex is None else noindex:
+        headers['X-Robots-Tag'] = 'noindex,noarchive'
+    return HTMLResponse(value, headers=headers)
+
+
+PANELS_TAG = re.compile(r'<script src="/new/en/assets/panels\.js\?v=([0-9a-f]{16})" defer></script>')
+
+
+def _assemble(value, page, sponsored):
+    """(page html, Content-Security-Policy) for one input page."""
     value = CSP_META.sub('', value, count=1)
     panel = LIVE_PANELS.get(page)
     if panel:
@@ -501,7 +575,7 @@ def page_response(value, *, public=False, page=None, noindex=None):
     # R79 comments go before split_panels, so the panels.js copy of an inactive panel is the markup the page
     # would have carried (panel split tests; the shared panels.js no longer ships the comments either).
     value = critical_css(split_panels(strip_comments(versioned(bundled(prerender_segmented(value))))), page)
-    if os.environ.get('MAIN_SPONSORED', '0') == '1':  # 11-11 Sponsored on main Explore and Chat; off by default
+    if sponsored:  # 11-11 Sponsored on main Explore and Chat; off by default
         value = re.sub(r'<body\b', '<body data-sponsored="on"', value, count=1)
     # 11-11 (PM decision A): the same bytes for every visitor, so the edge may keep a page for 60 seconds.
     # Inline scripts are allowed by their sha256 instead of a per-response nonce; files come from 'self'.
@@ -511,12 +585,7 @@ def page_response(value, *, public=False, page=None, noindex=None):
               "style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; "
               "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; "
               "font-src 'self'; worker-src 'self'")
-    headers = {'Content-Security-Policy': policy,
-               'Cache-Control': PUBLIC_PAGE_CACHE if public else 'no-store',
-               'X-Content-Type-Options': 'nosniff'}
-    if (not public) if noindex is None else noindex:
-        headers['X-Robots-Tag'] = 'noindex,noarchive'
-    return HTMLResponse(value, headers=headers)
+    return value, policy
 
 
 def default_public_page(bootstrap, structured_data, *, workspace_available=False, snapshot=None):
@@ -699,6 +768,18 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
             return page_response(value, public=shared, page=filename, noindex=True)
         return page_response(value, public=live, page=filename)
 
+    shipped = {}
+
+    def shipped_asset(name):
+        """(bytes, digest) of one of this release's assets, read and hashed once per process with fixed files."""
+        if ASSETS_FIXED and name in shipped:
+            return shipped[name]
+        body = read(en, name)
+        found = (body, asset_version(body))
+        if ASSETS_FIXED:
+            shipped[name] = found   # names come from the allowed_assets list, so this stays bounded
+        return found
+
     @app.get('/new/en/assets/{filename:path}', include_in_schema=False)
     def asset(filename: str, request: Request):
         if filename == 'panels.js':
@@ -742,12 +823,13 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
                                                              'ETag': '"' + version + '"'})
         name = 'assets/'+filename
         wanted = request.query_params.get('v')
-        body = read(en, name) if name in allowed_assets else None
-        if wanted and (body is None or asset_version(body) != wanted) and name.endswith(EARLIER_SUFFIXES):
-            body = earlier_asset(('file', name), wanted, lambda root: earlier_file(root, name)) or body
+        body, version = shipped_asset(name) if name in allowed_assets else (None, None)
+        if wanted and (body is None or version != wanted) and name.endswith(EARLIER_SUFFIXES):
+            earlier = earlier_asset(('file', name), wanted, lambda root: earlier_file(root, name))
+            if earlier is not None:
+                body, version = earlier, wanted
         if body is None:
             raise HTTPException(404, 'Asset not found.')
-        version=asset_version(body)
         # Public static files carry no visitor data. A URL naming this exact content is
         # immutable; an unversioned URL is kept briefly and revalidated by ETag.
         cache=('public, max-age=31536000, immutable' if wanted==version
