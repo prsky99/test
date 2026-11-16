@@ -47,8 +47,9 @@ SHARE = {
     'fallback_watch': 30,    # hourly probe of each substitute that is a required slot's only usable member (24 a day per
                              # domain; agent team 02900b54, PM 11-16 06:4x). sec.gov's two (48) fit its declared total: 300.
     'fingerprints': 6,       # pearl/necklace-member tools/list every 6 hours (4 a day + 2 for a manual refresh)
-    'ad_blocklists': 4,      # AI AD Coin campaign review: URLhaus host list and OpenPhish feed, once a day each
-                             # (+2 for a failed day); domain age reads use 'ad_review_rdap' by RDAP server
+    'ad_blocklists': 4,      # AI AD Coin campaign review blocklist: no source (11-16 PM: every free list checked forbids
+                             # commercial use or names no upstream), so agent offers wait for a person; domain age reads
+                             # use 'ad_review_rdap' by RDAP server
     'ad_review_rdap': 10,    # AI AD Coin automatic review: domain age of an offer's endpoint, by RDAP server URL, so the
                              # daily E6 run ('lifecycle_rdap') cannot use up what a waiting advertiser needs (11-15)
     'lifecycle_rdap': 50,    # E6 domain expiry reads (docs/VERIFIED_REGISTRY.md): reserve with the RDAP server's
