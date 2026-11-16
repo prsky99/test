@@ -79,7 +79,11 @@ def entry_of(method, path):
         return 'llms'
     if path.startswith('/.well-known/'):
         return 'well_known'
-    if path in ('/robots.txt', '/sitemap.xml') or path.startswith('/agents/category/'):
+    # 11-16 (Search Console showed the agent sitemap parts as 'could not fetch'): the sitemap index and its parts are
+    # their own entry, so a crawler's fetches and their status (bots, bot_errors, status) are visible per day.
+    if path == '/sitemap.xml' or (path.startswith('/sitemaps/') and path.endswith('.xml')):
+        return 'sitemap'
+    if path == '/robots.txt' or path.startswith('/agents/category/'):
         return 'crawl'
     if path in ('/openapi.json', '/docs', '/redoc'):
         return 'openapi'

@@ -15,7 +15,7 @@ CHROME = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, l
     ('GET', '/', 'home'), ('GET', '/new/en/chat.html', 'page'), ('POST', '/chat', 'chat'), ('POST', '/mcp', 'mcp'),
     ('POST', '/a2a', 'a2a'), ('POST', '/api/agent/v1/discover', 'agent_api'), ('POST', '/api/gateway/mcp/5', 'gateway'),
     ('GET', '/api/explore', 'explore'), ('GET', '/llms.txt', 'llms'), ('GET', '/.well-known/agent-card.json', 'well_known'),
-    ('GET', '/robots.txt', 'crawl'), ('GET', '/customer/sign-in', 'workspace'), ('GET', '/new/en/assets/operating.js', None),
+    ('GET', '/robots.txt', 'crawl'), ('GET', '/sitemap.xml', 'sitemap'), ('GET', '/sitemaps/agents-1.xml', 'sitemap'), ('GET', '/customer/sign-in', 'workspace'), ('GET', '/new/en/assets/operating.js', None),
     ('GET', '/wp-login.php', None)])
 def test_entries(method, path, entry):
     assert entry_of(method, path) == entry
