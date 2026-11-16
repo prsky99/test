@@ -192,6 +192,9 @@ def live_reserve(url, now=None, directory=None, path=None, default_per_day=None)
 # One-day grants (dated, so they end by themselves). 11-15 PM 16:4x / workflow 9da8aa94: the package-risk-audit
 # activity answer set needs 27 npm packages x (registry.npmjs.org 1 + api.github.com 1) once.
 ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_checks', 'github.com'): 30,
+                        # agent team (PM 11-16 15:12): output adapter check, 10 read-only calls to each of two
+                        # topic-evidence-brief members on the used holdout-r3 set, 15 s apart, before 21:00
+                        ('adhoc', 'mosaiden.com'): 10, ('adhoc', 'onekivo.vercel.app'): 10,
                         # workflow 0555a3b5: topic-evidence-brief holdout-r3, one OpenAlex read a topic (39 topics)
                         ('reference_checks', 'openalex.org'): 60,    # PM 06:5x: all of the 50 (60 x 50 // 60)
                         # workflow gold_company_r5 (PM 11-16 07:4x, company gate restarts on a fresh set): up to 95

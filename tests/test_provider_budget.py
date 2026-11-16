@@ -374,3 +374,10 @@ def test_the_cassette_share_is_small_on_commercial_domains_pinned_on_declared_on
     assert pb.share_limit('cassettes', 'deps.dev', day='20261124') == 20
     assert pb.share_limit('cassettes', 'deps.dev', day='20261125') == 0
     assert pb.share_limit('cassettes', 'deps.dev', day=pb.today()) == 20
+
+
+def test_the_adapter_check_has_ten_adhoc_calls_on_two_members_on_1116_only():
+    from agent_market import provider_budget as pb
+    assert pb.share_limit('adhoc', 'mosaiden.com', day='20261116') == 10
+    assert pb.share_limit('adhoc', 'onekivo.vercel.app', day='20261116') == 10
+    assert pb.share_limit('adhoc', 'mosaiden.com', day='20261117') == 2
