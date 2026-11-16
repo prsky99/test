@@ -61,6 +61,12 @@ class Refresher:
     # (11-11: 4 scans in 30 s, 39k blocks). A scan now queues SCAN_FILL rounds of work at once and
     # does not run again while the queue still holds a full round; throughput is unchanged.
     SCAN_FILL = 6
+    # 운영·SRE via PM 11-17 01:0x: one publication transaction per 100-document round held the global writer lock
+    # (store.tx's pg_advisory_xact_lock) over a second during the 11-16 policy rebuild: after the round logged at
+    # 02:16:42 the next came only at 02:17:11, and two 1 s lock timeouts and a deferred workflow round fell in that
+    # gap. Every write now goes WRITE_CHUNK items per transaction, halving after a transaction passes WRITE_SLOW
+    # (as the graph cap does, b040695b), with WRITE_PAUSE between transactions so waiting writers get the lock.
+    WRITE_CHUNK, WRITE_SLOW, WRITE_PAUSE = 20, 0.3, 0.02
 
     def __init__(self, store, *, batch=STEADY_BATCH, interval=5, budget=BUDGET, clock=time.monotonic):
         self.store, self.batch, self.interval, self.budget, self.clock = (
@@ -73,6 +79,25 @@ class Refresher:
         self.rest_until = 0
         self.scan_after = 0
         self.carried = 0  # documents whose generation moved without a rebuild (sources unchanged)
+        self.write_chunk = self.WRITE_CHUNK
+        self.longest_write = 0.0  # seconds, the longest write transaction of the last round
+
+    def _write(self, items, apply):
+        """Apply items in short write transactions; the size halves after a slow one and recovers after a fast round."""
+        size, done, slow = self.write_chunk, 0, False
+        while done < len(items):
+            part = items[done : done + size]
+            started = time.monotonic()
+            with self.store.tx():
+                apply(part)
+            took = time.monotonic() - started
+            self.longest_write = max(self.longest_write, took)
+            done += len(part)
+            if took > self.WRITE_SLOW:
+                slow, size = True, max(1, size // 2)
+            if done < len(items):
+                time.sleep(self.WRITE_PAUSE)
+        self.write_chunk = size if slow else min(self.WRITE_CHUNK, size * 2)
 
     def due(self):
         return self.clock() >= self.rest_until
@@ -83,11 +108,12 @@ class Refresher:
         from .concierge.discovery_contracts import contract_reads
 
         self.rest_until = self.clock() + self.interval
+        self.longest_write = 0.0
         checked = written = skipped = 0
 
         @contract_reads
         def process():
-            nonlocal checked, written, skipped
+            nonlocal checked, skipped
             with self.store.tx(readonly=True):
                 if not documents.available(self.store):
                     self.rest_until = self.clock() + 300
@@ -121,30 +147,35 @@ class Refresher:
                 same = [{"id": row[0], "generation": row[1]} for row in scanned if row[2]]
                 stale = [row[0] for row in scanned if not row[2]]
                 found = 0
-                if same or stale:
-                    with self.store.tx():
-                        if same:
-                            # The generation read with the matching digest must still be current: any
-                            # change to a source field moves it, and that listing is rebuilt later.
-                            moved = self.store._execute(
-                                """UPDATE agentcon_search.explore_documents d SET source_generation=g.generation
-                                FROM resource_observation_generations g,
-                                    jsonb_to_recordset(%s::jsonb) AS seen(id bigint, generation bigint)
-                                WHERE g.resource_id=d.resource_id AND d.resource_id=seen.id
-                                AND g.generation=seen.generation AND d.policy_hash=%s""",
-                                (json.dumps(same), policy),
-                            ).rowcount
-                            found += moved
-                            self.carried += moved
-                        if stale:
-                            # A listing deleted meanwhile is skipped (the queue references resources).
-                            found += self.store._execute(
-                                """INSERT INTO agentcon_search.explore_document_queue(resource_id,queued_at)
-                                SELECT r.id,%s FROM resources r
-                                WHERE r.id IN (SELECT value::bigint FROM jsonb_array_elements_text(%s::jsonb))
-                                ON CONFLICT(resource_id) DO NOTHING""",
-                                (time.time(), json.dumps(stale)),
-                            ).rowcount
+
+                def carry(part):
+                    # The generation read with the matching digest must still be current: any
+                    # change to a source field moves it, and that listing is rebuilt later.
+                    nonlocal found
+                    moved = self.store._execute(
+                        """UPDATE agentcon_search.explore_documents d SET source_generation=g.generation
+                        FROM resource_observation_generations g,
+                            jsonb_to_recordset(%s::jsonb) AS seen(id bigint, generation bigint)
+                        WHERE g.resource_id=d.resource_id AND d.resource_id=seen.id
+                        AND g.generation=seen.generation AND d.policy_hash=%s""",
+                        (json.dumps(part), policy),
+                    ).rowcount
+                    found += moved
+                    self.carried += moved
+
+                def enqueue(part):
+                    # A listing deleted meanwhile is skipped (the queue references resources).
+                    nonlocal found
+                    found += self.store._execute(
+                        """INSERT INTO agentcon_search.explore_document_queue(resource_id,queued_at)
+                        SELECT r.id,%s FROM resources r
+                        WHERE r.id IN (SELECT value::bigint FROM jsonb_array_elements_text(%s::jsonb))
+                        ON CONFLICT(resource_id) DO NOTHING""",
+                        (time.time(), json.dumps(part)),
+                    ).rowcount
+
+                self._write(same, carry)
+                self._write(stale, enqueue)
                 if not found:
                     self.scan_after = self.clock() + self.interval * self.SCAN_REST
             with self.store.tx(readonly=True):
@@ -185,17 +216,18 @@ class Refresher:
             # retried later with growing delays and parked after repeated misses, so it can
             # never hold the front of the queue and stall the load.
             missing = [rid for rid in queued if rid not in returned]
-            if missing:
-                with self.store.tx():
-                    for rid in missing:
-                        tries = attempts[rid] + 1
-                        delay = self.PARK if tries >= self.MAX_ATTEMPTS else min(21600, 60 * 2 ** tries)
-                        self.store._execute(
-                            """UPDATE agentcon_search.explore_document_queue
-                            SET queued_at=%s,attempts=%s WHERE resource_id=%s AND queued_at=%s""",
-                            (time.time() + delay, tries, rid, queued[rid]),
-                        )
-                skipped += len(missing)
+            def defer(part):
+                for rid in part:
+                    tries = attempts[rid] + 1
+                    delay = self.PARK if tries >= self.MAX_ATTEMPTS else min(21600, 60 * 2 ** tries)
+                    self.store._execute(
+                        """UPDATE agentcon_search.explore_document_queue
+                        SET queued_at=%s,attempts=%s WHERE resource_id=%s AND queued_at=%s""",
+                        (time.time() + delay, tries, rid, queued[rid]),
+                    )
+
+            self._write(missing, defer)
+            skipped += len(missing)
             started = time.monotonic()
             built, failed = [], []
             for raw in rows:
@@ -209,77 +241,83 @@ class Refresher:
                     failed.append(row["id"])
             if not built and not failed:
                 return
-            # One publication transaction per round: a commit per listing cost about 100 ms.
-            with self.store.tx():
-                for rid in failed:
+            # A commit per listing cost about 100 ms and one transaction per round held the writer over a second
+            # (11-16): publication goes in WRITE_CHUNK-document transactions.
+            def retry(part):
+                for rid in part:
                     self.store._execute(
                         """UPDATE agentcon_search.explore_document_queue
                         SET queued_at=%s,attempts=attempts+1 WHERE resource_id=%s AND queued_at=%s""",
                         (time.time() + 300, rid, queued[rid]),
                     )
-                if built:
-                    # Lock the current sources against concurrent changes until publication completes.
-                    # The stored document's own bytes are hashed too: a document edited in place keeps
-                    # its document_hash column, and only a matching pair counts as the same document.
-                    policy = documents.policy_hash()
-                    current = {
-                        row[0]: (row[1], row[2], row[3])
-                        for row in self.store._execute(
-                            "SELECT r.id,"
-                            + documents.SOURCE_SQL
-                            + ",g.generation,CASE WHEN d.policy_hash=%s AND d.document_hash="
-                            "encode(sha256(convert_to(d.document,'UTF8')),'hex') THEN d.document_hash END "
-                            "FROM resources r JOIN resource_observation_generations g ON g.resource_id=r.id "
-                            "LEFT JOIN agentcon_search.explore_documents d ON d.resource_id=r.id "
-                            "WHERE r.id IN (SELECT value::bigint FROM jsonb_array_elements_text(%s::jsonb)) FOR SHARE OF r",
-                            (policy, json.dumps([rid for rid, _, _ in built])),
-                            max_rows=len(built),
-                        ).fetchall()
-                    }
-                    for rid, encoded, digest in built:
-                        found = current.get(rid)
-                        if not found or found[0] != digest:
-                            continue  # changed since it was read; the next round rebuilds it
-                        if found[2] and found[2] == hashlib.sha256(encoded.encode()).hexdigest():
-                            # Source bytes moved (a guide or contract rewritten) but the document is the
-                            # same: record the new digest and generation without rewriting it.
-                            self.store._execute(
-                                """UPDATE agentcon_search.explore_documents SET source_digest=%s,source_generation=%s
-                                WHERE resource_id=%s""",
-                                (digest, found[1], rid),
-                            )
-                            self.store._execute(
-                                "DELETE FROM agentcon_search.explore_document_queue WHERE resource_id=%s AND queued_at=%s",
-                                (rid, queued[rid]),
-                            )
-                            self.carried += 1
-                            continue
+
+            def publish(part):
+                nonlocal written
+                # Lock the current sources against concurrent changes until publication completes.
+                # The stored document's own bytes are hashed too: a document edited in place keeps
+                # its document_hash column, and only a matching pair counts as the same document.
+                policy = documents.policy_hash()
+                current = {
+                    row[0]: (row[1], row[2], row[3])
+                    for row in self.store._execute(
+                        "SELECT r.id,"
+                        + documents.SOURCE_SQL
+                        + ",g.generation,CASE WHEN d.policy_hash=%s AND d.document_hash="
+                        "encode(sha256(convert_to(d.document,'UTF8')),'hex') THEN d.document_hash END "
+                        "FROM resources r JOIN resource_observation_generations g ON g.resource_id=r.id "
+                        "LEFT JOIN agentcon_search.explore_documents d ON d.resource_id=r.id "
+                        "WHERE r.id IN (SELECT value::bigint FROM jsonb_array_elements_text(%s::jsonb)) FOR SHARE OF r",
+                        (policy, json.dumps([rid for rid, _, _ in part])),
+                        max_rows=len(part),
+                    ).fetchall()
+                }
+                for rid, encoded, digest in part:
+                    cur = current.get(rid)
+                    if not cur or cur[0] != digest:
+                        continue  # changed since it was read; the next round rebuilds it
+                    if cur[2] and cur[2] == hashlib.sha256(encoded.encode()).hexdigest():
+                        # Source bytes moved (a guide or contract rewritten) but the document is the
+                        # same: record the new digest and generation without rewriting it.
                         self.store._execute(
-                            """INSERT INTO agentcon_search.explore_documents VALUES(%s,%s,%s,%s,%s,%s,%s)
-                            ON CONFLICT(resource_id) DO UPDATE SET source_digest=excluded.source_digest,
-                            policy_hash=excluded.policy_hash,document=excluded.document,
-                            document_hash=excluded.document_hash,updated_at=excluded.updated_at,source_generation=excluded.source_generation""",
-                            (
-                                rid,
-                                digest,
-                                documents.policy_hash(),
-                                encoded,
-                                hashlib.sha256(encoded.encode()).hexdigest(),
-                                time.time(),
-                                found[1],
-                            ),
+                            """UPDATE agentcon_search.explore_documents SET source_digest=%s,source_generation=%s
+                            WHERE resource_id=%s""",
+                            (digest, cur[1], rid),
                         )
                         self.store._execute(
                             "DELETE FROM agentcon_search.explore_document_queue WHERE resource_id=%s AND queued_at=%s",
                             (rid, queued[rid]),
                         )
-                        written += 1
+                        self.carried += 1
+                        continue
+                    self.store._execute(
+                        """INSERT INTO agentcon_search.explore_documents VALUES(%s,%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT(resource_id) DO UPDATE SET source_digest=excluded.source_digest,
+                        policy_hash=excluded.policy_hash,document=excluded.document,
+                        document_hash=excluded.document_hash,updated_at=excluded.updated_at,source_generation=excluded.source_generation""",
+                        (
+                            rid,
+                            digest,
+                            documents.policy_hash(),
+                            encoded,
+                            hashlib.sha256(encoded.encode()).hexdigest(),
+                            time.time(),
+                            cur[1],
+                        ),
+                    )
+                    self.store._execute(
+                        "DELETE FROM agentcon_search.explore_document_queue WHERE resource_id=%s AND queued_at=%s",
+                        (rid, queued[rid]),
+                    )
+                    written += 1
+
+            self._write(failed, retry)
+            self._write(built, publish)
 
         process()
         carried, self.carried = self.carried, 0
         if checked or skipped or carried:
-            log.info("Explore search documents: checked=%d written=%d deferred=%d unchanged=%d",
-                     checked, written, skipped, carried)
+            log.info("Explore search documents: checked=%d written=%d deferred=%d unchanged=%d longest_write_ms=%d",
+                     checked, written, skipped, carried, round(self.longest_write * 1000))
         result = {"checked": checked, "written": written, "deferred": skipped}
         if carried:
             result["unchanged"] = carried
