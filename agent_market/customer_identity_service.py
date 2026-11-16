@@ -19,6 +19,7 @@ from .workspace_access import SessionActor, WorkspaceAccess, WorkspaceDenied, Wo
 from .workspace_service import WorkspaceRoute
 from .workflow_publication_service import no_store, read_object, same_origin
 from .customer_navigation import destination, sign_in_location
+from .early_data import too_early
 
 COOKIE = '__Host-ac_customer_session'
 FLOW_COOKIE = '__Host-ac_oidc_flow'
@@ -181,6 +182,9 @@ def router_for(store, key, config=None, http=None, *, identity=None, github_conf
         return result
 
     async def browser_callback(request, provider):
+        early = too_early(request)   # 0-RTT replay guard: answer before the one-use state is spent
+        if early is not None:
+            return early
         try:
             return await callback_action(request, provider)
         except HTTPException:

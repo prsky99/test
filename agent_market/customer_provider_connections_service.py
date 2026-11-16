@@ -119,6 +119,9 @@ def router_for(core):
     @router.get('/api/customer-provider-oauth/{rid}/callback')
     async def callback(rid:int,request:Request):
         from .customer_provider_connections_view import callback_page
+        from .early_data import too_early
+        early=too_early(request)   # 0-RTT replay guard: answer before the one-use state and code are spent
+        if early is not None:return early
         raw=request.scope.pop('_customer_provider_callback_query',request.scope.get('query_string',b''))
         request.scope['query_string']=b''
         for name in ('_url','_query_params'):

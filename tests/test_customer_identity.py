@@ -533,3 +533,19 @@ def test_customer_support_reads_use_read_only_transactions():
     for name in ('support_options', 'sharing_options', 'listing', 'detail'):
         body = source.split('def ' + name + '(', 1)[1].split('\n        def ', 1)[0]
         assert 'core.identity.read_tx()' in body and 'core.identity.tx()' not in body, name
+
+
+def test_early_data_callback_answers_425_and_keeps_the_state(customer):
+    """11-16 (PM, 0-RTT): a TLS early-data replay of the callback must not spend the one-use state; the client sends
+    it again after the handshake (no Early-Data header) and that sign-in goes through as before."""
+    w=customer;app=FastAPI();app.include_router(router_for(w.store,b'synthetic-customer-key-32bytes!!!',identity=w.core))
+    with TestClient(app,base_url='https://agentconcierge.biz') as client:
+        prepared=client.post('/api/customer-auth/begin',json={});assert prepared.status_code==200
+        q=parse_qs(urlsplit(prepared.json()['authorization_url']).query);w.state['nonce']=q['nonce'][0]
+        params={'state':q['state'][0],'code':'code','scope':'openid','authuser':'0','prompt':'consent'}
+        early=client.get('/api/customer-auth/callback',headers={'Early-Data':'1'},params=params)
+        assert early.status_code==425 and early.headers['cache-control']=='no-store' and not w.state['calls']
+        assert COOKIE not in client.cookies
+        result=client.get('/api/customer-auth/callback',params=params)
+        assert result.status_code==200,result.text
+        assert COOKIE in client.cookies

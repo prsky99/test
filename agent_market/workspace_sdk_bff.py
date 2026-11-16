@@ -130,6 +130,9 @@ def create_app(config,*,app_origin,http=None,root=None):
         except (ValueError,TypeError,TimeoutError):return result({'ok':False,'error':'Sign-in could not be started.'},400)
     @app.get('/bff/callback')
     def callback(request:Request):
+        from .early_data import too_early
+        early=too_early(request)   # 0-RTT replay guard: answer before the one-use flow is popped
+        if early is not None:return early
         pairs=list(request.query_params.multi_items());request.scope['query_string']=b''
         try:
             values=dict(pairs)
