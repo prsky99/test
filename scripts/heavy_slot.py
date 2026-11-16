@@ -29,8 +29,30 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BOARD = ROOT / 'logs/ops/status-board.md'
-LOCK = ROOT / 'logs/ops/.heavy-slot.lock'
+
+
+def main_root(start=ROOT):
+    """The main checkout that holds the status board, also when this file runs from a git worktree or a copy inside it.
+
+    11-17 05:10 (PM 05:18): a test loop in a git worktree under a session scratchpad read that worktree's
+    logs/ops/status-board.md, which does not exist, so the measurement window on the real board never reached it and it
+    started temporary PostgreSQL clusters during the PostgreSQL 18.7 swap. A worktree's .git file names the main
+    repository (<main>/.git/worktrees/<name>); a copy inside the main checkout (releases, ops-code) finds it upward."""
+    start = Path(start)
+    marker = start / '.git'
+    if marker.is_file():
+        text = marker.read_text(encoding='utf-8', errors='replace').strip()
+        if text.startswith('gitdir:') and '/.git/worktrees/' in text:
+            return Path(text[len('gitdir:'):].strip().split('/.git/worktrees/')[0])
+    for folder in (start, *start.parents):
+        if (folder / '.git').is_dir() and (folder / 'logs/ops/status-board.md').is_file():
+            return folder
+    return start
+
+
+MAIN = main_root()
+BOARD = MAIN / 'logs/ops/status-board.md'
+LOCK = MAIN / 'logs/ops/.heavy-slot.lock'
 SECTION = '## 무거운 작업'
 SLOTS = 2          # 00:00-08:00 KST
 DAY_SLOTS = 1      # 08:00-24:00 KST: load 10 lengthened user requests directly (11-11 PM decision)
@@ -94,7 +116,9 @@ def reserved(now=None, board=None, what=''):
     try:
         lines = Path(board or BOARD).read_text(encoding='utf-8').split('\n')
     except OSError:
-        return None
+        # 11-17 (PM 05:18): an unreadable board used to let everything through, so a run outside the main checkout
+        # never saw a reserved window. Nothing starts without the board.
+        return f'the status board cannot be read ({board or BOARD})'
     section = None
     for line in lines:
         if line.startswith('## '):
@@ -241,8 +265,8 @@ LOAD_MAX = 9.0   # PM 11-16 14:4x (user: "apply it as fast as possible"): most o
                  # nice 15 and start below 9.0. Before: 6.0 (PM 11-15 16:38).
 LOAD_MAX_GUARDED = 6.0   # the old limit, back while the server-side time of the last public measurement is up
 GUARD_RATIO = 1.3        # latest median server_ms of explore + recommend over the median of the day before it
-SLO_LOG = ROOT / 'logs/ops/user-slo.jsonl'
-GUARD_NOTE = ROOT / 'logs/ops/test-load-guard.json'
+SLO_LOG = MAIN / 'logs/ops/user-slo.jsonl'
+GUARD_NOTE = MAIN / 'logs/ops/test-load-guard.json'
 TEST_NICE = 15
 
 

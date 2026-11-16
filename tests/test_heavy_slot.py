@@ -200,3 +200,23 @@ def test_the_load_limit_goes_back_to_six_when_server_time_rises_30_percent(tmp_p
     reason = hs.server_guard(up, now=now)
     assert reason and '1100 ms' in reason and hs.load_limit(now, guard=reason) == hs.LOAD_MAX_GUARDED == 6.0
     assert hs.server_guard(up, now=datetime(2026, 11, 16, 17, 0)) is None   # a measurement older than 90 minutes
+
+
+def test_the_board_is_the_main_checkouts_also_from_a_worktree_or_a_copy(tmp_path):
+    """11-17 05:10 (PM 05:18): a retry loop in a git worktree read the worktree's own (missing) board, so the
+    measurement window never reached it; an unreadable board now refuses instead of letting the run through."""
+    main = tmp_path / 'main'
+    (main / '.git' / 'worktrees' / 'old').mkdir(parents=True)
+    (main / 'logs' / 'ops').mkdir(parents=True)
+    (main / 'logs' / 'ops' / 'status-board.md').write_text('## 무거운 작업\n', encoding='utf-8')
+    worktree = tmp_path / 'scratch' / 'old'
+    worktree.mkdir(parents=True)
+    (worktree / '.git').write_text('gitdir: ' + str(main / '.git' / 'worktrees' / 'old') + '\n', encoding='utf-8')
+    assert hs.main_root(worktree) == main
+    release = main / 'gateway-data' / 'services' / 'releases' / 'r1'
+    release.mkdir(parents=True)
+    assert hs.main_root(release) == main and hs.main_root(main) == main
+    stray = tmp_path / 'copy'
+    stray.mkdir()
+    assert hs.main_root(stray) == stray
+    assert 'cannot be read' in hs.reserved(datetime(2026, 11, 17, 5, 10), stray / 'logs/ops/status-board.md')
