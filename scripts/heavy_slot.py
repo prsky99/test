@@ -61,18 +61,18 @@ def night_only(what, command, minutes, now=None):
 
 
 # 11-13 PM 10:21: the 09:00 user_slo ran at load 13.46 (explore 6/6 over) because a gate and a deploy started
-# just before it. In the day no new heavy work starts from :55 to :10 (the hourly public measurement's window);
-# work already running is left alone. Exit 75, as for a full slot: the caller tries again later.
+# just before it. No new heavy work starts from :55 to :10 (the hourly public measurement's window); work already
+# running is left alone. Exit 75, as for a full slot: the caller tries again later.
+# 11-17 PM 01:1x: the night too. At 01:06 a full copy restore started beside the night pytest and the 01:06 user_slo
+# recommend samples took 7.5 s and 4.7 s on the server; the rule had been day-only.
 QUIET_FROM, QUIET_UNTIL = 55, 10
 
 
 def measurement_window(now=None):
     """The reason a new run may not start now because of the hourly measurement, or None."""
     now = now or datetime.now()
-    if now.hour < 8:
-        return None
     if now.minute >= QUIET_FROM or now.minute < QUIET_UNTIL:
-        return f'08:00-24:00 no new heavy work starts from :{QUIET_FROM} to :{QUIET_UNTIL:02d} (hourly public measurement)'
+        return f'no new heavy work starts from :{QUIET_FROM} to :{QUIET_UNTIL:02d} (hourly public measurement)'
     return None
 
 

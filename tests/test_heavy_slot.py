@@ -132,12 +132,13 @@ def test_daytime_refuses_restores_rehearsals_and_long_work_but_night_allows_them
 
 
 def test_daytime_starts_nothing_new_around_the_hourly_measurement(tmp_path, monkeypatch):
-    """PM 11-13 10:21: the 09:00 user_slo ran at load 13.46 beside a gate and a deploy; :55-:10 stays free by day."""
+    """PM 11-13 10:21: the 09:00 user_slo ran at load 13.46 beside a gate and a deploy; :55-:10 stays free.
+    PM 11-17 01:1x: at night too (a copy restore started at 01:06 slowed that hour's recommend samples)."""
     monkeypatch.setattr(hs, 'measurement_window', REAL_WINDOW)
     at = lambda h, m: datetime(2026, 11, 13, h, m)
-    for h, m in ((8, 0), (9, 9), (9, 55), (23, 59), (12, 5)):
+    for h, m in ((8, 0), (9, 9), (9, 55), (23, 59), (12, 5), (0, 5), (1, 6), (3, 58), (7, 59), (4, 0)):
         assert hs.measurement_window(at(h, m)), (h, m)
-    for h, m in ((9, 10), (9, 54), (13, 30), (0, 5), (3, 58), (7, 59)):   # night keeps every minute
+    for h, m in ((9, 10), (9, 54), (13, 30), (0, 10), (1, 30), (3, 54), (22, 40)):
         assert hs.measurement_window(at(h, m)) is None, (h, m)
     board = _board(tmp_path)
     marker = tmp_path / 'ran'
