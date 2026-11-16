@@ -86,7 +86,8 @@ def test_html_does_not_wait_for_welcome_counts_or_catalog(tmp_path, monkeypatch)
             assert 'private diagnostic' not in result.text
             assert 'worker-src' in result.headers['content-security-policy']
             assert result.headers['cache-control'] == 'public, max-age=300, stale-while-revalidate=86400'  # 11-11 same bytes for everyone
-            assert entered.is_set()
+            # PM 11-16 22:3x: the public home page starts no catalog preview at all (same bytes every request)
+            assert not entered.is_set()
     finally:
         release.set()
         if front.html_bootstrap.job:
@@ -131,4 +132,29 @@ def test_forced_empty_shell_keeps_authoritative_menu_hydration_apis_usable(tmp_p
             assert not any(item['available'] for item in presets.json()['live_examples'])
     finally:
         front.book.close()
+        store._db.close()
+
+
+def test_the_public_home_page_is_the_same_bytes_every_time(tmp_path, monkeypatch):
+    """PM 11-16 22:3x: r10 waited up to 0.15 s per home request for a preview that was there or not, so two requests
+    differed and the assembled page was never reused (about 230 ms each at the origin)."""
+    from agent_market.concierge import pearl_view as pv
+    monkeypatch.setattr(pv, 'ASSETS_FIXED', True)
+    monkeypatch.setattr(pv, '_assembled', type(pv._assembled)())
+    store = Store(str(tmp_path/'same-bytes.sqlite3'))
+    front = Front(store)
+    calls = []
+    monkeypatch.setattr(front.html_bootstrap, 'read', lambda *a: calls.append(1) or json.dumps(dict(EMPTY, explore={'items': [1]})))
+    assembled = []
+    real = pv._assemble
+    monkeypatch.setattr(pv, '_assemble', lambda *a: assembled.append(1) or real(*a))
+    try:
+        with TestClient(create_front_app(front)) as client:
+            first = client.get('/', headers={'Accept': 'text/html'})
+            second = client.get('/', headers={'Accept': 'text/html'})
+        assert first.status_code == second.status_code == 200 and first.content == second.content
+        match = re.search(r'<script[^>]*id="appBootstrapData"[^>]*>(.*?)</script>', first.text, re.S)
+        assert match and json.loads(match.group(1)) == EMPTY
+        assert calls == [] and len(assembled) == 1   # no preview is waited for; the second request reuses the page
+    finally:
         store._db.close()

@@ -2537,18 +2537,25 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             base_url = front.base(request)
             from .public_metadata import graph, apply_daily_home
             import asyncio
-            bootstrap_str, snapshot = await asyncio.gather(
-                run_in_threadpool(front.html_bootstrap.read),
-                run_in_threadpool(front.daily_statistics.read))
-            ld_graph = graph('overview', base_url, snapshot)
-            ld = json.dumps(ld_graph)
-            esc = html_lib.escape
             from .pearl_view import public_page_available, default_public_page
+            from .bootstrap_delivery import EMPTY_JSON
             if public_page_available():
-                page = default_public_page(bootstrap_str, ld, snapshot=snapshot,
+                # PM 11-16 22:3x: the home page carries no catalog preview. Waiting up to 0.15 s for one on every
+                # request made the bytes differ from request to request (preview or empty), so the assembled page
+                # was never reused (about 230 ms each at the origin, against 5 ms for the other pages) and the edge
+                # copies differed. Explore and the overview load through their own APIs when opened, as they
+                # already did whenever the preview was not ready (FRONTEND_SCREEN_POLICY: data on demand).
+                snapshot = await run_in_threadpool(front.daily_statistics.read)
+                ld = json.dumps(graph('overview', base_url, snapshot))
+                page = default_public_page(EMPTY_JSON, ld, snapshot=snapshot,
                                            workspace_available=workspace_access_enabled and workspace_link_enabled)
                 page.headers['Vary'] = 'Accept'
                 return page
+            bootstrap_str, snapshot = await asyncio.gather(
+                run_in_threadpool(front.html_bootstrap.read),
+                run_in_threadpool(front.daily_statistics.read))
+            ld = json.dumps(graph('overview', base_url, snapshot))
+            esc = html_lib.escape
             from .bootstrap_delivery import compact_shell
             from ..customer_identity_view import workspace_shell
             page = compact_shell(workspace_shell(HTML, workspace_access_enabled and workspace_link_enabled)).replace("{notice}", esc(NOTICE)).replace("{ld}", ld.replace("<", "\\u003c")).replace("{greeting}", esc(body["greeting"])).replace("{base}", esc(base_url)).replace("{bootstrap_json}", bootstrap_str)
