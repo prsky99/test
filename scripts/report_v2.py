@@ -1384,13 +1384,15 @@ PRIORITY_PICKS = 4
 # PM 11-15 16:42: what visitors ask most has a weak #1 (weather 59.9, FX 53.3) and many untested candidates (17, 36)
 PRIORITY_EXTRA = {'weather.forecast.v1': 8, 'fx.rate.v1': 8}
 # PM 11-16 17:5x (replaces the 06:5x order for today only): new candidates go first to the roles with no tested
-# member at all, then the roles of the four new necklaces the workflow team is designing (library usage, MCP server
-# trust, listed company snapshot, news brief), then every other role with no final pearl in PRIORITY_ROLES order.
-# Roles that already have a final pearl follow in the general order (fewest successes first).
-NECKLACE_NEW_ROLES = ('package.releases.v1', 'github.releases.v1', 'github.repo.v1',       # library usage
-                      'mcp.registry.lookup.v1', 'tls.certificate.v1',                       # MCP server trust
-                      'company.profile.v1', 'sec.filings.v1', 'stock.quote.v1',             # company snapshot
-                      'news.search.v1', 'encyclopedia.summary.v1')                          # news brief
+# member at all, then the roles of the first four new necklaces, then every other role with no final pearl in
+# PRIORITY_ROLES order. Roles that already have a final pearl follow in the general order (fewest successes first).
+# PM 11-16 17:5x-18:1x: the first four are MCP server trust, library latest usage (npm), website-trust v2 and
+# weather-outdoor-brief (place -> weather, sun computed by us). Timezone, holiday (nager.at stopped on terms), FX, the
+# listed company snapshot and news background belong to the second batch and get no place here.
+NECKLACE_NEW_ROLES = ('mcp.registry.lookup.v1', 'github.repo.v1',                          # MCP server trust
+                      'domain.lookup.v1', 'package.releases.v1', 'github.releases.v1',     # library usage
+                      'tls.certificate.v1', 'dns.mail_auth.v1',                             # website-trust v2
+                      'geocode.address.v1', 'weather.forecast.v1')                          # weather-outdoor-brief
 
 
 def queue_priority(versions, ranked=None, roles=None):

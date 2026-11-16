@@ -27,6 +27,15 @@ def version(rid, role, score=90.0, outcome='succeeded', tested=None, evaluator='
             'tested': tested or time.time() - 3 * V.DAY, 'evaluator_version': evaluator, 'registrable_domain': f'd{rid}.com'}
 
 
+def test_first_batch_necklace_roles_follow_the_pm_order_and_leave_the_second_batch_out():
+    assert V.NECKLACE_NEW_ROLES[:2] == ('mcp.registry.lookup.v1', 'github.repo.v1')
+    assert V.NECKLACE_NEW_ROLES[-2:] == ('geocode.address.v1', 'weather.forecast.v1')
+    assert not {'news.search.v1', 'sec.filings.v1', 'company.profile.v1', 'stock.quote.v1', 'fx.rate.v1',
+                'timezone.time.v1', 'holiday.calendar.v1'} & set(V.NECKLACE_NEW_ROLES)
+    import role_catalog
+    assert set(V.NECKLACE_NEW_ROLES) <= set(role_catalog.ROLES)
+
+
 def test_queue_priority_puts_untested_roles_then_new_necklace_roles_then_roles_without_a_pearl():
     versions = [version(1, 'fx.rate.v1'), version(2, 'news.search.v1'), version(3, 'weather.forecast.v1')]
     ranked = {'fx.rate.v1': {'final_pearl': 1}, 'news.search.v1': {'final_pearl': None},
@@ -34,7 +43,7 @@ def test_queue_priority_puts_untested_roles_then_new_necklace_roles_then_roles_w
     roles = ['fx.rate.v1', 'news.search.v1', 'weather.forecast.v1', 'company.profile.v1', 'holiday.calendar.v1']
     order = V.queue_priority(versions, ranked, roles=roles)
     assert order[:2] == ('company.profile.v1', 'holiday.calendar.v1')          # nothing tested yet
-    assert order.index('news.search.v1') < order.index('weather.forecast.v1')    # new necklace role before others
+    assert order.index('weather.forecast.v1') < order.index('news.search.v1')    # first-batch necklace role first
     assert 'fx.rate.v1' not in order                                              # has a final pearl
     assert len(order) == len(set(order))
 
