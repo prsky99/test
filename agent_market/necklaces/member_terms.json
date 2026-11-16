@@ -337,6 +337,48 @@
       "source": "https://faceabot.com/terms",
       "checked_at": "2026-11-16",
       "basis": "Terms allow automated access within unstated per-minute and per-day limits and single lookups; commercial use not addressed; upstream OpenStreetMap without stating the geocoder or ODbL attribution (ambiguous)"
+    },
+    "143970": {
+      "status": "prohibits",
+      "source": "https://faceabot.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "same terms as 214764 (one operator, covers the site, API and MCP tools): automated access within unstated per-minute and per-day limits, single measurements may be cited with a link, no bulk redistribution, commercial use not addressed (ambiguous)"
+    },
+    "34550": {
+      "status": "prohibits",
+      "source": "https://cutgpt.app/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms: personal licence, no scraping, no reselling, sublicensing or commercial exploitation of the Service, account required; home page shows a consumer chat app and no MCP or API"
+    },
+    "34807": {
+      "status": "prohibits",
+      "source": "https://tools.openkrill.app/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms (openkrill.app/terms redirects here): free automated use within network and daily limits that may change; commercial use and passing results on are not addressed (ambiguous)"
+    },
+    "47151": {
+      "status": "silent",
+      "source": "https://caseyjhand.com/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "no terms page (/terms returns only a name header; llms.txt and servers.md link none); servers say no authentication required; Apache 2.0 covers the code only"
+    },
+    "47161": {
+      "status": "silent",
+      "source": "https://caseyjhand.com/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "same operator and pages as 47151: no terms page, no authentication required, Apache 2.0 covers the code only"
+    },
+    "147960": {
+      "status": "silent",
+      "source": "https://galactic.inc/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "no terms page (/terms 404, no legal or privacy link on any page); docs say the data is free to read by software with no key"
+    },
+    "130453": {
+      "status": "prohibits",
+      "source": "https://agentdiet.dev/terms",
+      "checked_at": "2026-11-16",
+      "basis": "the page named terms covers privacy and API retirement only; commercial use and redistribution not addressed; free use is a sandbox, regular calls are paid over x402 (ambiguous, paid path)"
     }
   },
   "changes": [
@@ -851,6 +893,62 @@
       "from": "unknown",
       "to": "prohibits",
       "source": "https://faceabot.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "143970",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://faceabot.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "34550",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://cutgpt.app/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "34807",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://tools.openkrill.app/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "47151",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://caseyjhand.com/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "47161",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://caseyjhand.com/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "147960",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://galactic.inc/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "130453",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://agentdiet.dev/terms",
       "at": "2026-11-16",
       "by": "agent team"
     }
