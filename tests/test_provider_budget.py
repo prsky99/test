@@ -390,3 +390,10 @@ def test_1117_wikipedia_reference_checks_rise_and_the_gate_shares_stay():
     assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261118') == 166
     assert pb.share_limit('substitute_tests', 'wikipedia.org', day='20261117') == 500
     assert pb.share_limit('gate', 'wikipedia.org', day='20261117') == 1000
+
+
+def test_mcp_registry_gate_share_on_1117_only():
+    from agent_market import provider_budget as pb
+    assert pb.share_limit('substitute_tests', 'modelcontextprotocol.io', day='20261117') == 30
+    assert pb.share_limit('substitute_tests', 'modelcontextprotocol.io', day='20261118') == 5
+    assert pb.domain('https://registry.modelcontextprotocol.io/v0/servers') == 'modelcontextprotocol.io'

@@ -207,6 +207,11 @@ ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_check
             # workflow 3737c5aa: cve-incident-brief fix answer set, one GitHub advisory read a CVE. The day total of
             # 60 per domain stays (PM 16:25), so 50 of the 90 asked; the open-source records are read first.
             '20261117': {('reference_checks', 'github.com'): 50,
+                         # PM 11-16 18:0x: mcp-registry own-substitute gate (30 cases). No request limit is published;
+                         # the registry's aggregator guide asks clients to cache, avoid a full crawl per user request and
+                         # back off (github.com/modelcontextprotocol/registry docs/modelcontextprotocol-io/registry-aggregators.mdx,
+                         # read 11-16), so the day total stays the default 60 and the gate's 30 fits inside it.
+                         ('substitute_tests', 'modelcontextprotocol.io'): 30,
                          # workflow cdccd97e: topic-evidence-brief holdout-r4, the 29 OpenAlex reads left of 41 topics
                          ('reference_checks', 'openalex.org'): 60,    # holdout-r4 rest and r5 (PM 06:5x)
                          # workflow 11-16 12:4x: three company sets on 11-17 read SEC (holdout-r6 for sec-company-profile,
