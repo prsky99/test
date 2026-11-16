@@ -56,7 +56,10 @@ def test_run_set_writes_daily_lines_and_single_baselines(tmp_path):
     kinds = {l["type"] for l in lines}
     assert kinds == {"case", "member", "single"}
     singles = [l for l in lines if l["type"] == "single"]
-    assert {l["resource_id"] for l in singles} == {367249, 286623, 47161, 130453}
+    # members whose terms prohibit our use are not measured alone (11-16; 130453 agentdiet is one since 4835e5c3)
+    allowed = {m["resource_id"] for s in defn["slots"] if s["slot"] == "advisories" for m in s["chain"]
+               if m["kind"] == "external" and m.get("state", "active") == "active" and model.terms_status(m) != "prohibits"}
+    assert {l["resource_id"] for l in singles} == allowed and allowed <= {367249, 286623, 47161, 130453}
     assert any(l["ok"] is False for l in singles if l["resource_id"] == 286623)
     assert (tmp_path / "results" / "package-risk-audit" / "selftest-20270115.jsonl").exists()
 

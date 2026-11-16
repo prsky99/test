@@ -765,7 +765,8 @@ def single_members(defn: dict, contrast: str, watch_state: dict | None = None) -
     Otherwise the external members of the contrast slot, as before."""
     if defn["slug"] not in TASK_GRADERS:
         slot = next(s for s in defn["slots"] if s["slot"] == contrast)
-        return [(contrast, m) for m in model.live_members(slot, "external")]
+        # 11-16: a member whose terms prohibit our use is never called, alone either (the run chain drops it already)
+        return [(contrast, m) for m in model.live_members(slot, "external") if model.terms_status(m) != "prohibits"]
     from .watch import runtime_chain
     out = []
     for slot in defn["slots"]:
