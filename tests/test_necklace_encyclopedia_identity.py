@@ -75,6 +75,8 @@ def run(background):
             if isinstance(background[key], Exception):
                 raise background[key]
             return background[key]
+        if key in (47189, 143970):              # v3 title members: no answer unless a test gives one
+            return {}
         raise RuntimeError("not this member")
     return runner.Runner(caller, watch_state=STATE).run(defn, {"name": "Kodiak Sciences Inc", "country": "US"}), seen
 
@@ -137,7 +139,7 @@ def test_a_budget_refusal_then_the_next_member_s_not_found_is_not_found():
         code = "not_found"
     out, _ = run({241601: runner.BudgetDenied("domain_daily_total"), "wikipedia-summary": NoRecord("no record")})
     errors = [a["error_class"] for a in out["attempts"]["background"]]
-    assert errors[:2] == ["budget_domain_daily_total", "not_found"]
+    assert errors[0] == "budget_domain_daily_total" and errors[-1] == "not_found"    # v3 title members between
     assert out["output"]["background"] == {"not_found": True, "note": runner.NOT_FOUND_NOTE}
     assert out["slots"]["background"]["status"] == "not_found" and out["failed_slot"] != "background"
 
@@ -167,3 +169,19 @@ def test_an_upper_case_edgar_name_matches_its_article_title():
         assert runner.is_about(text.format(title, "public"), title, {"slot.registry.legal_name": legal}), legal
     assert not runner.is_about(text.format("Restaurants", "public"), "Restaurants",
                                {"slot.registry.legal_name": "BJS RESTAURANTS INC"})
+
+
+def test_v3_title_members_get_the_name_as_an_article_title():
+    """PM 11-16 v3: 47189 and 143970 look a title up exactly; an EDGAR name in capitals is given as a title."""
+    assert runner.title_name("DEXCOM") == "Dexcom" and runner.title_name("REALTY INCOME") == "Realty Income"
+    assert runner.title_name("CBRE") == "CBRE" and runner.title_name("Krispy Kreme") == "Krispy Kreme"
+    reg = runner.norm_registry({"legal_name": "DEXCOM INC", "identifiers": {"SEC CIK": "1093557"}}, {})
+    assert reg["search_name"] == "DEXCOM" and reg["title_name"] == "Dexcom"
+    defn = model.load(DEFN)
+    chain = next(s for s in defn["slots"] if s["slot"] == "background")["chain"]
+    assert [m.get("resource_id") or m.get("agent_id") for m in chain][:3] == [241601, 47189, 143970]
+    assert all(m["input_map"] == {"title": "{{slot.registry.title_name}}"} for m in chain[1:3])
+    out, seen = run({241601: runner.BudgetDenied("domain_daily_total"),
+                     47189: {"title": "Kodiak Sciences", "extract": "Kodiak Sciences is a biotechnology company."}})
+    assert seen[47189] == {"title": "Kodiak Sciences"}
+    assert out["slots"]["background"]["status"] == "answered"

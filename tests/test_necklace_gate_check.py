@@ -48,7 +48,7 @@ def prints(**override):
     """The fingerprint file as ops writes it (resources[rid], measured now), every member unchanged."""
     import time as _t
     at = _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime(NOW))
-    resources = {str(rid): {"baseline": "a", "current": "a", "measured_at": at} for rid in (52559, 58997, 241601)}
+    resources = {str(rid): {"baseline": "a", "current": "a", "measured_at": at} for rid in (52559, 58997, 241601, 47189, 143970)}
     resources.update(override)
     return {"resources": resources}
 
@@ -79,10 +79,11 @@ def test_gate_does_not_judge_a_member_without_a_fresh_fingerprint():
 
 def test_every_external_member_is_probed_with_the_gate_label():
     out, relay = run(set())
-    assert sorted({rid for rid, *_ in relay.seen}) == [52559, 58997, 241601]
+    assert sorted({rid for rid, *_ in relay.seen}) == [47189, 52559, 58997, 143970, 241601]
     assert {qa for _, qa, *_ in relay.seen} == {"necklace_gate"}
     calls = {rid: args for rid, _, method, args in relay.seen if method == "tools/call"}
-    assert calls == {241601: {"query": "Apple"}, 58997: {"ticker": "AAPL"}, 52559: {"domain": "apple.com"}}
+    assert calls == {241601: {"query": "Apple"}, 58997: {"ticker": "AAPL"}, 52559: {"domain": "apple.com"},
+                     47189: {"title": "Apple"}, 143970: {"title": "Apple"}}
     # PM 16:03: an approved own substitute counts as a provisional member, so registry counts too
     assert out["pearls"]["in_every_run"] == ["registry", "background", "filings"] and out["ok"] is True
     assert out["pearls"]["seated_pearl_slots"] == ["background", "filings", "domain"]

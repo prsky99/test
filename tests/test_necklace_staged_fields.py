@@ -22,7 +22,7 @@ def test_the_declaration_is_what_the_normalizers_stage():
     for contract, raw in SAMPLES.items():
         assert staged(contract, raw) <= runner.staged_fields(contract), contract
     assert staged("company.registry.v1", SAMPLES["company.registry.v1"]) == {"cik", "ticker", "lei", "legal_name",
-                                                                                 "search_name"}
+                                                                                 "search_name", "title_name"}
     assert {"lat", "lon", "point", "country_code", "timezone"} <= staged("geocode.address.v1",
                                                                          SAMPLES["geocode.address.v1"])
 

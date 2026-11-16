@@ -449,7 +449,7 @@ def test_a_failed_upstream_skips_the_dependent_step():
 def test_registry_answers_are_read_as_identifiers():
     sec = {"legal_name": "Apple Inc.", "identifiers": {"SEC CIK": "320193", "ticker": "AAPL"}, "source": "SEC EDGAR"}
     assert runner.normalize("company.registry.v1", sec, {}) == {"legal_name": "Apple Inc.", "cik": "320193", "ticker": "AAPL",
-                                                                   "search_name": "Apple"}
+                                                                   "search_name": "Apple", "title_name": "Apple"}
     lei = {"legal_name": "TOYOTA MOTOR CORPORATION", "lei": "5493006W3QUS5LMH6R84"}
     assert runner.normalize("company.registry.v1", lei, {})["lei"] == "5493006W3QUS5LMH6R84"
     assert runner.normalize("company.registry.v1", "Apple is a company", {}) is None

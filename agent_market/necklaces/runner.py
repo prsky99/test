@@ -339,6 +339,7 @@ def norm_registry(raw, values):
         return None
     if out.get("legal_name") and search_name(out["legal_name"]):
         out["search_name"] = search_name(out["legal_name"])     # PM 11-16: what an encyclopedia search is given
+        out["title_name"] = title_name(out["search_name"])       # what an exact-title lookup is given
     return out
 
 
@@ -578,6 +579,16 @@ def search_name(legal_name: str) -> str | None:
     return " ".join(words) or None
 
 
+def title_name(name: str) -> str:
+    """The name as an article title for members that look a title up exactly (PM 11-16, company v3): EDGAR writes
+    many names in capitals ("DEXCOM"), and a title differs in case after its first letter ("Dexcom"). A name in
+    capitals gets its words of four letters or more capitalised, shorter ones kept ("CBRE", "IBM"); any other name
+    is kept as written."""
+    if not name or name != name.upper() or not re.search(r"[A-Z]", name):
+        return name
+    return " ".join(w.capitalize() if len(w) > 4 and w.isalpha() else w for w in name.split())
+
+
 COMPANY_WORDS = re.compile(r"\b(?:company|corporation|incorporated|inc|corp|business|firm|manufacturer|maker|"
                            r"provider|developer|bank|bancorp|bancshares|insurer|retailer|operator|conglomerate|"
                            r"biotechnology|pharmaceutical|trust|fund|holding|subsidiary|publicly traded|nyse|nasdaq|"
@@ -698,7 +709,7 @@ NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_r
 # stages str, int and float values, never lists, dicts or booleans). The gate checks every slot reference against
 # this (PM 12:58, 11-15); tests keep it equal to what the normalizers return.
 STAGED_FIELDS = {norm_advisories: set(), norm_record: {"cve_id", "cvss_score"}, norm_exploited: {"cve_id"},
-                 norm_generic: {"text"}, norm_registry: {"cik", "ticker", "lei", "legal_name", "search_name"},
+                 norm_generic: {"text"}, norm_registry: {"cik", "ticker", "lei", "legal_name", "search_name", "title_name"},
                  norm_encyclopedia: {"text", "identity"},
                  norm_location: {"lat", "lon", "point", "place", "country_code", "timezone"},
                  norm_quakes: {"count"}, norm_book: {"author", "year", "title", "text"},
