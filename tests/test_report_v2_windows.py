@@ -152,3 +152,11 @@ def test_first_picks_lead_the_new_candidates(tmp_path):
     out = V.first_picks(cands, {9: 'prohibits'}, {(8, 'fx.rate.v1')}, path=f)
     assert out == [{'role': 'timezone.time.v1', 'id': 84607, 'tool': 'current_time', 'kind': 'new'}]
     assert V.first_picks(cands, {}, set(), path=tmp_path / 'none.json') == []
+
+
+def test_a_tested_first_pick_leads_the_retests_instead(tmp_path):
+    f = tmp_path / 'picks.json'
+    f.write_text('[{"role": "timezone.time.v1", "id": 84607}]')
+    cands = [('timezone.time.v1', 84607, 'current_time', 'plumbkit.dev')]
+    assert V.first_picks(cands, {}, set(), path=f, tested={(84607, 'timezone.time.v1')}) == []
+    assert V.pick_ids(path=f) == {(84607, 'timezone.time.v1')}

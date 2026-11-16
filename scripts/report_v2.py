@@ -1504,7 +1504,11 @@ def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115
     rejudge = rejudge_queue(versions, {(x['id'], canonical(x['role'])) for x in retests} | today, terms, ranks=ranks,
                             limit=10 ** 6)
     new = new_queue(versions, candidates, seeds, limit=10 ** 6, terms=terms, priority=queue_priority(versions, ranked))
-    new = first_picks(candidates, terms, today) + new
+    new = first_picks(candidates, terms, today, tested={(v['resource_id'], canonical(v['role'])) for v in versions}) + new
+    # PM 11-16 20:2x: a first pick already tested comes back first among the retests (84607's second day)
+    picked = pick_ids()
+    retests = [x for x in retests if (x['id'], canonical(x['role'])) in picked] + \
+        [x for x in retests if (x['id'], canonical(x['role'])) not in picked]
     hosts = {(v['resource_id'], v['tool']): v.get('host') for v in versions}
     hosts.update({(rid, tool): host for _, rid, tool, host in candidates})
     hosts.update({(s_['id'], s_['tool']): s_.get('host') for s_ in seeds if s_.get('host')})
@@ -1515,7 +1519,17 @@ STANDBY = 3             # 3/2 of each cap is queued (PM 11-16 18:4x: use the who
 FIRST_PICKS = OUT / 'first_picks.json'   # PM asks: [{"role": ..., "id": ...}], tested ahead of every new candidate
 
 
-def first_picks(candidates, terms, today, path=None):
+def pick_ids(path=None):
+    """(id, role) of every first pick."""
+    try:
+        wanted = json.loads(Path(path or FIRST_PICKS).read_text())
+    except (OSError, ValueError):
+        return set()
+    return {(p.get('id'), canonical(str(p.get('role', '')))) for p in wanted if isinstance(p, dict)} \
+        if isinstance(wanted, list) else set()
+
+
+def first_picks(candidates, terms, today, path=None, tested=frozenset()):
     """New candidates the PM put first (11-16 18:3x: 84607 plumbkit.dev for trip-brief's local time), as queue
     items with the member's first catalog tool for the role; prohibited, already tested today or not in the catalog
     are left out. The same member later in the queue is dropped by fit_budget (one per domain a window)."""
@@ -1526,8 +1540,8 @@ def first_picks(candidates, terms, today, path=None):
     out = []
     for pick in wanted if isinstance(wanted, list) else []:
         role, rid = canonical(str(pick.get('role', ''))), pick.get('id')
-        if terms.get(rid) == 'prohibits' or (rid, role) in today:
-            continue
+        if terms.get(rid) == 'prohibits' or (rid, role) in today or (rid, role) in tested:
+            continue                    # a tested pick is a retest now (pick_ids puts it first there)
         tool = next((t for r, i, t, _ in candidates if r == role and i == rid), None)
         if tool:
             out.append({'role': role, 'id': rid, 'tool': tool, 'kind': 'new'})
