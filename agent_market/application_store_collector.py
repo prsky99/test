@@ -17,6 +17,15 @@ CAP_BATCH_SECONDS = 300     # a batch older than this is ranked again
 _CAP_BATCH_LOCK = threading.Lock()
 CHECK_BATCH = 1000          # ids ranked at once for the health loop (11-11)
 CHECK_BATCH_SECONDS = 120   # shorter than the capability batch: newly due checks wait at most this long
+# 11-17 (운영·SRE, PM 01:0x): kinds whose per-host due ranking walks hosts through the partial index
+# resources_health_due_host (deploy/db/resources-health-due-host-20261113.sql) instead of ranking every row.
+# a2a: 238,535 active rows on 3,949 hosts (11-17 01:1x); the window ranking read them all from the heap and passed
+# the 5 s statement timeout 21 times on 11-16 (then 16 more as 'round skipped' warnings). mcp has 43,971 rows on
+# 30,833 hosts, so walking hosts would not read less; x402's condition also takes other kinds and does not lead
+# with one kind value, so both keep the window ranking.
+HOST_WALK_KINDS = ('a2a',)
+HOST_WALK_INDEX = 'public.resources_health_due_host'
+HOST_WALK_RECHECK_SECONDS = 600   # how long a "the index is (not) there" answer is kept
 
 
 def _invalid():
@@ -37,6 +46,30 @@ def _limit(value):
 def _kind(value):
     if type(value) is not str or not 1 <= len(value) <= 64 or '\0' in value: _invalid()
     return value
+
+
+def host_walk_sql():
+    """The health loop's per-host due ranking for one kind, read through resources_health_due_host.
+
+    Same answer as the window ranking (each host's first PER_HOST due rows by next_check_at IS NOT NULL,
+    next_check_at; then all of them by that order and random() up to SIZE), but it reads about one index probe per
+    host plus PER_HOST rows per host: the recursive part steps from host to host (a loose index scan), the lateral
+    part reads one host's due rows in index order. Rows without a host form their own group, as in PARTITION BY.
+    Placeholders: kind, kind, kind, now, per_host, kind, now, per_host, size."""
+    live = "r.active=1 AND r.health_status!='retired' AND r.kind=%s"
+    due = '(r.next_check_at IS NULL OR r.next_check_at<=%s)'
+    order = 'r.next_check_at IS NOT NULL,r.next_check_at'
+    return ('WITH RECURSIVE hosts(host) AS ('
+            '(SELECT r.host FROM resources r WHERE ' + live + ' AND r.host IS NOT NULL ORDER BY r.host LIMIT 1) '
+            'UNION ALL SELECT (SELECT r.host FROM resources r WHERE ' + live + ' AND r.host>hosts.host '
+            'ORDER BY r.host LIMIT 1) FROM hosts WHERE hosts.host IS NOT NULL) '
+            'SELECT id FROM ('
+            'SELECT c.id,c.next_check_at FROM hosts CROSS JOIN LATERAL (SELECT r.id,r.next_check_at FROM resources r '
+            'WHERE ' + live + ' AND r.host=hosts.host AND ' + due + ' ORDER BY ' + order + ' LIMIT %s) c '
+            'WHERE hosts.host IS NOT NULL '
+            'UNION ALL (SELECT r.id,r.next_check_at FROM resources r WHERE ' + live + ' AND r.host IS NULL AND ' + due +
+            ' ORDER BY ' + order + ' LIMIT %s)) AS candidates '
+            'ORDER BY next_check_at IS NOT NULL,next_check_at,random() LIMIT %s')
 
 
 class PostgresCollectorMixin:
@@ -73,6 +106,21 @@ class PostgresCollectorMixin:
                 'SELECT * FROM resources WHERE id IN (' + ','.join(['%s'] * len(chunk)) + ')', tuple(chunk))})
         return rows
 
+    def _host_walk_ready(self, now):
+        """True while the partial index the host walk reads exists. Without it the walk would scan the table once per
+        host (3,949 a2a hosts), far slower than the window ranking, so a release that reaches a database before the
+        index does keeps the old ranking. The answer is kept HOST_WALK_RECHECK_SECONDS."""
+        known = self.__dict__.get('_host_walk_index')
+        if known is not None and now - known[0] < HOST_WALK_RECHECK_SECONDS:
+            return known[1]
+        try:
+            rows = self._collector_rows('SELECT to_regclass(%s) IS NOT NULL AS ready', (HOST_WALK_INDEX,))
+            ready = bool(rows and rows[0].get('ready'))
+        except Exception:
+            ready = False
+        self.__dict__['_host_walk_index'] = (now, ready)
+        return ready
+
     def due_for_check(self, now, limit, per_host=None, kind=None):
         _number(now); _limit(limit)
         if per_host is not None: _limit(per_host)
@@ -96,9 +144,13 @@ class PostgresCollectorMixin:
         # 11-11: ranking whole rows by host spilled ~13 MB to disk per call, ~17 calls a minute (284 MB in
         # 75 s). Rank narrow columns once into a batch of CHECK_BATCH ids that later calls take from until
         # it is empty or CHECK_BATCH_SECONDS old; taken rows are read again and kept only while still due.
-        sql = 'SELECT id FROM (SELECT id,host,next_check_at,ROW_NUMBER() OVER(PARTITION BY host ORDER BY ' + order + \
-            ') AS rn FROM resources WHERE ' + where + ') AS candidates WHERE rn<=%s ORDER BY ' + order + ',random() LIMIT %s'
         kinds = tuple(kind) if isinstance(kind, (list, tuple)) else kind
+        if kinds in HOST_WALK_KINDS and self._host_walk_ready(now):
+            sql, bind = host_walk_sql(), (lambda size: [kinds, kinds, kinds, now, per_host, kinds, now, per_host, size])
+        else:
+            sql = 'SELECT id FROM (SELECT id,host,next_check_at,ROW_NUMBER() OVER(PARTITION BY host ORDER BY ' + order + \
+                ') AS rn FROM resources WHERE ' + where + ') AS candidates WHERE rn<=%s ORDER BY ' + order + ',random() LIMIT %s'
+            bind = lambda size: params + [per_host, size]
 
         def still_due(row):
             due_at = row.get('next_check_at')
@@ -122,7 +174,7 @@ class PostgresCollectorMixin:
                     if batch is not None and len(batch) > 2 and batch[2] and now - batch[0] <= CHECK_BATCH_SECONDS:
                         break   # complete ranking already handed out (see due_for_capability)
                     size = max(limit, CHECK_BATCH)
-                    ids = [row['id'] for row in self._collector_rows(sql, params + [per_host, size])]
+                    ids = [row['id'] for row in self._collector_rows(sql, bind(size))]
                     batch, fresh = (now, ids, len(ids) < size), True
                     batches[key] = batch
                     if not batch[1]:

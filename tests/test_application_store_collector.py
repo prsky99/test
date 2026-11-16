@@ -134,3 +134,31 @@ def test_host_kind_shares_binds_its_threshold_and_reads_two_groupings():
     import pytest
     with pytest.raises(ApplicationStoreError):
         collector.host_kind_shares(0)
+
+
+class WalkCollector(PostgresCollectorMixin):
+    """Records which ranking due_for_check asks for, with or without the host-walk index."""
+    def __init__(self, ready):
+        self.ready, self.sql, self.checks = ready, [], 0
+
+    def _collector_rows(self, sql, params=()):
+        if 'to_regclass' in sql:
+            self.checks += 1
+            return [{'ready': self.ready}]
+        self.sql.append(sql)
+        return []
+
+
+def test_a2a_walks_hosts_only_while_its_index_exists():
+    """11-17: a2a's due ranking walks hosts through resources_health_due_host (481 ms -> 35-50 ms on a full copy);
+    without that index the walk would scan the table once per host, so the window ranking stays."""
+    with_index, without = WalkCollector(True), WalkCollector(False)
+    for collector in (with_index, without):
+        collector.due_for_check(100, 10, per_host=10, kind='a2a')
+        collector.due_for_check(100, 10, per_host=10, kind='mcp')
+    assert with_index.sql[0].startswith('WITH RECURSIVE hosts') and 'ROW_NUMBER()' in with_index.sql[1]
+    assert all('ROW_NUMBER()' in sql for sql in without.sql)
+    later = WalkCollector(False)
+    later.due_for_check(100, 10, per_host=10, kind='a2a')
+    later.due_for_check(200, 10, per_host=10, kind='a2a')   # within the recheck time: the answer is kept
+    assert later.checks == 1

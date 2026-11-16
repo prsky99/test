@@ -74,6 +74,31 @@ def _contracts(connect):
         ordered = [row['id'] for row in native.due_for_check(now, 100)]
         require(ordered == [row['id'] for row in sqlite.due_for_check(now, 100)], 'oldest schedule ordering')
         checks['oldest_due_order_with_distinct_timestamps'] = True
+        # 11-17: a2a's per-host ranking walks hosts (HOST_WALK_KINDS); same picks as SQLite's window ranking, with two
+        # hosts of four due rows each, one row not yet due and one retired (neither may be picked).
+        walk = []
+        for index in range(10):
+            record = {'key': 'collector:walk:' + str(index), 'source': 'synthetic-collector', 'kind': 'a2a',
+                'url': 'https://walk-' + str(index % 2) + '.example/a2a/' + str(index), 'name': 'Walk ' + str(index),
+                'description': 'Public research source', 'category': 'research', 'networks': [], 'details': {}, 'price_usdc': 0}
+            current_ids = [store.upsert_resource(record, now=200 + index) for store in stores]
+            require(current_ids[0] == current_ids[1], 'walk identity parity')
+            walk.append(current_ids[0])
+            due_at = now + 600 if index == 8 else now - 50 - index
+            for store in stores:
+                set_state(store, walk[-1], health_status='retired' if index == 9 else 'healthy', next_check_at=due_at)
+        require(native._host_walk_ready(now) is False, 'host walk waits for its index')
+        with native.tx() as db:
+            index_sql = (Path(__file__).resolve().parents[1] / 'deploy/db/resources-health-due-host-20261113.sql').read_text()
+            native._execute(index_sql[index_sql.index('CREATE INDEX'):].replace(' CONCURRENTLY', '').rstrip().rstrip(';'))
+        native.__dict__.pop('_host_walk_index', None)
+        native.__dict__.pop('_cap_batches', None)
+        require(native._host_walk_ready(now) is True, 'host walk sees its index')
+        picked = selected('due_for_check', now, 100, per_host=2, kind='a2a')
+        require(picked[0] == picked[1], 'a2a host walk parity')
+        # oldest two per host: walk-0 has 6, 4 (then 2, 0; 8 not due), walk-1 has 7, 5 (then 3, 1; 9 retired)
+        require(set(walk[4:8]) <= picked[0] and not (set(walk[:4]) | {walk[8], walk[9]}) & picked[0], 'a2a host walk picks')
+        checks['a2a_host_walk_matches_window_ranking'] = True
         checks['score_percentile_and_empty_statistics_parity'] = all(
             native.score_percentile(value) == sqlite.score_percentile(value) for value in (0, 12, 99))
         for store in stores:
