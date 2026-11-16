@@ -55,6 +55,20 @@ def service_for(store, courier=None):
     return Service(front, config)
 
 
+NATIVE_PREFIX = 'native-'
+
+
+def native_principal(service, identity):
+    """The principal of a run our own server dispatches (Origin gateway, workflows): one per attempt, marked.
+
+    11-17 (운영·SRE, PM 08:2x): the north star counted three such runs on 11-16 as outside callers (all three were
+    real_task_score requests that the Worker handed to the Origin gateway after a provider handshake failed, and that
+    the Origin gateway ran again through the edge). The prefix lets counts that read edge_gateway_runs keep them apart
+    without the key; the HMAC part still keeps one principal per attempt for idempotency."""
+    return NATIVE_PREFIX + hmac.new(derived(service.config.key, 'edge-native-principal-v1'), identity.encode(),
+                                    hashlib.sha256).hexdigest()
+
+
 def execute(store, resource, payload, *, scope=None, courier=None, http=None):
     """Return None only before network dispatch, allowing existing Native IO."""
     from ..owned_data_agents.dispatch import is_owned
@@ -73,7 +87,7 @@ def execute(store, resource, payload, *, scope=None, courier=None, http=None):
         if service is not None and service.available:
             from .state import transaction,rows
             saved_identity=hmac.new(derived(service.config.key,'edge-native-node-v1'),scope.encode(),hashlib.sha256).hexdigest()
-            saved_principal=hmac.new(derived(service.config.key,'edge-native-principal-v1'),saved_identity.encode(),hashlib.sha256).hexdigest()
+            saved_principal=native_principal(service,saved_identity)
             with transaction(store,readonly=True) as db:previous=rows(db,'idempotency',(saved_principal,digest(saved_identity)))
             if previous and previous[0]['state']!='prepared':raise EdgeError('ALREADY_CLAIMED',409)
         if (service is None or not service.available or service.config.canary_principal
@@ -93,8 +107,7 @@ def execute(store, resource, payload, *, scope=None, courier=None, http=None):
             return None
         identity = hmac.new(derived(service.config.key, 'edge-native-node-v1'),
                             scope.encode(), hashlib.sha256).hexdigest()
-        principal = hmac.new(derived(service.config.key, 'edge-native-principal-v1'),
-                             identity.encode(), hashlib.sha256).hexdigest()
+        principal = native_principal(service, identity)
         grant = service.prepare(principal, service.config.origin, {
             'resource_id': resource['id'], 'input': payload, 'idempotency_key': identity,
             'run_authority': True, 'sharing_authority': True})

@@ -145,7 +145,8 @@ def edge_runs(day, dsn_file=DSN, principals_file=INTERNAL_PRINCIPALS, connect=No
                                   'created < %s', (start, start + 86400)).fetchall()
     out = {'external': {'pairs': set(), 'attempts': 0, 'ok': 0}, 'internal': {'pairs': set(), 'attempts': 0, 'ok': 0}}
     for principal, rid, state in rows:
-        block = out['internal' if principal in ours else 'external']
+        # 'native-' principals are runs our own server dispatched (edge_gateway.native, 11-17): never a caller
+        block = out['internal' if principal in ours or str(principal).startswith('native-') else 'external']
         block['attempts'] += 1
         if state == 'succeeded':
             block['ok'] += 1

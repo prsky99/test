@@ -85,7 +85,8 @@ def test_edge_runs_of_our_own_principals_are_kept_apart(tmp_path):
     ours = tmp_path / 'principals.txt'
     ours.write_text('# ours\n' + 'a' * 64 + '\n')
     rows = [('a' * 64, 1, 'succeeded'), ('a' * 64, 2, 'succeeded'), ('b' * 64, 1, 'succeeded'),
-            ('b' * 64, 1, 'succeeded'), ('b' * 64, 3, 'failed')]
+            ('b' * 64, 1, 'succeeded'), ('b' * 64, 3, 'failed'),
+            ('native-' + 'c' * 64, 4, 'outcome_unknown'), ('native-' + 'd' * 64, 4, 'succeeded')]   # ours (11-17)
 
     class Connection:
         def __enter__(self): return self
@@ -94,7 +95,7 @@ def test_edge_runs_of_our_own_principals_are_kept_apart(tmp_path):
             assert 'edge_gateway_runs' in sql and params[1] - params[0] == 86400
             return types.SimpleNamespace(fetchall=lambda: rows)
     edge = north_star.edge_runs('2026-11-16', principals_file=ours, connect=Connection)
-    assert edge['internal'] == {'pairs': 2, 'attempts': 2, 'ok': 2}
+    assert edge['internal'] == {'pairs': 3, 'attempts': 4, 'ok': 3}
     assert edge['external'] == {'pairs': 1, 'attempts': 3, 'ok': 2}
 
 

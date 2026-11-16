@@ -146,3 +146,17 @@ def test_first_party_binding_never_creates_an_edge_ticket_or_dispatch(edge,monke
     with dispatch_scope(lambda:pytest.fail('No Edge packet for a first-party handler.')):
         assert native.execute(edge.store,resource,{'tool':'search_research_papers','arguments':{'query':'public research','limit':2}},scope='owned-node') is None
     assert not edge.calls
+
+
+def test_native_runs_carry_a_marked_principal_so_counts_keep_them_apart(edge):
+    # 11-17 (PM 08:2x): runs our own server dispatched were counted as outside callers in the north star (11-16, 3).
+    from agent_market.edge_gateway.state import transaction, rows
+    seen=[]
+    with transport(edge,seen) as client,dispatch_scope(lambda:None):
+        assert call(edge,client)['ok'] and call(edge,client,scope='node-2')['ok']
+    principals=[]
+    for req in seen:
+        with transaction(edge.store,readonly=True) as db:
+            principals.append(rows(db,'run',(req.url.path.split('/')[5],))[0]['principal'])
+    assert all(p.startswith(native.NATIVE_PREFIX) and len(p)==len(native.NATIVE_PREFIX)+64 for p in principals)
+    assert len(set(principals))==2   # still one principal per attempt (idempotency)
