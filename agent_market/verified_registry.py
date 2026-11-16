@@ -181,6 +181,19 @@ def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozen
                             fingerprint_as_of=fp.get("as_of"))
         if fp.get("unchanged_since"):
             verification["tools_unchanged_since"] = fp["unchanged_since"]
+    # PM 11-16: the fingerprint seen by the trial call itself (trial_info.server_fp, stored by the collector from
+    # 11-20) against the latest one. Different -> the tools changed after our call: 'recheck_pending' until a new
+    # trial. A trial without the field (older trials, A2A, failed tools/list) cannot be compared and says so.
+    trial_fp = trial.get("server_fp") if isinstance(trial.get("server_fp"), str) else None
+    if trial_fp:
+        verification["trial_fingerprint"] = "sha256:" + trial_fp
+    if trial_fp and fp.get("server_fp") and (trial.get("fp_version") or "fingerprint-v1") == (fp.get("version") or "fingerprint-v1"):
+        same = trial_fp == fp["server_fp"]
+        verification["fingerprint_match"] = "match" if same else "mismatch"
+        verification["verification_state"] = "verified" if same else "recheck_pending"
+    else:
+        verification["fingerprint_match"] = "not_comparable"
+        verification["verification_state"] = "verified"
     return {"server": server, "_meta": {META_KEY: verification}, "_id": row["id"]}
 
 

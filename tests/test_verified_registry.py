@@ -437,3 +437,23 @@ def test_a_fingerprint_change_alone_moves_updated_at_and_a_plain_rebuild_does_no
     changed = R.build_snapshot(rows, NOW + 1200, again, {1: {"server_fp": "bb", "version": "v1", "as_of": "x"}})
     assert changed["servers"][0]["_meta"][R.META_KEY]["updated_at"] == R._iso(NOW + 1200)
     assert R.content_hash(again["servers"][0]) != R.content_hash(changed["servers"][0])
+
+
+def test_trial_fingerprint_against_the_latest_one():
+    """PM 11-16: the fingerprint at trial time vs the latest; a change after our call means recheck_pending."""
+    def with_fp(server_fp):
+        r = row(1, "io.github.example/weather")
+        trial = json.loads(r["trial_info"])
+        if server_fp:
+            trial.update(server_fp=server_fp, fp_version="fingerprint-v1")
+        return {**r, "trial_info": json.dumps(trial)}
+    latest = {1: {"server_fp": "aa", "version": "fingerprint-v1", "as_of": "x"}}
+    meta = R.entry(with_fp("aa"), NOW, latest)["_meta"][R.META_KEY]
+    assert meta["fingerprint_match"] == "match" and meta["verification_state"] == "verified"
+    assert meta["trial_fingerprint"] == "sha256:aa"
+    meta = R.entry(with_fp("bb"), NOW, latest)["_meta"][R.META_KEY]
+    assert meta["fingerprint_match"] == "mismatch" and meta["verification_state"] == "recheck_pending"
+    meta = R.entry(with_fp(None), NOW, latest)["_meta"][R.META_KEY]       # older trials: no field, nothing made up
+    assert meta["fingerprint_match"] == "not_comparable" and "trial_fingerprint" not in meta
+    meta = R.entry(with_fp("aa"), NOW, {})["_meta"][R.META_KEY]            # no latest fingerprint
+    assert meta["fingerprint_match"] == "not_comparable"
