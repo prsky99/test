@@ -60,8 +60,12 @@ def rank_rule():
             f'#2-#3 are external fallbacks')
 CONFIRM_DAYS = 2            # PM 11-14: a final pearl needs successes on two different days; before that it is provisional
 DAY = 86400
-ROLE_DAILY_LIMIT = 120      # PM 11-14 (charter 0): 80 new candidates + 40 retests a day; 60 when refusals pass 5%
+ROLE_DAILY_LIMIT = 120      # PM 11-14 (charter 0): 80 new candidates + 40 retests a window; 60 when refusals pass 5%
 NEW_A_DAY, RETEST_A_DAY, FALLBACK_LIMIT = 80, 40, 60
+# PM 11-16 17:5x: three windows a day (09:12, 15:12 or 18:12, 20:12), each up to the limits above, 360 a day in all.
+# The limits are per window; the day's totals are the window limits times WINDOWS_A_DAY.
+WINDOWS_A_DAY = 3
+WINDOW_STARTS = (15, 20)    # hour a window number goes up: before 15 is window 1, 15-19 window 2, 20 on window 3
 # Our role names -> the workflow team's role task contracts (agent_market/necklaces/role_tasks, v1 11-14).
 CASE_ROLE = {'papers.search': 'papers.search.v1', 'encyclopedia.summary': 'encyclopedia.summary.v1',
              'news.search': 'news.search.v1', 'package.advisories': 'package.advisories.v1',
@@ -1296,19 +1300,21 @@ def failure_due(v, now):
     return now - float(v.get('tested') or 0) >= wait * DAY - 3600       # an hour's slack for the daily start time
 
 
+NEAR_MARK = 70                   # PM 11-16 17:5x: the near group (70-84) is retested right after the second days
 CONFIRMED_RETEST_DAYS = (0, 3)   # R18: a confirmed pearl is tested again twice a week, by its own weekday offset
 
 
-def retest_queue(versions, day=None, limit=RETEST_A_DAY, now=None):
+def retest_queue(versions, day=None, limit=RETEST_A_DAY, now=None, skip=frozenset()):
     """Today's retests, most useful first (R18, precision review 11-15: 40 a day capped confirmations at about 40):
     1. any member at 85+ with one success day, whatever its rank (the second day confirms it), best score first;
-    2. ranks 1-2 every day and 3-5 every other day, while not confirmed;
-    3. confirmed members twice a week;
-    4. failed members whose backoff has passed (R08)."""
+    2. PM 11-16 17:5x: members at 70-84 that are not confirmed, best score first (one more good day can lift them);
+    3. ranks 1-2 every day and 3-5 every other day, while not confirmed;
+    4. confirmed members twice a week;
+    5. failed members whose backoff has passed (R08)."""
     import zlib
     day = int(time.strftime('%j')) if day is None else day
     now = time.time() if now is None else now
-    second, ranked, confirmed = [], [], []
+    second, near, ranked, confirmed = [], [], [], []
     for role, entry in sorted(rank(versions).items()):
         for m in entry['members']:
             if not m['rank']:
@@ -1321,13 +1327,16 @@ def retest_queue(versions, day=None, limit=RETEST_A_DAY, now=None):
                     confirmed.append(c)
             elif days == CONFIRM_DAYS - 1 and (m.get('best_recent_score') or m.get('score') or 0) >= PASS_MARK:
                 second.append((-(m.get('best_recent_score') or m.get('score') or 0), m['rank'], c))
+            elif NEAR_MARK <= (m.get('best_recent_score') or m.get('score') or 0) < PASS_MARK:
+                near.append((-(m.get('best_recent_score') or m.get('score') or 0), m['rank'], c))
             elif m['rank'] <= 2 or (m['rank'] <= 5 and _parity(m['resource_id'], day) == 0):
                 ranked.append(c)
-    out = [c for _, _, c in sorted(second, key=lambda t: (t[0], t[1]))] + sorted(ranked, key=lambda c: c['rank']) + \
+    out = [c for _, _, c in sorted(second, key=lambda t: (t[0], t[1]))] + \
+        [c for _, _, c in sorted(near, key=lambda t: (t[0], t[1]))] + sorted(ranked, key=lambda c: c['rank']) + \
         sorted(confirmed, key=lambda c: c['rank'])
     failed = [{'role': v['role'], 'id': v['resource_id'], 'tool': v['tool'], 'kind': 'retest', 'rank': None, 'after_failure': True}
               for v in sorted(versions, key=lambda v: float(v.get('tested') or 0)) if failure_due(v, now)]
-    return (out + failed)[:limit]
+    return [c for c in out + failed if (c['id'], canonical(c['role'])) not in skip][:limit]
 
 
 def catalog_candidates():
@@ -1374,6 +1383,27 @@ PRIORITY_ROLES = ('sec.filings.v1', 'cve.exploited.v1', 'package.health.v1', 'we
 PRIORITY_PICKS = 4
 # PM 11-15 16:42: what visitors ask most has a weak #1 (weather 59.9, FX 53.3) and many untested candidates (17, 36)
 PRIORITY_EXTRA = {'weather.forecast.v1': 8, 'fx.rate.v1': 8}
+# PM 11-16 17:5x (replaces the 06:5x order for today only): new candidates go first to the roles with no tested
+# member at all, then the roles of the four new necklaces the workflow team is designing (library usage, MCP server
+# trust, listed company snapshot, news brief), then every other role with no final pearl in PRIORITY_ROLES order.
+# Roles that already have a final pearl follow in the general order (fewest successes first).
+NECKLACE_NEW_ROLES = ('package.releases.v1', 'github.releases.v1', 'github.repo.v1',       # library usage
+                      'mcp.registry.lookup.v1', 'tls.certificate.v1',                       # MCP server trust
+                      'company.profile.v1', 'sec.filings.v1', 'stock.quote.v1',             # company snapshot
+                      'news.search.v1', 'encyclopedia.summary.v1')                          # news brief
+
+
+def queue_priority(versions, ranked=None, roles=None):
+    """The role order for today's new candidates (PM 11-16 17:5x)."""
+    ranked = rank(versions) if ranked is None else ranked
+    roles = list(role_catalog.ROLES) if roles is None else list(roles)
+    tested = {canonical(v['role']) for v in versions if not is_own_fallback(v['resource_id'])}
+    pearl = {canonical(role) for role, entry in ranked.items() if entry.get('final_pearl')}
+    out = [r for r in roles if r not in tested]
+    out += [r for r in NECKLACE_NEW_ROLES if r not in pearl]
+    out += [r for r in PRIORITY_ROLES if r not in pearl]
+    out += [r for r in roles if r not in pearl]
+    return tuple(dict.fromkeys(out))
 
 
 TERMS_FILE = ROOT / 'agent_market/necklaces/member_terms.json'
@@ -1436,24 +1466,44 @@ def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115
     except (OSError, ValueError):
         seeds = []
     terms = member_terms()
-    retests = [x for x in retest_queue(versions) if terms.get(x['id']) != 'prohibits']   # never call a member whose terms forbid it
-    rejudge = rejudge_queue(versions, {(x['id'], canonical(x['role'])) for x in retests}, terms)
-    return retests + rejudge + new_queue(versions, catalog_candidates(), seeds, limit=NEW_A_DAY - len(rejudge), terms=terms)
+    ranked = rank(versions)
+    # PM 11-16 17:5x: a member tested today is not tested again in a later window (a second success the same day
+    # does not count as a second day).
+    today = tested_today(versions)
+    prohibited = {(v['resource_id'], canonical(v['role'])) for v in versions if terms.get(v['resource_id']) == 'prohibits'}
+    retests = [x for x in retest_queue(versions, skip=today | prohibited)   # never call a member whose terms forbid it
+               if terms.get(x['id']) != 'prohibits']
+    ranks = {(m['resource_id'], canonical(role)): m['rank'] for role, entry in ranked.items() for m in entry['members']}
+    rejudge = rejudge_queue(versions, {(x['id'], canonical(x['role'])) for x in retests} | today, terms, ranks=ranks)
+    return retests + rejudge + new_queue(versions, catalog_candidates(), seeds, limit=NEW_A_DAY - len(rejudge), terms=terms,
+                                         priority=queue_priority(versions, ranked))
+
+
+def tested_today(versions, now=None):
+    """(id, role) of every member whose latest version was tested today (local date)."""
+    day = time.strftime('%Y-%m-%d', time.localtime(now))
+    return {(v['resource_id'], canonical(v['role'])) for v in versions
+            if v.get('tested') and time.strftime('%Y-%m-%d', time.localtime(float(v['tested']))) == day}
 
 
 REJUDGE_A_DAY = 30   # PM 11-15 16:50: of the 80 new a day, until every succeeded version is judged by today's rules
 
 
-def rejudge_queue(versions, already=(), terms=None, limit=REJUDGE_A_DAY, priority=PRIORITY_ROLES):
+def rejudge_queue(versions, already=(), terms=None, limit=REJUDGE_A_DAY, priority=PRIORITY_ROLES, ranks=None):
     """Succeeded outside versions still judged by an older evaluator and not retested today anyway (98 of 98 on 11-15:
     no whole answer was kept before 09:58, so rescoring cannot judge them again). Demand order, best score first.
-    They take part of the new-test budget (kind 'rejudge'), so the daily total stays within 120."""
+    They take part of the new-test budget (kind 'rejudge'), so a window's total stays within 120.
+    PM 11-16 17:5x: versions that scored 85+ or ranked 1-3 come first (they can become pearls soonest)."""
+    ranks = ranks or {}
     terms = member_terms() if terms is None else terms
     order = {role: i for i, role in enumerate(priority)}
     old = [v for v in versions if not is_own_fallback(v['resource_id']) and v.get('outcome') == 'succeeded'
            and v.get('evaluator_version') != EVALUATOR_VERSION and (v['resource_id'], canonical(v['role'])) not in set(already)
            and terms.get(v['resource_id']) != 'prohibits']
-    old.sort(key=lambda v: (order.get(canonical(v['role']), len(order)), -(v.get('quality') or {}).get('score', 0)))
+    def first(v):
+        rank_now = ranks.get((v['resource_id'], canonical(v['role'])))
+        return 0 if (v.get('quality') or {}).get('score', 0) >= PASS_MARK or (rank_now and rank_now <= 3) else 1
+    old.sort(key=lambda v: (first(v), order.get(canonical(v['role']), len(order)), -(v.get('quality') or {}).get('score', 0)))
     return [{'role': canonical(v['role']), 'id': v['resource_id'], 'tool': v['tool'], 'kind': 'rejudge'} for v in old[:limit]]
 
 
@@ -1465,8 +1515,15 @@ def current_evaluator_share(versions):
     return {'evaluator_version': EVALUATOR_VERSION, 'current': current, 'of': len(outside)}
 
 
+def window_number(now=None):
+    """1, 2 or 3: today's test window by the local hour (PM 11-16 17:5x)."""
+    hour = time.localtime(now).tm_hour
+    return 1 + sum(hour >= h for h in WINDOW_STARTS)
+
+
 def run(queue):
-    """Role tests for QUEUE within today's limits: 80 new + 40 retests, 120 in all, 60 after refusals pass 5%.
+    """Role tests for QUEUE within this window's limits: 80 new + 40 retests, 120 in all, 60 after refusals pass 5%;
+    at most three windows a day.
     Returns today's own errors: tests our code could not run and results it could not store (R15)."""
     import httpx
     import pearl_batch as PB
@@ -1474,16 +1531,22 @@ def run(queue):
     pacer = PB.Pacer(state_dir=PB.STATE_DIR, system='role_tests')
     for key in ('role_tests', 'refusals', 'new_tests', 'retests'):
         pacer.state.setdefault(key, 0)
+    # PM 11-16 17:5x: each window has its own 80 + 40 (120); the day's totals are three windows. The counts at the
+    # window's first start are kept, so a second start in the same window does not get another 120.
+    window = str(window_number())
+    start = pacer.state.setdefault('windows', {}).setdefault(window, {k: pacer.state[k] for k in ('role_tests', 'new_tests', 'retests')})
+    pacer.save()
     found = resources({c['id'] for c in queue})
     errors = {'our_errors': 0, 'save_errors': 0}
     with httpx.Client(follow_redirects=False) as http:
         for candidate in queue:
             tests = pacer.state['role_tests']
             limit = FALLBACK_LIMIT if tests >= 20 and pacer.state['refusals'] * 100 > 5 * tests else ROLE_DAILY_LIMIT
-            if tests >= limit:
+            if tests - start['role_tests'] >= limit or tests >= ROLE_DAILY_LIMIT * WINDOWS_A_DAY:
                 break
             kind = 'retests' if candidate.get('kind') == 'retest' else 'new_tests'
-            if pacer.state[kind] >= (RETEST_A_DAY if kind == 'retests' else NEW_A_DAY):
+            cap = RETEST_A_DAY if kind == 'retests' else NEW_A_DAY
+            if pacer.state[kind] - start[kind] >= cap or pacer.state[kind] >= cap * WINDOWS_A_DAY:
                 continue
             while not quiet_now():
                 time.sleep(30)

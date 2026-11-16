@@ -87,7 +87,7 @@ def test_web_grounding_seeds_follow_the_pm_decision():
 
 def test_build_queue_never_retests_a_member_whose_terms_prohibit(monkeypatch):
     monkeypatch.setattr(V, 'latest_versions', lambda: [])
-    monkeypatch.setattr(V, 'retest_queue', lambda versions: [{'role': 'web.grounding.v1', 'id': 50972, 'kind': 'retest'},
+    monkeypatch.setattr(V, 'retest_queue', lambda versions, skip=(): [{'role': 'web.grounding.v1', 'id': 50972, 'kind': 'retest'},
                                                               {'role': 'web.grounding.v1', 'id': 7, 'kind': 'retest'}])
     monkeypatch.setattr(V, 'catalog_candidates', lambda: [])
     monkeypatch.setattr(V, 'member_terms', lambda: {50972: 'prohibits'})
@@ -168,12 +168,14 @@ def test_old_verdicts_are_rejudged_from_the_new_budget_in_demand_order(monkeypat
                 v(4, 'weather.forecast.v1', 70), v(5, 'papers.search.v1', 99, ev=V.EVALUATOR_VERSION),
                 v(6, 'papers.search.v1', 50, outcome='failed'), v('avc:x', 'papers.search.v1', 90), v(7, 'news.search.v1', 70)]
     out = V.rejudge_queue(versions, already={(7, 'news.search.v1')}, terms={1: 'allowed'})
-    assert [x['id'] for x in out] == [3, 2, 4, 1] and {x['kind'] for x in out} == {'rejudge'}
+    # PM 11-16 17:5x: 85+ (or rank 1-3) first, so holiday 90 leads; then demand order
+    assert [x['id'] for x in out] == [1, 3, 2, 4] and {x['kind'] for x in out} == {'rejudge'}
     assert len(V.rejudge_queue(versions, terms={}, limit=2)) == 2
     share = V.current_evaluator_share(versions)
     assert share == {'evaluator_version': V.EVALUATOR_VERSION, 'current': 1, 'of': 7}
     monkeypatch.setattr(V, 'latest_versions', lambda: versions)
-    monkeypatch.setattr(V, 'retest_queue', lambda vs: [])
+    monkeypatch.setattr(V, 'retest_queue', lambda vs, skip=(): [])
+    monkeypatch.setattr(V, 'rank', lambda vs: {})          # these short records carry no ranking fields
     monkeypatch.setattr(V, 'catalog_candidates', lambda: [('news.search.v1', 100 + n, 't', f'n{n}.example') for n in range(90)])
     monkeypatch.setattr(V, 'member_terms', lambda: {})
     q = V.build_queue(seed_file='/nonexistent.json')

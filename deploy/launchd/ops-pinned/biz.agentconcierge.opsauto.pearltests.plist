@@ -17,12 +17,26 @@
 	<key>StandardOutPath</key>
 	<string>/Users/kingstonelee/workspace/A2A_Discovery/logs/ops/biz.agentconcierge.opsauto.pearltests.log</string>
 	<key>StartCalendarInterval</key>
-	<dict>
-		<key>Hour</key>
-		<integer>9</integer>
-		<key>Minute</key>
-		<integer>12</integer>
-	</dict>
+	<array>
+		<dict>
+			<key>Hour</key>
+			<integer>9</integer>
+			<key>Minute</key>
+			<integer>12</integer>
+		</dict>
+		<dict>
+			<key>Hour</key>
+			<integer>15</integer>
+			<key>Minute</key>
+			<integer>12</integer>
+		</dict>
+		<dict>
+			<key>Hour</key>
+			<integer>20</integer>
+			<key>Minute</key>
+			<integer>12</integer>
+		</dict>
+	</array>
 	<key>WorkingDirectory</key>
 	<string>/Users/kingstonelee/workspace/A2A_Discovery/gateway-data/ops-code/current</string>
 </dict>
