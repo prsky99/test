@@ -8,7 +8,7 @@ nobody - storage_inventory failed from 11-08 and test_explore_retest_fixes from 
 11-15. The rule "full pytest once a night" had no job behind it.
 
 What it does
-- runs `pytest -q` over tests/ in the working tree at nice 10 with .venv-tests and the production pointers cleared
+- runs `pytest -q` over tests/ in the working tree at nice 15 with .venv-tests and the production pointers cleared
   (scripts/pytest_env.clean_environment), writing JUnit XML; the whole run is one heavy_slot job (night slots)
 - keeps, for every failing test id, the day it was first seen (logs/ops/night-tests-state.json) and appends one line
   per run to logs/ops/night-tests.jsonl (counts, failing ids, seconds, dirty files in the working tree)
@@ -122,6 +122,17 @@ def report(record: dict, state: dict, git=None, handoff=None, close=None) -> dic
     return {'teams': sorted(by_team), 'stale': stale}
 
 
+def no_result(line: dict, handoff=None) -> None:
+    """11-16 PM source review: a run that timed out (50 minutes) or ended without a result was only a line in
+    night-tests.jsonl, so nobody heard that the night had no full run. It goes to the board for 운영·SRE."""
+    sys.path.insert(0, str(ROOT / 'scripts'))
+    import ops_auto
+    handoff = handoff or ops_auto.board_handoff
+    ops_auto.TEAM['night_tests_run'] = '운영·SRE'
+    why = '50분 시간 초과' if line.get('error') == 'timeout' else f"결과 파일 없음({line.get('error') or '이유 없음'})"
+    handoff('night_tests_run', f"밤 전체 시험 {line['day']}: {why}, {line['seconds']}초 — 그날 밤 전체 시험 결과가 없습니다")
+
+
 def run(now=None) -> int:
     from scripts.pytest_env import clean_environment
     now = now or time.time()
@@ -130,7 +141,7 @@ def run(now=None) -> int:
     xml = OUT / f'{day}.xml'
     dirty = len(subprocess.run(['git', 'status', '--porcelain'], cwd=ROOT, capture_output=True, text=True).stdout.splitlines())
     head = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    cmd = ['nice', '-n', '10', str(ROOT / '.venv-tests/bin/python'), '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
+    cmd = ['nice', '-n', '15', str(ROOT / '.venv-tests/bin/python'), '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
            f'--junitxml={xml}', 'tests']
     started = time.time()
     before = machine()
@@ -145,6 +156,7 @@ def run(now=None) -> int:
         line = {'at': time.strftime('%Y-%m-%d %H:%M'), 'day': day, 'ok': False, 'error': tail[0][:200], 'seconds': seconds}
         with LOG.open('a') as out:
             out.write(json.dumps(line, ensure_ascii=False) + '\n')
+        no_result(line)
         return 1
     total, failing = failures(xml)
     state = json.loads(STATE.read_text()) if STATE.is_file() else {}
@@ -154,6 +166,9 @@ def run(now=None) -> int:
               'tests': total, 'failed': len(failing), 'failing': failing, 'seconds': seconds, 'summary': tail[0][:200],
               'teams_before': teams_before, 'machine_before': before, 'machine_after': after}
     result = report(record, state)
+    sys.path.insert(0, str(ROOT / 'scripts'))
+    import ops_auto
+    ops_auto.board_close('night_tests_run', f"해결(밤 시험 {day} 결과 있음)")
     state['teams'] = result['teams']
     STATE.write_text(json.dumps(state, ensure_ascii=False, indent=1))
     with LOG.open('a') as out:

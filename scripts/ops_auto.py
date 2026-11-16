@@ -1043,14 +1043,22 @@ def night_tests(clock=time.time, launch=None):
         log = open(ROOT / 'logs/ops/night-tests.out', 'a')
         proc = subprocess.Popen(cmd, cwd=ROOT, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         try:
-            refused = proc.wait(timeout=8) == 75      # heavy_slot said no (load, a full slot, a reserved window)
+            code = proc.wait(timeout=8)
         except subprocess.TimeoutExpired:
-            refused = False                           # it is running
+            code = None                               # it is running
     else:
-        refused = launch(cmd) == 75
-    if refused:
-        append(ACTIONS, f'{now()} 밤 전체 시험 미룸(heavy_slot 거부, 다음 회차에 다시)')
+        code = launch(cmd)
+    # 11-16 PM source review: only 75 counted as a refusal and any other early exit (77 night only, a crash, a bad
+    # argument) was recorded as started, so the night had no full run and nobody heard. 75 and 77 are refusals (retry
+    # next round); any other exit within the first seconds is a failure that goes to the board and is retried too.
+    if code in (75, 77):
+        append(ACTIONS, f'{now()} 밤 전체 시험 미룸(heavy_slot 거부 종료 {code}, 다음 회차에 다시)')
         return 'refused'
+    if code is not None and code != 0:
+        append(ACTIONS, f'{now()} 밤 전체 시험 시작 실패(종료 {code}, 다음 회차에 다시)')
+        TEAM['night_tests_run'] = '운영·SRE'
+        board_handoff('night_tests_run', f'밤 전체 시험이 시작하자마자 종료 {code}로 끝남(logs/ops/night-tests.out) — 원인을 보고 다시 돌려 주세요')
+        return 'failed'
     NIGHT_TESTS_STATE.write_text(json.dumps({'day': day, 'at': now()}))
     append(ACTIONS, f'{now()} 밤 전체 시험 시작(heavy_slot)')
     return 'started'

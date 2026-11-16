@@ -61,3 +61,24 @@ def test_an_evening_run_may_take_an_hour_but_the_day_stays_30_minutes():
     from scripts import heavy_slot
     assert heavy_slot.night_only('night full pytest', [], 50, datetime(2026, 11, 15, 22, 40)) is None
     assert '30 minutes' in heavy_slot.night_only('night full pytest', [], 50, datetime(2026, 11, 15, 15, 0))
+
+
+def test_the_watch_tells_a_refusal_from_a_failure(tmp_path, monkeypatch):
+    """11-16 PM source review: only 75 was a refusal, and a crash in the first seconds was recorded as started."""
+    monkeypatch.setattr(ops_auto, 'NIGHT_TESTS_STATE', tmp_path / 's.json')
+    monkeypatch.setattr(ops_auto, 'ACTIONS', tmp_path / 'a.md')
+    monkeypatch.setattr(ops_auto, 'TEAM', dict(ops_auto.TEAM))
+    lines = []
+    monkeypatch.setattr(ops_auto, 'board_handoff', lambda kind, text: lines.append((kind, text)))
+    at = lambda h, m: (lambda: datetime(2026, 11, 16, h, m).timestamp())   # noqa: E731
+    assert ops_auto.night_tests(clock=at(22, 40), launch=lambda cmd: 77) == 'refused' and not lines
+    assert ops_auto.night_tests(clock=at(22, 41), launch=lambda cmd: 1) == 'failed'
+    assert lines and lines[0][0] == 'night_tests_run' and '종료 1' in lines[0][1]
+    assert not (tmp_path / 's.json').exists()                                  # the next round tries again
+    assert ops_auto.night_tests(clock=at(22, 42), launch=lambda cmd: None) == 'started'
+
+
+def test_a_run_without_a_result_goes_to_the_board():
+    lines = []
+    nt.no_result({'day': '2026-11-16', 'error': 'timeout', 'seconds': 3000}, handoff=lambda k, t: lines.append((k, t)))
+    assert lines == [('night_tests_run', '밤 전체 시험 2026-11-16: 50분 시간 초과, 3000초 — 그날 밤 전체 시험 결과가 없습니다')]
