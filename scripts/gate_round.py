@@ -102,6 +102,9 @@ def rerun_window(first_end: float | None, now: float) -> str | None:
         return f"too early: {int((RERUN_AFTER_S - (now - first_end)) // 60) + 1} min to wait"
     if now - first_end > RERUN_WITHIN_S:
         return "too late: more than 60 min after the first measurement (the round stays as it is)"
+    minute = int(time.strftime("%M", time.localtime(now)))
+    if minute >= 55 or minute < 10:          # ops 11-16: the hourly public measurement (:55-:10) is left alone
+        return "too early: the hourly measurement window (:55-:10) is on"
     return None
 
 

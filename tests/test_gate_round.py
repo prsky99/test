@@ -41,10 +41,13 @@ def test_the_three_results_and_the_fixed_denominator():
 
 
 def test_the_rerun_window():
-    end = G._ts(AT)
+    end = G._ts(AT)                                          # 06:20
     assert G.rerun_window(end, end + 5 * 60).startswith("too early")
-    assert G.rerun_window(end, end + 10 * 60) is None and G.rerun_window(end, end + 60 * 60) is None
+    assert G.rerun_window(end, end + 10 * 60) is None and G.rerun_window(end, end + 30 * 60) is None
     assert G.rerun_window(end, end + 61 * 60).startswith("too late")
+    # ops 11-16: never in the hourly measurement window :55-:10 (06:55 and 07:05 here), 07:10 is fine again
+    assert "measurement" in G.rerun_window(end, end + 35 * 60) and "measurement" in G.rerun_window(end, end + 45 * 60)
+    assert G.rerun_window(end, end + 50 * 60) is None
 
 
 def test_rerun_measures_only_the_excluded_cases_once(tmp_path, monkeypatch):
