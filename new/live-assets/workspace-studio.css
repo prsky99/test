@@ -21,7 +21,7 @@
 .human-examples button{margin:0!important;font-size:12px;padding:7px 10px!important;min-height:36px;background:transparent!important}
 .human-studio input[type=checkbox]{width:18px!important;height:18px;min-height:18px;flex:none;accent-color:var(--accent,#005762)}
 .human-studio label:has(input[type=checkbox]){display:flex;align-items:flex-start;gap:10px;font-size:13px;line-height:1.6}
-.human-studio .model-actions{display:block;margin-top:18px}
+.human-studio .model-actions{display:block;margin-top:8px}
 .human-studio .model-actions #model{width:100%;justify-content:center;gap:10px;min-height:50px}
 .human-studio #model-availability{font-size:12px;margin:10px 0 0!important;min-height:0}
 .human-start-guide{background:transparent;border:0;padding:14px 0}
