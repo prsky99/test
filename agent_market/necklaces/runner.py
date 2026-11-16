@@ -604,10 +604,19 @@ _TAG = re.compile(r"<[^>]{0,200}>")
 
 
 def name_words(name: str) -> list[str]:
-    """The distinctive words of a company name: lower case, legal forms and words under three letters left out. An
-    apostrophe joins its word (EDGAR "BJS RESTAURANTS INC" is the article "BJ's Restaurants", agent team 11-16)."""
-    words = re.sub(r"[^a-z0-9 ]", " ", re.sub(r"['\u2019]", "", str(name or "").lower()).replace("&", " and ")).split()
-    return [w for w in words if len(w) > 2 and w not in LEGAL_FORMS]
+    """The distinctive words of a company name: lower case, accents folded (NFKD: "Nestlé" -> "nestle"), legal forms
+    and words under three letters left out. An apostrophe joins its word (EDGAR "BJS RESTAURANTS INC" is the article
+    "BJ's Restaurants", agent team 11-16), and so does an ampersand between letters ("AT&T" -> "att", "P&G" -> "pg").
+    A name whose words are all short keeps them ("3M" -> ["3m"], "HP Inc" -> ["hp"]), so it is never empty (PM 11-16)."""
+    import unicodedata
+    text = unicodedata.normalize("NFKD", str(name or "")).encode("ascii", "ignore").decode("ascii").lower()
+    text = re.sub(r"(?<=[a-z0-9])&(?=[a-z0-9])", "", re.sub(r"['\u2019]", "", text)).replace("&", " and ")
+    words = re.sub(r"[^a-z0-9 ]", " ", text).split()
+    long_ = [w for w in words if len(w) > 2 and w not in LEGAL_FORMS]
+    return long_ or [w for w in words if w not in LEGAL_FORMS and w not in SHORT_FILLERS]
+
+
+SHORT_FILLERS = ("and", "of", "the", "de", "la", "a", "an")
 
 
 def search_name(legal_name: str) -> str | None:
