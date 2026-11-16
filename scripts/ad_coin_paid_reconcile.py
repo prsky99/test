@@ -114,6 +114,41 @@ def reconcile(bookings, *, receipts, transfers, impressions, last_blocks, export
     return counts, findings
 
 
+class PacedRPC:
+    """The public Base RPC rate-limits (11-16 09:20: HTTP 429 on the first eth_getLogs after the block search, the day
+    run ended chain_unreadable). Base now makes a block about every 0.2 s, so one UTC day is about 432,000 blocks and
+    87 log reads of LOG_CHUNK. Calls are spaced and a 429 or 5xx waits and tries again before it counts as unreadable."""
+
+    def __init__(self, rpc, spacing=0.35, waits=(2, 5, 10, 20, 30), sleep=None, clock=None):
+        import time as _time
+        self.rpc, self.spacing, self.waits = rpc, spacing, waits
+        self.sleep, self.clock = sleep or _time.sleep, clock or _time.monotonic
+        self.next_at = 0.0
+
+    def call(self, method, *params):
+        from agent_market.chain import RPCError
+        for wait in (*self.waits, None):
+            delay = self.next_at - self.clock()
+            if delay > 0:
+                self.sleep(delay)
+            self.next_at = self.clock() + self.spacing
+            try:
+                return self.rpc.call(method, *params)
+            except RPCError as error:
+                if wait is None or not any(code in str(error) for code in ("HTTP 429", "HTTP 5")):
+                    raise
+                self.sleep(wait)
+
+    def block_number(self):
+        return int(self.call("eth_blockNumber"), 16)
+
+    def chain_id(self):
+        return int(self.call("eth_chainId"), 16)
+
+    def receipt(self, tx_hash):
+        return self.call("eth_getTransactionReceipt", tx_hash)
+
+
 def block_at(rpc, timestamp_s):
     """The first block at or after a UTC timestamp (binary search on block timestamps)."""
     low, high = 0, rpc.block_number()
@@ -148,7 +183,12 @@ def main(argv=None):
     parser.add_argument("--dsn-file", required=True)
     parser.add_argument("--key-file", required=True)
     parser.add_argument("--day", help="UTC day YYYY-MM-DD (default: yesterday)")
-    parser.add_argument("--rpc", default=os.environ.get("AD_COIN_PAID_RPC_URL", "https://mainnet.base.org"))
+    # 11-16: mainnet.base.org answers eth_getLogs with 429 "request limit reached" even for two blocks, so the day's
+    # receipts were never read. PublicNode allows keyless automated production use (publicnode.com/terms, checked
+    # 11-16) and serves 5,000-block log reads; Base's own endpoint stays second for the other calls.
+    parser.add_argument("--rpc", default=os.environ.get("AD_COIN_PAID_RPC_URL",
+                                                        "https://base-rpc.publicnode.com,https://mainnet.base.org"),
+                        help="comma-separated RPC URLs, tried in order")
     args = parser.parse_args(argv)
     day = args.day or (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     day_ms = int(datetime.datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)
@@ -188,7 +228,7 @@ def main(argv=None):
     finally:
         runtime.close()
     export_rows = _export(month_rows, month_plans)
-    rpc = RPC(args.rpc)
+    rpc = PacedRPC(RPC([u.strip() for u in args.rpc.split(",") if u.strip()], max_retries=1))
     findings_extra, receipts, transfers = [], {}, []
     try:
         if rpc.chain_id() != BASE_CHAIN_ID:
