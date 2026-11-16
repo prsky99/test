@@ -17,6 +17,14 @@ AD Coin 문서가 많아 무엇이 지금 기준인지 찾기 어려워서 만�
 
 운영에 등록하지 않은 v2 경로: `ad_relay`, `advertiser_platform`, `agent_payment`(`include_unused_routes=False`).
 
+**켜고 끄는 순서(PM 11-16):**
+- USDC 결제 스위치는 `docs/AD_COIN_USDC_SWITCH_RUNBOOK.md`를 따른다.
+- 자동 심사(`AD_COIN_AUTO_REVIEW_ENABLED`):
+  1. `scripts/agentcon_config.SPONSORED_KEYS`에 키를 더한 코드가 배포된다.
+  2. frontend·admin·jobs·execution 네 역할이 모두 그 키를 아는 버전인지 `./agentcon status`로 확인한다.
+  3. 확인한 **뒤에만** `sponsored.env`에 키를 쓴다. 그 전에 쓰면 그 파일을 읽는 역할의 설정 읽기가 실패한다.
+- 켜는 것은 PM 결정이다. 끄려면 키 줄을 지우거나 0으로 둔다. 데몬은 파일이 바뀌면 다시 읽는다.
+
 ## 1. 지금 기준 (먼저 읽을 것)
 
 | 주제 | 문서 | 요약 |
