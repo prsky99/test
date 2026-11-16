@@ -441,7 +441,11 @@ def capability_terms(task):
     specific = [term for term in specific if term not in LANGUAGE_NAMES] or specific
     # "embed documents", "read a figma design file": the file or document is the input, not the capability,
     # when another word names what is done with it (Chat gate embeddings-en2, figma-ko0, 11-13).
-    specific = [term for term in specific if term not in INPUT_OBJECTS] or specific
+    # PM 11-16 16:1x: "compare two versions of a document" kept compare/two/versions and led with product comparisons,
+    # "summarize a pdf research paper" kept summarization alone and found nothing. When every other word is an action
+    # that needs an object (or names versions of it), the document is the object of the capability and stays.
+    if any(term not in INPUT_OBJECTS and term not in OBJECT_ACTIONS for term in specific):
+        specific = [term for term in specific if term not in INPUT_OBJECTS] or specific
     # A head that only says "details", "data" or "post" names no capability; the object after the boundary does
     # ("look up details for a CVE", "post to a Discord channel"), when the catalog knows the word well enough that
     # it is a product or a domain rather than a person ("send a message to John": john is in 20 listings).
@@ -500,6 +504,13 @@ QUALIFIER_PHRASES = re.compile(r'\b(?:today|in\s+real[\s-]time|quickly|for\s+my\
 
 
 INPUT_OBJECTS = frozenset('document documents file files read reads reading'.split())
+# Actions whose meaning needs the object they act on, and words that only name versions of it (PM 11-16 16:1x).
+OBJECT_ACTIONS = frozenset('compare comparison comparisons comparing diff diffs summarize summarise summary summaries '
+                           'summarization summarisation summarizer translate translation translator convert conversion '
+                           'converter extract extraction extractor merge merging review redact redaction proofread '
+                           'annotate annotation parse parsing parser sign signing signature edit editing '
+                           'version versions revision revisions copy copies '
+                           'two three four both multiple several pair pairs'.split())   # how many, not what
 WEAK_HEAD = frozenset('details detail info information data message messages post posts send result results content '
                       'record records lookup channel channels'.split())
 MESSAGE_HEAD = frozenset('message messages'.split())  # not post: 'discord'+'post' left "post to a Discord channel" empty

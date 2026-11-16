@@ -1,0 +1,568 @@
+{
+ "about": "PM 11-16 16:1x: capability terms for requests that name a document, file or read. The object word stays only when every other capability word is an action that needs an object (selection.OBJECT_ACTIONS); reviewed by hand (검색과 RAG, 11-16). 42 rows are the Chat answer-quality cases that say document/file/read, 20 (x00-x19) were written for this set; d4 and text_diff-en1 are the regressions of 5136603b.",
+ "cases": [
+  {
+   "id": "d2",
+   "task": "extract text from a PDF document",
+   "terms": [
+    "extract",
+    "pdf"
+   ],
+   "regression": false
+  },
+  {
+   "id": "d4",
+   "task": "summarize a long document",
+   "terms": [
+    "document",
+    "summarization"
+   ],
+   "regression": true
+  },
+  {
+   "id": "a1",
+   "task": "transcribe an audio file to text",
+   "terms": [
+    "audio",
+    "transcription"
+   ],
+   "regression": false
+  },
+  {
+   "id": "robots-en2",
+   "task": "parse a robots.txt file",
+   "terms": [
+    "parse",
+    "robots",
+    "txt"
+   ],
+   "regression": false
+  },
+  {
+   "id": "json_validate-en0",
+   "task": "validate a JSON document against a schema",
+   "terms": [
+    "validate",
+    "json",
+    "against",
+    "schema"
+   ],
+   "regression": false
+  },
+  {
+   "id": "json_validate-typo",
+   "task": "vaildate a JSON document against a schema",
+   "terms": [
+    "vaildate",
+    "json",
+    "against",
+    "schema"
+   ],
+   "regression": false
+  },
+  {
+   "id": "json_validate-a2a",
+   "task": "validate a JSON document against a schema",
+   "terms": [
+    "validate",
+    "json",
+    "against",
+    "schema"
+   ],
+   "regression": false
+  },
+  {
+   "id": "openapi-en1",
+   "task": "generate client code from a Swagger file",
+   "terms": [
+    "generate",
+    "client",
+    "code"
+   ],
+   "regression": false
+  },
+  {
+   "id": "format_convert-en0",
+   "task": "convert a CSV file to JSON",
+   "terms": [
+    "convert",
+    "csv"
+   ],
+   "regression": false
+  },
+  {
+   "id": "format_convert-typo",
+   "task": "covnert a CSV file to JSON",
+   "terms": [
+    "covnert",
+    "csv"
+   ],
+   "regression": false
+  },
+  {
+   "id": "pdf_extract-en0",
+   "task": "extract text from a PDF file",
+   "terms": [
+    "extract",
+    "pdf"
+   ],
+   "regression": false
+  },
+  {
+   "id": "pdf_extract-typo",
+   "task": "exrtact text from a PDF file",
+   "terms": [
+    "exrtact"
+   ],
+   "regression": false
+  },
+  {
+   "id": "pdf_extract-mcp",
+   "task": "extract text from a PDF file",
+   "terms": [
+    "extract",
+    "pdf"
+   ],
+   "regression": false
+  },
+  {
+   "id": "ocr-en0",
+   "task": "read the text in a photo of a receipt",
+   "terms": [
+    "read"
+   ],
+   "regression": false
+  },
+  {
+   "id": "ocr-en1",
+   "task": "OCR a scanned document",
+   "terms": [
+    "ocr",
+    "scanned"
+   ],
+   "regression": false
+  },
+  {
+   "id": "ocr-typo",
+   "task": "read the text in a photo of a reecipt",
+   "terms": [
+    "read"
+   ],
+   "regression": false
+  },
+  {
+   "id": "hash_uuid-en2",
+   "task": "base64 encode a file",
+   "terms": [
+    "base64",
+    "encode"
+   ],
+   "regression": false
+  },
+  {
+   "id": "text_diff-en1",
+   "task": "compare two versions of a document",
+   "terms": [
+    "compare",
+    "two",
+    "versions",
+    "document"
+   ],
+   "regression": true
+  },
+  {
+   "id": "spreadsheet-en0",
+   "task": "read rows from a Google Sheet",
+   "terms": [
+    "rows"
+   ],
+   "regression": false
+  },
+  {
+   "id": "spreadsheet-en1",
+   "task": "update cells in an Excel file",
+   "terms": [
+    "update",
+    "cells"
+   ],
+   "regression": false
+  },
+  {
+   "id": "tts-en1",
+   "task": "read this paragraph aloud in a natural voice",
+   "terms": [
+    "paragraph",
+    "aloud"
+   ],
+   "regression": false
+  },
+  {
+   "id": "tts-long",
+   "task": "I run a travel startup and my current tooling keeps failing. I am looking for something that can read this paragraph aloud in a natural voice, ideally without a long setup.",
+   "terms": [
+    "paragraph",
+    "aloud"
+   ],
+   "regression": false
+  },
+  {
+   "id": "stt-en0",
+   "task": "transcribe an audio file to text",
+   "terms": [
+    "audio",
+    "transcription"
+   ],
+   "regression": false
+  },
+  {
+   "id": "stt-typo",
+   "task": "trnascribe an audio file to text",
+   "terms": [
+    "audio",
+    "transcription"
+   ],
+   "regression": false
+  },
+  {
+   "id": "stt-x402",
+   "task": "transcribe an audio file to text",
+   "terms": [
+    "audio",
+    "transcription"
+   ],
+   "regression": false
+  },
+  {
+   "id": "ner-en2",
+   "task": "pull dates and locations out of a document",
+   "terms": [
+    "pull",
+    "dates",
+    "locations",
+    "out"
+   ],
+   "regression": false
+  },
+  {
+   "id": "send_email-en2",
+   "task": "read my latest emails",
+   "terms": [
+    "emails"
+   ],
+   "regression": false
+  },
+  {
+   "id": "send_email-ask",
+   "task": "Is there an agent or API that can read my latest emails?",
+   "terms": [
+    "emails"
+   ],
+   "regression": false
+  },
+  {
+   "id": "slack-en1",
+   "task": "read recent messages in a Slack workspace",
+   "terms": [
+    "slack",
+    "messages"
+   ],
+   "regression": false
+  },
+  {
+   "id": "slack-long",
+   "task": "For a hobby project we want to automate one step: read recent messages in a Slack workspace. Please recommend the best working option.",
+   "terms": [
+    "hobby",
+    "project",
+    "automate",
+    "step",
+    "messages",
+    "slack",
+    "workspace",
+    "working"
+   ],
+   "regression": false
+  },
+  {
+   "id": "reddit-en2",
+   "task": "read comments on a Reddit thread",
+   "terms": [
+    "comments"
+   ],
+   "regression": false
+  },
+  {
+   "id": "reddit-ask",
+   "task": "Is there an agent or API that can read comments on a Reddit thread?",
+   "terms": [
+    "comments"
+   ],
+   "regression": false
+  },
+  {
+   "id": "url_reputation-en2",
+   "task": "scan a file hash for malware",
+   "terms": [
+    "scan",
+    "hash"
+   ],
+   "regression": false
+  },
+  {
+   "id": "url_reputation-ask",
+   "task": "Is there an agent or API that can scan a file hash for malware?",
+   "terms": [
+    "scan",
+    "hash"
+   ],
+   "regression": false
+  },
+  {
+   "id": "h43",
+   "task": "My team writes weekly reports and someone always has to read through dozens of long PDFs; we want a tool that turns those PDFs into short summaries we can skim.",
+   "terms": [
+    "turns",
+    "those",
+    "pdfs"
+   ],
+   "regression": false
+  },
+  {
+   "id": "code_review-en2",
+   "task": "lint a JavaScript file and report problems",
+   "terms": [
+    "lint",
+    "javascript",
+    "problems"
+   ],
+   "regression": false
+  },
+  {
+   "id": "code_review-ask",
+   "task": "Is there an agent or API that can lint a JavaScript file and report problems?",
+   "terms": [
+    "lint",
+    "javascript",
+    "problems"
+   ],
+   "regression": false
+  },
+  {
+   "id": "figma-en0",
+   "task": "read the components in a Figma file",
+   "terms": [
+    "components"
+   ],
+   "regression": false
+  },
+  {
+   "id": "figma-typo",
+   "task": "read the copmonents in a Figma file",
+   "terms": [
+    "copmonents"
+   ],
+   "regression": false
+  },
+  {
+   "id": "figma-mcp",
+   "task": "read the components in a Figma file",
+   "terms": [
+    "components"
+   ],
+   "regression": false
+  },
+  {
+   "id": "embeddings-en2",
+   "task": "embed documents for a vector database",
+   "terms": [
+    "embed"
+   ],
+   "regression": false
+  },
+  {
+   "id": "embeddings-ask",
+   "task": "Is there an agent or API that can embed documents for a vector database?",
+   "terms": [
+    "embed"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x00",
+   "task": "merge two pdf files",
+   "terms": [
+    "merge",
+    "two",
+    "pdf"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x01",
+   "task": "translate this document into French",
+   "terms": [
+    "translation"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x02",
+   "task": "sign a document electronically",
+   "terms": [
+    "sign",
+    "electronically"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x03",
+   "task": "extract text from a file",
+   "terms": [
+    "extract"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x04",
+   "task": "read a file from S3",
+   "terms": [
+    "read",
+    "file"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x05",
+   "task": "embed documents for semantic search",
+   "terms": [
+    "embed"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x06",
+   "task": "convert a word document to pdf",
+   "terms": [
+    "convert",
+    "word"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x07",
+   "task": "review a contract document",
+   "terms": [
+    "review",
+    "contract"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x08",
+   "task": "send a file to slack",
+   "terms": [
+    "slack"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x09",
+   "task": "upload files to google drive",
+   "terms": [
+    "upload"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x10",
+   "task": "redact personal data from a document",
+   "terms": [
+    "redact",
+    "personal"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x11",
+   "task": "proofread my document",
+   "terms": [
+    "proofread",
+    "document"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x12",
+   "task": "parse an invoice file",
+   "terms": [
+    "parse",
+    "invoice"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x13",
+   "task": "compare two contracts",
+   "terms": [
+    "compare",
+    "two",
+    "contracts"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x14",
+   "task": "summarize this file",
+   "terms": [
+    "document",
+    "summarization"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x15",
+   "task": "read a figma design file",
+   "terms": [
+    "figma",
+    "design"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x16",
+   "task": "read document and send email",
+   "terms": [
+    "send",
+    "email"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x17",
+   "task": "diff two text files",
+   "terms": [
+    "diff",
+    "two",
+    "files"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x18",
+   "task": "annotate a pdf document",
+   "terms": [
+    "annotate",
+    "pdf"
+   ],
+   "regression": false
+  },
+  {
+   "id": "x19",
+   "task": "store documents in a database",
+   "terms": [
+    "store"
+   ],
+   "regression": false
+  }
+ ]
+}
