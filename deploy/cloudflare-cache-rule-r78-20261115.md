@@ -48,3 +48,10 @@
 ## 4. 되돌리기
 - 같은 화면에서 조건식을 1절의 "바꾸기 전" 식으로 바꾸고 저장한다. 바로 엣지 캐시에서 빠진다.
 - 남은 사본은 원서버 헤더의 max-age + stale 시간 안에 만료된다(가장 긴 것은 marketplace.json). 급하면 Custom Purge로 해당 URL을 지운다.
+
+## 5. 세 번째 변경 (2026-11-16 15:44, PM 실행): 고객 로그인 페이지
+- 근거: 11-16 낮 배포(46aa1389 + 4507567f)부터 `/customer/sign-in`은 누구에게나 같은 바이트다(nonce 없음, 인라인 스크립트는 sha256 CSP, GET에 Set-Cookie 없음). 원서버는 `Cache-Control: public, max-age=300`을 주는데 엣지 규칙에 경로가 없어 `cf-cache-status: DYNAMIC`이었다.
+- 바꾼 것: `Public insights (11-13)`의 경로 집합에 `"/customer/sign-in"` 하나를 더했다. 식은 892자에서 912자가 됐다. 규칙 수(4개)·동작·순서는 그대로다.
+- 넣지 않은 것: `/customer/assets/sign-in.<해시>.css`는 확장자 기본 캐시로 이미 남는다(`immutable`, 확인 때 MISS 뒤 보관). 옛 주소 이동(`/new/en/sign-in.html` 등)의 엣지 리디렉션 규칙은 이번에 만들지 않았다.
+- 확인(15:45, 공개 주소·새 연결, 한국에서 측정): 첫 요청 MISS 3.26초, 두 번째 HIT 0.80초(age 5). `Cookie`가 있는 요청은 DYNAMIC. `?next=`가 붙은 주소는 주소별로 따로 남는다(첫 요청 MISS, 200). 응답에 Set-Cookie 없음.
+- 이 변경만 되돌리려면 2절의 "지금 식(892자)"을 넣는다.
