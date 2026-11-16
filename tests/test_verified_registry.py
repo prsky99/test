@@ -13,11 +13,13 @@ NOW = 1_800_000_000.0
 
 
 def row(rid, name, *, at=NOW - 3600, description="Weather forecasts for any city.", version="1.2.0",
-        remotes=None, website="https://example.com", tool="get_forecast"):
+        remotes=None, website="https://example.com", tool="get_forecast", url=None):
     details = {"registry_name": name, "version": version, "website": website,
                "repository": {"url": "https://github.com/example/weather", "source": "github"},
                "remotes": remotes if remotes is not None else [{"type": "streamable-http", "url": f"https://{rid}.example.com/mcp"}]}
-    return {"id": rid, "name": name.split("/")[-1], "description": description, "url": f"https://{rid}.example.com/mcp",
+    # the endpoint the collector called (C09): the first declared remote unless a test says otherwise
+    url = url or (remotes[0].get("url") if remotes else None) or f"https://{rid}.example.com/mcp"
+    return {"id": rid, "name": name.split("/")[-1], "description": description, "url": url,
             "details": json.dumps(details), "trial_info": json.dumps({"tool": tool, "at": at, "ok": True, "arguments": {"q": "x"}}),
             "eval_grade": "A"}
 
@@ -392,3 +394,46 @@ def test_rate_limit_ignores_a_client_sent_ip_header(tmp_path):
     app2 = FastAPI()
     app2.include_router(S.router_for(R.SnapshotIndex(tmp_path), resolve_ip=lambda request: seen.append(1) or "198.51.100.7"))
     assert TestClient(app2).get(S.BASE + "/servers").status_code == 200 and seen == [1]
+
+
+# ---------------------------------------------------------------- source review C09 / C10 (11-16)
+def test_only_the_endpoint_we_called_is_a_verified_remote():
+    """A called; the publisher adds B on another domain: B is never under server.remotes, only named as unverified."""
+    a = {"type": "streamable-http", "url": "https://a.example.com/mcp"}
+    b = {"type": "streamable-http", "url": "https://other-domain.example.net/mcp"}
+    item = R.entry(row(1, "io.github.example/weather", remotes=[b, a], url="https://A.example.com/mcp/"), NOW)
+    assert item["server"]["remotes"] == [a]
+    meta = item["_meta"][R.META_KEY]
+    assert meta["checked_endpoint"] == {"url": a["url"], "type": "streamable-http"}
+    assert meta["unverified_remotes"] == [b] and meta["verified_scope"] == "checked_endpoint_and_tool"
+    assert meta["checked_tool"] == "get_forecast" and meta["observed_at"] == meta["last_success_at"]
+
+
+def test_a_changed_endpoint_is_not_listed_and_says_why():
+    r = row(1, "io.github.example/weather", remotes=[{"type": "streamable-http", "url": "https://new.example.com/mcp"}],
+            url="https://old.example.com/mcp")
+    assert R.entry(r, NOW) is None
+    assert R.exclusion_reason(r, NOW) == "endpoint_not_checked"
+
+
+@pytest.mark.parametrize("at", [float("nan"), float("inf"), NOW + 3600, "soon", None, 0])
+def test_broken_or_future_trial_times_are_never_a_success(at):
+    r = row(1, "io.github.example/weather", at=at)
+    assert R.entry(r, NOW) is None and R.exclusion_reason(r, NOW) == "no_recent_success"
+
+
+def test_canonical_endpoint_ignores_case_default_port_and_trailing_slash_only():
+    assert R.canonical_endpoint("https://A.Example.com:443/mcp/") == R.canonical_endpoint("https://a.example.com/mcp")
+    assert R.canonical_endpoint("https://a.example.com/mcp?x=1") != R.canonical_endpoint("https://a.example.com/mcp")
+    assert R.canonical_endpoint("https://a.example.com:8443/mcp") != R.canonical_endpoint("https://a.example.com/mcp")
+    assert R.canonical_endpoint("http://a.example.com/mcp") is None
+
+
+def test_a_fingerprint_change_alone_moves_updated_at_and_a_plain_rebuild_does_not():
+    rows = [row(1, "io.github.example/weather")]
+    first = R.build_snapshot(rows, NOW, None, {1: {"server_fp": "aa", "version": "v1", "as_of": "x"}})
+    again = R.build_snapshot(rows, NOW + 600, first, {1: {"server_fp": "aa", "version": "v1", "as_of": "x"}})
+    assert again["servers"][0]["_meta"][R.META_KEY]["updated_at"] == R._iso(NOW)       # nothing changed
+    changed = R.build_snapshot(rows, NOW + 1200, again, {1: {"server_fp": "bb", "version": "v1", "as_of": "x"}})
+    assert changed["servers"][0]["_meta"][R.META_KEY]["updated_at"] == R._iso(NOW + 1200)
+    assert R.content_hash(again["servers"][0]) != R.content_hash(changed["servers"][0])

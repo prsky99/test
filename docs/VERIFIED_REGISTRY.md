@@ -60,13 +60,17 @@ E5·E6은 규격의 확장 자리(`/v0.1/x/<역DNS>/<이름>`, extensions.md)에
     "description": "…",                              // 공식 설명(100자 이하), 우리가 바꾸지 않음
     "version": "1.2.0",                              // 우리가 확인한 그 버전
     "repository": {…}, "websiteUrl": "…",
-    "remotes": [{"type": "streamable-http", "url": "https://…/mcp"}]
+    "remotes": [{"type": "streamable-http", "url": "https://…/mcp"}]   // 우리가 실제로 부른 주소 하나만
   },
   "_meta": {
     "biz.agentconcierge/verification": {
       "listed": true,
       "last_success_at": "2026-11-15T01:02:03Z",    // 마지막 키 없는 실제 도구 호출 성공
+      "observed_at": "2026-11-15T01:02:03Z",        // 검증 사실이 관측된 시각(last_success_at과 같음)
+      "verified_scope": "checked_endpoint_and_tool",  // 검증 범위: 아래 주소와 도구만
+      "checked_endpoint": {"url": "https://…/mcp", "type": "streamable-http"},
       "checked_tool": "get_forecast",               // 그때 부른 읽기 전용 도구 이름(인자는 싣지 않음)
+      "unverified_remotes": [{"type": "sse", "url": "https://…"}],   // 게시자가 선언했지만 우리가 부르지 않은 주소(있을 때만)
       "tools_fingerprint": "sha256:…",              // fingerprint-v1 서버 지문
       "fingerprint_version": "fingerprint-v1",
       "fingerprint_unchanged_since": "2026-11-10T…",
@@ -79,6 +83,12 @@ E5·E6은 규격의 확장 자리(`/v0.1/x/<역DNS>/<이름>`, extensions.md)에
   }
 }
 ```
+- 검증 범위(11-16 소스 재검토 C09): 검증 사실은 우리가 부른 주소(카탈로그 행의 url과 대소문자·기본 포트·끝 슬래시를 빼고 같은 것)와 전송 방식, 부른 도구, 관측 시각에 묶입니다.
+  - 게시자가 다른 주소를 더 선언하면 그 주소는 `server.remotes`에 넣지 않고 `unverified_remotes`에만 이름을 남깁니다.
+  - 부른 주소가 선언 목록에서 사라지면(주소 변경) 목록에서 빠지고, 사유는 `endpoint_not_checked`입니다.
+  - 시험 시각이 숫자가 아니거나(NaN·무한), 5분 넘게 미래이면 성공으로 보지 않습니다.
+  - 11-16 운영 읽기 조회 기준: 대상 7,038개 중 주소를 여러 개 선언한 서버 110개가 이 규칙으로 주소 하나만 남고, 부른 주소가 목록에 없는 서버는 0개입니다.
+- `updated_at`(11-16 C10): 소비자가 판단에 쓰는 칸(서버 객체, 지문, 부른 도구·주소, 범위, 미검증 주소, 등급, 위험 확인 상태)의 정규화 해시가 바뀔 때만 움직입니다. 스냅샷 시각·notice와 정기 재확인 시각(`last_success_at`, `observed_at`, `fingerprint_as_of`)은 해시에서 뺍니다. 지문만 바뀌어도 `updated_since`에 나타나고, 내용이 같은 재생성은 변경을 만들지 않습니다.
 - 공식 메타 키(`io.modelcontextprotocol.registry/official`)는 우리가 원본을 보관하지 않으므로 싣지 않습니다(지어내지 않음).
 - 설명·이름 같은 게시자 문구는 바꾸지 않습니다. 우리 사실은 우리 키에만 둡니다.
 

@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
 import json
+import math
 import os
 import re
 import tempfile
@@ -37,6 +39,7 @@ MEMBER_CHECK_S = 7 * 86400   # a member measured this recently counts as risk-ch
 DEFAULT_LIMIT, MAX_LIMIT = 30, 100
 PAGE_ROWS = 1000
 _FORGES = {"github.com": "github", "gitlab.com": "gitlab"}   # the official entries name these sources
+FUTURE_SKEW_S = 300   # a trial time further ahead than this is a broken record, never a success
 HEADER_FIELDS = ("name", "description", "isRequired", "isSecret", "format", "default", "choices")
 
 # One registered statement (application_store_sql.json); the id page keeps every read under the store's row cap.
@@ -77,18 +80,40 @@ def _public_https(url) -> bool:
             and "." in host and not re.fullmatch(r"[0-9.]+|\[.*\]", host) and host not in ("localhost",))
 
 
+def canonical_endpoint(url) -> str | None:
+    """The endpoint as compared (source review C09): lower-case scheme and host, no default port, no trailing slash,
+    no fragment; the query stays. None for anything that is not a public https address."""
+    if not _public_https(url):
+        return None
+    parts = urlsplit(str(url))
+    host = (parts.hostname or "").lower()
+    port = parts.port if parts.port not in (None, 443) else None
+    path = parts.path.rstrip("/") or "/"
+    return "https://" + host + (f":{port}" if port else "") + path + ("?" + parts.query if parts.query else "")
+
+
+def _trial_time(trial: dict, now: float) -> float | None:
+    """The trial's time when it is a real, finite past moment (C09: NaN, infinity and future times are refused)."""
+    try:
+        at = float(trial.get("at"))
+    except (TypeError, ValueError):
+        return None
+    return at if math.isfinite(at) and 0 < at <= now + FUTURE_SKEW_S else None
+
+
 def exclusion_reason(row: dict, now: float, risky: frozenset = frozenset()) -> str:
     """Why a catalog row that the SELECT returned is not listed (shown in the change feed, never security details)."""
     details = _json(row.get("details")) or {}
     trial = _json(row.get("trial_info")) or {}
     if row.get("id") in risky:
         return "definition_risk"
-    try:
-        if now - float(trial.get("at")) > FRESH_S:
-            return "no_recent_success"
-    except (TypeError, ValueError):
+    at = _trial_time(trial, now)
+    if at is None or now - at > FRESH_S:
         return "no_recent_success"
     remotes = [r for r in details.get("remotes") or [] if isinstance(r, dict)]
+    checked = canonical_endpoint(row.get("url"))
+    if remotes and not any(canonical_endpoint(r.get("url")) == checked for r in remotes):
+        return "endpoint_not_checked"
     if remotes and all(any(isinstance(h, dict) and h.get("isRequired") is True for h in r.get("headers") or [])
                        for r in remotes):
         return "requires_credentials"
@@ -109,25 +134,29 @@ def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozen
     version = str(details.get("version") or "").strip()
     if not 1 <= len(description) <= 100 or not version or len(version) > 255:
         return None
-    try:
-        tried_at = float(trial.get("at"))
-    except (TypeError, ValueError):
+    tried_at = _trial_time(trial, now)
+    if tried_at is None or now - tried_at > FRESH_S:
         return None
-    if now - tried_at > FRESH_S:
-        return None
-    remotes = []
+    # Source review C09: the verification belongs to the endpoint we called (the catalog row's url), its transport
+    # and the tool we called. Only that remote is listed under server.remotes; other remotes the publisher declares
+    # (another domain, added later) are named under _meta as unverified, never as verified ones.
+    checked = canonical_endpoint(row.get("url"))
+    remotes, unverified = [], []
     for r in details.get("remotes") or []:
         if not (isinstance(r, dict) and r.get("type") in ("streamable-http", "sse") and _public_https(r.get("url"))):
             continue
         headers = [h for h in r.get("headers") or [] if isinstance(h, dict)]
         if any(h.get("isRequired") is True for h in headers):
             continue   # a remote that requires a header is not one we called keyless
+        if checked is None or canonical_endpoint(r["url"]) != checked or remotes:
+            unverified.append({"type": r["type"], "url": r["url"]})
+            continue
         remote = {"type": r["type"], "url": r["url"]}
         if headers:    # optional headers (a key for more tools or limits) stay as the publisher wrote them
             remote["headers"] = [{k: h[k] for k in HEADER_FIELDS if k in h} for h in headers]
         remotes.append(remote)
     if not remotes:
-        return None
+        return None    # the endpoint we called is no longer among the declared remotes (changed endpoint)
     server = {"$schema": SCHEMA_URL, "name": name, "description": description, "version": version, "remotes": remotes}
     repo = details.get("repository")
     if isinstance(repo, str):   # the collector keeps the official repository object as its URL
@@ -138,10 +167,14 @@ def entry(row: dict, now: float, fingerprints: dict | None = None, risky: frozen
     if isinstance(details.get("website"), str) and details["website"].startswith("https://"):
         server["websiteUrl"] = details["website"]
     fp = (fingerprints or {}).get(row.get("id")) or {}
-    verification = {"listed": True, "last_success_at": _iso(tried_at), "grade": row.get("eval_grade"),
+    verification = {"listed": True, "last_success_at": _iso(tried_at), "observed_at": _iso(tried_at),
+                    "grade": row.get("eval_grade"), "verified_scope": "checked_endpoint_and_tool",
+                    "checked_endpoint": {"url": remotes[0]["url"], "type": remotes[0]["type"]},
                     "checked_without_headers": True, "evidence": f"{SITE}/agent/{row['id']}"}
     if isinstance(trial.get("tool"), str):
         verification["checked_tool"] = trial["tool"][:100]
+    if unverified:
+        verification["unverified_remotes"] = unverified[:20]
     verification["definition_risk_check"] = "clear" if risk_checked or fp.get("checked") else "not_checked_yet"
     if fp.get("server_fp"):
         verification.update(tools_fingerprint="sha256:" + fp["server_fp"], fingerprint_version=fp.get("version"),
@@ -179,7 +212,8 @@ def build_snapshot(rows, now: float, previous: dict | None = None, fingerprints:
     old = {i["server"]["name"]: i for i in (previous or {}).get("servers") or []}
     for name, item in items.items():   # first listed / last changed time for updated_since
         before = old.get(name)
-        same = before and before.get("server") == item["server"] and before.get("_meta", {}).get(META_KEY, {}).get("listed")
+        same = (before and before.get("_meta", {}).get(META_KEY, {}).get("listed")
+                and content_hash(before) == content_hash(item))
         item["_meta"][META_KEY]["updated_at"] = before["_meta"][META_KEY].get("updated_at", stamp) if same else stamp
     removed, events = [], []
     for name, item in items.items():
@@ -204,6 +238,23 @@ def build_snapshot(rows, now: float, previous: dict | None = None, fingerprints:
         item["_meta"][META_KEY]["notice"] = NOTICE
     return {"profile": "agentvalcon-verified-registry-v1", "generated": stamp, "listed": len(items),
             "servers": servers, "events": events}
+
+
+# Fields that change on every snapshot or every routine re-check and never mean a change (C10): the snapshot time,
+# the notice, this comparison's own result, and the times of a fresher success or fingerprint measurement (a newer
+# success time alone does not make clients fetch the entry again; a new fingerprint, tool, endpoint, scope, grade or
+# risk-check state does).
+_VOLATILE = ("snapshot", "notice", "updated_at", "last_success_at", "observed_at", "fingerprint_as_of")
+
+
+def content_hash(item: dict) -> str:
+    """Canonical hash of what a consumer judges an entry by: the server object and our verification facts
+    (fingerprint, checked tool and endpoint, scope, unverified remotes, grade, risk check), without the volatile times
+    above (source review C10: a tools_fingerprint change alone must reach updated_since readers)."""
+    meta = {k: v for k, v in ((item.get("_meta") or {}).get(META_KEY) or {}).items() if k not in _VOLATILE}
+    text = json.dumps({"server": item.get("server"), "meta": meta}, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=False)
+    return hashlib.sha256(text.encode()).hexdigest()
 
 
 def _ts(iso: str) -> float:
