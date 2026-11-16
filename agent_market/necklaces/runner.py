@@ -541,8 +541,7 @@ NOT_FOUND_NOTE = "No encyclopedia article found for this company."
 # verdict. 241601 refused by the day budget, then wikipedia-summary "not_found": the step answers "not found", not a
 # failure. Only encyclopedia steps read this; another step's "not_found" stays a failure.
 NO_ARTICLE = (IDENTITY_MISMATCH, "not_found")
-NOT_ABOUT_ARTICLE = ("contract_invalid", "connection_empty", "capacity", "our_capacity", "relay_throttled",
-                     "PROVIDER_429", "quota_exhausted")
+NOT_ABOUT_ARTICLE = ("contract_invalid", "connection_empty")   # plus every refusal of ours (refusals.is_ours)
 
 
 def no_article(contract: str, attempts) -> bool:
@@ -550,9 +549,9 @@ def no_article(contract: str, attempts) -> bool:
     if NORMALIZERS.get(contract) is not norm_encyclopedia:
         return any(a.error_class == IDENTITY_MISMATCH for a in attempts) and all(
             a.error_class in (IDENTITY_MISMATCH, "contract_invalid", "connection_empty") for a in attempts)
+    from .refusals import is_ours
     return any(a.error_class in NO_ARTICLE for a in attempts) and all(
-        a.error_class in NO_ARTICLE or a.error_class in NOT_ABOUT_ARTICLE or (a.error_class or "").startswith("budget_")
-        for a in attempts)
+        a.error_class in NO_ARTICLE or a.error_class in NOT_ABOUT_ARTICLE or is_ours(a.error_class) for a in attempts)
 LEGAL_FORMS = {"inc", "corp", "co", "ltd", "plc", "ag", "se", "sa", "nv", "spa", "asa", "ab", "oyj", "group",
                "holdings", "holding", "company", "corporation", "limited", "incorporated", "the", "and", "of", "llc",
                "lp", "trust", "bancorp", "de", "new"}

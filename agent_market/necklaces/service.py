@@ -108,7 +108,7 @@ def definition_for(entry: dict, definitions_dir: Path | None = None) -> dict:
 OUR_CAPACITY = "our_capacity"
 # Our side was full: the edge's in-flight limit (CAPACITY_EXCEEDED, after 3be2317c only when the origin could not take
 # it either), the runner's process-wide cap (capacity) or the relay cap of our own tests (our_capacity).
-CAPACITY_CODES = ("CAPACITY_EXCEEDED", "capacity", "our_capacity", "quota_exhausted")
+# PM 11-16: every refusal of ours (refusals.is_ours: caps, quota, ledger, pace), not only the capacity codes
 
 
 def capacity_failure(result: dict) -> bool:
@@ -116,7 +116,8 @@ def capacity_failure(result: dict) -> bool:
     failed = [name for name, slot in result.get("slots", {}).items() if slot.get("failed")]
     attempts = [a for name in failed for a in result.get("attempts", {}).get(name, []) if not a.get("ok")]
     codes = [a.get("error_class") for a in attempts if a.get("error_class") not in ("deadline", "not_needed")]
-    return bool(codes) and all(code in CAPACITY_CODES for code in codes)
+    from .refusals import is_ours
+    return bool(codes) and all(is_ours(code) for code in codes)
 
 
 def connection_failure(result: dict) -> bool:

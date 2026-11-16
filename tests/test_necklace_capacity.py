@@ -66,8 +66,8 @@ def test_a_used_quota_moves_on_without_calling_and_is_not_a_failure():
     call(ext(1, "dmvtransit.com"), {}, 1)               # PM 17:32: every domain is counted, with our 300 as default
     assert called == ["dmvtransit.com"]
     assert ledger.calls == [("https://datakoot.com", 300), ("https://dmvtransit.com", 300)]
-    from agent_market.necklaces import service, retest
-    assert "quota_exhausted" in service.CAPACITY_CODES and "quota_exhausted" in retest.NOT_MEASURED
+    from agent_market.necklaces import refusals, retest
+    assert refusals.is_ours("quota_exhausted") and retest.not_measured({"s": [{"error_class": "quota_exhausted"}]})
 
 
 def test_a_ledger_error_never_stops_the_answer():

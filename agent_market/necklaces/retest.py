@@ -76,14 +76,15 @@ _RELAY_SLOTS = threading.BoundedSemaphore(RELAY_CONCURRENCY)
 CAPACITY = "our_capacity"      # the edge's CAPACITY_EXCEEDED: our side, never the member's failure
 # PM R23 (11-15): failures that say nothing about the member - our own budget or pace, our edge, the provider asking for
 # a pause - leave a run "not measured" instead of failed, for the necklace and for every single baseline alike.
-NOT_MEASURED = (CAPACITY, "relay_throttled", "PROVIDER_429", "quota_exhausted")
+# PM 11-16: the list lives in refusals.py, shared with the runner, the public service and the value measure.
 
 
 def not_measured(attempts: dict) -> str | None:
+    from .refusals import is_ours
     for slot_attempts in attempts.values():
         for a in slot_attempts:
             code = a.get("error_class") or ""
-            if code in NOT_MEASURED or code.startswith("budget_"):
+            if is_ours(code):
                 return code
     return None
 
@@ -157,6 +158,8 @@ def gateway_caller(client, base: str = BASE, pacer: RelayPacer | None = None, sl
             raise _fail("relay_throttled", "our relay rate limit")      # not the provider's pause
         if "result" not in data:
             err = data.get("error") or {}
+            if not isinstance(err, dict):              # PM 11-16: a relay error may be a plain string
+                err = {"message": str(err)}
             detail = err.get("data") if isinstance(err.get("data"), dict) else {}
             if detail.get("retry_after") or "pause" in str(err.get("message", "")).lower():
                 error = _fail("PROVIDER_429", str(err.get("message")))   # the provider asked for a pause

@@ -24,7 +24,7 @@ import math
 import statistics
 
 CHARS_PER_TOKEN = 4
-NOT_SENT = ("deadline", "capacity", "budget", "quota", "connection")   # attempts that never reached a member
+# attempts that never reached a member: refusals.not_sent (PM 11-16, one list with the runner and the gate)
 
 # Full value (PM 11-15 15:11): the direct path also has to find the agents and merge their answers, which is the
 # saving the user named. Per slot one find_agents call; per member server it calls one tools/list (names and
@@ -52,7 +52,8 @@ def measure(defn: dict, inputs: dict, result: dict, correct: bool | None) -> dic
     in_chars = len(json.dumps(inputs or {}, ensure_ascii=False, default=str))
     calls, chars, per_slot_ms = 0, 0, {}
     for slot, attempts in (result.get("attempts") or {}).items():
-        sent = [a for a in attempts if not str(a.get("error_class") or "").startswith(NOT_SENT)]
+        from .refusals import not_sent
+        sent = [a for a in attempts if not not_sent(a.get("error_class"))]
         calls += len(sent)
         chars += sum(int(a.get("chars_in") or 0) + int(a.get("chars_out") or 0) for a in sent)
         per_slot_ms[slot] = sum(int(a.get("ms") or 0) for a in sent)
@@ -76,7 +77,8 @@ def _full(defn: dict, result: dict, direct: dict, in_chars: int, out_chars: int)
     answers = 0
     for slot, attempts in (result.get("attempts") or {}).items():
         for a in attempts:
-            if str(a.get("error_class") or "").startswith(NOT_SENT):
+            from .refusals import not_sent
+            if not_sent(a.get("error_class")):
                 continue
             servers.add(a.get("resource_id") or (slot, a.get("rank")))
             answers += int(a.get("chars_out") or 0)
