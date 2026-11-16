@@ -63,7 +63,9 @@ def test_task_needs_both_parts(monkeypatch):
 
 
 def test_run_sends_the_url_and_the_domain():
-    """132732's terms prohibit our use (agent team 11-15): it is never called; site-readiness leads once approved.
+    """132732's terms prohibit our use (agent team 11-15): it is never called. Since 9266a3f2 (11-15 16:14) the
+    provisional external 267572 check_llms_txt leads the crawlers step and gets the site URL; the approved
+    site-readiness answers with the domain when 267572 does not.
     A template inside text still fills a URL (test_inner_template_fills_a_url)."""
     seen = {}
 
@@ -74,7 +76,16 @@ def test_run_sends_the_url_and_the_domain():
     approved = {"substitutes": [["site-readiness", "website.ai_readiness.v1"]]}
     runner.Runner(caller, watch_state=approved).run(defn, {"domain": "python.org"})
     assert "check_store_ai_readiness" not in seen
-    assert seen["check_site_files"] == {"domain": "python.org"} and seen["whois_lookup"] == {"domain": "python.org"}
+    assert seen["check_llms_txt"] == {"url": "https://python.org"} and seen["whois_lookup"] == {"domain": "python.org"}
+    seen.clear()
+
+    def no_llms(member, args, timeout_s):
+        seen[member["tool"]] = args
+        if member["tool"] == "check_llms_txt":
+            raise RuntimeError("down")
+        return WHOIS if member["tool"] == "whois_lookup" else XFIX_PASS
+    runner.Runner(no_llms, watch_state=approved).run(defn, {"domain": "python.org"})
+    assert seen["check_site_files"] == {"domain": "python.org"}
 
 
 def test_gold_builder_reads_the_rdap_registration_event():
