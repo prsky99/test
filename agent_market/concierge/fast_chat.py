@@ -321,6 +321,26 @@ def strong_closeness(engine, task, item):
     return _cosine(vectors[0], vectors[1]) if vectors else None
 
 
+_closeness_pool = None
+
+
+def closeness_later(engine, task, item):
+    """strong_closeness started now in a worker; returns a function that gives its value (None on failure or past
+    the budget), so the caller can do other work meanwhile."""
+    global _closeness_pool
+    from concurrent.futures import ThreadPoolExecutor
+    if _closeness_pool is None:
+        _closeness_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='closeness')
+    future = _closeness_pool.submit(strong_closeness, engine, task, item)
+
+    def value():
+        try:
+            return future.result(timeout=STRONG_BUDGET + 0.5)   # the HTTP call itself stops at STRONG_BUDGET
+        except Exception:
+            return None
+    return value
+
+
 def states_every_word(item, words):
     """Each word, or its plural, as a whole word in the recommended tool's own name and description."""
     schema = (item.get('tools_schema') or [{}])[0] or {}
@@ -1048,6 +1068,11 @@ class FastConcierge(Concierge):
             defer = getattr(self.book, 'defer', None)
             defer(v.id, remember) if callable(defer) else remember()
         top_tool = (items[0].get('tools') or [''])[0]
+        # PM 11-16 source review 2: the closeness of the first listing (stronger model, up to STRONG_BUDGET) and the
+        # next steps (up to NEXT_STEPS_BUDGET) do not depend on each other; they used to be waited for one after the
+        # other (Chat prepare about 0.6 s). The closeness now starts first and runs while the next steps are read.
+        weigh = not parts and offset == 0 and spec.state().get('operation') != 'refine'
+        closeness = closeness_later(getattr(self.rec, 'rag_engine', None), task, items[0]) if weigh else None
         next_steps = bounded_next_steps(self.store, items[0]['id'], str(top_tool or ''), protocol, excluded)
         continuation_plan = {
             'inspect_contract': {'command': 'details 1'},
@@ -1064,8 +1089,7 @@ class FastConcierge(Concierge):
         applied=[labels[name] for name in state.get('required',[]) if name in labels]
         lead=('Filtered for: '+', '.join(applied)+'.\n\n') if state.get('operation')=='refine' and applied else ''
         # Low closeness of the first listing: offer the list as choices instead of asserting it (stage 4, 11-05).
-        unsure = (not parts and offset == 0 and state.get('operation') != 'refine'
-                  and (strong_closeness(getattr(self.rec, 'rag_engine', None), task, items[0]) or 1.0) < CHOICE_CLOSENESS)
+        unsure = weigh and (closeness() or 1.0) < CHOICE_CLOSENESS
         if unsure:
             lead = CHOICE_LEAD + lead
         # The first listing that our gateway runs is offered as a `call` in this session (11-12 PM).

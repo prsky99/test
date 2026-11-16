@@ -47,7 +47,13 @@ class AdminReaderPool:
             self.leased+=1
         discard=False
         try:
-            if resource is None:resource=self.factory()
+            if resource is None:
+                # PM 11-16 source review 1: a new session also checks the schema of every table; pool_wait does not
+                # include it, so it is timed on its own (Server-Timing session_open)
+                opened=time.perf_counter()
+                resource=self.factory()
+                from .concierge.retrieval_metrics import add
+                add('session_open',(time.perf_counter()-opened)*1000)
             yield resource[0]
         finally:
             if resource is not None:

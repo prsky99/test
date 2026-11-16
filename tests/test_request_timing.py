@@ -133,3 +133,28 @@ def test_garbage_collection_is_its_own_stage():
     found = gc_stages(outer, since)
     assert found['gc_all'] >= found['gc'] > 0
     assert gc_stages({}, gc_total_ms()) == {}
+
+
+def test_a_new_pooled_session_is_timed_as_session_open_and_a_reused_one_is_not():
+    """PM 11-16 source review 1: pool_wait leaves out opening a session (and its schema check of every table)."""
+    import time
+    from agent_market.admin_postgres_pool import AdminReaderPool
+    from agent_market.concierge.retrieval_metrics import capture
+
+    class Session:
+        closed = False
+
+        def close(self):
+            pass
+
+    def slow_open():
+        time.sleep(0.05)
+        return (Session(), Session())
+    pool = AdminReaderPool(slow_open, maximum=1, wait_seconds=2, max_idle=1)
+    with capture() as first:
+        with pool.lease_store():
+            pass
+    with capture() as again:
+        with pool.lease_store():
+            pass
+    assert first['stages_ms']['session_open'] >= 40 and 'session_open' not in again['stages_ms']

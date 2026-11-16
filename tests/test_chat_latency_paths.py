@@ -149,3 +149,21 @@ def test_chat_payload_gives_its_scoped_book_the_shared_queue_and_a_lease():
     from agent_market.concierge import front
     source = inspect.getsource(front.Front.chat_payload)
     assert 'scoped.book._deferred_home=self.book' in source and '_deferred_lease' in source
+
+
+def test_the_first_listings_closeness_runs_while_the_next_steps_are_read(monkeypatch):
+    """PM 11-16 source review 2: prepare waited for next steps (up to 0.4 s) and then for the closeness (up to 1.5 s);
+    now they overlap, so the slower of the two is what the answer waits for."""
+    calls = []
+
+    def slow_closeness(engine, task, item):
+        calls.append('closeness started')
+        time.sleep(0.3)
+        return 0.9
+    monkeypatch.setattr(fast_chat, 'strong_closeness', slow_closeness)
+    started = time.monotonic()
+    value = fast_chat.closeness_later(None, 'task', {'name': 'x'})
+    time.sleep(0.3)                                   # the next steps would be read here
+    assert value() == 0.9 and time.monotonic() - started < 0.5 and calls == ['closeness started']
+    monkeypatch.setattr(fast_chat, 'strong_closeness', lambda *a: 1 / 0)
+    assert fast_chat.closeness_later(None, 'task', {})() is None   # a failure answers as before (not unsure)

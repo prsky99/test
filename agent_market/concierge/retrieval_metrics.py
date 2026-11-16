@@ -25,7 +25,9 @@ _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', '
                      # Chat fallbacks split into their focus words and their search (PM 11-16 06:4x)
                      'narrow_focus', 'narrow_search', 'split_search', 'neighbor_focus', 'neighbor_search',
                      # Vector provenance check cache (PM 11-16 06:4x): hits and misses of current_ids
-                     'provenance_hit', 'provenance_miss'))
+                     'provenance_hit', 'provenance_miss',
+                     # A pooled session opened for this request, schema check included (PM 11-16 source review 1)
+                     'session_open'))
 
 
 _gc_state = threading.local()
