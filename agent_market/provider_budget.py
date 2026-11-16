@@ -295,6 +295,7 @@ ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'referenc
 GITHUB_TEST_FROM = '20261118'
 GITHUB_TEST_HOURLY = 12
 GITHUB_TEST_DAILY = 120
+GATE_HOUR_LIVE_MIN = 15
 GATE_HOURS_GITHUB = {'2026111813': 30,                          # github-repo substitute gate 13:10
                      '2026111911': 32, '2026111916': 32,        # mcp-server-trust-check rounds 11:10, 16:10
                      '2026112108': 32, '2026112112': 32}        # cve-incident-brief v2 rounds 08:10, 12:10
@@ -525,7 +526,12 @@ def _github_test_rule(system, n, entry, now, directory=None):
     if gate_cap is not None:
         if system != 'gate':
             return 'github_gate_hour'
-        return 'github_gate_hour_cap' if _test_calls(entry) + n > gate_cap else None
+        if _test_calls(entry) + n > gate_cap:
+            return 'github_gate_hour_cap'
+        # PM 11-16 21:4x: user answers before the gate; live keeps at least GATE_HOUR_LIVE_MIN of the hour's 55, and a
+        # gate case that does not fit moves to the next hour (the gate has a 10-60 minute re-measure window).
+        live_left = max(0, GATE_HOUR_LIVE_MIN - (entry.get('by') or {}).get('fallback_live', 0))
+        return 'github_live_reserved' if entry['total'] + n + live_left > GITHUB_HOURLY - GITHUB_FLOOR else None
     if int(stamp[8:]) < 8 and ONE_NIGHT_GITHUB.get(stamp[:8], {}).get(system):
         return None                                           # a night grant: its own share is the limit
     if _test_calls(entry) + n > GITHUB_TEST_HOURLY:

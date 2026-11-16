@@ -472,3 +472,21 @@ def test_github_gate_hours_and_the_night_grant_sit_outside_the_test_rule(tmp_pat
     assert pb.github_reserve('gate', n=12, now=at(19, 12), directory=tmp_path) == (True, 'ok')           # day rule untouched
     assert pb.github_reserve('reference_checks', n=30, now=at(18, 1), directory=tmp_path) == (True, 'ok')  # 11-18 night
     assert pb.github_reserve('reference_checks', n=1, now=at(18, 1) + 60, directory=tmp_path) == (False, 'system_share')
+
+
+def test_a_gate_hour_keeps_15_github_calls_for_live_answers(tmp_path):
+    """PM 11-16 21:4x: users before the gate; what does not fit moves to the next hour."""
+    h = at(21, 8) + 600
+    assert pb.github_reserve('fallback_live', n=25, now=h, directory=tmp_path)[0]
+    assert pb.github_reserve('gate', n=31, now=h, directory=tmp_path) == (False, 'github_hourly_total')
+    assert pb.github_reserve('gate', n=30, now=h, directory=tmp_path) == (True, 'ok')     # 25 live already used
+    h2 = at(21, 12) + 600
+    assert pb.github_reserve('gate', n=41, now=h2, directory=tmp_path)[1] in ('github_gate_hour_cap', 'github_live_reserved')
+    assert pb.github_reserve('fallback_live', n=5, now=h2, directory=tmp_path)[0]
+    assert pb.github_reserve('gate', n=32, now=h2, directory=tmp_path) == (True, 'ok')     # 5 + 32 + 10 left <= 55
+    pb.GATE_HOURS_GITHUB['2026112113'] = 45
+    try:
+        assert pb.github_reserve('gate', n=41, now=at(21, 13), directory=tmp_path) == (False, 'github_live_reserved')
+        assert pb.github_reserve('gate', n=40, now=at(21, 13), directory=tmp_path) == (True, 'ok')   # 40 + 15 = 55
+    finally:
+        del pb.GATE_HOURS_GITHUB['2026112113']
