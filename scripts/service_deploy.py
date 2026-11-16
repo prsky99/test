@@ -208,6 +208,20 @@ class Deployment:
         return subprocess.run(['git', 'merge-base', '--is-ancestor', older, newer], cwd=self.root,
                               capture_output=True).returncode == 0
 
+    def _kept_overlay(self, base_commit, sha):
+        """True when BASE_COMMIT is one commit whose own file changes are all present, byte for byte, in SHA."""
+        parents = subprocess.run(['git', 'rev-list', '--parents', '-n', '1', base_commit], cwd=self.root,
+                                 capture_output=True, text=True).stdout.split()
+        if len(parents) != 2:
+            return False
+        changed = subprocess.run(['git', 'diff', '--name-only', parents[1], base_commit], cwd=self.root,
+                                 capture_output=True, text=True).stdout.split()
+        if not changed:
+            return False
+        same = subprocess.run(['git', 'diff', '--quiet', base_commit, sha, '--', *changed], cwd=self.root,
+                              capture_output=True)
+        return same.returncode == 0
+
     def lineage_warnings(self, base, sha, branch=DEV_BRANCH):
         """11-16 (PM 09:3x): the active frontend and jobs ran a bundle line (eb28348f) that was never merged into the
         development branch, so packaging the branch tip on it would have dropped about 950 deployed lines and changed the
@@ -222,11 +236,16 @@ class Deployment:
         if type(base_commit) is not str or not re.fullmatch(r'[0-9a-f]{7,40}', base_commit):
             return []
         out = []
-        if not self._is_ancestor(base_commit, sha):
+        # A release-only overlay (11-16 day bundles: the branch tip plus one revert of a night-only commit) is a single
+        # commit off the branch. It is fine when its parent is inside both, and every file it changed is the same in
+        # the new commit (the overlay is carried over), so its lineage is judged by the parent.
+        overlay = self._kept_overlay(base_commit, sha)
+        anchor = (base_commit + '^') if overlay else base_commit
+        if not self._is_ancestor(anchor, sha):
             out.append('lineage_base_not_in_commit: %s (the active %s commit) is not an ancestor of %s; the release '
                        'drops whatever only the active line has' % (base_commit[:8], base, sha[:8]))
         if subprocess.run(['git', 'rev-parse', '--verify', '--quiet', branch], cwd=self.root,
-                          capture_output=True).returncode == 0 and not self._is_ancestor(base_commit, branch):
+                          capture_output=True).returncode == 0 and not self._is_ancestor(anchor, branch):
             out.append('lineage_active_not_on_branch: %s (the active %s commit) is not in %s; merge that line back '
                        'before the next bundle' % (base_commit[:8], base, branch))
         return out

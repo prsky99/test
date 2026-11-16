@@ -51,3 +51,33 @@ def test_lineage_warnings(tmp_path):
     assert manager.lineage_warnings(None, merged, branch='dev') == []
     release(manager, 'old', None)
     assert manager.lineage_warnings('old', merged, branch='dev') == []
+
+
+def test_a_release_only_overlay_kept_in_the_new_commit_is_not_a_lineage_break(tmp_path):
+    """11-16 day bundles: each release is the branch tip plus one revert of a night-only commit, off the branch.
+    The next bundle repeats the revert, so the overlay is kept; dropping it (the plain tip) still warns."""
+    root = tmp_path / 'repo'
+    root.mkdir()
+    git(root, 'init', '-q')
+    git(root, 'checkout', '-q', '-b', 'dev')
+    commit(root, 'a')
+    (root / 'night').write_text('night-only')
+    git(root, 'add', 'night')
+    git(root, 'commit', '-q', '-m', 'night')
+    tip1 = git(root, 'rev-parse', 'HEAD')
+    git(root, 'checkout', '-q', '--detach', tip1)
+    git(root, 'rm', '-q', 'night')
+    git(root, 'commit', '-q', '-m', 'revert night')
+    r1 = git(root, 'rev-parse', 'HEAD')
+    git(root, 'checkout', '-q', 'dev')
+    tip2 = commit(root, 'b')
+    git(root, 'checkout', '-q', '--detach', tip2)
+    git(root, 'rm', '-q', 'night')
+    git(root, 'commit', '-q', '-m', 'revert night again')
+    r2 = git(root, 'rev-parse', 'HEAD')
+    manager = FakeDeployment(tmp_path)
+    manager.root = root
+    release(manager, 'day-r1', r1)
+    assert manager.lineage_warnings('day-r1', r2, branch='dev') == []
+    assert [w.split(':')[0] for w in manager.lineage_warnings('day-r1', tip2, branch='dev')] == [
+        'lineage_base_not_in_commit', 'lineage_active_not_on_branch']
