@@ -407,7 +407,19 @@ def check_pages():
     return {'samples': rows, 'ok': not bad, 'bad': bad}
 
 
-def main():
+def parse_args(argv=None):
+    """No options: the hourly run (ops_auto watch) calls it without arguments. 11-17 (PM 06:3x): `--help` ran a real
+    public measurement twice (05:14, 06:28) because arguments were ignored; now --help only prints this and any other
+    argument stops with exit 2 before anything is measured."""
+    import argparse
+    parser = argparse.ArgumentParser(prog='scripts/user_slo.py', description=__doc__.split('\n\n')[0],
+                                     epilog='Run without arguments; every run is a real public measurement and '
+                                            'appends one line to logs/ops/user-slo.jsonl.')
+    return parser.parse_args(argv)
+
+
+def main(argv=()):
+    parse_args(list(argv))   # the command line only from __main__; an in-process call parses nothing
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'targets': TARGET, 'connection': 'new per sample'}
     record['load_1_start'] = round(os.getloadavg()[0], 2)   # 11-12 PM: never put off for load; record it
     record['explore'] = check_explore()
@@ -427,4 +439,5 @@ def main():
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    import sys
+    raise SystemExit(main(sys.argv[1:]))
