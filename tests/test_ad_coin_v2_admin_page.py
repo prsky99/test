@@ -39,7 +39,7 @@ def test_script_only_reads_and_loads_both_panels_in_parallel():
     # 11-15 R33: agent ad offer decisions, after the operator sees the exact agent line
     # 11-15 PM 12:4x: an operator can take an advertiser down (/advertisers/<id>/takedown) after automatic review
     assert set(_re.findall(r"post\('(/[a-z-]+)/", js)) == {'/applications', '/reviews', '/paid-bookings', '/sponsored-offers',
-                                                            '/advertisers'}
+                                                            '/advertisers', '/paid-plans'}   # 11-16: plans too
     assert "'/takedown'" in js
     assert "'X-CSRF-Token': await siteCsrf()" in js and js.count("method: 'POST'") == 1
     assert 'BigInt' in js  # atoms exceed Number's safe range

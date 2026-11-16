@@ -141,7 +141,7 @@
   }
   const NOTES = {amount_mismatch: '금액이 견적과 다름', ambiguous_payer: '송금자가 여럿', sanctions_match: '제재 목록에 있음',
     sanctions_unavailable: '제재 목록 확인 불가', krw_rate_unavailable: '원화 시세 없음', late_payment: '견적 만료 뒤 송금',
-    reorg: '체인 재조직으로 결제 재확인 필요'};
+    reorg: '체인 재조직으로 결제 재확인 필요', placements_released: '계획의 날짜 자리가 풀림(환불 필요로 처리)'};
   // F12: every manual decision needs a reason (3-200 characters); it is kept with the payment records.
   function paidReason(card) {
     let input = card.querySelector('input[name="paid-reason"]');
@@ -153,21 +153,27 @@
   async function loadPaid(done = '') {
     text('paid-status', '불러오는 중입니다.');
     try {
-      const {items} = await get('/paid-bookings');
-      $('paid-list').replaceChildren(...items.map(item => {
+      // 11-16: plans (one payment for several placements) wait here too, with the same decisions
+      const [{items}, plans] = await Promise.all([get('/paid-bookings'),
+        get('/paid-plans').then(r => r.items).catch(() => [])]);
+      const all = [...items, ...plans.map(p => ({...p, quoted_usdc: p.amount_usdc, plan: true}))];
+      $('paid-list').replaceChildren(...all.map(item => {
         const SCREEN = {clear: '해당 없음', match: '제재 목록에 있음', unavailable: '확인 불가'};
         const lines = [item.amount_usdc + ' USDC · ' + (item.state === 'review' ? '검토' : '환불 필요') +
           (item.note ? ' · ' + (NOTES[item.note] || item.note) : ''),
           '받은 금액 ' + (item.received_usdc || '확인 필요') + ' / 견적 ' + (item.quoted_usdc || item.amount_usdc) + ' USDC' +
           (item.refund_cap_usdc ? ' · 환불 상한 ' + item.refund_cap_usdc : ''),
           '송금자 ' + (item.payer || '—') + ' · 제재 대조 ' + (SCREEN[item.sanctions] || '—'), '거래 ' + (item.tx_hash || '—')];
+        if (item.plan) lines.unshift('맞춤 계획 · 자리 ' + item.placements + '개 (' + item.items.map(i => i.day + ' ' + i.task_category + '/' + i.region).join(', ') + ')');
         const decide = (body, okText) => async (b, card) => {
           const why = paidReason(card);
           if (why.value.trim().length < 3) { why.focus(); text('paid-status', '처리 사유를 3자 이상 적으세요.'); return; }
           const ack = card.querySelector('input[name="sanctions-ack"]');
           b.disabled = true; try {
-          await post('/paid-bookings/' + item.id + '/decision',
-            {...body, reason: why.value.trim(), sanctions_ack: !!(ack && ack.checked)}); await loadPaid(okText); }
+          const sent = {...body, reason: why.value.trim(), sanctions_ack: !!(ack && ack.checked)};
+          if (item.plan) await post('/paid-plans/' + item.id + '/decision', sent);
+          else await post('/paid-bookings/' + item.id + '/decision', sent);
+          await loadPaid(okText); }
           catch (e) { b.disabled = false; text('paid-status', reason(e.status)); } };
         const actions = item.state === 'review'
           ? [['확정', true, decide({action: 'clear'}, '확정했습니다.')], ['환불 필요', false, decide({action: 'refund'}, '환불 필요로 옮겼습니다.')]]
