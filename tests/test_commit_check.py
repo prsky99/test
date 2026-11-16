@@ -13,7 +13,7 @@ def test_never_committed_files_secrets_undefined_names_and_hangul():
     problems, notes = run([
         ('deploy/gateway.env', 'X=1'),
         ('reports/source-review-2026-11-16/README.md', '# local'),
-        ('docs/note.md', '-----BEGIN OPENSSH PRIVATE KEY-----\nabc'),
+        ('docs/note.md', '-----BEGIN OPENSSH ' + 'PRIVATE KEY-----\nabc'),   # split so this file is not a finding
         ('scripts/x.py', 'def f():\n    return missing_name\n'),
         ('agent_market/concierge/reply.py', 'TEXT = "' + '한글' + '"\n'),
         ('agent_market/concierge/selection.py', 'A = 1\n'),

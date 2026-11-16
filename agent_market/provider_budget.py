@@ -212,7 +212,12 @@ ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_check
                          # workflow 11-16 12:4x: three company sets on 11-17 read SEC (holdout-r6 for sec-company-profile,
                          # holdout-r7 for company v3, wikipedia-summary re-gate companies), 1-2 reads a company, 90-160
                          # in all; 20 x 600 // 60 = 200, inside sec.gov's checked total of 600
-                         ('reference_checks', 'sec.gov'): 20}}
+                         ('reference_checks', 'sec.gov'): 20,
+                         # workflow 11-16 (PM 16:2x approved +60): 11-17 answer-set builds read Wikipedia about 220 times
+                         # (article answers ~55, re-check full-text searches ~115, batch lookups). The share moves in
+                         # steps of 16 here (x 1000 // 60), so 13 gives 216 (+50, inside the approval); the gate holds
+                         # and substitute_tests (500) on wikipedia.org are unchanged, and 216 + 500 stays under 1000.
+                         ('reference_checks', 'wikipedia.org'): 13}}
 # GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
 ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}}
 

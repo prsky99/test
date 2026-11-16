@@ -361,7 +361,7 @@ def test_wikidata_truth_source_terms_are_recorded_and_keep_the_default_total():
 def test_holdout_r5_wiki_reads_fit_on_11_16_only():
     """PM 11-16: +40 Wikipedia reference reads for the mixed wikipedia-summary re-gate set, that day only."""
     assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261116') == 216
-    assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261117') == 166
+    assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261118') == 166   # 11-17 has its own grant
 
 
 def test_the_cassette_share_is_small_on_commercial_domains_pinned_on_declared_ones_and_ends_after_1124():
@@ -381,3 +381,12 @@ def test_the_adapter_check_has_ten_adhoc_calls_on_two_members_on_1116_only():
     assert pb.share_limit('adhoc', 'mosaiden.com', day='20261116') == 10
     assert pb.share_limit('adhoc', 'onekivo.vercel.app', day='20261116') == 10
     assert pb.share_limit('adhoc', 'mosaiden.com', day='20261117') == 2
+
+
+def test_1117_wikipedia_reference_checks_rise_and_the_gate_shares_stay():
+    """workflow 11-16 (PM 16:2x): +60 approved, 216 given (the share moves in steps of 16 on wikipedia.org)."""
+    from agent_market import provider_budget as pb
+    assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261117') == 216
+    assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261118') == 166
+    assert pb.share_limit('substitute_tests', 'wikipedia.org', day='20261117') == 500
+    assert pb.share_limit('gate', 'wikipedia.org', day='20261117') == 1000
