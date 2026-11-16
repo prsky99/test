@@ -286,7 +286,18 @@ ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_check
             '20261118': {('reference_checks', 'openalex.org'): 46},
             '20261119': {('reference_checks', 'openalex.org'): 48}}
 # GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
-ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}}
+ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}, '20261118': {'reference_checks': 30}}
+# PM 11-16 (가), from 11-18: the test family (every system but fallback_live) takes at most GITHUB_TEST_HOURLY calls an
+# hour and GITHUB_TEST_DAILY a day, inside the shared 55, so live answers come first. Hours granted on purpose are
+# outside both: the night grants above (11-18 00-07: workflow's N2 answer set, about 90 repo reads) and the gate hours
+# below, where the gate may take its round (about 30 a round: N2 repo slot 11-19, cve fix slot 11-21, workflow 21:3x)
+# and the other test systems wait; live answers still share what is left of the 55 in that hour.
+GITHUB_TEST_FROM = '20261118'
+GITHUB_TEST_HOURLY = 12
+GITHUB_TEST_DAILY = 120
+GATE_HOURS_GITHUB = {'2026111813': 30,                          # github-repo substitute gate 13:10
+                     '2026111911': 32, '2026111916': 32,        # mcp-server-trust-check rounds 11:10, 16:10
+                     '2026112108': 32, '2026112112': 32}        # cve-incident-brief v2 rounds 08:10, 12:10
 
 
 def share_limit(system, name, day=None, directory=None):
@@ -501,6 +512,36 @@ def hour(now=None):
     return datetime.fromtimestamp(time.time() if now is None else now, KST).strftime('%Y%m%d%H')
 
 
+def _test_calls(entry):
+    return sum(v for k, v in (entry.get('by') or {}).items() if k != 'fallback_live')
+
+
+def _github_test_rule(system, n, entry, now, directory=None):
+    """None when SYSTEM's N calls fit the test-family rule (PM (가), from GITHUB_TEST_FROM), else the reason."""
+    stamp = hour(now)
+    if system == 'fallback_live' or stamp[:8] < GITHUB_TEST_FROM:
+        return None
+    gate_cap = GATE_HOURS_GITHUB.get(stamp)
+    if gate_cap is not None:
+        if system != 'gate':
+            return 'github_gate_hour'
+        return 'github_gate_hour_cap' if _test_calls(entry) + n > gate_cap else None
+    if int(stamp[8:]) < 8 and ONE_NIGHT_GITHUB.get(stamp[:8], {}).get(system):
+        return None                                           # a night grant: its own share is the limit
+    if _test_calls(entry) + n > GITHUB_TEST_HOURLY:
+        return 'github_test_hourly'
+    used = 0
+    for path in Path(directory or DIR).glob(f'github-{stamp[:8]}??.json'):
+        other = path.stem[len('github-'):]
+        if other == stamp or other in GATE_HOURS_GITHUB or (int(other[8:]) < 8 and ONE_NIGHT_GITHUB.get(other[:8])):
+            continue
+        try:
+            used += _test_calls(json.loads(path.read_text()).get('github') or {})
+        except (OSError, ValueError):
+            continue
+    return 'github_test_daily' if used + _test_calls(entry) + n > GITHUB_TEST_DAILY else None
+
+
 def github_reserve(system, n=1, now=None, directory=None):
     """Count N GitHub core calls of SYSTEM in this hour if the shared allowance allows them. Returns (ok, reason)."""
     if system not in GITHUB_SHARE:
@@ -516,6 +557,8 @@ def github_reserve(system, n=1, now=None, directory=None):
             why = 'github_hourly_total'
         elif entry['by'].get(system, 0) + n > github_share(system, now):
             why = 'system_share'
+        else:
+            why = _github_test_rule(system, n, entry, now, directory)
         if why:
             entry['refused'][system] = entry['refused'].get(system, 0) + n
             return False, why

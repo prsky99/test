@@ -446,3 +446,29 @@ def test_the_gdelt_live_bundle_is_capped_at_24_a_day(tmp_path):
     granted = [pb.live_reserve(url, now=at(17, 1) + i, directory=tmp_path)[0] for i in range(30)]
     assert granted.count(True) == pb.LIVE_DAY_CAP['gdeltproject.org'] == 24
     assert pb.live_reserve(url, now=at(17, 2), directory=tmp_path) == (False, 'quota_exhausted')
+
+
+def test_github_test_family_takes_12_an_hour_and_120_a_day_from_11_18(tmp_path):
+    """PM (가): live answers first; the test family stays at 12 an hour and 120 a day; before 11-18 nothing changes."""
+    assert pb.github_reserve('role_tests', n=5, now=at(17, 14), directory=tmp_path)[0]
+    assert pb.github_reserve('gate', n=20, now=at(17, 14), directory=tmp_path)[0]          # 11-17: old rule
+    h = at(18, 14)
+    assert pb.github_reserve('gate', n=12, now=h, directory=tmp_path) == (True, 'ok')
+    assert pb.github_reserve('role_tests', now=h, directory=tmp_path) == (False, 'github_test_hourly')
+    assert pb.github_reserve('fallback_live', n=40, now=h, directory=tmp_path) == (True, 'ok')   # live is not capped by it
+    for hh in (15, 16, 17, 18, 19, 20, 21, 22, 23):
+        assert pb.github_reserve('gate', n=12, now=at(18, hh), directory=tmp_path)[0]
+    assert pb.github_reserve('gate', n=12, now=at(19, 9), directory=tmp_path)[0]          # a new day
+    # 10 day hours x 12 = 120: the day is full
+    assert pb.github_reserve('gate', n=1, now=at(18, 23) + 1800, directory=tmp_path) == (False, 'github_test_hourly')
+    assert pb.github_reserve('gate', n=1, now=at(18, 12), directory=tmp_path) == (False, 'github_test_daily')   # empty hour, full day
+
+
+def test_github_gate_hours_and_the_night_grant_sit_outside_the_test_rule(tmp_path):
+    assert pb.github_reserve('gate', n=30, now=at(19, 11) + 600, directory=tmp_path) == (True, 'ok')     # 11:10 round
+    assert pb.github_reserve('gate', n=3, now=at(19, 11) + 900, directory=tmp_path) == (False, 'github_gate_hour_cap')
+    assert pb.github_reserve('role_tests', now=at(19, 11) + 900, directory=tmp_path) == (False, 'github_gate_hour')
+    assert pb.github_reserve('fallback_live', n=20, now=at(19, 11) + 900, directory=tmp_path) == (True, 'ok')
+    assert pb.github_reserve('gate', n=12, now=at(19, 12), directory=tmp_path) == (True, 'ok')           # day rule untouched
+    assert pb.github_reserve('reference_checks', n=30, now=at(18, 1), directory=tmp_path) == (True, 'ok')  # 11-18 night
+    assert pb.github_reserve('reference_checks', n=1, now=at(18, 1) + 60, directory=tmp_path) == (False, 'system_share')
