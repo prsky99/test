@@ -355,3 +355,23 @@ def test_gateway_data_paths_resolve_from_a_release_folder(tmp_path, monkeypatch)
         assert paid.data_path(paid.DEFAULT_OFAC_LIST) == str(project / paid.DEFAULT_OFAC_LIST)
         assert paid.Sanctions(paid.DEFAULT_OFAC_LIST).screen('0x' + 'ab' * 20) == 'clear'
     assert paid.data_path('/abs/x.txt') == '/abs/x.txt'
+
+
+def test_a_possible_early_data_replay_only_reads_the_bookings(world, monkeypatch):
+    """11-16 (0-RTT): GET /paid-bookings may grant the welcome coins after a paid booking; a request marked
+    Early-Data: 1 (RFC 8470) still lists the bookings but never writes."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from agent_market.ad_coin.v2 import advertiser_applications
+    calls = []
+    monkeypatch.setattr(advertiser_applications, 'welcome_after_payment', lambda *a, **k: calls.append(a))
+    from agent_market.ad_coin.v2.paid_bookings_http import router_for
+    suite, service, _, _ = world
+    app = FastAPI()
+    app.include_router(router_for(suite.service, service, resolve_auth=suite.resolver))
+    client = TestClient(app)
+    base = '/api/ad-coin/v2/advertisers/' + suite.advertiser + '/paid-bookings'
+    assert client.get(base, headers={**suite.headers('editor'), 'Early-Data': '1'}).status_code == 200
+    assert calls == []
+    assert client.get(base, headers=suite.headers('editor')).status_code == 200
+    assert len(calls) == 1

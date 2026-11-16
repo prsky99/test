@@ -130,8 +130,10 @@ def router_for(slots, offers=None) -> APIRouter:
                     offer = offer if offer and await run_in_threadpool(public_endpoint, offer["endpoint"]) else None
                 if offer:
                     target = offer["endpoint"]
+                # 11-16 (0-RTT): a request that may be a TLS early-data replay (RFC 8470, Early-Data: 1) still gets
+                # its redirect but is never counted, like the impression count above
                 if target != "/advertise" and not is_qa(request.headers.get("x-agentcon-qa")) \
-                        and first_click(request, campaign_id):
+                        and request.headers.get("early-data", "") != "1" and first_click(request, campaign_id):
                     await run_in_threadpool(lambda: count_click(slots.store, campaign_id, category=mapped, region=where,
                                                                 surface=surface))
         except ContractError:

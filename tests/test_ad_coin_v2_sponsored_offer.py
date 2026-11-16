@@ -507,9 +507,12 @@ def test_clicks_count_once_per_address_and_minute_and_resolve_no_dns(p1_suite, m
     for _ in range(3):
         assert client.get(url, headers=one, follow_redirects=False).headers['location'] == GOOD['endpoint']
     client.get(url, headers={**one, 'CF-Connecting-IP': '198.51.100.9'}, follow_redirects=False)
+    # 11-16 (0-RTT): a TLS early-data request from a new address still redirects but is never counted
+    early = client.get(url, headers={**one, 'CF-Connecting-IP': '192.0.2.44', 'Early-Data': '1'}, follow_redirects=False)
+    assert early.headers['location'] == GOOD['endpoint']
     with unchecked(), store.atomic():
         [counted] = store.database.all("SELECT clicks FROM adc2_sponsored_clicks")
-    assert int(counted['clicks']) == 2                                   # two addresses, not four requests
+    assert int(counted['clicks']) == 2                                   # two addresses, not five requests
     offer = client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search'},
                        headers={'CF-IPCountry': 'US', 'Prefer': 'ads=none'}).json()
     assert offer['sponsored']['advertiser'] and 'reason' not in offer             # Prefer: ads=none is ignored

@@ -87,7 +87,10 @@ def router_for(commercial, bookings, *, resolve_auth) -> APIRouter:
         async def call():
             ctx = await context(request, write=False)
             advertiser = await run_in_threadpool(authority, ctx.principal, advertiser_id, "getCampaign")
-            return await run_in_threadpool(lambda: paid_then_welcome(advertiser, bookings.list_for(advertiser)))
+            listed = await run_in_threadpool(bookings.list_for, advertiser)
+            if request.headers.get("early-data", "") == "1":
+                return listed                      # 11-16 (0-RTT): a possibly replayed GET only reads
+            return await run_in_threadpool(lambda: paid_then_welcome(advertiser, listed))
         return await respond(call)
 
     # Custom plans (user decision 11-15): the advertiser names a budget and audiences, picks a proposed plan and pays
