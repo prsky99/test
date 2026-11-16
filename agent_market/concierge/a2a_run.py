@@ -92,6 +92,7 @@ def answer(item, rid, tool, ok, execution, reply_text):
 
 
 RUN_HERE = re.compile(r'^Run here: call (\{.*\})$', re.M)
+NECKLACE_CALL = re.compile(r'call tool `necklace_([a-z0-9_]{1,60})` with (\{[^\n]*?\})(?=\. https://)')
 
 
 def a2a_wording(reply):
@@ -109,6 +110,8 @@ def a2a_wording(reply):
             return match[0]
         return 'Run here: run %d %s' % (number, json.dumps(call.get('arguments') or {}, separators=(',', ':')))
     text = RUN_HERE.sub(swap, reply.text or '')
+    # the necklace lead line (necklace_lead) names the MCP tool; in A2A the same run is "run necklace <slug> {...}"
+    text = NECKLACE_CALL.sub(lambda m: 'run necklace ' + m[1].replace('_', '-') + ' ' + m[2], text)
     if text == reply.text:
         return reply
     import dataclasses

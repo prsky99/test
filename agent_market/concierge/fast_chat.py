@@ -1140,8 +1140,15 @@ class FastConcierge(Concierge):
                 # one request's values
                 runnable = {**runnable, 'run_here': here}
                 items = [runnable] + list(items[1:])
+        # PM 11-16 plan C: an open necklace whose scope matches the task leads the answer with one line that runs it
+        # (necklace_lead: offered necklaces only, inputs from the task only when certain; None while none is open).
+        from .necklace_lead import lead as necklace_line
+        necklace = necklace_line(task) if offset == 0 else None
+        if necklace:
+            lead = necklace + '\n\n' + lead
         return Reply(lead+'\n\n'.join(str(i+1)+'. '+self._brief(item, first=i == 0, step=here if i == 0 and item is runnable else None) for i,item in enumerate(items)),'find',
                      {**({'status':'needs_choice','confidence':'low'} if unsure else {}),
+                      **({'necklace_lead':necklace} if necklace else {}),
                       'task':task,'watch_task':' '.join(search_terms(task))[:160],'protocol':protocol,
                       'category':items[0]['category'],'revalidate_after_sec':3600,
                       'task_spec':spec.state(),'quality_policy':'task_constraints_verified_recency_v1',
