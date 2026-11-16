@@ -43,3 +43,15 @@ def test_summary_is_one_board_line():
     text = vd.summary(line)
     assert '\n' not in text and '첫 USDC 없음' in text and '재방문 0/626(주 2026-11-09)' in text
     assert '차선 속도 5/24(목표 12)' in text
+
+
+def test_unmeasured_is_never_written_as_zero(tmp_path):
+    """Source review C15: a missing snapshot or run file reads as not measured."""
+    assert vd.public_necklaces(tmp_path)['value'] is None
+    assert vd.external_successes('2026-11-16', tmp_path)['value'] is None
+    line = {'day': '2026-11-16', 'public_necklaces': {'value': None}, 'external_successes': {'value': None},
+            'usable_pearls': {'value': None}, 'interim_speed': {'value': 0, 'runs': 0, 'aim': 12},
+            'real_task': {'value': None}}
+    text = vd.summary(line)
+    assert '공개 목걸이 미측정' in text and '외부 실행 성공 미측정' in text and '차선 속도 미측정' in text
+    assert 'real_task 미측정' in text and '첫 USDC 읽기 실패' in text

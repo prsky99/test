@@ -58,17 +58,25 @@ def _jsonl_tail(path, n):
 
 def public_necklaces(root=NECKLACES):
     from agent_market.concierge import necklace_surface
+    path = Path(root) / 'necklaces.json'
+    if not path.is_file():   # source review C15: not measured is never written as 0
+        return {'value': None, 'unmeasured': 'no necklaces.json'}
     try:
-        snapshot = necklace_surface.load(Path(root) / 'necklaces.json')
-    except Exception:   # an unreadable snapshot counts as none offered, said so
-        return {'value': None, 'error': 'snapshot unreadable'}
+        snapshot = necklace_surface.load(path)
+    except Exception:
+        return {'value': None, 'unmeasured': 'snapshot unreadable'}
     live = necklace_surface.live(snapshot)
     return {'value': len(live), 'slugs': sorted(e.get('slug') for e in live)}
 
 
 def external_successes(day, root=NECKLACES):
     from agent_market.necklaces import north_star
-    metric = north_star.day_metric(Path(root) / 'runs', day)
+    runs = Path(root) / 'runs'
+    date = datetime.strptime(day, '%Y-%m-%d')
+    names = {(date - timedelta(days=1)).strftime('%Y%m%d'), date.strftime('%Y%m%d')}
+    if not any((runs / f'{n}.jsonl').is_file() for n in names):   # C15: no run file is "not measured", not 0
+        return {'value': None, 'unmeasured': 'no run file for the day', 'day': day}
+    metric = north_star.day_metric(runs, day)
     return {k: metric.get(k) for k in ('value', 'failed', 'cached', 'our_capacity') if k in metric} | {'day': day}
 
 
@@ -150,14 +158,17 @@ def summary(line):
     cohorts = line.get('returning_cohorts') or []
     last = cohorts[-2] if len(cohorts) >= 2 else (cohorts[-1] if cohorts else None)   # the last full week
     speed, rt = line['interim_speed'], line['real_task']
+    def shown(value):
+        return '미측정' if value is None else value
+
     parts = [
-        f"공개 목걸이 {line['public_necklaces'].get('value')}",
-        f"외부 실행 성공 {line['external_successes'].get('value')}({line['day']})",
+        f"공개 목걸이 {shown(line['public_necklaces'].get('value'))}",
+        f"외부 실행 성공 {shown(line['external_successes'].get('value'))}({line['day']})",
         ('첫 USDC ' + pay['first_at']) if pay.get('first_at') else ('첫 USDC 없음' if pay else '첫 USDC 읽기 실패'),
         (f"재방문 {last['returned_other_day']}/{last['visitors']}(주 {last['week']})" if last else '재방문 자료 없음'),
-        f"사용 가능 진주 {line['usable_pearls'].get('value')}",
-        f"차선 속도 {speed['value']}/{speed['runs']}(목표 {speed['aim']})",
-        f"real_task {rt.get('value')}/{rt.get('tasks')}(목표 {rt.get('aim')})",
+        f"사용 가능 진주 {shown(line['usable_pearls'].get('value'))}",
+        (f"차선 속도 {speed['value']}/{speed['runs']}(목표 {speed['aim']})" if speed['runs'] else '차선 속도 미측정'),
+        (f"real_task {rt.get('value')}/{rt.get('tasks')}(목표 {rt.get('aim')})" if rt.get('value') is not None else 'real_task 미측정'),
     ]
     return ' · '.join(parts)
 
