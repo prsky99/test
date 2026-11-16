@@ -127,3 +127,28 @@ def test_papers_can_come_from_crossref_and_each_case_names_its_source(tmp_path):
     assert any(s["name"].startswith("Crossref") for s in case["truth_sources"])
     assert any(s.startswith("Crossref") for s in json.loads((folder / "manifest.json").read_text())["files"]["holdout-r3"]["truth_sources"])
     assert out["written"]["cases"] == len(r3.TOPICS) - 1
+
+
+def test_a_target_builds_only_the_first_topics_in_the_fixed_order(tmp_path):
+    """PM 11-16: holdout-r5 builds the first 30 topics with papers in its fixed order, so r4's 19 and r5's 30 fit in
+    OpenAlex's 50 a day; the topics after them are never asked and never used."""
+    folder = setup(tmp_path)
+    get, calls = fake()
+    out = r3.step(tmp_path, get, target=5)
+    openalex = [c for c in calls if "wikipedia.org" not in c]
+    assert len(openalex) == 5 and out["written"]["cases"] == 5 and out["left"] == 0
+    cases = [json.loads(l)["case_id"] for l in (folder / "holdout-r3.jsonl").read_text().splitlines()]
+    wanted = [t for t, _, _ in r3.TOPICS if t not in ("CRISPR", "Metamaterial")][:5]
+    assert cases == ["topic:" + t for t in wanted]                       # the code's order, not picked by results
+    manifest = json.loads((folder / "manifest.json").read_text())["files"]["holdout-r3"]
+    assert "first 5 topics" in manifest["selection"]
+    # stopped by the share before the target: not written, resumes in the same order the next day
+    folder2 = setup(tmp_path / "b")
+    get, calls = fake(limit=3)
+    out = r3.step(tmp_path / "b", get, target=5)
+    assert "written" not in out and out["done"] == 2
+
+
+def test_r5_asks_for_round_cases():
+    from agent_market.necklaces import gold_topics_r5 as r5
+    assert r5.ROUND_CASES == 30 and len(r5.TOPICS) == 40

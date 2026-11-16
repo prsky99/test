@@ -61,8 +61,13 @@ def used_topics(root: Path, split: str = SPLIT) -> set[str]:
 
 
 def step(root: Path = DEFAULT_ROOT, get=fetch_json, split: str = SPLIT, topics=None, progress_name: str = "r3-progress.json",
-         purpose: str = "arxiv-search re-verdict and the necklace gate (11-15)", papers_source: str = "openalex") -> dict:
-    """One resumable round for SPLIT (holdout-r3 by default; holdout-r4 from gold_topics_r4 with its own topics)."""
+         purpose: str = "arxiv-search re-verdict and the necklace gate (11-15)", papers_source: str = "openalex",
+         target: int | None = None) -> dict:
+    """One resumable round for SPLIT (holdout-r3 by default; holdout-r4 from gold_topics_r4 with its own topics).
+
+    TARGET (PM 11-16, topic gate round 2 within OpenAlex's 50 a day): stop once TARGET topics, taken in the fixed
+    TOPICS order, have papers, and write the split with exactly those; the topics after them are not asked and not
+    used. The order is the code's, set before any answer was seen, so nothing is picked by its result."""
     topics = TOPICS if topics is None else topics
     folder = Path(root) / "gold" / SLUG
     progress_path = folder / progress_name
@@ -86,6 +91,9 @@ def step(root: Path = DEFAULT_ROOT, get=fetch_json, split: str = SPLIT, topics=N
             progress["wiki"] = {t: pages.get(renamed.get(t, t)) for t, _, _ in todo}
             progress["wiki_at"] = _now()
         for title, phrase, stratum in todo:
+            if target is not None and sum(1 for t, _, _ in todo
+                                          if "papers" in (progress.get("topics") or {}).get(t, {})) >= target:
+                break
             row = progress.setdefault("topics", {}).setdefault(title, {})
             if "papers" in row or "dropped" in row:
                 continue
@@ -111,20 +119,25 @@ def step(root: Path = DEFAULT_ROOT, get=fetch_json, split: str = SPLIT, topics=N
     progress_path.write_text(json.dumps(progress, ensure_ascii=False, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     rows = progress.get("topics") or {}
     left = [t for t, _, _ in todo if "papers" not in rows.get(t, {}) and "dropped" not in rows.get(t, {})]
+    built = [t for t, _, _ in todo if "papers" in rows.get(t, {})]
+    if target is not None and len(built) >= target:
+        left = []                                    # the topics after the first TARGET are not built (PM 11-16)
     out = {"done": sum(1 for r in rows.values() if "papers" in r), "left": len(left),
            "dropped": {t: r["dropped"] for t, r in rows.items() if "dropped" in r}, "stopped": stopped}
     if not left and "wiki" in progress:
-        out["written"] = write_split(root, progress, todo, split, purpose)
+        out["written"] = write_split(root, progress, todo, split, purpose, target=target)
     return out
 
 
 def write_split(root: Path, progress: dict, todo, split: str = SPLIT,
-                purpose: str = "arxiv-search re-verdict and the necklace gate (11-15)") -> dict:
+                purpose: str = "arxiv-search re-verdict and the necklace gate (11-15)", target: int | None = None) -> dict:
     cases = []
     for title, _, _ in todo:
         row = (progress.get("topics") or {}).get(title) or {}
         if "papers" not in row:
             continue
+        if target is not None and len(cases) >= target:
+            break
         wiki = progress["wiki"][title]
         cases.append({"case_id": "topic:" + title, "task_type": "same_role", "stratum": row["stratum"],
                       "input": {"topic": wiki["title"]},
@@ -143,7 +156,11 @@ def write_split(root: Path, progress: dict, todo, split: str = SPLIT,
         strata[c["stratum"]] = strata.get(c["stratum"], 0) + 1
     manifest.setdefault("files", {})[split] = {"cases": len(cases), "strata": strata,
                                                "sha256": hashlib.sha256(text.encode()).hexdigest(), "for": purpose,
-                                               "selection": "not filtered by any source's coverage (PM 11-16 06:5x)",
+                                               "selection": "not filtered by any source's coverage (PM 11-16 06:5x)"
+                                                            + (f"; the first {target} topics with papers in the fixed "
+                                                               "TOPICS order of the builder (set before any answer was "
+                                                               "seen), the topics after them not built and not used "
+                                                               "(PM 11-16, OpenAlex 50 a day)" if target else ""),
                                                "same_source_kind": "secondary",
                                                "same_source_rule": "secondary index (PM 11-16 07:05): a papers answer from "
                                                                    "a member whose upstream is this case's papers source "

@@ -15,6 +15,7 @@ from .gold_topics_r3 import step as _step
 from .judge import DEFAULT_ROOT
 
 SPLIT = "holdout-r5"
+ROUND_CASES = 30
 TOPICS = [(t, k or t.lower(), "stem") for t, k in [
     ("Microfluidics", None), ("Metabolomics", None), ("Proteomics", None), ("Organoid", None), ("Pharmacogenomics", None),
     ("Bioprinting", "3d bioprinting"), ("Neuromorphic engineering", "neuromorphic"), ("Photonic crystal", None),
@@ -32,8 +33,9 @@ TOPICS = [(t, k or t.lower(), "stem") for t, k in [
 
 def step(root: Path = DEFAULT_ROOT, get=None, papers_source: str = "openalex") -> dict:
     kwargs = {"papers_source": papers_source} if get is None else {"get": get, "papers_source": papers_source}
+    # PM 11-16: round 2 runs 30 cases, so only the first 30 topics with papers are built (r4's 19 + 30 fit in 50)
     return _step(root, split=SPLIT, topics=TOPICS, progress_name="r5-progress.json",
-                 purpose="topic-evidence-brief launch gate round 2 (11-16)", **kwargs)
+                 purpose="topic-evidence-brief launch gate round 2 (11-16)", target=ROUND_CASES, **kwargs)
 
 
 def main(argv: list[str] | None = None) -> int:
