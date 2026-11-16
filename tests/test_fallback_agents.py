@@ -884,6 +884,7 @@ def test_wikipedia_agent_follows_redirects_and_credits_cc_by_sa(tmp_path):
 
 def test_wikipedia_agent_refuses_missing_and_disambiguation(tmp_path):
     a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": lambda r: httpx.Response(200, json={"query": {"pages": [
+        ] if "gpssearch" in r.url.params else [                      # the title search finds nothing either (11-16)
         {"title": r.url.params["titles"], "missing": True} if r.url.params["titles"] == "Nope" else
         {"title": "Mercury", "pageprops": {"disambiguation": ""}, "extract": "Mercury may refer to:"}]}})})
     for title in ("Nope", "Mercury"):
@@ -2355,3 +2356,44 @@ def test_census_match_with_another_zip_code_is_not_the_address():
     assert same_street("24 Beacon St, Boston, MA 02133, USA", "24 BEACON ST, BOSTON, MA, 02133")
     assert same_street("1600 Pennsylvania Avenue NW, Washington, DC", "1600 PENNSYLVANIA AVE NW, WASHINGTON, DC, 20500")
     assert not same_street("2301 North Highland Avenue, Los Angeles, CA 90068", "2301 HIGHLAND DR, LOS ANGELES, CA, 90016")
+
+
+def test_wikipedia_summary_falls_back_to_a_search_with_the_same_title_words(tmp_path):
+    """company v2 11-16 (workflow): exact titles are case- and punctuation-exact, so "Bjs Restaurants" missed
+    "BJ's Restaurants"; one search then takes only an article whose title has the asked words (two more at most)."""
+    from agent_market.fallback_agents.agents import title_words
+    calls = []
+
+    def handler(request):
+        url = str(request.url)
+        calls.append(url)
+        if "generator=prefixsearch" in url:
+            return httpx.Response(200, json={"query": {"pages": [
+                {"index": 1, "pageid": 9, "title": "BJ's Wholesale Club", "fullurl": "https://en.wikipedia.org/wiki/BJ%27s_Wholesale_Club",
+                 "extract": "BJ's Wholesale Club is a warehouse club chain."},
+                {"index": 2, "pageid": 7, "title": "BJ's Restaurants", "fullurl": "https://en.wikipedia.org/wiki/BJ%27s_Restaurants",
+                 "extract": "BJ's Restaurants, Inc. is an American restaurant chain."}]}})
+        return httpx.Response(200, json={"query": {"pages": [{"title": "Bjs Restaurants", "missing": True}]}})
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": handler})
+    out = a.execute("wikipedia-summary", {"title": "Bjs Restaurants"})["result"]
+    assert out["title"] == "BJ's Restaurants" and "restaurant chain" in out["summary"]
+    assert len(calls) == 2 and "titles=Bjs+Restaurants" in calls[0] and "gpssearch=Bjs+Restaurants" in calls[1]
+    with pytest.raises(FallbackUnavailable) as err:                 # no title with the asked words: still not found
+        a.execute("wikipedia-summary", {"title": "Qwzx Restaurants"})
+    assert err.value.code == "not_found"
+    assert title_words("BJ\u2019s Restaurants") == title_words("Bjs restaurants") == ["bjs", "restaurants"]
+
+
+def test_wikipedia_summary_takes_the_same_title_before_a_longer_one(tmp_path):
+    """company v2 11-16: SEC names arrive in capitals ("DEXCOM"); the exact title misses and the title search lists
+    "Dexcom CGM" before "Dexcom": the same title wins."""
+    def handler(request):
+        if "generator=prefixsearch" in str(request.url):
+            return httpx.Response(200, json={"query": {"pages": [
+                {"index": 1, "pageid": 2, "title": "Dexcom CGM", "fullurl": "https://en.wikipedia.org/wiki/Dexcom_CGM",
+                 "extract": "Dexcom CGM is a glucose monitor."},
+                {"index": 2, "pageid": 1, "title": "Dexcom", "fullurl": "https://en.wikipedia.org/wiki/Dexcom",
+                 "extract": "Dexcom, Inc. is an American healthcare company."}]}})
+        return httpx.Response(200, json={"query": {"pages": [{"title": "DEXCOM", "missing": True}]}})
+    a, _ = agents(tmp_path, {"https://en.wikipedia.org/w/api.php": handler})
+    assert a.execute("wikipedia-summary", {"title": "DEXCOM"})["result"]["title"] == "Dexcom"

@@ -676,11 +676,19 @@ class FallbackAgents:
                 "redirects": 1, "inprop": "url", "ppprop": "disambiguation", "titles": title,
                 "format": "json", "formatversion": 2, "maxlag": 5})
             pages = (raw.get("query") or {}).get("pages") or []
-            if len(pages) != 1 or pages[0].get("missing") or pages[0].get("invalid"):
-                raise FallbackUnavailable("not_found", "Wikipedia has no article with this title.")
-            page = pages[0]
-            if "disambiguation" in (page.get("pageprops") or {}):
-                raise FallbackUnavailable("not_found", "This title is a disambiguation page; use a more specific title.")
+            page = pages[0] if len(pages) == 1 else None
+            missing = page is None or page.get("missing") or page.get("invalid")
+            ambiguous = not missing and "disambiguation" in (page.get("pageprops") or {})
+            if missing or ambiguous:
+                # 11-16 company v2 (workflow): "Bjs Restaurants", "Dexcom" and "Entravision Communications" missed
+                # their articles because titles are case- and punctuation-exact after the first letter. One title
+                # search (read-only, same host) then picks the first article whose title is the asked one up to case and
+                # punctuation, or holds every asked word with at most two more ("Traeger" -> "Traeger (company)");
+                # anything looser stays not_found, so a title lookup never answers about something else.
+                page = self._wiki_search_title(title, rem)
+                if page is None:
+                    raise FallbackUnavailable("not_found", "This title is a disambiguation page; use a more specific title."
+                                              if ambiguous else "Wikipedia has no article with this title.")
             summary = lead(page.get("extract") or "", 1500)
             url = page.get("fullurl") or ""
             if not summary or not url.startswith("https://en.wikipedia.org/wiki/"):
@@ -691,6 +699,27 @@ class FallbackAgents:
         (out, as_of), cache = self._cached(("wikipedia-summary", title.casefold()), TTL["wikipedia-summary"],
                                            live, remaining)
         return out, cache, False, {"Wikipedia": as_of}
+
+    def _wiki_search_title(self, title, rem):
+        raw = self._get_json("https://en.wikipedia.org/w/api.php", rem, limit=512 * 1024, params={
+            # title (prefix) search: it matches "Bjs Restaurants" to "BJ's Restaurants", which full-text search
+            # does not (checked 11-16), and returns the leads in the same request
+            "action": "query", "generator": "prefixsearch", "gpssearch": title, "gpslimit": 5, "gpsnamespace": 0,
+            "prop": "extracts|info|pageprops", "exintro": 1, "explaintext": 1, "exlimit": 5, "inprop": "url",
+            "ppprop": "disambiguation", "redirects": 1, "format": "json", "formatversion": 2, "maxlag": 5})
+        pages = sorted((p for p in (raw.get("query") or {}).get("pages") or [] if isinstance(p, dict)),
+                       key=lambda p: p.get("index", 99))
+        asked = title_words(title)
+        usable = [p for p in pages if "disambiguation" not in (p.get("pageprops") or {}) and p.get("extract")]
+        # the same title first ("DEXCOM" -> "Dexcom", not "Dexcom CGM"), then one with at most two more words
+        for page in usable:
+            if title_words(str(page.get("title") or "")) == asked:
+                return page
+        for page in usable:
+            found = title_words(str(page.get("title") or ""))      # "Traeger (company)" -> traeger, company
+            if set(asked) <= set(found) and len(set(found) - set(asked)) <= 2:
+                return page
+        return None
 
     def _arxiv_search(self, args, remaining):
         query = " ".join(args["query"].split())
@@ -2186,6 +2215,11 @@ STREET_TYPES = {"avenue": "ave", "ave": "ave", "av": "ave", "street": "st", "st"
 
 
 ZIP = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
+
+
+def title_words(title: str) -> list[str]:
+    """Words of a title for comparison: case, apostrophes and punctuation aside ("BJ's Restaurants" = "Bjs Restaurants")."""
+    return re.findall(r"[a-z0-9]+", title.casefold().replace("'", "").replace("\u2019", ""))
 
 
 def same_street(asked: str, matched: str) -> bool:
