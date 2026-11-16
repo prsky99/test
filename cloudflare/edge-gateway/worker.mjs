@@ -718,15 +718,26 @@ async function probeOutput(binding, signal) {
   return {status_code: response.status, output, execution_succeeded: true, protocol_valid: true, transport_ok: true, task_status: 'completed'};
 }
 async function deliver(request, env, ctx, binding, run, clientIP, directJSON = false) {
-  let aborter, timer, timedOut = false;
+  let aborter, timer, timedOut = false, reported = false, settle;
+  const cleanup = binding.mcp_prepared?.cleanup ? {mcp_cleanup: binding.mcp_prepared.cleanup} : {};
+  // One completion per claimed attempt, whichever path reports first (11-17, 운영·SRE, PM 08:3x).
+  const report = value => { if (reported) return; reported = true; settle(); completion(env, ctx, value, clientIP); };
+  // Safety net: the attempt is claimed, so Origin holds it as dispatch_reserved until a completion arrives. When the
+  // caller goes away the handler can be cancelled before any path below reports, and Origin only expired the attempt
+  // as outcome_unknown 180 s or more later (11-16: 4 such attempts). waitUntil outlives the handler: if the request
+  // is aborted before a completion, report outcome_unknown now. A normal completion settles it, so it never sends twice.
+  ctx.waitUntil(new Promise(resolve => {
+    settle = resolve;
+    const aborted = () => { report({run_id: run, attempt_id: binding.attempt_id, outcome: 'outcome_unknown', outcome_code: 'OUTCOME_UNKNOWN', ...cleanup}); resolve(); };
+    if (request.signal.aborted) aborted(); else request.signal.addEventListener('abort', aborted, {once: true});
+  }));
   try {
       aborter = new AbortController();
       timer = setTimeout(() => { timedOut = true; aborter.timedOut = true; aborter.abort(); }, binding.timeout_ms);
       request.signal.addEventListener('abort', () => aborter.abort(), {once: true});
       const complete = (outcome, bytes, code = null) => {
         clearTimeout(timer);
-        completion(env, ctx, {run_id: run, attempt_id: binding.attempt_id, outcome, output_bytes: bytes, outcome_code: code,
-          ...(binding.mcp_prepared?.cleanup ? {mcp_cleanup: binding.mcp_prepared.cleanup} : {})}, clientIP);
+        report({run_id: run, attempt_id: binding.attempt_id, outcome, output_bytes: bytes, outcome_code: code, ...cleanup});
       };
       if (binding.protocol === 'mcp') {
         const output = await mcpOutput(env, ctx, binding, run, clientIP, aborter.signal);
@@ -755,7 +766,7 @@ async function deliver(request, env, ctx, binding, run, clientIP, directJSON = f
       }
       const finish = (outcome, output_bytes, outcome_code) => {
         clearTimeout(timer);
-        completion(env, ctx, {run_id: run, attempt_id: binding.attempt_id, outcome, output_bytes, outcome_code}, clientIP);
+        report({run_id: run, attempt_id: binding.attempt_id, outcome, output_bytes, outcome_code});
       };
       if (directJSON && media === 'application/json') {
         const output = jsonOutcome(await boundedJson(upstream, 65536), binding);
@@ -764,9 +775,8 @@ async function deliver(request, env, ctx, binding, run, clientIP, directJSON = f
       return new Response(resultStream(upstream, binding, aborter, finish, media === 'application/json' ? 'json' : 'sse'), {headers: header(env.PUBLIC_ORIGIN)});
   } catch (error) {
     if (timer) clearTimeout(timer); aborter?.abort();
-    completion(env, ctx, {run_id: run, attempt_id: binding.attempt_id,
-      outcome: error.outcome || 'outcome_unknown', outcome_code: error.outcome_code || 'OUTCOME_UNKNOWN',
-      ...(binding.mcp_prepared?.cleanup ? {mcp_cleanup: binding.mcp_prepared.cleanup} : {})}, clientIP);
+    report({run_id: run, attempt_id: binding.attempt_id,
+      outcome: error.outcome || 'outcome_unknown', outcome_code: error.outcome_code || 'OUTCOME_UNKNOWN', ...cleanup});
     const reply = failure('UNAVAILABLE', 503);
     // A classified Provider answer is not an Edge delivery fault; observedOutput strips this marker.
     if (error.outcome) reply.headers.set('X-Edge-Provider-Failure', '1');

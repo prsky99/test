@@ -1372,3 +1372,69 @@ test('a moved endpoint (308) and HTTP 402 payment-required are named causes, not
     } finally { await f.mf.dispose(); }
   }
 });
+
+// 11-17 (운영·SRE, PM 08:3x): a claimed attempt whose caller went away was left dispatch_reserved until Origin
+// expired it 180 s or more later (11-16: 4 attempts). The Worker now reports outcome_unknown when the request is
+// aborted before any completion, exactly once, and the provider-timeout report is unchanged.
+function abortFixture(provider, overrides = {}) {
+  const originalFetch = globalThis.fetch, pending = [], completes = [];
+  const binding = {attempt_id: attempt, endpoint, gateway_url: gateway, bindings: [endpoint], ...unary,
+    max_frame_bytes: 16384, max_output_bytes: 48000, timeout_ms: 8000, profile: 'a2a-03-informational-stream-v1', ...overrides};
+  globalThis.fetch = async (url, init) => {
+    const u = new URL(url instanceof Request ? url.url : url);
+    if (u.pathname.endsWith('/claim')) return new Response(JSON.stringify(binding), {headers: {'Content-Type': 'application/json'}});
+    if (u.pathname.endsWith('/complete')) { completes.push(JSON.parse(init.body)); return new Response('{"ok":true}', {headers: {'Content-Type': 'application/json'}}); }
+    if (u.pathname.endsWith('/output-observation')) return new Response('{"ok":true}', {headers: {'Content-Type': 'application/json'}});
+    assert.equal(u.href, endpoint);
+    return provider(init);
+  };
+  const caller = new AbortController();
+  const response = worker.fetch(new Request(origin + path, {method: 'POST', signal: caller.signal,
+    headers: {Origin: origin, Authorization: 'Bearer ' + ticket(), 'Content-Type': 'application/json', 'X-Edge-Result-Format': 'json'},
+    body: JSON.stringify({message: 'Weather?'})}),
+    {PUBLIC_ORIGIN: origin, CONTROL_ORIGIN: controlOrigin, SHARED_SECRET: secret.toString('base64')}, {waitUntil: promise => pending.push(promise)});
+  return {response, caller, completes, pending, settle: async () => { await Promise.all(pending); globalThis.fetch = originalFetch; }};
+}
+const reply = () => new Response(envelope({kind: 'message', parts: [{kind: 'text', text: 'Ready'}]}), {headers: {'Content-Type': 'application/json'}});
+
+test('an aborted caller after the claim reports outcome_unknown at once, even when the handler never resumes', async () => {
+  let reached;
+  const providerReached = new Promise(resolve => { reached = resolve; });
+  // The provider never answers and ignores the abort: like a handler the runtime cancelled after the caller left.
+  const f = abortFixture(() => { reached(); return new Promise(() => {}); });
+  try {
+    await providerReached;
+    assert.equal(f.completes.length, 0);
+    f.caller.abort();
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.deepEqual(f.completes, [{run_id: run, attempt_id: attempt, outcome: 'outcome_unknown', outcome_code: 'OUTCOME_UNKNOWN'}]);
+  } finally { await Promise.race([f.settle(), new Promise(resolve => setTimeout(resolve, 50))]); }
+});
+
+test('a normal completion is reported once; an abort afterwards sends nothing more', async () => {
+  const f = abortFixture(reply);
+  try {
+    const response = await f.response;
+    assert.equal((await response.json()).state, 'succeeded');
+    f.caller.abort();
+    await f.settle();
+    assert.equal(f.completes.length, 1);
+    assert.equal(f.completes[0].outcome, 'succeeded');
+  } finally { await f.settle(); }
+});
+
+test('a provider timeout is still reported once as outcome_unknown by the timeout path', async t => {
+  t.mock.timers.enable({apis: ['setTimeout']});
+  let reached;
+  const providerReached = new Promise(resolve => { reached = resolve; });
+  const f = abortFixture(init => { reached(); return new Promise((_, reject) =>
+    init.signal.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))); });
+  try {
+    await providerReached;
+    t.mock.timers.tick(8000);   // the binding's 8 s provider budget
+    const response = await f.response;
+    assert.equal(response.status, 503);
+    await f.settle();
+    assert.deepEqual(f.completes, [{run_id: run, attempt_id: attempt, outcome: 'outcome_unknown', outcome_code: 'OUTCOME_UNKNOWN'}]);
+  } finally { t.mock.timers.reset(); await f.settle(); }
+});

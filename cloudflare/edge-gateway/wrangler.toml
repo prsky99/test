@@ -8,6 +8,14 @@ preview_urls = false
 # Add the production route only after Origin authorization and bypass tests.
 # Configure route fail-open explicitly in Cloudflare; it is not a CPU-error retry.
 # No paid plan, KV, Queue, Durable Object or storage binding is required.
+# Workers Logs (11-17, 운영·SRE, PM 08:3x): to see why a claimed attempt got no completion. Free plan, checked on the
+# official pages 11-17: 200,000 log events a day, 3 days kept; from 2026-12-01 0.5 GB a day, 7 days, and on Free
+# "Cloudflare stops ingesting new data when you reach the daily limit" (no charge, no extra ingestion). The Free
+# request cap is 100,000 a day, about one invocation log each (~4.8 KB): inside both limits at rate 1.
+[observability]
+enabled = true
+head_sampling_rate = 1
+
 [vars]
 PUBLIC_ORIGIN = "https://agentconcierge.biz"
 DIRECT_RESULTS_ENABLED = "true"
