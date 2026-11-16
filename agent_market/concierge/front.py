@@ -120,6 +120,20 @@ _LOOPBACK = frozenset({'127.0.0.1', '::1'})
 # PM 11-16 source review 3.5: the per-request security checks (sync Redis and database calls) run here, off the event
 # loop and apart from the default pool that sync routes use.
 _SECURITY_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix='security-check')
+# Fail closed (PM 11-17): a request whose checks have not finished in this time is refused with 503, never let through.
+# A full pool queues the request (it waits, it does not skip the checks); an error inside the checks ends in the 500 below.
+SECURITY_WAIT_S = 10.0
+
+
+# PM 11-17: Server-Timing on every reply splits the time into the security pool wait (secq), the checks (sec) and the
+# route (app), plus garbage-collection pauses during the request (gc, process-wide) where request_timing does not
+# already add them, so the r11 changes (this pool, 7b094a67 gc settling) can be measured apart.
+
+
+def _timing(response, **parts) -> None:
+    value = ', '.join(f'{name};dur={seconds * 1000:.1f}' for name, seconds in parts.items())
+    earlier = response.headers.get('server-timing')
+    response.headers['Server-Timing'] = f'{earlier}, {value}' if earlier else value
 
 
 def _ours(request, ip) -> bool:
@@ -2350,8 +2364,27 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         # keeps serving other requests meanwhile and the checks never queue behind slow sync routes.
         # The request's context goes along (contextvars: the quota sink the public contract reads for RateLimit headers).
         context = contextvars.copy_context()
-        refusal = await asyncio.get_running_loop().run_in_executor(_SECURITY_POOL, context.run, precheck, request, client_ip)
+        from .request_timing import timed_path
+        from .retrieval_metrics import gc_total_ms
+        queued, gc_before, ran = time.perf_counter(), gc_total_ms(), []
+        gc_part = (lambda: {}) if timed_path(request.url.path) else (lambda: {'gc': (gc_total_ms() - gc_before) / 1000})
+
+        def checks():
+            began = time.perf_counter()
+            try:
+                return precheck(request, client_ip)
+            finally:
+                ran.append((began, time.perf_counter()))
+        try:
+            refusal = await asyncio.wait_for(asyncio.get_running_loop().run_in_executor(
+                _SECURITY_POOL, context.run, checks), timeout=SECURITY_WAIT_S)
+        except asyncio.TimeoutError:
+            return JSONResponse({"audience": AUDIENCE, "error": "Service busy. Please retry shortly."}, status_code=503,
+                                headers={"Retry-After": "5", "Cache-Control": "no-store"})
+        checked = time.perf_counter()
+        began, ended = ran[0] if ran else (queued, checked)
         if refusal is not None:
+            _timing(refusal, secq=began - queued, sec=ended - began, **gc_part())
             return refusal
         try:
             response = await call_next(request)
@@ -2361,6 +2394,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             response = JSONResponse({"audience": AUDIENCE, "error": "Too many new visitors from your address. Reuse your "
                                      "visitor token (X-Visitor-Token) or try again later.", "retry_after": exc.retry_after},
                                     status_code=429, headers={"Retry-After": str(exc.retry_after), "Cache-Control": "no-store"})
+        _timing(response, secq=began - queued, sec=ended - began, app=time.perf_counter() - checked, **gc_part())
         return response
 
     def precheck(request: Request, client_ip: str):
