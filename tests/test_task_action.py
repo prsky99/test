@@ -91,3 +91,19 @@ def test_user_slo_does_not_count_a_check_tool_as_a_sent_email(monkeypatch, tool,
     sample = connect['samples'][0]
     assert sample['error'] == error and sample['reason'] == error
     assert connect['ok'] is (error is None) and slo_targets.connect_ok(sample) is (error is None)
+
+
+def test_unrelayed_card_says_so_first_and_gives_no_call_sequence():
+    # The public answer to 'send a newsletter email' (11-17 07:52) gave 'Call: initialize → tools/list → tools/call'
+    # for x711_email_send, a tool the gateway does not relay.
+    from agent_market.concierge.fast_chat import FastConcierge
+    from agent_market.concierge.gateway_exposure import unrelayed_note
+    note = unrelayed_note('x711', 'https://x711.io')
+    item = {'id': 43775, 'kind': 'mcp', 'name': 'x711', 'url': 'https://x711.io/mcp', 'tool_unlisted': True,
+            'usage_endpoint': 'https://agentconcierge.biz/api/gateway/mcp/43775', 'connection_note': note, 'active_checked_at': 1763337554}
+    lines = FastConcierge._brief(item).splitlines()
+    assert lines[1] == 'Connection: ' + note
+    assert lines[2] == 'Endpoint: https://agentconcierge.biz/api/gateway/mcp/43775'   # user_slo reads this line
+    assert not any(line.startswith('Call: ') or line.startswith('Run here') for line in lines)
+    relayed = FastConcierge._brief({**item, 'tool_unlisted': False, 'connection_note': None}, first=False)
+    assert relayed.splitlines()[2] == 'Call: initialize → tools/list → tools/call'

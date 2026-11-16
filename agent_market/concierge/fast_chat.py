@@ -790,7 +790,9 @@ class FastConcierge(Concierge):
         lines = [f"{display_label(name, 'Recommended agent')} [{kind.upper()}]", 'Endpoint: '+(item.get('usage_endpoint') or item['url']),
                  'Call: '+call]
         if item.get('tool_unlisted') is True and isinstance(item.get('connection_note'), str):
-            lines.append('Connection: '+item['connection_note'][:600])  # 11-12 PM: not relayed by our gateway
+            # 11-12 PM: not relayed by our gateway. PM 11-17 06:3x: the answer says so first and gives no call
+            # sequence for a tool the gateway will not run (the endpoint stays: it lists the provider's relayed tools).
+            lines[1:3] = ['Connection: '+item['connection_note'][:600], lines[1]]
         elif first and kind == 'mcp':
             # 11-12 PM: an MCP host cannot add a server mid-conversation; our /mcp `call` tool runs the
             # recommended informational tool in the same session, and a person can paste the config line.
