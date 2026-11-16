@@ -92,7 +92,7 @@ def test_notice_bundle_comes_from_the_snapshot_and_waits_for_the_gate():
         assert part in text, part
     if hasattr(necklace_surface, "comparison_line"):
         assert "5 cases (2026-11-20)" in text
-    assert text.count("9,000 \u2192 300 tokens") == 1                 # the full value once, from the page line or ours
+    assert "9,000" not in text                     # PM 11-16: the estimated full value is not shown in the notice
     not_yet = dict(live_entry(), status="trial")
     with pytest.raises(LookupError):
         orders.notice("book-author-brief", {"necklaces": [not_yet]})

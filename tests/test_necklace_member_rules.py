@@ -28,7 +28,7 @@ def test_comparison_names_the_number_of_steps():
     value = {'cases': 26, 'measured_at': '2026-11-17', 'slots': 3,
              'with': {'calls': 1, 'tokens': 1800, 'seconds': 2.4, 'accuracy': 0.96},
              'without': {'calls': 7, 'tokens': 9400, 'seconds': 11.2, 'accuracy': 0.81}}
-    assert 'against an agent calling the same 3 agents itself' in ns.comparison_line({'comparison': value})
+    assert 'an agent calling the same 3 agents itself' in ns.comparison_line({'comparison': value})
 
 
 def test_page_says_the_real_number_of_agents():

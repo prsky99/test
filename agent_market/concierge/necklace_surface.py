@@ -302,7 +302,7 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
     if scope_notice(entry):
         item['scope_notice'] = scope_notice(entry)
     if comparison(entry):
-        item['comparison'] = comparison(entry)
+        item['comparison'] = public_comparison(comparison(entry))
     found = notice(entry, base)
     if found:
         item['notice'] = {'title': found[0], 'text': found[1], **found[2]}
@@ -670,7 +670,35 @@ def comparison(entry):
     return found
 
 
+COMPARISON_BASIS = {
+    'with': 'Measured in our gate runs on the necklace itself (medians per case; tokens are text length / 4).',
+    'without': ("From the same runs' records, not a separate run: an agent calling the same agents itself; seconds "
+                "assume each step's calls are sent at the same time; tokens are text length / 4. Its accuracy was not "
+                "measured and is not given."),
+}
+
+
+def public_comparison(found):
+    """The comparison as the public API and notices give it (PM 11-16 display rules): the direct path's accuracy (never
+    run) and the full value with finding and merging (estimated) are left out, and each side says where it comes from."""
+    out = {'cases': found['cases'], 'measured_at': found['measured_at'],
+           'with': {**found['with'], 'tokens_unit': 'text length / 4'},
+           'without': {**{k: v for k, v in found['without'].items() if k != 'accuracy'}, 'tokens_unit': 'text length / 4',
+                       'source': "from the same runs' records, not a separate run"},
+           'basis': dict(COMPARISON_BASIS)}
+    if found.get('slots'):
+        out['slots'] = found['slots']
+    return out
+
+
 def comparison_line(entry):
+    """The judge's comparison in words, under the PM's display rules (11-16, workflow source table 16:3x):
+    - 'Measured' only for what the gate runs measured on the necklace itself: its seconds and accuracy, with the number
+      of cases and the date; its tokens only with '(text length / 4)' next to the number;
+    - the agent calling the members itself was not run separately: its calls, tokens and seconds come from the same
+      runs' records and are said to; its seconds assume each step's calls are sent at the same time;
+    - not shown: that agent's accuracy (never run) and the full value with finding and merging (estimated). The
+      necklace's single call is said in words, not as a measured number."""
     found = comparison(entry)
     if not found:
         return None
@@ -678,16 +706,13 @@ def comparison_line(entry):
     num = lambda v: format(round(v), ',')
     sec = lambda v: format(round(v, 1), 'g')
     pct = lambda v: str(round(v * 100)) + '%'
-    return ('Measured on ' + str(found['cases']) + ' cases (' + found['measured_at'] + '), against an agent calling the '
-            'same ' + (str(found['slots']) + ' ' if found.get('slots') else '') + 'agents itself: ' + num(wo['calls']) + ' calls \u2192 ' + num(w['calls']) + ', about ' + num(wo['tokens'])
-            + ' \u2192 ' + num(w['tokens']) + ' tokens, ' + sec(wo['seconds']) + ' s \u2192 ' + sec(w['seconds']) + ' s, '
-            + pct(wo['accuracy']) + ' \u2192 ' + pct(w['accuracy']) + ' correct (medians per case; tokens estimated from '
-            'text length; finding the tools and merging the answers are not counted on either side).'
-            + (' Including finding the tools and merging the answers' + (' (estimated)' if found['without_full']['estimated'] else '')
-               + ': ' + num(found['without_full']['calls']) + ' calls \u2192 ' + num(w['calls']) + ', about '
-               + num(found['without_full']['tokens']) + ' \u2192 ' + num(w['tokens']) + ' tokens, '
-               + sec(found['without_full']['seconds']) + ' s \u2192 ' + sec(w['seconds']) + ' s.'
-               if found.get('without_full') else ''))
+    return ('Measured in our gate runs on ' + str(found['cases']) + ' cases (' + found['measured_at'] + '): one call, '
+            'a median of ' + sec(w['seconds']) + ' s per case, ' + pct(w['accuracy']) + ' correct, about ' + num(w['tokens'])
+            + ' tokens (text length \u00f7 4). From the same runs\' records (not a separate run), an agent calling the same '
+            + (str(found['slots']) + ' ' if found.get('slots') else '') + 'agents itself would make ' + num(wo['calls'])
+            + ' calls and handle about ' + num(wo['tokens']) + ' tokens (text length \u00f7 4), taking about '
+            + sec(wo['seconds']) + ' s if it sent each step\'s calls at the same time. Finding the tools and merging the '
+            'answers are not counted.')
 
 
 WHY_PLACEHOLDER = '<div data-necklace-why></div>'

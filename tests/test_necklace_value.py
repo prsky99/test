@@ -68,7 +68,8 @@ def test_growth_surface_accepts_the_comparison():
                                        "necklace": {"calls": 1, "tokens": 300, "ms": 2340, "correct_rate": 1.0},
                                        "direct": {"calls": 3, "tokens": 1210, "ms": 1980, "correct_rate": 0.8}})}
     line = necklace_surface.comparison_line(entry)
-    assert line and "5 cases (2026-11-20)" in line and "80% \u2192 100%" in line
+    # PM 11-16 display rules: only the necklace's own accuracy is shown; the direct path was not run separately
+    assert line and "5 cases (2026-11-20)" in line and "100% correct" in line and "80%" not in line
 
 
 def test_full_value_adds_finding_and_merging_and_marks_estimates():

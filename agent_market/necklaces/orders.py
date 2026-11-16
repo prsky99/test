@@ -257,8 +257,8 @@ def notice(slug: str, snapshot: dict, base: str = BASE) -> dict:
              f"body {json.dumps(run['http']['json'], ensure_ascii=False)}.",
              measured or "Not measured yet against calling the agents directly; the numbers appear on the necklace "
                          "page once they are.",
-             *([full_line(entry.get("comparison"))] if value and full_line(entry.get("comparison"))
-               and "Including finding" not in (measured or "") else []),     # growth 4737338c says it in the line
+             # PM 11-16 display rules: the full value (finding and merging) is estimated and is not shown anywhere;
+             # full_line stays for internal reports only.
              "Scope and limits: " + " ".join(limits or ["no limits stated beyond the input form."])]
     steps = [f"{p.get('role') or 'step'}: {_n(p['alternates']['external'], 'other agent')}, {p['alternates']['agentcon']} of ours"
              for p in pearls if p.get("alternates")]
@@ -268,7 +268,7 @@ def notice(slug: str, snapshot: dict, base: str = BASE) -> dict:
                                           if steps else None) if x))
     else:
         lines.append("Fallbacks: none tested yet; if an agent fails, that step fails.")
-    return {"slug": slug, "address": item.get("url"), "run": run, "comparison": entry.get("comparison") if value else None, "scope_notice": item.get("scope_notice"),
+    return {"slug": slug, "address": item.get("url"), "run": run, "comparison": item.get("comparison") if value else None, "scope_notice": item.get("scope_notice"),
             "limits": limits, "fallback": fallback, "answer": " ".join(lines), **console("live", " ".join(lines))}
 
 
