@@ -58,7 +58,7 @@ def test_pages_mark_the_leading_number_and_label_the_close_button():
     assert '.metric-card:nth-child(2)' not in css and '.metric-card[data-primary] .metric-value' in css
     assert 'content:"Essential only"' in css
     html = (ROOT / 'new/en/index.html').read_text()
-    assert html.count('data-primary') == 1 and 'data-primary>\n<span class="pearl small" aria-hidden="true">\n</span>\n<strong class="metric-value" data-metric="reachable">' in html
+    assert html.count('data-primary') == 1 and 'data-primary>\n<span class="pearl small" aria-hidden="true">\n</span>\n<strong class="metric-value" data-metric="execution">' in html  # 390b4f79: execution checks lead the band
     assert 'aria-label="Close and keep essential cookies only"' in html
     script = (ROOT / 'new/en/assets/panels-bootstrap.js').read_text()
     assert 'navigator.globalPrivacyControl' in script and 'sendBeacon("/api/rum"' in script

@@ -133,6 +133,9 @@ def test_changed_widgets_have_no_serious_accessibility_errors(chat_page,width,th
     page.locator('#chatInput').fill('weather forecast');page.locator('#chatSubmit').click()
     expect(page.locator('.chat-recommendation')).to_have_count(3)
     expect(page.locator('#chatSubmit')).to_be_enabled();page.wait_for_timeout(250)
+    # 11-17 night run: axe read the newest reply mid-fade (ux-chat-arrive starts at opacity .4), a blended 4.49:1 instead
+    # of the settled 5.16:1. Colours are judged once the finite animations have finished.
+    page.evaluate("()=>Promise.all(document.getAnimations().filter(a=>a.effect&&a.effect.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>null)))")
     page.evaluate(Path('gateway-data/feature-recheck-2026-10-29/axe.min.js').read_text())
     result=page.evaluate("async()=>{const r=await axe.run(document,{runOnly:{type:'tag',values:['wcag2a','wcag2aa','wcag21aa','wcag22aa','best-practice']}});return r.violations.filter(v=>['serious','critical'].includes(v.impact)).map(v=>({id:v.id,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary}))}))}")
     Path('reports/feature-remediation-2026-10-29/axe-'+str(width)+'-'+theme+'-'+('published' if page.locator('script[src*=experience]').count() else 'legacy')+'.json').write_text(json.dumps(result,indent=2))

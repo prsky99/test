@@ -40,7 +40,9 @@ def test_enabled_frontend_exposes_workspace_navigation_home_metadata_and_custome
         assert client.get('/admin/ui').status_code == 404
         assert client.post('/api/customer-auth/begin', json={'provider': 'github'},
                            headers={'Origin': 'https://unrelated.example'}).status_code == 403
-        assert client.get('/customer/sign-in').headers['cache-control'] == 'no-store'
+        # 46aa1389 (PM 11-16 04:3x): the sign-in page carries nothing personal and may be kept; signed-in pages stay no-store.
+        from agent_market.customer_sign_in_cache import BROWSER_CACHE
+        assert client.get('/customer/sign-in').headers['cache-control'] == BROWSER_CACHE
 
 
 def test_direct_customer_testing_does_not_advertise_public_workspace_link(about_client):

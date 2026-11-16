@@ -32,7 +32,8 @@ def test_all_public_menus_have_bounded_layout_and_readonly_navigation(pearl_page
         expect(page.locator('[data-panel="'+panel+'"]')).to_be_visible()
         capture(page,'public-'+panel+'-'+str(width))
         if panel=='about':
-            expect(page.locator('.about-necklace-art')).to_be_hidden()
+            # 11-13 decision: the design's pearl necklace art on About stays on screen (it had been hidden by mistake).
+            expect(page.locator('.about-necklace-art')).to_be_visible()
             heading=page.locator('.reference-about-intro h1').bounding_box()
             lead=page.locator('.reference-about-intro .lead').bounding_box()
             assert lead['y']>=heading['y']+heading['height']+12
