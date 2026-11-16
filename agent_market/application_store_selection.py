@@ -112,17 +112,24 @@ class PostgresSelectionMixin:
         measurements (real-task, user_slo: 710 of the 726 runs kept on 11-17) cannot pile up a lead by volume;
         callers counts the distinct principals with a succeeded run. edge_gateway_runs keeps seven days
         (prune_runs), so the read is bounded by the table itself. Read in the background, never per request.
+        Runs our own server dispatches through the edge carry a 'native-' principal, one per attempt (77c96def,
+        PM 11-17 08:4x): they share one caller here, so they keep the 10-run cap and are never counted as callers.
+        Native rows written before that release have an unmarked principal and no other column tells them apart
+        (origin, backend, attempt and idempotency look the same); they leave the seven-day window a week after it.
         """
         if type(since) not in (int, float) or not math.isfinite(since) or not -1e12 <= since <= 1e12:
             _error(self, 'invalid_parameters')
         with self.tx(readonly=True):
             rows = self._execute('''SELECT resource_id, sum(least(ok, 10)) AS ok, sum(least(bad, 10)) AS bad,
-                count(*) FILTER (WHERE ok > 0) AS callers, sum(ms) / NULLIF(sum(ok), 0) AS ms
-                FROM (SELECT resource_id, principal,
+                count(*) FILTER (WHERE ok > 0 AND principal IS NOT NULL) AS callers, sum(ms) / NULLIF(sum(ok), 0) AS ms
+                FROM (SELECT resource_id, CASE WHEN left(principal, 7) = 'native-' THEN NULL ELSE principal END
+                          AS principal,
                         count(*) FILTER (WHERE state='succeeded') AS ok,
                         count(*) FILTER (WHERE state IN ('failed','outcome_unknown')) AS bad,
                         sum((finished-created)*1000) FILTER (WHERE state='succeeded' AND finished IS NOT NULL) AS ms
-                      FROM edge_gateway_runs WHERE created>=%s GROUP BY resource_id, principal) per_caller
+                      FROM edge_gateway_runs WHERE created>=%s
+                      GROUP BY resource_id, CASE WHEN left(principal, 7) = 'native-' THEN NULL ELSE principal END
+                     ) per_caller
                 GROUP BY resource_id''',
                 (float(since),), max_rows=50000, max_bytes=8 * 1024 * 1024).fetchall()
         return {int(row['resource_id']): (int(row['ok']), int(row['bad']), row['ms'], int(row['callers'])) for row in rows}

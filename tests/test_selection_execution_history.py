@@ -123,12 +123,17 @@ def test_postgres_execution_history_caps_each_caller():
             runs = [('us', 7, 'succeeded', 100 + i, 2) for i in range(14)]           # one caller: 14, counted 10
             runs += [('them', 7, 'succeeded', 50, 4), ('us', 7, 'failed', 30, 31), ('us', 7, 'outcome_unknown', 40, None),
                      ('us', 7, 'prepared', 45, None), ('us', 8, 'succeeded', 9 * 86400, 1), ('us', 9, 'failed', 20, 1)]
+            # Our own server's dispatches through the edge: one 'native-' principal per attempt (77c96def, PM 11-17)
+            runs += [('native-%064x' % i, 10, 'succeeded', 60 + i, 3) for i in range(12)]
+            runs += [('native-%064x' % 99, 10, 'failed', 90, 1), ('a1', 10, 'succeeded', 70, 5)]
             for n, (who, rid, state, age, took) in enumerate(runs):
                 conn.execute("INSERT INTO edge_gateway_runs VALUES(%s,%s,%s,'h',%s,'v','o',%s,'b',NULL,%s,%s,%s,NULL)",
                              ('run%d' % n, who, 'i%d' % n, rid, state, now - age, now + 60,
                               None if took is None else now - age + took))
             got = store.execution_history(now - 7 * 86400)
-            assert set(got) == {7, 9}  # resource 8 ran only before the window
+            assert set(got) == {7, 9, 10}  # resource 8 ran only before the window
+            # Native runs share one caller: the 10-run cap holds and they are no caller; the outside caller is one.
+            assert got[10][:2] == (11, 1) and got[10][3] == 1
             ok, bad, ms, callers = got[7]
             assert (ok, bad, callers) == (11, 2, 2) and abs(ms - 32000 / 15) < 1  # mean of all 15 completed runs
             assert got[9][:2] == (0, 1) and got[9][3] == 0
