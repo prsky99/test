@@ -142,3 +142,13 @@ def test_tools_outside_their_role_are_never_ranked():
     assert ('fx.rate.v1', 59569) in V.NOT_THIS_ROLE and ('stock.quote.v1', 46568) in V.NOT_THIS_ROLE
     ranked = V.rank([v(59569)])
     assert 'fx.rate.v1' not in ranked or not ranked['fx.rate.v1']['members']
+
+
+def test_first_picks_lead_the_new_candidates(tmp_path):
+    f = tmp_path / 'picks.json'
+    f.write_text('[{"role": "timezone.time.v1", "id": 84607}, {"role": "fx.rate.v1", "id": 9}, {"role": "fx.rate.v1", "id": 8}]')
+    cands = [('timezone.time.v1', 84607, 'current_time', 'plumbkit.dev'), ('timezone.time.v1', 84607, 'convert_timezone', 'plumbkit.dev'),
+             ('fx.rate.v1', 9, 'rate', 'x.com'), ('fx.rate.v1', 8, 'rate', 'y.com')]
+    out = V.first_picks(cands, {9: 'prohibits'}, {(8, 'fx.rate.v1')}, path=f)
+    assert out == [{'role': 'timezone.time.v1', 'id': 84607, 'tool': 'current_time', 'kind': 'new'}]
+    assert V.first_picks(cands, {}, set(), path=tmp_path / 'none.json') == []
