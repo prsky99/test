@@ -23,6 +23,8 @@ import json
 import os
 import random
 import re
+import statistics
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -61,6 +63,13 @@ MCP_H = {'Content-Type': 'application/json', 'Accept': 'application/json, text/e
 # Pages are measured with the Accept a browser sends (PM 11-14: what people actually receive; '/' answers agents
 # without text/html with JSON, and the edge caches HTML for browser requests).
 BROWSER_ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+# Path reference (PM 11-16 20:4x). A run whose page TLS handshakes are slow is marked as a bad path, and its slow pages
+# are measured once more; both live only in record['path']: the verdict, pass rate and failure count keep the first
+# value (no sample is dropped or replaced). 20:29 had TLS median 1.13 s against 0.32 s on a good path.
+TLS_BAD_S = 0.6
+REMEASURE_MAX = 20
+REMEASURE_GAP = 1.0
+PING_TARGETS = ('gateway', '1.1.1.1')   # this Mac's own network, then just past the ISP (Cloudflare Seoul)
 WRITE_TOOLS = {'call', 'run_workflow', 'report', 'credit', 'subscribe', 'verify_contact', 'adapt_rest'}
 
 
@@ -121,6 +130,7 @@ def rpc_json(r):
 class Run:
     def __init__(self):
         self.checks, self.failures = 0, []
+        self.tls = []   # every page's TLS handshake seconds (all samples, not only slow ones)
 
     def ok(self, part, name, cond, detail='', took=None, ref=None):
         self.checks += 1
@@ -200,6 +210,54 @@ def sitemap_pages(c):
     return list(dict.fromkeys(pages))
 
 
+def tls_handshake(ph):
+    if not ph or ph.get('tls_s') is None or ph.get('tcp_s') is None:
+        return None
+    return round(ph['tls_s'] - ph['tcp_s'], 3)
+
+
+def gateway():
+    try:
+        out = subprocess.run(['route', '-n', 'get', 'default'], capture_output=True, text=True, timeout=5).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.search(r'gateway:\s*(\S+)', out)
+    return m.group(1) if m else None
+
+
+def ping(host, count=20):
+    """Loss and average round trip to one host, 20 packets half a second apart (about 10 s)."""
+    try:
+        out = subprocess.run(['ping', '-c', str(count), '-i', '0.5', '-q', host], capture_output=True, text=True,
+                             timeout=count + 15).stdout
+    except (OSError, subprocess.SubprocessError) as e:
+        return {'host': host, 'error': type(e).__name__}
+    loss = re.search(r'([\d.]+)% packet loss', out)
+    rtt = re.search(r'= [\d.]+/([\d.]+)/', out)
+    return {'host': host, 'loss_pct': float(loss.group(1)) if loss else None,
+            'avg_ms': float(rtt.group(1)) if rtt else None}
+
+
+def path_reference(run):
+    """Reference only (PM 11-16 20:4x): the run's page TLS median, a bad-path mark, this Mac's loss to its gateway
+    and to 1.1.1.1 once per run, and on a bad path the slow pages measured once more (at most 20, one at a time, 1 s
+    apart). Nothing here changes run.failures."""
+    ref = {'tls_median_s': round(statistics.median(run.tls), 3) if run.tls else None, 'tls_samples': len(run.tls)}
+    ref['bad'] = ref['tls_median_s'] is not None and ref['tls_median_s'] > TLS_BAD_S
+    ref['ping'] = [ping(h) for h in ((gateway() or '') if t == 'gateway' else t for t in PING_TARGETS) if h]
+    if ref['bad']:
+        slow = [f['check'][5:] for f in run.failures if f['part'] == 'pages' and f['check'].startswith('time /')]
+        again = []
+        for path in list(dict.fromkeys(slow))[:REMEASURE_MAX]:
+            time.sleep(REMEASURE_GAP)
+            with client() as fresh:
+                took, r, err = timed(fresh, 'GET', BASE + path, headers={'Accept': BROWSER_ACCEPT})
+            again.append({'path': path, 's': took, 'edge': edge(r), 'err': err,
+                          'tls_s': tls_handshake(getattr(r, 'phases', None))})
+        ref['remeasured'] = again
+    return ref
+
+
 def part_pages(run, c):
     pages = sitemap_pages(c)
     picked = list(NAV)
@@ -212,6 +270,9 @@ def part_pages(run, c):
     for path in picked:
         with client() as fresh:  # a new connection per page, as a first-time visitor (PM 11-12 01시, like user_slo)
             took, r, err = timed(fresh, 'GET', BASE + path, headers={'Accept': BROWSER_ACCEPT})
+        handshake = tls_handshake(getattr(r, 'phases', None))
+        if handshake is not None:
+            run.tls.append(handshake)
         if not run.ok('pages', f'GET {path}', r is not None and r.status_code == 200,
                       err or (r.status_code if r is not None else ''), took):
             continue
@@ -533,6 +594,10 @@ def main():
         context = json.loads(os.environ.get('AGENTCON_RUN_CONTEXT') or '{}')
     except ValueError:
         context = {'unreadable': True}
+    try:
+        extra['path'] = path_reference(run)
+    except Exception as e:  # noqa: BLE001 - a reference must never stop the record being written
+        extra['path'] = {'error': f'{type(e).__name__}: {e}'[:200]}
     context['load_1_end'] = round(os.getloadavg()[0], 2)
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'minutes': round((time.time() - started) / 60, 1),
               'checks': run.checks, 'failed': len(run.failures), 'context': context,

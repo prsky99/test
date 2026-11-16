@@ -139,3 +139,45 @@ def test_a_slow_sample_keeps_its_own_steps_and_the_load(monkeypatch):
     assert ref['phases'] == {'tcp_s': 0.1, 'tls_s': 0.4, 'first_byte_s': 0.8, 'body_end_s': 0.9, 'requests': 1,
                              'body_s': 0.1, 'load_1': 6.87}
     assert ref['edge'] == 'LAX HIT'  # the verdict and the other fields are unchanged
+
+
+def test_a_bad_path_is_marked_and_remeasured_beside_the_verdict(monkeypatch):
+    """PM 11-16 20:4x: a run whose TLS median is over 0.6 s is a bad path; its slow pages are measured once more (at most
+    20, one at a time) and this Mac's loss is kept, all in record['path'] only (no sample dropped or replaced)."""
+    run = pfc.Run()
+    run.tls = [1.1, 1.2, 0.3]
+    for i in range(25):
+        run.ok('pages', f'time /p{i}', False, '2s', 2.0)
+    run.ok('api', 'explore time', False, '3s', 3.0)
+    before = [dict(f) for f in run.failures]
+    calls = []
+    monkeypatch.setattr(pfc, 'REMEASURE_GAP', 0)
+    monkeypatch.setattr(pfc, 'client', Client)
+    monkeypatch.setattr(pfc, 'gateway', lambda: '192.0.2.1')
+    monkeypatch.setattr(pfc, 'ping', lambda host: {'host': host, 'loss_pct': 0.0, 'avg_ms': 3.5})
+
+    def fake_timed(c, method, url, **kw):
+        calls.append(url)
+        return 0.8, Response(), None
+    monkeypatch.setattr(pfc, 'timed', fake_timed)
+    ref = pfc.path_reference(run)
+    assert ref['tls_median_s'] == 1.1 and ref['bad'] is True and ref['tls_samples'] == 3
+    assert [p['host'] for p in ref['ping']] == ['192.0.2.1', '1.1.1.1']
+    assert len(calls) == 20 and calls[0].endswith('/p0') and len(ref['remeasured']) == 20
+    assert ref['remeasured'][0] == {'path': '/p0', 's': 0.8, 'edge': 'LAX MISS', 'err': None, 'tls_s': None}
+    assert run.failures == before and run.checks == 26   # the verdict keeps the first values
+
+    good = pfc.Run()
+    good.tls = [0.3, 0.32]
+    good.ok('pages', 'time /slow', False, '2s', 2.0)
+    calls.clear()
+    ref = pfc.path_reference(good)
+    assert ref['bad'] is False and 'remeasured' not in ref and calls == []
+
+
+def test_ping_reads_loss_and_round_trip(monkeypatch):
+    class Done:
+        stdout = ('--- 1.1.1.1 ping statistics ---\n20 packets transmitted, 19 packets received, 5.0% packet loss\n'
+                  'round-trip min/avg/max/stddev = 3.4/3.52/3.6/0.05 ms\n')
+    monkeypatch.setattr(pfc.subprocess, 'run', lambda *a, **k: Done())
+    assert pfc.ping('1.1.1.1') == {'host': '1.1.1.1', 'loss_pct': 5.0, 'avg_ms': 3.52}
