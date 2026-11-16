@@ -283,6 +283,60 @@
       "source": "https://api.agentfilings.com/",
       "checked_at": "2026-11-16",
       "basis": "No terms; data endpoints are paid per call over x402 (0.01-0.05 USDC) or a 19 USD monthly plan (PM rule: paid means prohibits)"
+    },
+    "36124": {
+      "status": "prohibits",
+      "source": "https://agentavow.com/legal/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms forbid scraping and require an account for API keys; automated MCP use, commercial use and passing results on are not addressed (ambiguous)"
+    },
+    "58662": {
+      "status": "silent",
+      "source": "https://newsflash.sh/",
+      "checked_at": "2026-11-16",
+      "basis": "no terms, docs or llms.txt found (/terms and /llms.txt answer 404, 11-16)"
+    },
+    "32841": {
+      "status": "prohibits",
+      "source": "https://analyticslegends.ai/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "Terms (/#terms, llms.txt): answer-time lookups by listed agents only; reproduction needs written permission; building competing agents forbidden"
+    },
+    "288314": {
+      "status": "silent",
+      "source": "https://plainquant.com/developers",
+      "checked_at": "2026-11-16",
+      "basis": "developer page: free, read-only, no key, 60 a minute per IP; no terms page (/terms 404), commercial use and redistribution not addressed"
+    },
+    "37218": {
+      "status": "silent",
+      "source": "https://crosbynews.com/llms.txt",
+      "checked_at": "2026-11-16",
+      "basis": "no terms page (/terms 404, privacy policy only); llms.txt invites agents, no auth, no rate limits; data from US NWS (public domain), attribution U.S. National Weather Service"
+    },
+    "226724": {
+      "status": "prohibits",
+      "source": "https://fxhub.ge/terms",
+      "checked_at": "2026-11-16",
+      "basis": "currency-exchange business terms only, no API or MCP clause; site content claimed under copyright, no redistribution permission"
+    },
+    "220863": {
+      "status": "prohibits",
+      "source": "https://morsemoney.com/legal/terms-of-service",
+      "checked_at": "2026-11-16",
+      "basis": "Terms section 18 forbids automated use; personal non-commercial use only; data owned by the company (section 27)"
+    },
+    "39800": {
+      "status": "silent",
+      "source": "https://oti-labs.com/mcp-server",
+      "checked_at": "2026-11-16",
+      "basis": "no terms of use (MIT licence covers the code only); keyless up to 1,000 lookups a month, then a RapidAPI key; commercial use and redistribution not addressed"
+    },
+    "214764": {
+      "status": "prohibits",
+      "source": "https://faceabot.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "Terms allow automated access within unstated per-minute and per-day limits and single lookups; commercial use not addressed; upstream OpenStreetMap without stating the geocoder or ODbL attribution (ambiguous)"
     }
   },
   "changes": [
@@ -719,6 +773,86 @@
       "source": "https://api.agentfilings.com/",
       "at": "2026-11-16",
       "by": "워크플로우"
+    },
+    {
+      "member": "36124",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://agentavow.com/legal/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "58662",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://newsflash.sh/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "32841",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://analyticslegends.ai/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "288314",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://plainquant.com/developers",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "40800",
+      "from": "allowed",
+      "to": "allowed",
+      "source": "https://siliconfloor.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "37218",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://crosbynews.com/llms.txt",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "226724",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://fxhub.ge/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "220863",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://morsemoney.com/legal/terms-of-service",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "39800",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://oti-labs.com/mcp-server",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "214764",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://faceabot.com/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
     }
   ]
 }
