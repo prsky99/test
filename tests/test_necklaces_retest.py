@@ -570,3 +570,24 @@ def test_an_answer_from_the_official_register_is_marked_but_not_a_failure():
                            "background": [{"resource_id": 241601, "tool": "w", "ok": True}]}}
     assert retest.same_source_official(defn, case, result) == ["registry"]
     assert retest.same_source(defn, case, result) == []                   # no strict count for an official register
+
+
+def test_a_case_is_left_out_only_when_our_side_refused_every_attempt_of_the_failed_step():
+    """PM 11-16 12:5x: company round 1 set 22 of 30 apart although the chain moved on and a next member answered."""
+    defn = {"slots": [{"slot": "registry"}, {"slot": "background"}, {"slot": "note", "required": False}]}
+    a = lambda code, ok=False: {"error_class": code, "ok": ok}
+    failed_bg = {"ok": False, "slots": {"registry": True, "background": False}}
+    # 241601 refused by our day budget, the next member answered (here: wrongly) -> graded, not left out
+    assert retest.unmeasured_failure(defn, failed_bg, {"registry": [a(None, True)],
+                                                       "background": [a("budget_domain_daily_total"), a("not_found")]}) is None
+    assert retest.unmeasured_failure(defn, failed_bg, {"background": [a("budget_domain_daily_total"), a(None, True)]}) is None
+    # every member of the failed step refused on our side -> left out, with the first reason
+    assert retest.unmeasured_failure(defn, failed_bg, {"registry": [a(None, True)], "background": [
+        a("budget_domain_daily_total"), a("quota_exhausted")]}) == "budget_domain_daily_total"
+    # a refusal in another step that passed does not set a real failure apart
+    assert retest.unmeasured_failure(defn, failed_bg, {"registry": [a("relay_throttled"), a(None, True)],
+                                                       "background": [a("timeout")]}) is None
+    # a failed step that never called anyone follows the step our side refused
+    both = {"ok": False, "slots": {"registry": False, "background": False}}
+    assert retest.unmeasured_failure(defn, both, {"registry": [a("our_capacity")], "background": []}) == "our_capacity"
+    assert retest.unmeasured_failure(defn, {"ok": True, "slots": {}}, {"registry": [a("our_capacity")]}) is None

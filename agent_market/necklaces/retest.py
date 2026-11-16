@@ -88,6 +88,30 @@ def not_measured(attempts: dict) -> str | None:
     return None
 
 
+def unmeasured_failure(defn: dict, verdict: dict, attempts: dict) -> str | None:
+    """PM 11-16 12:5x (company round 1: 22 of 30 set apart): a failed case is left out only when every attempt of each
+    failed required step was refused on our side (not_measured) - the necklace never got an answer there. When the
+    chain moved on and a next member answered, the case is graded on that answer, as a user would get it. A failed
+    step with no attempts (it waited on a step our side refused) follows that step."""
+    if verdict.get("ok"):
+        return None
+    required = {s["slot"] for s in defn["slots"] if s.get("required", True)}
+    failed = [slot for slot, ok in (verdict.get("slots") or {}).items() if ok is False and slot in required]
+    codes, tried = [], False
+    for slot in failed:
+        slot_attempts = attempts.get(slot) or []
+        if not slot_attempts:
+            continue
+        tried = True
+        ours = [not_measured({slot: [a]}) for a in slot_attempts]
+        if not all(ours):
+            return None
+        codes.append(ours[0])
+    if not tried:                 # no failed step called anyone: the old rule (some step our side refused)
+        return not_measured(attempts)
+    return codes[0]
+
+
 def capacity_exceeded(status: int, headers, data: dict) -> bool:
     error = (data or {}).get("error") or {}
     if not isinstance(error, dict):     # 11-16 12:12: a refusal with "error": "<code>" (a string) crashed the gate check
@@ -776,7 +800,7 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
                                keep_raw=2000).run(defn, case["input"])
         verdict = grade(defn, case, result["output"])
         at = _iso(now())
-        ours = not_measured(result["attempts"])
+        ours = unmeasured_failure(defn, verdict, result["attempts"])
         if ours and not verdict["ok"] and shared_cache is not None:
             shared_cache.take_hits()            # the shared count belongs to this case, not the next one
         if ours and not verdict["ok"]:           # our budget, pace or edge, or a provider pause: not a failure (R23)
