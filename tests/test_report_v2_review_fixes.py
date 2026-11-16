@@ -332,8 +332,16 @@ def test_pm_1115_the_first_necklace_roles_get_new_candidates_first():
     candidates = [('fx.rate.v1', 1, 't', 'a.example'), ('package.health.v1', 2, 't', 'b.example'),
                   ('package.health.v1', 3, 't', 'c.example'), ('package.health.v1', 4, 't', 'c.example'),
                   ('cve.record.v1', 5, 't', 'd.example')]
-    queue = V.new_queue([], candidates, limit=10)
+    # Source review C12 (PM 11-16): the order is injected, so the 11-15 rule is tested as it was and the order of
+    # the day (11-16: papers, then the public necklaces' seats) by its own case below, not by the live constants.
+    pm_1115 = ('package.advisories.v1', 'cve.record.v1', 'cve.exploited.v1', 'package.health.v1')
+    queue = V.new_queue([], candidates, limit=10, priority=pm_1115, terms={})
     assert [c['id'] for c in queue][:3] == [5, 2, 3] and 4 not in [c['id'] for c in queue]   # one per domain still
+    pm_1116 = V.queue_priority([], {}, roles=['fx.rate.v1', 'package.health.v1', 'cve.record.v1'], terms={},
+                               seats=['cve.record.v1'])
+    assert pm_1116[:2] == ('papers.search.v1', 'cve.record.v1')
+    queue = V.new_queue([], candidates, limit=10, priority=pm_1116, terms={})
+    assert [c['id'] for c in queue][0] == 5 and 4 not in [c['id'] for c in queue]
 
 
 def test_pm_1115_kev_flags_and_scores_are_read_under_their_usual_names():
