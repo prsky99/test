@@ -48,9 +48,11 @@ def test_installs_all_six_and_keeps_the_replaced_plists(tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     for label in LABELS:
         assert (state / label).exists()
-        source = next(p for p in (ROOT / 'deploy/launchd/ops-pinned', ROOT / 'deploy/launchd/ops')
-                      if (p / (label + '.plist')).exists())
-        assert (agents / (label + '.plist')).read_bytes() == (source / (label + '.plist')).read_bytes()
+        # the plist the script itself names for the label (11-16: ops-pinned now also holds ofac, watchstale and
+        # paidreconcile for the 11-17 switch, which this 11-15 script does not install)
+        source = ROOT / next(line.split('|')[1] for line in SCRIPT.read_text().splitlines()
+                             if line.strip().startswith('"' + label + '|'))
+        assert (agents / (label + '.plist')).read_bytes() == source.read_bytes()
     assert sorted(p.name for p in (tmp_path / 'backup').iterdir()) == [
         'biz.agentconcierge.backup.plist', 'biz.agentconcierge.opsauto.housead.plist',
         'biz.agentconcierge.opsauto.testreports.plist']
