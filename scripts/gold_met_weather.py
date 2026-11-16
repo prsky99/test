@@ -4,7 +4,8 @@ Service; run it right before the gate, a forecast changes every hour).
     .venv/bin/python -m scripts.gold_met_weather --split substitute-us-r1
 
 For each of 30 fixed US city points the NWS API (api.weather.gov, US Government work, public domain; User-Agent with
-contact required) is read twice: /points/{lat},{lon} for the hourly forecast address, then that hourly forecast. The
+contact required) is read twice: /points/{lat},{lon} for the hourly forecast address (saved the day before with
+--grids-only into nws-grids.json; weather.gov has a 60-call day total), then that hourly forecast. The
 next 12 hours are frozen as truth (start time with offset, temperature in Celsius) in
 gateway-data/necklaces/gold/met-weather/<split>.jsonl. The judge compares met-weather's temperature with the NWS
 hour that contains met-weather's time, within 3 °C (the role tasks' tolerance). This is an independent source:
@@ -56,12 +57,24 @@ def hours(forecast: dict, keep: int = 12) -> list[dict]:
     return out
 
 
-def build(get, points=POINTS):
-    cases = []
+def grid_urls(get, points=POINTS) -> dict:
+    """{name: hourly forecast URL} from /points (the grid of a point does not change from day to day). Built the day
+    before (ops 11-16: weather.gov has a 60-call day total, so /points and the forecasts go on two days)."""
+    out = {}
     for name, lat, lon in points:
         meta = get(f"https://api.weather.gov/points/{lat:.4f},{lon:.4f}")
         url = (meta.get("properties") or {}).get("forecastHourly")
-        if not isinstance(url, str) or not url.startswith("https://api.weather.gov/"):
+        if isinstance(url, str) and url.startswith("https://api.weather.gov/"):
+            out[name] = url
+    return out
+
+
+def build(get, points=POINTS, grids=None):
+    grids = grids if grids is not None else grid_urls(get, points)
+    cases = []
+    for name, lat, lon in points:
+        url = grids.get(name)
+        if not url:
             continue
         series = hours(get(url))
         if series:
@@ -76,8 +89,10 @@ def main(argv=None) -> int:
     from agent_market.provider_budget import reserve
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--split", default="substitute-us-r1")
+    p.add_argument("--grids-only", action="store_true", help="read /points only and save the forecast addresses")
     ns = p.parse_args(argv)
     out = ROOT / "gateway-data/necklaces/gold" / SLUG / f"{ns.split}.jsonl"
+    grid_file = out.with_name("nws-grids.json")
     if out.exists():
         print(f"{out} exists; a split is never rewritten"); return 2
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -92,7 +107,14 @@ def main(argv=None) -> int:
         r.raise_for_status()
         time.sleep(1.0)
         return r.json()
-    cases = build(get)[:30]
+    if ns.grids_only:
+        grids = grid_urls(get)
+        grid_file.parent.mkdir(parents=True, exist_ok=True)
+        grid_file.write_text(json.dumps({"fetched_at": fetched, "grids": grids}, indent=1))
+        print(f"saved {len(grids)} forecast addresses to {grid_file}")
+        return 0 if len(grids) >= 30 else 1
+    grids = json.loads(grid_file.read_text())["grids"] if grid_file.exists() else None
+    cases = build(get, grids=grids)[:30]
     if len(cases) < 30:
         print(f"only {len(cases)} cases; not written"); return 1
     src = [{"name": "US National Weather Service API (public domain)", "url": "https://api.weather.gov/",

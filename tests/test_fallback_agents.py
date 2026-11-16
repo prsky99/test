@@ -2548,5 +2548,7 @@ def test_gold_met_weather_builder_keeps_celsius_hours():
              "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly": {"properties": {"periods": [
                  {"startTime": "2026-11-17T08:00:00-05:00", "endTime": "2026-11-17T09:00:00-05:00", "temperature": 41, "temperatureUnit": "F"}]}}}
     cases = build(lambda url: pages[url], POINTS[:1])
+    saved = build(lambda url: pages[url], POINTS[:1], grids={"New York, NY": "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly"})
+    assert saved == cases                                  # the saved addresses give the same set, one call a point
     assert cases[0]["input"] == {"city": "New York, NY", "latitude": 40.7128, "longitude": -74.006}
     assert cases[0]["truth"]["nws_hourly"][0]["temp_c"] == 5.0 and len(POINTS) >= 30
