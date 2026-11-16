@@ -490,3 +490,39 @@ def test_a_gate_hour_keeps_15_github_calls_for_live_answers(tmp_path):
         assert pb.github_reserve('gate', n=40, now=at(21, 13), directory=tmp_path) == (True, 'ok')   # 40 + 15 = 55
     finally:
         del pb.GATE_HOURS_GITHUB['2026112113']
+
+
+def test_an_hourly_pause_keeps_the_providers_retry_after(tmp_path):
+    """Source review C16: a 7,200-second Retry-After at 13:30 holds until 15:30, not the next full hour."""
+    url = 'https://api.gdeltproject.org/api/v2/doc/doc'
+    t = at(18, 13) + 1800
+    assert pb.note(url, 'necklace_live', 429, now=t, directory=tmp_path,
+                   evidence={'origin': pb.PROVIDER_HTTP, 'retry_after': '7200'})
+    assert pb.live_reserve(url, now=at(18, 14) + 60, directory=tmp_path) == (False, 'paused_429')
+    assert pb.live_reserve(url, now=at(18, 15) + 1700, directory=tmp_path) == (False, 'paused_429')   # 15:28
+    assert pb.live_reserve(url, now=at(18, 15) + 1860, directory=tmp_path) == (True, 'ok')            # 15:31
+    # the RPC form and an HTTP-date say the same
+    from email.utils import formatdate
+    other = tmp_path / 'b'
+    assert pb.note(url, 'necklace_live', 429, now=t, directory=other,
+                   evidence={'origin': pb.PROVIDER_HTTP, 'retry_after': formatdate(t + 7200, usegmt=True)})
+    assert pb.reserve(url, 'substitute_tests', now=at(18, 15) + 1700, directory=other) == (False, 'paused_429')
+    # without a Retry-After the PM hourly rule stays
+    third = tmp_path / 'c'
+    assert pb.note(url, 'necklace_live', 429, now=t, directory=third, evidence=pb.PROVIDER_HTTP)
+    assert pb.live_reserve(url, now=at(18, 14), directory=third) == (True, 'ok')
+
+
+def test_a_pause_that_passes_midnight_holds_into_the_next_day(tmp_path):
+    gdelt = 'https://api.gdeltproject.org/api/v2/doc/doc'
+    t = at(18, 23) + 1800                                                      # 23:30, 7,200 s -> 01:30
+    assert pb.note(gdelt, 'necklace_live', 429, now=t, directory=tmp_path,
+                   evidence={'origin': 'provider_rpc', 'retry_after': 7200})
+    assert pb.live_reserve(gdelt, now=at(19, 1), directory=tmp_path) == (False, 'paused_429')
+    assert pb.live_reserve(gdelt, now=at(19, 1) + 1860, directory=tmp_path) == (True, 'ok')
+    day = 'https://a.example.com/'                                            # a day-pause domain, same rule
+    assert pb.note(day, 'role_tests', 429, now=t, directory=tmp_path, evidence={'origin': pb.PROVIDER_HTTP,
+                                                                                 'retry_after': 7200})
+    assert pb.reserve(day, 'role_tests', now=at(19, 1), directory=tmp_path) == (False, 'paused_429')
+    assert pb.reserve(day, 'role_tests', now=at(19, 2), directory=tmp_path)[0]
+    assert pb.retry_after_end('soon', now=0) is None and pb.retry_after_end(None) is None

@@ -213,6 +213,60 @@ def _next_hour(now=None):
     return (int(now) // 3600 + 1) * 3600
 
 
+def retry_after_end(value, now=None):
+    """Epoch seconds when a provider's Retry-After (delta seconds, or an HTTP-date) ends; None when absent or unreadable
+    (source review C16, PM 11-16 22:0x)."""
+    now = time.time() if now is None else now
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return now + max(0.0, float(value))
+    text = str(value).strip()
+    if not text:
+        return None
+    try:
+        return now + max(0.0, float(text))
+    except ValueError:
+        pass
+    try:
+        from email.utils import parsedate_to_datetime
+        stamp = parsedate_to_datetime(text)
+    except (TypeError, ValueError, IndexError):
+        return None
+    if stamp is None:
+        return None
+    if stamp.tzinfo is None:
+        stamp = stamp.replace(tzinfo=timezone.utc)
+    return stamp.timestamp()
+
+
+CARRY = 'carried-pauses.json'   # pauses whose end passes midnight: {domain: {'until': epoch, 'at', 'by'}}
+
+
+def _carried(folder, name, now=None):
+    """True while a pause carried over from an earlier day still holds for NAME (read under the ledger lock)."""
+    try:
+        held = json.loads((Path(folder) / CARRY).read_text()).get(name) or {}
+    except (OSError, ValueError):
+        return False
+    until = held.get('until')
+    return isinstance(until, (int, float)) and (time.time() if now is None else now) < until
+
+
+def _carry(folder, name, until, stamp, system):
+    path = Path(folder) / CARRY
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        data = {}
+    old = (data.get(name) or {}).get('until') or 0
+    if until > old:
+        data[name] = {'until': until, 'at': stamp, 'by': system}
+    tmp = path.with_suffix('.tmp')
+    tmp.write_text(json.dumps(data, sort_keys=True))
+    tmp.replace(path)
+
+
 def is_paused(entry, now=None):
     """True while ENTRY's 429 pause holds: all day, or until its 'until' (epoch seconds) on an hourly-pause domain."""
     paused = entry.get('paused')
@@ -234,7 +288,7 @@ def live_reserve(url, now=None, directory=None, path=None, default_per_day=None)
     per_day = published_per_day(name, path) or default_per_day
     with _ledger(today(now), directory) as data:
         entry = data['domains'].setdefault(name, {'total': 0, 'by': {}})
-        if is_paused(entry, now):
+        if is_paused(entry, now) or _carried(directory or DIR, name, now):
             return False, 'paused_429'
         if per_day and entry['total'] + 1 > int(per_day * LIVE_SHARE):
             return False, 'quota_exhausted'
@@ -405,7 +459,7 @@ def reserve(url, system, n=1, now=None, directory=None):
         return False, 'no_domain'
     with _ledger(today(now), directory) as data:
         entry = data['domains'].setdefault(name, {'total': 0, 'by': {}})
-        if is_paused(entry, now):
+        if is_paused(entry, now) or _carried(directory or DIR, name, now):
             return False, 'paused_429'
         used = entry['by'].get(system, 0)
         if entry['total'] + n > domain_total(name, day=today(now), directory=directory):
@@ -452,7 +506,10 @@ def pause_evidence(url, evidence):
     if domain(url) in OUR_DOMAINS:
         return None, 'our_host'
     if origin == PROVIDER_HTTP:
-        return {'origin': PROVIDER_HTTP}, None
+        kept = {'origin': PROVIDER_HTTP}
+        if isinstance(evidence, dict) and evidence.get('retry_after') not in (None, ''):
+            kept['retry_after'] = evidence['retry_after']      # the response's Retry-After, seconds or HTTP-date
+        return kept, None
     if origin == PROVIDER_RPC and isinstance(evidence, dict):
         retry = evidence.get('retry_after')
         message = str(evidence.get('message') or '').strip()[:200]
@@ -478,8 +535,16 @@ def note(url, system, status, now=None, directory=None, evidence=None):
             refused['last'] = {'at': stamp, 'by': system, 'why': why}
         else:
             entry['paused'] = {'at': stamp, 'by': system, 'evidence': kept}
+            at_now = time.time() if now is None else now
+            provider_end = retry_after_end(kept.get('retry_after'), at_now)
             if name in HOURLY_PAUSE_DOMAINS:
-                entry['paused']['until'] = _next_hour(now)
+                # C16: never before the provider's own Retry-After; the next full hour when it sends none
+                entry['paused']['until'] = max(_next_hour(at_now), provider_end or 0)
+            midnight = datetime.fromtimestamp(at_now, KST).replace(hour=0, minute=0, second=0, microsecond=0) \
+                + timedelta(days=1)
+            end = entry['paused'].get('until') or provider_end
+            if end and end > midnight.timestamp():
+                _carry(Path(directory or DIR), name, end, stamp, system)   # the next day's ledger starts unpaused
     if why:
         log.warning('provider_budget: pause of %s by %s refused (%s)', name, system, why)
         return False
