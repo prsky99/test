@@ -631,6 +631,24 @@
       "source": "https://trysuara.com/terms",
       "checked_at": "2026-11-16",
       "basis": "Account-based SaaS terms ban bulk copying or automated sign-up and say nothing permitting commercial reuse of outputs."
+    },
+    "114379": {
+      "status": "prohibits",
+      "source": "https://krakenshield.eu/legal/terms/",
+      "checked_at": "2026-11-16",
+      "basis": "website terms of use only (French law): API and MCP use and commercial reuse of results are not addressed; account-based services elsewhere on the site (ambiguous)"
+    },
+    "397906": {
+      "status": "prohibits",
+      "source": "https://tpc-hosting.com/terms--conditions",
+      "checked_at": "2026-11-16",
+      "basis": "hosting-customer terms: reselling or redistributing services needs prior written notice and may be refused; the IP lookup tool and reuse of its results are not addressed (ambiguous)"
+    },
+    "266048": {
+      "status": "prohibits",
+      "source": "https://casco.com/terms",
+      "checked_at": "2026-11-16",
+      "basis": "subscription agreement for an account-based paid product (billing on file, customer account); free automated reuse of results not granted"
     }
   },
   "changes": [
@@ -1550,6 +1568,30 @@
         "per_day": 100
       },
       "source": "https://plumbkit.dev/terms",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "114379",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://krakenshield.eu/legal/terms/",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "397906",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://tpc-hosting.com/terms--conditions",
+      "at": "2026-11-16",
+      "by": "agent team"
+    },
+    {
+      "member": "266048",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://casco.com/terms",
       "at": "2026-11-16",
       "by": "agent team"
     }
