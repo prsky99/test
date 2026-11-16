@@ -1056,7 +1056,7 @@ def test_met_agent_rounds_coordinates_credits_met_and_waits_for_expires(tmp_path
     a = FallbackAgents(http=client({"https://api.met.no/": answer}), data_dir=tmp_path, clock=clock, wall=wall,
                        utc_now=lambda: datetime(2026, 11, 13, 20, 5, tzinfo=timezone.utc), limiters=limiters(clock, clock.sleep))
     env = a.execute("met-weather", {"city": "Seoul", "latitude": 37.56654, "longitude": 126.97796})
-    assert env["result"] == {"temperature_c": 9.7, "time": "2026-11-13T20:00:00Z", "source": "MET Norway (CC BY 4.0)",
+    assert env["result"] == {"temperature_c": 9.7, "time": "2026-11-13T20:00:00Z", "source": "Based on data from MET Norway (CC BY 4.0, https://api.met.no/doc/License)",
                              "forecast": "Temperature 9.7 °C; next hour: light rain showers; next 6 hours: rain, 5.4 mm "
                                          "precipitation; wind 2.1 m/s; humidity 98.3%"}
     assert env["freshness"]["data_as_of"] == {"MET Norway": "2026-11-13T19:20:28Z"}

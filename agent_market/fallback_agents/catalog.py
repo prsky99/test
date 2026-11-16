@@ -70,7 +70,7 @@ WORLDBANK = {"name": "World Bank Open Data (World Development Indicators)", "url
                        "observation, not a current-year measurement."}
 
 MET = {"name": "MET Norway Locationforecast 2.0 (Norwegian Meteorological Institute)", "url": "https://api.met.no/",
-       "license": "CC BY 4.0 and NLOD 2.0 (https://api.met.no/doc/License); Data from MET Norway",
+       "license": "CC BY 4.0 and NLOD 2.0 (https://api.met.no/doc/License); Based on data from MET Norway (summarised from the forecast)",
        "notice": "Model forecast for the given coordinates (rounded to 0.01 degree), not a station observation."}
 
 HOLIDAYS = {"name": "holidays (Python library, Vacanza team)", "url": "https://github.com/vacanza/holidays",

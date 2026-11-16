@@ -2438,7 +2438,7 @@ def met_forecast(raw: dict, now: datetime):
     if isinstance(details.get("relative_humidity"), (int, float)):
         parts.append(f"humidity {details['relative_humidity']}%")
     out = {"temperature_c": float(temp), "forecast": ("Temperature %.1f °C; " % temp + "; ".join(parts))[:4000],
-           "time": _text(point["time"], 40), "source": "MET Norway (CC BY 4.0)"}
+           "time": _text(point["time"], 40), "source": "Based on data from MET Norway (CC BY 4.0, https://api.met.no/doc/License)"}
     return out, {"MET Norway": _text(props.get("meta", {}).get("updated_at"), 40) or None}
 
 
