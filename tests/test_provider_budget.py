@@ -355,3 +355,9 @@ def test_wikidata_truth_source_terms_are_recorded_and_keep_the_default_total():
     terms = pb.TRUTH_SOURCE_TERMS['wikidata.org']
     assert terms['license'].startswith('CC0') and terms['license_url'].startswith('https://www.wikidata.org/')
     assert 'wikidata.org' not in pb.DOMAIN_TOTAL and pb.domain_total('wikidata.org') == pb.DAILY_TOTAL
+
+
+def test_holdout_r5_wiki_reads_fit_on_11_16_only():
+    """PM 11-16: +40 Wikipedia reference reads for the mixed wikipedia-summary re-gate set, that day only."""
+    assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261116') == 216
+    assert pb.share_limit('reference_checks', 'wikipedia.org', day='20261117') == 166

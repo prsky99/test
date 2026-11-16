@@ -187,7 +187,11 @@ ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_check
                         ('reference_checks', 'openalex.org'): 60,    # PM 06:5x: all of the 50 (60 x 50 // 60)
                         # workflow gold_company_r5 (PM 11-16 07:4x, company gate restarts on a fresh set): up to 95
                         # SEC reads; 90 of the usual 100 went to holdout-r4, so 200 today (20 x 600 // 60), total 600
-                        ('reference_checks', 'sec.gov'): 20},
+                        ('reference_checks', 'sec.gov'): 20,
+                        # PM 11-16 12:3x: holdout-r5-wiki (wikipedia-summary re-gate with SEC upper-case company names)
+                        # needs ~40 more reads after the 166 were spent; 13 x 1000 // 60 = 216. Wikipedia's total of
+                        # 1000 comes from its declared 200 a minute (mediawiki.org/wiki/Wikimedia_APIs/Rate_limits, member_terms)
+                        ('reference_checks', 'wikipedia.org'): 13},
             # workflow 3737c5aa: cve-incident-brief fix answer set, one GitHub advisory read a CVE. The day total of
             # 60 per domain stays (PM 16:25), so 50 of the 90 asked; the open-source records are read first.
             '20261117': {('reference_checks', 'github.com'): 50,
