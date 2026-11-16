@@ -328,7 +328,7 @@ class SecurityManager:
             finally:
                 with self._lock:
                     self._rules_refreshing = False
-                    # a failed reload waits the usual 30 s before the next try instead of one per request
+                    # a failed reload keeps the last rules that loaded and tries again 5 s later, not once per request
                     self._rules_loaded_at = max(self._rules_loaded_at, time.time() - 25.0)
         threading.Thread(target=work, name='security-rules-reload', daemon=True).start()
 
