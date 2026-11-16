@@ -38,10 +38,14 @@ def test_with_workspace_on_pages_link_directly_and_the_old_address_still_redirec
         assert page.status_code == 200
         assert 'href="/customer/sign-in"' in page.text and not OLD.search(page.text)
         old = site.get('/new/en/sign-in.html', follow_redirects=False)
-        # 11-14 PM: a fixed, cookie-free move a cache may keep for a day; the sign-in page itself stays no-store.
-        assert old.status_code == 308 and old.headers['location'] == '/customer/sign-in'
-        assert old.headers['cache-control'] == 'public, max-age=86400' and 'set-cookie' not in old.headers
-        assert site.get('/new/en/sign-in.html', follow_redirects=False, headers={'Cookie': 'customer_session=x'}).headers['location'] == '/customer/sign-in'
+        # PM 11-17 08:2x: the old address answers with the sign-in page itself in one response (it was a 308, a second
+        # round trip for every visitor): the same bytes and cache headers as /customer/sign-in, no cookie.
+        current = site.get('/customer/sign-in', follow_redirects=False)
+        assert old.status_code == 200 and old.content == current.content and 'set-cookie' not in old.headers
+        for header in ('cache-control', 'cloudflare-cdn-cache-control', 'content-security-policy'):
+            assert old.headers.get(header) == current.headers.get(header), header
+        signed = site.get('/new/en/sign-in.html', follow_redirects=False, headers={'Cookie': 'customer_session=x'})
+        assert signed.status_code == 200 and signed.content == current.content
         for other in ('sign-up.html', 'workspace.html', 'account.html'):
             moved = site.get('/new/en/' + other, follow_redirects=False)
             assert moved.status_code == 303 and moved.headers['cache-control'] == 'no-store', other
