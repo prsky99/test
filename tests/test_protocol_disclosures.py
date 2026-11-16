@@ -95,7 +95,10 @@ def test_hints_agree_in_runtime_and_discovery_documents(catalog):
     assert tools == client.get("/.well-known/mcp.json").json()["tools"]
     by_name = {tool["name"]: tool for tool in tools}
     for name in ("search", "find_agents", "whats_new", "search_workflows"):
-        assert by_name[name]["annotations"] == {
+        hints = dict(by_name[name]["annotations"])
+        # E12 (26494f3f, Connectors Directory): annotations also carry the tool's title for older clients.
+        assert hints.pop("title") == by_name[name]["title"]
+        assert hints == {
             "readOnlyHint": True,
             "destructiveHint": False,
             "idempotentHint": True,
