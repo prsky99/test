@@ -61,7 +61,7 @@ def test_agentvalcon_lead_has_no_catalog_card(snapshot):  # noqa: F811
 
 
 RULES = {'verified_pearl': {'min_score': 85, 'successes_on_different_days': 2},
-         'provisional': {'min_score': 70, 'within_days': 7, 'reports': 1}}
+         'provisional': {'min_score': 70, 'within_days': 7, 'reports': 1, 'own_substitute': 'passed a 30-case held-out gate'}}
 
 
 def test_the_provisional_note_states_the_bars_and_our_own_agent_is_named_apart(snapshot, monkeypatch):  # noqa: F811
@@ -80,7 +80,10 @@ def test_the_provisional_note_states_the_bars_and_our_own_agent_is_named_apart(s
     monkeypatch.setattr(ns, 'substitute_checked', lambda pearl, path=None: True)
     status, page = ns.page(entry['slug'], snapshot=snap, now=NOW)
     text = page.replace('&#x27;', "'")
-    assert status == 200 and ns.OWN_PROVISIONAL_NOTE in text and 'necklace-provisional-note' not in page
+    own_line = ('AgentValCon agent, under verification: our own agent for this step, which passed a 30-case held-out '
+                'gate; it leads until a verified pearl is available.')
+    assert status == 200 and own_line in text and 'necklace-provisional-note' not in page   # no score words for ours
+    assert ns.own_provisional_note({'member_rules': {}}) == ns.OWN_PROVISIONAL_NOTE
     monkeypatch.setattr(ns, 'substitute_checked', lambda pearl, path=None: False)     # revoked or no record
     status, page = ns.page(entry['slug'], snapshot=snap, now=NOW)
     text = page.replace('&#x27;', "'")

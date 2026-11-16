@@ -250,6 +250,17 @@ def pending_roles(entry):
     return [str(p.get('role') or 'step') for p in entry.get('pearls') or [] if external_pending(p)]
 
 
+def own_provisional_note(snapshot=None):
+    """Our own agent leading a step became a member by passing its substitute gate, not by a score (workflow 11-16):
+    the line uses the judge's member_rules.provisional.own_substitute wording when there is one."""
+    rules = (snapshot or load()).get('member_rules')
+    own = ((rules or {}).get('provisional') or {}).get('own_substitute') if isinstance(rules, dict) else None
+    if not isinstance(own, str) or not own.strip() or len(own) > 200 or '<' in own:
+        return OWN_PROVISIONAL_NOTE
+    return ('AgentValCon agent, under verification: our own agent for this step, which ' + ' '.join(own.split())
+            + '; it leads until a verified pearl is available.')
+
+
 def provisional_note(snapshot=None):
     """PM 11-16 (workflow 17:3x): an outside provisional member answered its role test within the window with a score
     of at least the provisional bar, below the verified-pearl bar; it has not 'passed and awaits a second day'. The
@@ -938,7 +949,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
                      + '</ul>' + ('<p class="muted necklace-provisional-note">' + esc(provisional_note(snapshot)) + '</p>'
                                   if any(p['standing'] == 'provisional' and p.get('card') for p in item['pearls']) else '')
                      + ''.join('<p class="muted necklace-own-note">' + esc(note) + '</p>' for note in dict.fromkeys(
-                         OWN_PROVISIONAL_NOTE if substitute_checked(p) else OWN_UNCHECKED_NOTE
+                         own_provisional_note(snapshot) if substitute_checked(p) else OWN_UNCHECKED_NOTE
                          for p in (entry.get('pearls') or []) if isinstance(p, dict) and p.get('kind') == 'agentcon'
                          and member_status(p) == 'provisional'))
                      + '</section>')
