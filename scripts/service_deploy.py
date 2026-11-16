@@ -20,6 +20,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+DEV_BRANCH = 'origin/claude/hopeful-darwin-i3qj6n'   # the development branch every bundle comes back to
 
 from scripts.agentcon_config import read_settings
 from agent_market.application_runtime import _private_bytes
@@ -190,11 +191,45 @@ class Deployment:
             source_root = exported
         self._from_commit = commit is not None
         try:
-            return self._package(release, base, source_root, sha)
+            result = self._package(release, base, source_root, sha)
+            if sha is not None:
+                warnings = self.lineage_warnings(base, sha)
+                if warnings:
+                    result['lineage_warnings'] = warnings
+                    for line in warnings:
+                        print('WARNING ' + line, file=sys.stderr)
+            return result
         finally:
             self._from_commit = False
             if exported is not None:
                 shutil.rmtree(exported, ignore_errors=True)
+
+    def _is_ancestor(self, older, newer):
+        return subprocess.run(['git', 'merge-base', '--is-ancestor', older, newer], cwd=self.root,
+                              capture_output=True).returncode == 0
+
+    def lineage_warnings(self, base, sha, branch=DEV_BRANCH):
+        """11-16 (PM 09:3x): the active frontend and jobs ran a bundle line (eb28348f) that was never merged into the
+        development branch, so packaging the branch tip on it would have dropped about 950 deployed lines and changed the
+        policy hash. Warn when the base release's commit is not inside the packaged commit, and when it is not inside
+        the development branch either (a bundle that still has to be merged back)."""
+        base_commit = None
+        if base:
+            try:
+                base_commit = json.loads((self.path(base) / 'release.json').read_text()).get('commit')
+            except (OSError, ValueError, AttributeError):
+                base_commit = None
+        if type(base_commit) is not str or not re.fullmatch(r'[0-9a-f]{7,40}', base_commit):
+            return []
+        out = []
+        if not self._is_ancestor(base_commit, sha):
+            out.append('lineage_base_not_in_commit: %s (the active %s commit) is not an ancestor of %s; the release '
+                       'drops whatever only the active line has' % (base_commit[:8], base, sha[:8]))
+        if subprocess.run(['git', 'rev-parse', '--verify', '--quiet', branch], cwd=self.root,
+                          capture_output=True).returncode == 0 and not self._is_ancestor(base_commit, branch):
+            out.append('lineage_active_not_on_branch: %s (the active %s commit) is not in %s; merge that line back '
+                       'before the next bundle' % (base_commit[:8], base, branch))
+        return out
 
     def venv_source(self):
         """The environment a new release clones. A release built from a commit uses the active frontend
