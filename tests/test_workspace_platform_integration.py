@@ -99,8 +99,11 @@ def test_public_auth_copy_and_embedded_frontend_remain_english_and_synchronized(
     assert page.status_code == 200
     assert 'Google' in page.text and 'GitHub' in page.text
     assert not re.search('[\uac00-\ud7a3]', page.text)
-    assert 'nonce-' in page.headers['content-security-policy']
-    assert 'no-store' in page.headers['cache-control']
+    # 46aa1389 (PM 11-16 04:3x): the sign-in page is the same bytes for everyone so the edge may keep it; inline
+    # scripts are allowed by sha256 instead of a per-request nonce, and the browser keeps it a short while.
+    from agent_market.customer_sign_in_cache import BROWSER_CACHE
+    assert "'sha256-" in page.headers['content-security-policy'] and 'nonce-' not in page.headers['content-security-policy']
+    assert page.headers['cache-control'] == BROWSER_CACHE
     from agent_market.concierge.front import HTML
     assert HTML == Path('extracted_html.txt').read_text()
     assert 'href="/customer/sign-in"' not in HTML
