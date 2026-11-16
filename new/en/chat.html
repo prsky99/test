@@ -499,21 +499,21 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 </section>
 <section class="catalog-band" aria-label="Catalog snapshot">
 <div class="snapshot-heading">
-<span class="eyebrow">Catalog overview</span>
+<span class="eyebrow">Checks overview</span>
 <div class="row">
 <time>Waiting for current data</time>
 <a href="https://agentconcierge.biz/new/en/agent-status.html">View agent status →</a>
 </div>
 </div>
 <div class="metric-grid metrics-band">
-<div class="metric-card">
+<div class="metric-card" data-primary>
 <span class="pearl small" aria-hidden="true">
 </span>
-<strong class="metric-value" data-metric="cataloged">—</strong>
-<h2>Cataloged agents &amp; services</h2>
-<p>+— newly cataloged · last 24h</p>
+<strong class="metric-value" data-metric="execution">—</strong>
+<h2>Execution checks · last 24h</h2>
+<p>— agents with a successful check</p>
 </div>
-<div class="metric-card" data-primary>
+<div class="metric-card">
 <span class="pearl small" aria-hidden="true">
 </span>
 <strong class="metric-value" data-metric="reachable">—</strong>
@@ -530,9 +530,9 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 <div class="metric-card">
 <span class="pearl small" aria-hidden="true">
 </span>
-<strong class="metric-value" data-metric="execution">—</strong>
-<h2>Execution checks · last 24h</h2>
-<p>— agents with a successful check</p>
+<strong class="metric-value" data-metric="cataloged">—</strong>
+<h2>Cataloged agents &amp; services</h2>
+<p>+— newly cataloged · last 24h</p>
 </div>
 </div>
 <p id="uxHomeSnapshotState" class="caption" role="status">Refreshing catalog…</p><details id="uxCatalogHelp" class="context-help"><summary>About these numbers</summary><div class="context-help-body" id="uxCatalogDetails"><p id="uxCatalogScope">Catalog totals include A2A, MCP and x402 listings, including unavailable entries. Explore defaults to reachable A2A and MCP matches and applies safety filters.</p></div></details></section>
