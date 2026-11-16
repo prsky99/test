@@ -49,6 +49,40 @@ def log_statement_canceled(sql):
                 hashlib.sha256(text.encode()).hexdigest()[:12], threading.current_thread().name, text[:90])
 
 
+_FAILED_SEEN = {}
+_FAILED_LOCK = threading.Lock()
+FAILED_LOG_SECONDS = 60.0
+
+
+def log_statement_failed(sql, error):
+    """Name why a statement failed: its SQLSTATE and the registered SQL's digest (PM 11-16 source review 4.5).
+
+    Every database error became 'statement_failed' and only timeouts said which statement; the rest left no cause.
+    One line per (SQLSTATE, statement) a minute with how many were folded into it, never parameters."""
+    state = getattr(error, 'sqlstate', None) or type(error).__name__
+    text = ' '.join(str(sql).split())
+    digest = hashlib.sha256(text.encode()).hexdigest()[:12]
+    now = time.monotonic()
+    with _FAILED_LOCK:
+        last, folded = _FAILED_SEEN.get((state, digest), (None, 0))
+        if last is not None and now - last < FAILED_LOG_SECONDS:
+            _FAILED_SEEN[(state, digest)] = (last, folded + 1)
+            return state
+        if len(_FAILED_SEEN) > 1000:
+            _FAILED_SEEN.clear()
+        _FAILED_SEEN[(state, digest)] = (now, 0)
+    log.warning('Statement failed: sqlstate=%s sql=%s thread=%s folded=%d %s', state, digest,
+                threading.current_thread().name, folded, text[:90])
+    return state
+
+
+def _failed(sql, error):
+    """ApplicationStoreError('statement_failed') carrying the SQLSTATE, logged once a minute per statement."""
+    failure = ApplicationStoreError('statement_failed')
+    failure.sqlstate = log_statement_failed(sql, error) if getattr(error, 'sqlstate', None) != '57014' else '57014'
+    return failure
+
+
 def _normalized(sql):
     # Resolve formatting-only variants of a registered statement. Literal and
     # identifier bytes remain exact; comments deliberately retain exact bytes.
@@ -174,6 +208,8 @@ FEEDBACK_STATS_MAX = 10000   # one call's upper bound
 READ_GATE_SECONDS = 2.0  # a read-only transaction reuses a passing gate and invariant check this long
 
 class ApplicationStoreError(StorageError, sqlite3.DatabaseError):
+    sqlstate = None   # the database's error code when a statement failed (PM 11-16), else None
+
     def __init__(self, code='unsupported_application_sql'):
         self.code = code
         ValueError.__init__(self, code)
@@ -492,7 +528,7 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
             if not isinstance(error, Exception): raise
             if getattr(error, 'sqlstate', None) == '57014':
                 log_statement_canceled(sql)
-            raise ApplicationStoreError('statement_failed') from None
+            raise _failed(sql, error) from None
 
     def _initialize(self):
         with self.tx():
@@ -716,7 +752,7 @@ class PostgresApplicationStore(PostgresCollectorMixin, PostgresFinanceMixin, Pos
         except BaseException as error:
             self._failed = True
             if isinstance(error, ApplicationStoreError) or not isinstance(error, Exception): raise
-            raise ApplicationStoreError('statement_failed') from None
+            raise _failed(sql, error) from None
         finally:
             if cursor is not None:
                 try: cursor.close()

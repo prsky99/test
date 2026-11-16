@@ -342,3 +342,33 @@ def test_the_store_opens_without_the_shared_graph_once_the_kind_graphs_are_valid
             with pytest.raises(VectorError):
                 available(store)
             store.close()
+
+
+def test_one_statement_sets_the_four_scan_settings_for_the_transaction_only():
+    """PM 11-16 source review 3.8: configure_scan sets ef_search, iterative_scan, max_scan_tuples and
+    scan_mem_multiplier in one round trip on pgvector 0.8+, still transaction-local like SET LOCAL."""
+    import psycopg
+    from types import SimpleNamespace
+    from scripts.rehearse_storage_adapter_postgres import _private_cluster, PORT
+    from agent_market.postgres_ann import configure_scan
+    binary = Path('/opt/homebrew/opt/postgresql@18/bin')
+    if not (binary / 'initdb').is_file():
+        pytest.skip('PostgreSQL 18 fixture tools unavailable')
+    with _private_cluster({name: str(binary / name) for name in ('initdb', 'pg_ctl')}) as cluster:
+        with psycopg.connect(host=cluster['socket'], port=PORT, dbname='postgres', user='postgres') as conn:
+            conn.execute('CREATE EXTENSION IF NOT EXISTS vector')
+            conn.commit()
+            sent = []
+            store = SimpleNamespace(_vector_index=SimpleNamespace(),
+                                    _execute=lambda sql: (sent.append(sql), conn.execute(sql))[1])
+            assert configure_scan(store, filtered=True) is True
+            show = lambda name: conn.execute('SHOW ' + name).fetchone()[0]
+            assert (show('hnsw.ef_search'), show('hnsw.iterative_scan'), show('hnsw.max_scan_tuples'),
+                    show('hnsw.scan_mem_multiplier')) == ('200', 'strict_order', '5000', '1')
+            assert len(sent) == 2                       # the version (once per index) and one statement
+            conn.rollback()
+            assert show('hnsw.iterative_scan') == 'off'  # transaction-local
+            sent.clear()
+            configure_scan(store, filtered=True)
+            assert len(sent) == 1
+            conn.rollback()

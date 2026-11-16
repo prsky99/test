@@ -154,9 +154,12 @@ def nearest(store, blob, descriptor, *, kind=None, category=None, verified_only=
 
 
 def configure_scan(store, *, filtered=False):
-    """Per-query bounded scan; only confirmed pgvector 0.8+ gets iteration."""
-    store._execute("SET LOCAL hnsw.ef_search=200")
+    """Per-query bounded scan; only confirmed pgvector 0.8+ gets iteration.
+
+    PM 11-16 source review 3.8: the four settings were four round trips; with iteration they are one statement
+    (set_config(..., true) is SET LOCAL)."""
     if not filtered:
+        store._execute("SET LOCAL hnsw.ef_search=200")
         return False
     index = store._vector_index
     supported = getattr(index, '_quality_iterative_supported', None)
@@ -168,9 +171,10 @@ def configure_scan(store, *, filtered=False):
         supported = bool(match and tuple(map(int, match.groups())) >= (0, 8, 0))
         index._quality_iterative_supported = supported
     if supported:
-        store._execute("SET LOCAL hnsw.iterative_scan='strict_order'")
-        store._execute("SET LOCAL hnsw.max_scan_tuples=5000")
-        store._execute("SET LOCAL hnsw.scan_mem_multiplier=1")
+        store._execute("SELECT set_config('hnsw.ef_search','200',true), set_config('hnsw.iterative_scan','strict_order',true), "
+                       "set_config('hnsw.max_scan_tuples','5000',true), set_config('hnsw.scan_mem_multiplier','1',true)")
+    else:
+        store._execute("SET LOCAL hnsw.ef_search=200")
     return supported
 
 
