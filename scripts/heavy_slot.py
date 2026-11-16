@@ -12,7 +12,7 @@ with a public measurement (load 6-8, Chat 3-10 s). The wrapper:
   over 30 minutes (exit 77, nothing runs; PM decision 11-12);
 - 08:00-24:00 starts nothing new from :55 to :10, the hourly public measurement's window (exit 75; PM 11-13);
 - otherwise appends its own line (with its own pid and a slot token), runs the command under
-  nice -n 10, and removes its line when the command ends, fails or the wrapper is interrupted;
+  nice -n 15 (PM 11-16; was 10), and removes its line when the command ends, fails or the wrapper is interrupted;
 - marks a line whose pid is gone as stale and does not count it.
 Board edits hold an exclusive file lock so two sessions cannot interleave their changes.
 """
@@ -207,8 +207,10 @@ def claim(board, team, what, minutes, pid, token, now=None, is_alive=alive):
     found = entries(lines, is_alive, now)
     for i, line, live in found:
         if not live and '[오래됨' not in line:
-            pid = _PID.search(line)
-            lines[i] = line + (STALE if pid and not is_alive(int(pid.group(1))) else TIMED_OUT)
+            # 11-16 PM source review: this used to rebind `pid`, so our own new line read pid=<re.Match ...>
+            # whenever an old line was marked, and the next claim treated it as a dead process (limit lifted).
+            old_pid = _PID.search(line)
+            lines[i] = line + (STALE if old_pid and not is_alive(int(old_pid.group(1))) else TIMED_OUT)
     live = [line for _, line, ok in found if ok]
     if len(live) >= slots(now):
         board.write_text('\n'.join(lines), encoding='utf-8')
@@ -234,7 +236,85 @@ def release(board, token):
     return False
 
 
-LOAD_MAX = 6.0   # PM 11-15 16:38: same as pytest_slot.LOAD_MAX - in the day nothing heavy starts above this load
+LOAD_MAX = 9.0   # PM 11-16 14:4x (user: "apply it as fast as possible"): most of the 6+ load was the screen (WindowServer,
+                 # remote desktop, FSEvents, the Claude app), not the services, so every team waited; tests now run at
+                 # nice 15 and start below 9.0. Before: 6.0 (PM 11-15 16:38).
+LOAD_MAX_GUARDED = 6.0   # the old limit, back while the server-side time of the last public measurement is up
+GUARD_RATIO = 1.3        # latest median server_ms of explore + recommend over the median of the day before it
+SLO_LOG = ROOT / 'logs/ops/user-slo.jsonl'
+GUARD_NOTE = ROOT / 'logs/ops/test-load-guard.json'
+TEST_NICE = 15
+
+
+def _server_median(entry):
+    values = sorted(x['server_ms'] for kind in ('explore', 'recommend')
+                    for x in (entry.get(kind) or {}).get('samples') or []
+                    if isinstance(x.get('server_ms'), (int, float)))
+    if not values:
+        return None
+    mid = len(values) // 2
+    return values[mid] if len(values) % 2 else (values[mid - 1] + values[mid]) / 2
+
+
+def server_guard(path=SLO_LOG, now=None, window=24, ratio=GUARD_RATIO):
+    """PM 11-16 14:4x safety for the raised limit: when the last hourly public measurement (at most 90 minutes old)
+    shows the server-side time of explore + recommend more than 30% above the median of the measurements before it,
+    return why (the limit goes back to 6.0); else None. Server-side time only, so the LAX edge delay does not count.
+    Medians under 50 ms are left out (a blocked or failed hour, e.g. 12:08 on 11-16)."""
+    try:
+        lines = Path(path).read_text(encoding='utf-8').splitlines()[-(window + 1):]
+        import json
+        entries = [json.loads(line) for line in lines if line.strip()]
+    except (OSError, ValueError):
+        return None
+    if len(entries) < 4:
+        return None
+    latest = entries[-1]
+    try:
+        age = ((now or datetime.now()) - datetime.strptime(latest['at'], '%Y-%m-%d %H:%M')).total_seconds()
+    except (KeyError, ValueError, TypeError):
+        return None
+    current = _server_median(latest)
+    history = sorted(m for m in (_server_median(e) for e in entries[:-1]) if m is not None and m >= 50)
+    if age > 5400 or current is None or current < 50 or len(history) < 3:
+        return None
+    base = history[len(history) // 2]
+    if current > base * ratio:
+        return (f'server-side time {current:.0f} ms at {latest["at"]} is over {ratio:.1f}x the median {base:.0f} ms '
+                f'of the {len(history)} measurements before it')
+    return None
+
+
+def load_limit(now=None, guard=None):
+    """The day load limit for starting tests: 9.0, or 6.0 while server_guard() holds (noted once per measurement)."""
+    reason = server_guard(now=now) if guard is None else guard
+    if not reason:
+        return LOAD_MAX
+    if guard is None and not os.environ.get('PYTEST_CURRENT_TEST'):
+        _note_guard(reason)
+    return LOAD_MAX_GUARDED
+
+
+def _note_guard(reason):
+    """Tell the PM once per measurement through the status board (the hand-off section)."""
+    import json
+    stamp = reason.split(' at ', 1)[1][:16] if ' at ' in reason else ''
+    try:
+        if json.loads(GUARD_NOTE.read_text()).get('at') == stamp:
+            return
+    except (OSError, ValueError, AttributeError):
+        pass
+    try:
+        GUARD_NOTE.write_text(json.dumps({'at': stamp, 'reason': reason}))
+        line = (f'- **[heavy_slot 자동 {datetime.now().strftime("%m-%d %H:%M")}] 시험 부하 상한을 6.0으로 되돌림'
+                f'(PM 11-16 안전장치)**: {reason}. 다음 정각 측정이 정상이면 9.0으로 돌아감 | 알림 |\n')
+        with board_lock():
+            text = BOARD.read_text(encoding='utf-8')
+            key = '## 넘기는 일\n'
+            if text.count(key) == 1:
+                BOARD.write_text(text.replace(key, key + line, 1), encoding='utf-8')
+    except OSError:
+        pass
 
 
 def day_load(now=None, load=None, what=''):
@@ -243,11 +323,13 @@ def day_load(now=None, load=None, what=''):
     now = now or datetime.now()
     if now.hour < 8 or MEASURE_WORDS.search(what or ''):
         return None
+    injected = load is not None
     if load is None:
         if os.environ.get('PYTEST_CURRENT_TEST'):
             return None
         load = os.getloadavg()[0]
-    return f'load {load:.1f} >= {LOAD_MAX} in the day: the public site needs the CPU' if load >= LOAD_MAX else None
+    limit = LOAD_MAX if injected else load_limit(now)
+    return f'load {load:.1f} >= {limit} in the day: the public site needs the CPU' if load >= limit else None
 
 
 def run(command, team, what, minutes, board=None, lock=None, now=None, load=None):
@@ -281,7 +363,7 @@ def run(command, team, what, minutes, board=None, lock=None, now=None, load=None
             sys.path.insert(0, str(ROOT))   # afternoon real_task_score died here with No module named 'scripts')
         from scripts.pytest_env import clean_environment, is_test_command
         env = clean_environment() if is_test_command(command) else None   # R03: tests never get production pointers
-        child = subprocess.Popen(command, preexec_fn=lambda: os.nice(10), env=env)
+        child = subprocess.Popen(command, preexec_fn=lambda: os.nice(TEST_NICE), env=env)
         return child.wait()
     except KeyboardInterrupt:
         if child and child.poll() is None:

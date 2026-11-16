@@ -50,3 +50,22 @@ def test_gives_up_after_the_last_wait():
     rpc = paced(Flaky(['HTTP 429 from x'] * 5), [])
     with pytest.raises(RPCError):
         rpc.call('eth_getLogs', {})
+
+
+def test_due_days_rerun_missed_and_unreadable_days_but_not_findings(tmp_path):
+    """11-16 PM source review: the daily job only ran yesterday, so a missed day stayed unreconciled."""
+    import datetime
+    import json
+    (tmp_path / '2026-11-16.json').write_text(json.dumps({'ok': True, 'findings': []}))
+    (tmp_path / '2026-11-17.json').write_text(json.dumps({'ok': False, 'findings': [{'kind': 'chain_unreadable'}]}))
+    (tmp_path / '2026-11-18.json').write_text(json.dumps({'ok': False, 'findings': [{'kind': 'money_without_booking'}]}))
+    (tmp_path / '2026-11-19.json').write_text('{not json')
+    (tmp_path / '2026-11-21.json').write_text(json.dumps({'ok': True, 'findings': []}))
+    days = r.due_days(tmp_path, datetime.date(2026, 11, 22), first_day='2026-11-14')
+    # 11-15 missing, 11-17 chain unreadable, 11-19 unreadable file, 11-20 missing, 11-21 yesterday (always)
+    assert days == ['2026-11-15', '2026-11-17', '2026-11-19', '2026-11-20', '2026-11-21']
+
+
+def test_due_days_start_at_the_first_payment_day(tmp_path):
+    import datetime
+    assert r.due_days(tmp_path, datetime.date(2026, 11, 16)) == ['2026-11-14', '2026-11-15']

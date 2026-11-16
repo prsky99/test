@@ -19,10 +19,10 @@ def test_small_runs_directly_and_wide_runs_through_heavy_slot(tmp_path):
         (tmp_path / 'tests' / f'test_{i}.py').write_text('')
         names.append(f'tests/test_{i}.py')
     small = pytest_slot.command(names[:2] + ['tests/test_2.py::test_x'], root=tmp_path)
-    assert small[:3] == ['nice', '-n', '10'] and small[-3:] == names[:2] + ['tests/test_2.py::test_x']
+    assert small[:3] == ['nice', '-n', '15'] and small[-3:] == names[:2] + ['tests/test_2.py::test_x']
     wide = pytest_slot.command(names, minutes=20, root=tmp_path)
     assert wide[1:3] == ['-m', 'scripts.heavy_slot'] and wide[wide.index('--minutes') + 1] == '20'
-    assert wide[wide.index('--') + 1:wide.index('--') + 4] == ['nice', '-n', '10']
+    assert wide[wide.index('--') + 1:wide.index('--') + 4] == ['nice', '-n', '15']
     assert pytest_slot.command(['tests'], root=tmp_path)[1:3] == ['-m', 'scripts.heavy_slot']   # a directory is wide
 
 
@@ -41,6 +41,7 @@ def test_day_runs_wait_for_load_and_for_two_runs_already_going():
     from scripts import pytest_slot
     day, night = datetime(2026, 11, 16, 14, 20), datetime(2026, 11, 16, 3, 0)
     assert pytest_slot.day_busy(day, load=2.0, running=1) is None
-    assert 'load 6.5' in pytest_slot.day_busy(day, load=6.5, running=0)
+    assert 'load 9.5' in pytest_slot.day_busy(day, load=9.5, running=0)
+    assert pytest_slot.day_busy(day, load=6.5, running=0) is None   # PM 11-16: 9.0, was 6.0
     assert '2 small test runs' in pytest_slot.day_busy(day, load=2.0, running=2)
     assert pytest_slot.day_busy(night, load=9.0, running=5) is None

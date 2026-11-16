@@ -178,17 +178,52 @@ def transfers_to(rpc, token, pay_to, first, last):
     return out
 
 
+FIRST_DAY = "2026-11-14"   # USDC payments were switched on 11-14 (charter 0); nothing to reconcile before it
+CATCH_UP_DAYS = 7
+
+
+def due_days(out_dir, today, span=CATCH_UP_DAYS, first_day=FIRST_DAY):
+    """11-16 PM source review: the daily job only ever ran yesterday, so a day missed (Mac asleep, RPC down) stayed
+    unreconciled. Yesterday always runs; of the span before it, a day runs again when its result is missing or
+    unreadable, or when the chain could not be read that time. A day with a real finding is not rerun (it was
+    reported once)."""
+    out_dir = Path(out_dir)
+    days = []
+    for back in range(span, 0, -1):
+        day = (today - datetime.timedelta(days=back)).strftime("%Y-%m-%d")
+        if day < first_day:
+            continue
+        if back == 1:
+            days.append(day)
+            continue
+        try:
+            result = json.loads((out_dir / (day + ".json")).read_text())
+            kinds = {f.get("kind") for f in result.get("findings") or []}
+        except (OSError, ValueError, AttributeError):
+            days.append(day)
+            continue
+        if "ok" not in result or "chain_unreadable" in kinds:
+            days.append(day)
+    return days
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--dsn-file", required=True)
     parser.add_argument("--key-file", required=True)
     parser.add_argument("--day", help="UTC day YYYY-MM-DD (default: yesterday)")
+    parser.add_argument("--due", action="store_true",
+                        help="print the UTC days to run (yesterday plus missed or chain-unreadable days) and exit")
     # 11-16: mainnet.base.org answers eth_getLogs with 429 "request limit reached" even for two blocks, so the day's
     # receipts were never read. PublicNode allows keyless automated production use (publicnode.com/terms, checked
     # 11-16) and serves 5,000-block log reads; Base's own endpoint stays second for the other calls.
     parser.add_argument("--rpc", default=os.environ.get("AD_COIN_PAID_RPC_URL",
                                                         "https://base-rpc.publicnode.com,https://mainnet.base.org"),
                         help="comma-separated RPC URLs, tried in order")
+    if "--due" in (sys.argv[1:] if argv is None else argv):   # no database or key needed to list the days
+        for day in due_days(OUT, datetime.datetime.now(datetime.timezone.utc).date()):
+            print(day)
+        return 0
     args = parser.parse_args(argv)
     day = args.day or (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=1)).strftime("%Y-%m-%d")
     day_ms = int(datetime.datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=datetime.timezone.utc).timestamp() * 1000)

@@ -6,7 +6,7 @@
 suite for ten minutes in the daytime outside heavy_slot. This wrapper never runs pytest without named tests:
 - no argument, or a path that does not exist: nothing runs (exit 2)
 - more than SMALL files, or a directory: the run goes through scripts.heavy_slot (one heavy job at a time)
-- always at nice 10 with .venv-tests
+- always at nice 15 with .venv-tests (PM 11-16; was 10)
 - nothing runs inside a window reserved for copy rehearsals or the public measurement on the status board, nor in the
   hourly measurement window (:55-:10, 08:00-24:00) (exit 75)
 """
@@ -26,7 +26,7 @@ def command(tests, team='운영·SRE', minutes=15, root=ROOT):
     missing = [t for t in tests if not (Path(root) / t.split('::', 1)[0]).exists()]
     if missing:
         raise SystemExit('pytest_slot: no such test file: ' + ', '.join(missing))
-    run = ['nice', '-n', '10', str(Path(root) / '.venv-tests/bin/python'), '-m', 'pytest', '-q', '-p', 'no:cacheprovider', *tests]
+    run = ['nice', '-n', '15', str(Path(root) / '.venv-tests/bin/python'), '-m', 'pytest', '-q', '-p', 'no:cacheprovider', *tests]
     wide = len(tests) > SMALL or any((Path(root) / t.split('::', 1)[0]).is_dir() for t in tests)
     if not wide:
         return run
@@ -35,7 +35,7 @@ def command(tests, team='운영·SRE', minutes=15, root=ROOT):
 
 
 DAY_SMALL_RUNS = 2   # PM 11-15 16:26: small runs had no limit; five teams at once slowed explore in the afternoon
-LOAD_MAX = 6.0       # 1-minute load on this 8-core Mac above which no new test starts in the day (08:00-24:00)
+LOAD_MAX = 9.0       # 1-minute load above which no new test starts in the day; 6.0 while heavy_slot.server_guard holds (PM 11-16)
 
 
 def day_busy(now=None, load=None, running=None):
@@ -45,9 +45,12 @@ def day_busy(now=None, load=None, running=None):
     now = now or datetime.now()
     if now.hour < 8:
         return None
+    injected = load is not None
     load = os.getloadavg()[0] if load is None else load
-    if load >= LOAD_MAX:
-        return f'load {load:.1f} >= {LOAD_MAX} in the day: the public site needs the CPU'
+    from scripts.heavy_slot import load_limit
+    limit = LOAD_MAX if injected else load_limit(now)
+    if load >= limit:
+        return f'load {load:.1f} >= {limit} in the day: the public site needs the CPU'
     running = small_runs() if running is None else running
     if running >= DAY_SMALL_RUNS:
         return f'{running} small test runs already running (day limit {DAY_SMALL_RUNS})'

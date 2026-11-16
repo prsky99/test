@@ -39,7 +39,7 @@ def test_a_free_slot_runs_the_command_under_nice_and_removes_its_line(tmp_path):
     out = tmp_path / 'nice.txt'
     code = hs.run([sys.executable, '-c', f'import os; open({str(out)!r}, "w").write(str(os.nice(0)))'],
                   '운영·SRE', 'probe', 1, board=board, lock=tmp_path / 'lock')
-    assert code == 0 and int(out.read_text()) >= 10
+    assert code == 0 and int(out.read_text()) >= 15
     text = board.read_text(encoding='utf-8')
     assert '[slot ' not in text and f'성장·유통 {NOW}' in text and '## 배포 잠금' in text
 
@@ -59,6 +59,18 @@ def test_a_line_whose_pid_is_gone_is_marked_stale_and_not_counted(tmp_path):
     text = board.read_text(encoding='utf-8')
     assert ok and len(live) == 1 and 'gone (예상 5분)' + hs.STALE in text and '[slot tok1]' in text
     assert hs.release(board, 'tok1') and '[slot tok1]' not in board.read_text(encoding='utf-8')
+
+
+def test_our_new_line_keeps_our_numeric_pid_when_an_old_line_was_marked(tmp_path):
+    """11-16 PM source review: marking an old line rebound `pid`, so our line read pid=<re.Match ...> and the next
+    claim counted it as a dead process (the limit was lifted)."""
+    me = os.getpid()
+    board = _board(tmp_path, f'- B {NOW} pid=999999 gone (예상 5분)')
+    ok, _ = hs.claim(board, '운영·SRE', 'x', 1, me, 'tok9', is_alive=lambda pid: pid == me)
+    ours = [line for line in board.read_text(encoding='utf-8').split('\n') if '[slot tok9]' in line]
+    assert ok and len(ours) == 1 and f'pid={me} ' in ours[0] and 're.Match' not in ours[0]
+    ok, live = hs.claim(board, 'other', 'y', 1, 4242, 'tok10', is_alive=lambda pid: pid == me)
+    assert ok and live == ours   # our line still counts as live for the next claim
 
 
 def test_the_line_goes_in_the_section_below_its_explanation(tmp_path):
@@ -155,7 +167,32 @@ def test_heavy_work_waits_for_load_in_the_day_but_not_the_measurement():
     from datetime import datetime
     from scripts import heavy_slot
     day, night = datetime(2026, 11, 16, 14, 20), datetime(2026, 11, 16, 3, 0)
-    assert 'load 7.0' in heavy_slot.day_load(day, 7.0, 'substitute gate')
+    assert 'load 9.5' in heavy_slot.day_load(day, 9.5, 'substitute gate')
+    assert heavy_slot.day_load(day, 7.0, 'substitute gate') is None   # PM 11-16: 9.0, was 6.0
     assert heavy_slot.day_load(day, 2.0, 'substitute gate') is None
     assert heavy_slot.day_load(night, 9.0, 'substitute gate') is None
     assert heavy_slot.day_load(day, 9.0, 'public_full_check') is None
+
+
+def _slo(tmp_path, medians, at):
+    import json
+    rows = []
+    for i, m in enumerate(medians):
+        stamp = at if i == len(medians) - 1 else '2026-11-16 0%d:00' % (i % 10)
+        rows.append(json.dumps({'at': stamp, 'explore': {'samples': [{'server_ms': m}]},
+                                'recommend': {'samples': [{'server_ms': m}]}}))
+    path = tmp_path / 'user-slo.jsonl'
+    path.write_text('\n'.join(rows) + '\n')
+    return path
+
+
+def test_the_load_limit_goes_back_to_six_when_server_time_rises_30_percent(tmp_path):
+    """PM 11-16 14:4x: the raised 9.0 limit holds only while the server-side time of the last hourly measurement stays
+    within 30% of the measurements before it (server time only, so the LAX edge delay does not count)."""
+    now = datetime(2026, 11, 16, 15, 20)
+    calm = _slo(tmp_path, [800, 760, 820, 900, 2.0, 850], '2026-11-16 15:00')
+    assert hs.server_guard(calm, now=now) is None and hs.load_limit(now, guard=None or '') == hs.LOAD_MAX
+    up = _slo(tmp_path, [800, 760, 820, 900, 2.0, 1100], '2026-11-16 15:00')   # 1100 > 1.3 x 810
+    reason = hs.server_guard(up, now=now)
+    assert reason and '1100 ms' in reason and hs.load_limit(now, guard=reason) == hs.LOAD_MAX_GUARDED == 6.0
+    assert hs.server_guard(up, now=datetime(2026, 11, 16, 17, 0)) is None   # a measurement older than 90 minutes
