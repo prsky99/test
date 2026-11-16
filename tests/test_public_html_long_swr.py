@@ -24,9 +24,10 @@ def test_sign_in_and_account_answers_stay_private(client):  # noqa: F811
         for path in ('/new/en/workspace.html', '/new/en/account.html'):
             r = site.get(path, follow_redirects=False)
             assert r.status_code == 303 and r.headers['cache-control'] == 'no-store', path
-        # 11-14 PM: the old sign-in address is one fixed, cookie-free move (308) a cache may keep for a day
+        # PM 11-17 08:2x: the old sign-in address is the sign-in page itself (one response, no cookie), kept like it
+        from agent_market.customer_sign_in_cache import BROWSER_CACHE as KEPT
         r = site.get('/new/en/sign-in.html', follow_redirects=False)
-        assert r.status_code == 308 and r.headers['cache-control'] == 'public, max-age=86400' and 'set-cookie' not in r.headers
+        assert r.status_code == 200 and r.headers['cache-control'] == KEPT and 'set-cookie' not in r.headers
         # PM 11-16 04:3x (46aa1389) and 09:5x: the sign-in page may be kept only while it is the same bytes for everyone,
         # sets no cookie and holds no personal value; whether the visitor is signed in comes from the status API after
         # it opens, and that answer, like every signed-in page, stays no-store.

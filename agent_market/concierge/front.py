@@ -2255,6 +2255,15 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             for cached in ('_url', '_query_params'):
                 if hasattr(request, cached):
                     delattr(request, cached)
+        # PM 11-17 08:2x: the old sign-in address answers with the sign-in page itself (same bytes and cache headers as
+        # /customer/sign-in) instead of a 308; the move cost every visitor a second round trip (07:59 full check: 3.68 s
+        # over two requests, the origin answers each in 4-23 ms). Every link already names /customer/sign-in.
+        if (workspace_access_enabled and request.method == "GET"
+                and request.scope.get('path') == '/new/en/sign-in.html'):
+            request.scope['path'] = '/customer/sign-in'
+            request.scope['raw_path'] = b'/customer/sign-in'
+            if hasattr(request, '_url'):
+                delattr(request, '_url')
         client_ip = front.security.resolve_ip(request)
         front.security.record_hit(client_ip)
         acquired = front.security.try_acquire_request_slot()
@@ -2294,12 +2303,6 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         static = static or (request.method in ("GET", "HEAD") and response.status_code == 200
                             and response.headers.get("cache-control") == PUBLIC_PAGE_CACHE
                             and response.headers.get("content-type", "").startswith("text/html")
-                            and "set-cookie" not in response.headers)
-        # 11-14 PM: the old sign-in address moves to one fixed page for everyone (308, no cookie): a cache may keep it a day.
-        static = static or (request.method in ("GET", "HEAD") and request.url.path == "/new/en/sign-in.html"
-                            and response.status_code == 308
-                            and response.headers.get("location") == "/customer/sign-in"
-                            and response.headers.get("cache-control") == "public, max-age=86400"
                             and "set-cookie" not in response.headers)
         # 11-16 PM 04:3x: the customer sign-in page and its stylesheet are the same bytes for everyone (customer_sign_in_cache).
         from ..customer_sign_in_cache import BROWSER_CACHE as SIGN_IN_CACHE, CSS_PATH as SIGN_IN_CSS

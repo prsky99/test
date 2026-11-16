@@ -1,5 +1,5 @@
-"""Our pages send people to /customer/sign-in directly (PM 11-16 04:3x): /new/en/sign-in.html is a 308 the edge will
-answer, and every hop from Korea costs a round trip. Runtime code may name the old address only where it describes
+"""Our pages send people to /customer/sign-in directly (PM 11-16 04:3x): every hop from Korea costs a round trip, and
+since PM 11-17 08:2x the old /new/en/sign-in.html answers with the same page in one response instead of a 308. Runtime code may name the old address only where it describes
 that address itself (the noindex list and the static-request check), never as a link or a redirect target."""
 from pathlib import Path
 
