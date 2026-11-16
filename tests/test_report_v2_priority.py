@@ -154,7 +154,7 @@ def test_necklace_roles_read_the_definitions():
 
 def test_weather_and_fx_get_more_picks_and_translation_names_are_wider():
     import role_catalog
-    assert V.PRIORITY_EXTRA == {'weather.forecast.v1': 8, 'fx.rate.v1': 8}
+    assert V.PRIORITY_EXTRA == {'weather.forecast.v1': 8, 'fx.rate.v1': 8, 'papers.search.v1': 20}   # papers: PM 11-16 18:2x
     candidates = [(role, i * 100 + n, 't', f'h{i}-{n}.example') for i, role in
                   enumerate(('weather.forecast.v1', 'holiday.calendar.v1')) for n in range(12)]
     out = V.new_queue([], candidates, limit=9, terms={})

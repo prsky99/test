@@ -1387,6 +1387,11 @@ PRIORITY_ROLES = ('sec.filings.v1', 'cve.exploited.v1', 'package.health.v1', 'we
 PRIORITY_PICKS = 4
 # PM 11-15 16:42: what visitors ask most has a weak #1 (weather 59.9, FX 53.3) and many untested candidates (17, 36)
 PRIORITY_EXTRA = {'weather.forecast.v1': 8, 'fx.rate.v1': 8}
+# PM 11-16 18:2x: the topic necklace opens 11-17 with no counted papers member (39577 and 47151 at 58, own arxiv-search
+# before its gate), so papers goes ahead of everything, all of its candidates in the first round (terms allowed and
+# silent first, unknown after; prohibited never).
+URGENT_ROLES = ('papers.search.v1',)
+PRIORITY_EXTRA['papers.search.v1'] = 20
 # PM 11-16 17:5x (replaces the 06:5x order for today only): new candidates go first to the roles with no tested
 # member at all, then the roles of the first four new necklaces, then every other role with no final pearl in
 # PRIORITY_ROLES order. Roles that already have a final pearl follow in the general order (fewest successes first).
@@ -1405,7 +1410,8 @@ def queue_priority(versions, ranked=None, roles=None):
     roles = list(role_catalog.ROLES) if roles is None else list(roles)
     tested = {canonical(v['role']) for v in versions if not is_own_fallback(v['resource_id'])}
     pearl = {canonical(role) for role, entry in ranked.items() if entry.get('final_pearl')}
-    out = [r for r in roles if r not in tested]
+    out = [r for r in URGENT_ROLES if r not in pearl]
+    out += [r for r in roles if r not in tested]
     out += [r for r in NECKLACE_NEW_ROLES if r not in pearl]
     out += [r for r in PRIORITY_ROLES if r not in pearl]
     out += [r for r in roles if r not in pearl]

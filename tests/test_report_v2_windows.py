@@ -42,7 +42,8 @@ def test_queue_priority_puts_untested_roles_then_new_necklace_roles_then_roles_w
               'weather.forecast.v1': {'final_pearl': None}}
     roles = ['fx.rate.v1', 'news.search.v1', 'weather.forecast.v1', 'company.profile.v1', 'holiday.calendar.v1']
     order = V.queue_priority(versions, ranked, roles=roles)
-    assert order[:2] == ('company.profile.v1', 'holiday.calendar.v1')          # nothing tested yet
+    assert order[0] == 'papers.search.v1'                                       # PM 18:2x: topic necklace's papers seat
+    assert order[1:3] == ('company.profile.v1', 'holiday.calendar.v1')          # nothing tested yet
     assert order.index('weather.forecast.v1') < order.index('news.search.v1')    # first-batch necklace role first
     assert 'fx.rate.v1' not in order                                              # has a final pearl
     assert len(order) == len(set(order))
@@ -111,3 +112,11 @@ def test_later_windows_have_their_own_done_file_and_launchd_starts_all_three():
         starts = [(x['Hour'], x['Minute']) for x in plist['StartCalendarInterval']]
         assert starts == [(9, 12), (15, 12), (20, 12)]
         assert all(V.window_number(at(h, m)) == n for n, (h, m) in enumerate(starts, 1))
+
+
+def test_papers_candidates_all_go_first_in_terms_order():
+    cands = [('papers.search.v1', i, 't', f'p{i}.example') for i in range(1, 7)] + \
+            [('weather.forecast.v1', 10 + i, 't', f'w{i}.example') for i in range(3)]
+    terms = {1: 'prohibits', 2: None, 5: 'silent', 6: 'allowed'}
+    out = V.new_queue([], cands, limit=9, terms=terms, priority=V.queue_priority([], {}, roles=['weather.forecast.v1']))
+    assert [x['id'] for x in out][:5] == [6, 5, 2, 3, 4] and 1 not in [x['id'] for x in out]
