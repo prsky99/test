@@ -16,6 +16,9 @@ REAL_WINDOW = hs.measurement_window
 @pytest.fixture(autouse=True)
 def two_slots(monkeypatch):
     """Most tests are about counting lines, not the hour; the hour rules have their own tests."""
+    # NOW is taken again for every test: in a long run (11-17 night pytest) the import-time stamp was more than the
+    # lines' 5-minute estimate old when these tests ran, so live lines read as overdue and two tests failed.
+    monkeypatch.setitem(globals(), 'NOW', datetime.now().strftime('%m-%d %H:%M'))
     monkeypatch.setattr(hs, 'slots', lambda now=None: 2)
     monkeypatch.setattr(hs, 'measurement_window', lambda now=None: None)
 
