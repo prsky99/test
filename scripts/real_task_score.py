@@ -238,10 +238,36 @@ def failure(status, answer):
     return 'call_failed'
 
 
+def cause_of(status, answer):
+    """Why a call did not return a result. TERMS_RESTRICTED (our relay refuses an agent whose provider terms prohibit
+    this use, from the 11-19 00:30 release) is the same failure as terms_prohibits before the call (PM 11-18: one name
+    for both paths)."""
+    error = json.dumps((answer or {}).get('error'))
+    if 'TERMS_RESTRICTED' in error:
+        return 'terms_prohibits'
+    return 'paid_or_auth_required' if paid_or_auth(status, error) else failure(status, answer)
+
+
 def checked(task, payload):
     text = json.dumps(payload, ensure_ascii=False) if not isinstance(payload, str) else payload
     missing = [p for p in task['check']['all'] if not re.search(p, text)]
     return not missing, missing, len(text)
+
+
+TERMS = ROOT / 'agent_market/necklaces/member_terms.json'
+
+
+def terms_prohibit(rid, path=None):
+    """True when the agent team's terms verdict for rid is prohibits (PM 11-18: this check called 143970 faceabot ten
+    times after its 11-16 verdict, and 214764, 413095, 34807 too - another party's terms are a line we do not cross,
+    even for a measurement). The task then counts as not passed with outcome terms_prohibits: the recommendation
+    picked an agent we may not call. A missing or unreadable file prohibits nothing (same as auto_run)."""
+    try:
+        members = json.loads(Path(path or TERMS).read_text(encoding='utf-8')).get('members') or {}
+    except (OSError, ValueError):
+        return False
+    row = members.get(str(rid))
+    return isinstance(row, dict) and row.get('status') == 'prohibits'
 
 
 def score_task(client, task):
@@ -265,12 +291,19 @@ def score_task(client, task):
                    relevant=relevant)
         return row
     kind, rid = top.get('kind'), top.get('id')
+    if terms_prohibit(rid):
+        row.update(outcome='terms_prohibits', relevant=relevant,
+                   detail='not called: the provider terms prohibit this use (necklaces/member_terms.json)')
+        return row
     gateway = '%s/api/gateway/%s/%s' % (BASE, kind, rid)
     t1 = time.monotonic()
     try:
         if kind == 'mcp':
             st, init = rpc(client, gateway, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
                                                            'clientInfo': {'name': 'real-task-score', 'version': '1'}})
+            if 'result' not in init and cause_of(st, init) == 'terms_prohibits':
+                row.update(outcome='terms_prohibits', detail='initialize %s TERMS_RESTRICTED' % st)
+                return row
             if 'result' not in init:
                 row.update(outcome='connection_failed', detail='initialize %s %s' % (st, json.dumps(init.get('error'))[:160]))
                 return row
@@ -295,7 +328,7 @@ def score_task(client, task):
             st, answer = rpc(client, gateway, 'tools/call', {'name': tool['name'], 'arguments': args}, 3)
             row['connect_call_s'] = round(time.monotonic() - t1, 2)
             if 'result' not in answer:
-                cause = 'paid_or_auth_required' if paid_or_auth(st, json.dumps(answer.get('error'))) else failure(st, answer)
+                cause = cause_of(st, answer)
                 row.update(outcome=cause, detail='tools/call %s %s' % (st, json.dumps(answer.get('error'))[:200]))
                 return row
             payload = answer['result']
@@ -306,7 +339,7 @@ def score_task(client, task):
                              'messageId': 'rts-%s-%d' % (task['id'], int(time.time())), 'parts': [{'kind': 'text', 'text': text}]}})
             row['connect_call_s'] = round(time.monotonic() - t1, 2)
             if 'result' not in answer:
-                cause = 'paid_or_auth_required' if paid_or_auth(st, json.dumps(answer.get('error'))) else failure(st, answer)
+                cause = cause_of(st, answer)
                 row.update(outcome=cause, detail='message/send %s %s' % (st, json.dumps(answer.get('error'))[:200]))
                 return row
             payload = answer['result']

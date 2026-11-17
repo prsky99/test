@@ -234,3 +234,29 @@ def test_run_file_never_rewrites_a_dated_raw_file(tmp_path):
     assert rts.run_file(started, tmp_path).name == '2026-11-12-0408-2.json'
     (tmp_path / '2026-11-11.json').write_text('old')                   # the old UTC-day name is never chosen
     assert rts.run_file(started, tmp_path).name != '2026-11-11.json'
+
+
+def test_an_agent_whose_terms_prohibit_this_use_is_never_called(monkeypatch, tmp_path):
+    """PM 11-18: this check called 143970 (terms prohibits since 11-16) ten times. A lead with a prohibits verdict is
+    not called and counts as failed (terms_prohibits); an unreadable verdict file blocks nothing; from 11-19 the
+    relay's own TERMS_RESTRICTED refusal gets the same name."""
+    from scripts import real_task_score as rts
+    terms = tmp_path / 'member_terms.json'
+    terms.write_text(json.dumps({'members': {'143970': {'status': 'prohibits'}, '241601': {'status': 'allowed'},
+                                             '39577': {'status': 'silent'}}}))
+    monkeypatch.setattr(rts, 'TERMS', terms)
+    assert rts.terms_prohibit(143970)                                   # prohibits: not called
+    assert not rts.terms_prohibit(241601) and not rts.terms_prohibit(39577)   # allowed, silent: called
+    assert not rts.terms_prohibit(1)                                    # no verdict: called
+    assert not rts.terms_prohibit(143970, tmp_path / 'missing.json')
+    monkeypatch.setattr(rts, 'recommend', lambda client, task: (200, [{'id': 143970, 'kind': 'mcp', 'name': 'faceabot'},
+                                                                      {'id': 241601, 'kind': 'mcp'}]))
+    def never(*a, **k):
+        raise AssertionError('called')
+    never.last_timing = ''
+    monkeypatch.setattr(rts, 'rpc', never)
+    row = rts.score_task(None, {'id': 'a10', 'who': 'agent', 'task': 'Search Wikipedia', 'needs': 'wikipedia'})
+    assert row['outcome'] == 'terms_prohibits' and row['shortlist'][0] == [143970, 'mcp']
+    refused = {'error': {'code': -32000, 'data': {'error_code': 'TERMS_RESTRICTED'}}}
+    assert rts.cause_of(400, refused) == 'terms_prohibits'
+    assert rts.cause_of(502, {'error': {'data': {'error_code': 'UPSTREAM_TIMEOUT'}}}) == 'connection_failed'
