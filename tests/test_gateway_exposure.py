@@ -251,7 +251,12 @@ def test_an_unrelayed_tool_gets_an_honest_note_with_the_provider_source_never_it
     assert second['connection_note'].endswith('Connect through the provider (Other) directly.')
     from agent_market.concierge.connections import public_agent
     card = public_agent(first, rows[7])
-    assert card['connection_available'] is False and card['connection_note'] == first['connection_note']
+    assert card['connection_available'] is False
+    # PM 11-18 option A: a card we do not relay gives the provider's own public MCP address (the call never goes
+    # through us); the answer's relayed addresses stay ours.
+    from agent_market.concierge.connections import DIRECT_NOTE
+    assert card['connection_note'] == first['connection_note'] + DIRECT_NOTE
+    assert card['direct_endpoint'] == 'https://mail.example/mcp' and '/api/gateway/mcp/7' in card['usage_endpoint']
     from agent_market.concierge.fast_chat import FastConcierge
     brief = FastConcierge._brief({**first, 'url': 'https://agentconcierge.biz/api/gateway/mcp/7', 'description': 'Mail tools',
                                  'active_checked_at': 1794400000})

@@ -73,6 +73,42 @@ def _prose_purpose(value,start,inherited):
     return ''
 
 
+_SECRET_QUERY = re.compile(r'key|token|secret|auth|sig|password|passwd|session|code|credential', re.I)
+_NOT_PUBLIC_HOST = re.compile(r'(?:^localhost$|\.local$|\.localhost$|\.internal$|\.lan$|\.home$|\.corp$)', re.I)
+DIRECT_NOTE = ' Connect from your own client at the direct_endpoint below; we do not relay this tool.'
+
+
+def direct_endpoint(value, resource=None):
+    """The provider's own public MCP address for a card our gateway does not relay (PM 11-18 decision, option A), or None.
+
+    Only https, a public host name (no IP literal outside the global range, no local suffix), no user info and no query
+    parameter that could carry a credential. Collection admitted the address through check_public_url; the card adds no
+    DNS lookup to the answer path (response-time policy), and anyone connecting re-checks it (user_slo does)."""
+    import ipaddress
+    from urllib.parse import parse_qsl
+    url = (value or {}).get('url') or (resource or {}).get('url')
+    if (value or {}).get('kind') != 'mcp' or not isinstance(url, str) or len(url) > 300:
+        return None
+    try:
+        parsed = urlsplit(url.strip())
+        host = parsed.hostname or ''
+        query = parse_qsl(parsed.query, keep_blank_values=True)
+    except ValueError:
+        return None
+    if parsed.scheme != 'https' or not host or parsed.username or parsed.password or parsed.fragment:
+        return None
+    if _NOT_PUBLIC_HOST.search(host) or '.' not in host:
+        return None
+    try:
+        if not ipaddress.ip_address(host).is_global:
+            return None
+    except ValueError:
+        pass                                   # a name, not an address
+    if any(_SECRET_QUERY.search(name) for name, _ in query):
+        return None
+    return url.strip()
+
+
 def gateway_agent_url(rid, kind=None):
     if kind not in KINDS or isinstance(rid,bool):
         return ''
@@ -381,12 +417,20 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     needs_provider_auth=value.get('auth_required') in (True,1) and value.get('kind')!='x402'  # 0/1 from the hybrid path
     available=bool(gateway) and value.get('tool_unlisted') is not True and not needs_provider_auth
     result['connection_available']=available
+    if not available and gateway:
+        # PM 11-18 option A: a call we do not relay never goes through us, so the card gives the provider's own public MCP
+        # address; relayed cards keep the gateway address only.
+        direct=direct_endpoint(value,resource)
+        if direct:
+            result['direct_endpoint']=direct
     if needs_provider_auth:
         result['connection_reason']='provider_authorization'
     if value.get('tool_unlisted') is True and isinstance(value.get('connection_note'),str):
-        result['connection_note']=value['connection_note'][:600]
+        result['connection_note']=value['connection_note'][:600]+(DIRECT_NOTE if result.get('direct_endpoint') else '')
         if value.get('connection_reason') in ('action_tool','not_verified_read_only'):
             result['connection_reason']=value['connection_reason']  # 11-13 PM: action vs. not verified read-only
+    if needs_provider_auth and result.get('direct_endpoint') and not result.get('connection_note'):
+        result['connection_note']="This listing needs the provider's own authorization."+DIRECT_NOTE
     # A listing that states a price is never answered as price 0 / free (11-12, price_status.py).
     from .price_status import price_fields
     if 'price_usdc' in value:  # cards built without a price (events, tool specs) stay without one

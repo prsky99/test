@@ -102,8 +102,10 @@ def test_unrelayed_card_says_so_first_and_gives_no_call_sequence():
     item = {'id': 43775, 'kind': 'mcp', 'name': 'x711', 'url': 'https://x711.io/mcp', 'tool_unlisted': True,
             'usage_endpoint': 'https://agentconcierge.biz/api/gateway/mcp/43775', 'connection_note': note, 'active_checked_at': 1763337554}
     lines = FastConcierge._brief(item).splitlines()
-    assert lines[1] == 'Connection: ' + note
+    from agent_market.concierge.connections import DIRECT_NOTE
+    assert lines[1] == 'Connection: ' + note + DIRECT_NOTE                              # PM 11-18 option A
     assert lines[2] == 'Endpoint: https://agentconcierge.biz/api/gateway/mcp/43775'   # user_slo reads this line
+    assert lines[3] == 'Direct endpoint: https://x711.io/mcp'
     assert not any(line.startswith('Call: ') or line.startswith('Run here') for line in lines)
     relayed = FastConcierge._brief({**item, 'tool_unlisted': False, 'connection_note': None}, first=False)
     assert relayed.splitlines()[2] == 'Call: initialize → tools/list → tools/call'

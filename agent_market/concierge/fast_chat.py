@@ -799,6 +799,12 @@ class FastConcierge(Concierge):
             # 11-12 PM: not relayed by our gateway. PM 11-17 06:3x: the answer says so first and gives no call
             # sequence for a tool the gateway will not run (the endpoint stays: it lists the provider's relayed tools).
             lines[1:3] = ['Connection: '+item['connection_note'][:600], lines[1]]
+            # PM 11-18 option A: the provider's own public MCP address for the call we do not relay
+            from .connections import direct_endpoint, DIRECT_NOTE
+            direct = direct_endpoint(item)
+            if direct:
+                lines[1] += DIRECT_NOTE
+                lines.insert(3, 'Direct endpoint: ' + direct)
         elif first and kind == 'mcp':
             # 11-12 PM: an MCP host cannot add a server mid-conversation; our /mcp `call` tool runs the
             # recommended informational tool in the same session, and a person can paste the config line.
