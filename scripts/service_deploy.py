@@ -136,6 +136,10 @@ def caddyfile(directory, frontend, admin, public_port=8400, admin_port=8200, app
 
 
 PUBLISHED_DOCS = 'docs/methodology'  # served by /methodology and /methodology.json (growth team 618f48e6)
+# Single data files the released code reads next to itself (Path(__file__) based), PM 11-18: the fallback watch's
+# live probes read contract-test-inputs.json and found nothing in every release since 02900b54 (11-16 06:35;
+# 'no_probe_input' for 11 substitutes); the workflow review packets read workflow-evaluation-cases.json.
+RELEASE_DATA_FILES = ('reports/fallback-agents-2026-11-14/contract-test-inputs.json', 'docs/workflow-evaluation-cases.json')
 
 
 class Deployment:
@@ -327,6 +331,9 @@ class Deployment:
         if 'docs' in listed and subprocess.run(['git', 'cat-file', '-e', sha + ':' + PUBLISHED_DOCS], cwd=self.root,
                                                capture_output=True).returncode == 0:
             wanted.append(PUBLISHED_DOCS)
+        wanted += [name for name in RELEASE_DATA_FILES
+                   if subprocess.run(['git', 'cat-file', '-e', sha + ':' + name], cwd=self.root,
+                                     capture_output=True).returncode == 0]
         destination = Path(tempfile.mkdtemp(prefix='release-commit-'))
         archive = subprocess.run(['git', 'archive', sha, *wanted], cwd=self.root, capture_output=True)
         if archive.returncode:
@@ -347,6 +354,10 @@ class Deployment:
             shutil.copytree(source_root / name, target / name, ignore=ignore)
         if (source_root / PUBLISHED_DOCS).is_dir():
             shutil.copytree(source_root / PUBLISHED_DOCS, target / PUBLISHED_DOCS, ignore=ignore)
+        for name in RELEASE_DATA_FILES:
+            if (source_root / name).is_file():
+                (target / name).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_root / name, target / name)
         metadata = {source_root / name for name in ('pyproject.toml', 'extracted_html.txt')}
         metadata.update(source_root.glob('requirements*.txt'))
         metadata.update(source_root.glob('requirements*.lock'))

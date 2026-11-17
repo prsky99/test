@@ -223,6 +223,10 @@ def test_package_from_a_commit_ignores_working_tree_edits_and_records_the_hash(t
     (root / 'docs' / 'methodology').mkdir(parents=True)
     (root / 'docs' / 'methodology' / 'methodology.json').write_text('{"version": "v1"}\n')
     (root / 'docs' / 'notes.md').write_text('internal\n')
+    (root / 'docs' / 'workflow-evaluation-cases.json').write_text('{"cases": []}\n')
+    (root / 'reports' / 'fallback-agents-2026-11-14').mkdir(parents=True)
+    (root / 'reports' / 'fallback-agents-2026-11-14' / 'contract-test-inputs.json').write_text('{"ofac-sdn": []}\n')
+    (root / 'reports' / 'fallback-agents-2026-11-14' / 'README.md').write_text('report\n')
     git('add', '.'); git('commit', '-q', '-m', 'one')
     sha = git('rev-parse', 'HEAD')
     (root / 'agent_market' / 'x.py').write_text('x = 2  # uncommitted\n')
@@ -236,6 +240,10 @@ def test_package_from_a_commit_ignores_working_tree_edits_and_records_the_hash(t
     assert not (release / 'scripts' / 'stray.py').exists()
     assert (release / 'docs' / 'methodology' / 'methodology.json').exists()      # served by /methodology (11-14)
     assert not (release / 'docs' / 'notes.md').exists()                          # the rest of docs/ stays out
+    # PM 11-18: the two data files released code reads next to itself, and nothing else of reports/
+    assert (release / 'reports' / 'fallback-agents-2026-11-14' / 'contract-test-inputs.json').exists()
+    assert (release / 'docs' / 'workflow-evaluation-cases.json').exists()
+    assert not (release / 'reports' / 'fallback-agents-2026-11-14' / 'README.md').exists()
     assert manager.release_commit('git-frontend-r1') == sha
     import pytest
     with pytest.raises(ValueError, match='unknown_commit'):
