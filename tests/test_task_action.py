@@ -107,3 +107,16 @@ def test_unrelayed_card_says_so_first_and_gives_no_call_sequence():
     assert not any(line.startswith('Call: ') or line.startswith('Run here') for line in lines)
     relayed = FastConcierge._brief({**item, 'tool_unlisted': False, 'connection_note': None}, first=False)
     assert relayed.splitlines()[2] == 'Call: initialize → tools/list → tools/call'
+
+
+def test_a_skill_that_states_a_price_per_call_is_paid():
+    # Real task a13 (11-17 15:10): Agent Revenue Network 424591's JSON Schema skill.
+    from agent_market.concierge.gateway_exposure import access_note, PAID_NOTE, order_key
+    paid = {'id': 424591, 'kind': 'a2a', 'tools': ['Recursive JSON Schema Checking'], 'description': 'Agent utilities.',
+            'tools_schema': [{'name': 'Recursive JSON Schema Checking', 'description':
+                              'Validate JSON values against a JSON Schema subset. Execution costs 0.003 USDC per call through x402 on Base.'}]}
+    free = {'id': 1, 'kind': 'mcp', 'tools': ['validate_json'], 'description': 'Validate JSON against a schema.',
+            'tools_schema': [{'name': 'validate_json', 'description': 'Free. $0 per call. Validates JSON.'}]}
+    assert access_note(paid) == PAID_NOTE and access_note(free) is None
+    paid['access_note'] = access_note(paid)
+    assert sorted([paid, free], key=order_key)[0] is free

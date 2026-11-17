@@ -328,7 +328,11 @@ def access_note(item, descriptions=None):
             if isinstance(tool, dict) and (not chosen or tool.get('name') in chosen):
                 texts.append(str(tool.get('description') or ''))
     text = ' '.join(texts)[:20000]
-    if PAID.search(text):
+    # Real task a13 (11-17 15:10): an A2A skill whose own description says "Execution costs 0.003 USDC per call
+    # through x402" led a free JSON Schema task. A stated price per call is a paid tool, by the same rule as the
+    # public Free badge and price_status (an amount of zero is not a price).
+    from .price_status import stated_price
+    if PAID.search(text) or stated_price(text):
         return PAID_NOTE
     if item.get('kind') != 'x402' and ACCOUNT.search(text):
         return ACCOUNT_NOTE
