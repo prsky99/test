@@ -261,6 +261,17 @@ def grade_papers(case, slot_out) -> bool:
                for p in case["truth"]["papers"])
 
 
+PAPERS_TWO_INDEX = "papers-two-index-v1"
+
+
+def grade_papers_v2(case, slot_out) -> bool:
+    """PM 11-17: one grader for both keys. A case built under "papers-two-index-v1" (gold_topics_two_index) carries
+    G, the papers both OpenAlex and Crossref rank high, in truth.papers; an older case carries OpenAlex's ten most
+    cited. Either way the answer passes when it names one of them by DOI or title (grade_papers). What changes with the
+    two-index key is the same-source rule (same_source), not the match."""
+    return grade_papers(case, slot_out)
+
+
 LEGAL_WORDS = {"inc", "corp", "co", "ltd", "plc", "ag", "se", "sa", "nv", "spa", "asa", "ab", "oyj", "group", "holdings",
                "holding", "company", "corporation", "limited", "incorporated", "the", "and"}
 
@@ -328,7 +339,7 @@ def grade_web(case, slot_out) -> bool:
 
 
 GRADERS = {"advisories": grade_advisories, "health": grade_health, "record": grade_record,
-           "exploited": grade_exploited, "registry": grade_registry, "papers": grade_papers,
+           "exploited": grade_exploited, "registry": grade_registry, "papers": grade_papers_v2,
            "background": grade_background, "web": grade_web}
 
 
@@ -943,6 +954,8 @@ def same_source_official(defn: dict, case: dict, result: dict) -> list[str]:
 def same_source(defn: dict, case: dict, result: dict) -> list[str]:
     """Steps of SAME_SOURCE_STEPS answered by a member whose upstream is the source of this case's answer key."""
     keys = {w for src in case.get("truth_sources") or [] for w in SOURCE_WORDS if w in str(src.get("name", "")).lower()}
+    if (case.get("truth") or {}).get("papers_rule") == PAPERS_TWO_INDEX:
+        keys = set()        # PM 11-17: the key needs both indexes, so no one member's index is the key's source
     out = []
     for slot in defn["slots"]:
         if slot["slot"] not in SAME_SOURCE_STEPS.get(defn["slug"], ()) or not keys:
