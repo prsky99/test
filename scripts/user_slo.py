@@ -36,6 +36,10 @@ except ImportError:
     from slo_targets import FINAL, INTERIM, attainment
 
 ROOT = Path(__file__).resolve().parents[1]
+try:  # write tasks are judged on the direct-connect notice (PM 11-18, reports/write-action-measurement-2026-11-18)
+    from scripts import direct_connect
+except ImportError:
+    import direct_connect
 try:  # the recommendation's own rule (PM 11-17 06:3x); a light module with no service imports
     from agent_market.concierge.task_action import action_mismatch
 except ImportError:
@@ -346,6 +350,25 @@ def connector(endpoint, seen=None):
     return connect
 
 
+def connect_bad(conn):
+    """Failed connect samples. Same denominator (every sample); a write task fails unless (a)-(d) all hold (PM 11-18),
+    any other sample as before: no tool through the gateway, the recommended tool unlisted, or the wrong action."""
+    def failed(c):
+        if c.get('write_task'):
+            return not (c.get('direct') or {}).get('passed')
+        return not c['tools'] or c.get('error') in ('tool_unlisted', 'action_mismatch')
+    return [c for c in conn if failed(c)]
+
+
+def direct_verdict(task, card, wanted, text):
+    """(a)-(d) for a write task: the provider's own tools/list on a new connection, budgeted, read only."""
+    from agent_market.broker.discovery import check_public_url
+    from agent_market.provider_budget import reserve
+    agent = {'User-Agent': 'AgentValCon-connect-check/1 (+https://agentconcierge.biz)'}
+    return direct_connect.judge(task, card, wanted, text, lambda: httpx.Client(timeout=10.0, headers=agent),
+                                reserve, check_public_url)
+
+
 def check_recommend_and_connect(n=2):
     rec, conn = [], []
     for task in unseen(n):
@@ -370,6 +393,9 @@ def check_recommend_and_connect(n=2):
             entry = {'endpoint': None, 's': 0.0, 'tools': 0, 'connection_available': available,
                      'error': 'no_gateway_endpoint' if text and card is not None else 'no_recommendation'}
             entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
+            if direct_connect.write_topic(task):
+                entry['write_task'] = True
+                entry['direct'] = direct_verdict(task, card, wanted, text)
             conn.append(entry)
             continue
         seen = {}
@@ -388,9 +414,13 @@ def check_recommend_and_connect(n=2):
         if seen:
             entry['failure'] = seen
         entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
+        if direct_connect.write_topic(task):
+            # A write task is not dropped; it passes on the direct-connect notice, all of (a)-(d) (PM 11-18).
+            entry['write_task'] = True
+            entry['direct'] = direct_verdict(task, first_card(result[1] if result else None), wanted, text)
         conn.append(entry)
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
-    conn_bad = [c for c in conn if not c['tools'] or c.get('error') in ('tool_unlisted', 'action_mismatch')]
+    conn_bad = connect_bad(conn)
     # A first recommendation without a gateway path is a failed connection (PM 11-12, replacing the 11-11 rule
     # that left such an hour unmeasured).
     return ({'samples': rec, 'ok': not rec_bad, 'bad': rec_bad},
