@@ -1195,6 +1195,11 @@ class Runner:
                     st["result"].attempts.append(attempt)
                     if attempt.ok:
                         st["result"].answers.append((member, canon))
+                    elif attempt.error_class == "not_found" and member.get("absence_final"):
+                        # PM 11-18 (company v3 round 1: 14 companies without an article failed when the next
+                        # member timed out on a missing title): a member marked absence_final that says "no
+                        # article" ends the step; no later member is started, so no_article() can settle it
+                        st["queue"].clear()
         finally:
             still_running = sum(1 for st in states.values() for f in st.get("abandoned_futures", []) if not f.done())
             pool.shutdown(wait=False, cancel_futures=True)
