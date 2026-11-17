@@ -22,7 +22,12 @@ from ..search_quality import observed
 
 MAX_HEALTH_AGE = 24 * 3600
 INCIDENTAL_LOOKAHEAD = 40  # further candidates examined for a focused listing once bundles fill the places
-RESOURCE_BATCH = 500  # listing contracts read per lookup batch
+RESOURCE_BATCH = 500  # listing contracts read per lookup batch, at most
+# PM 11-17 10:4x (admission_loop 0.75-0.94 s, resource_read 0.43-0.50 s): an MCP contract row averages 37 KB (p90
+# 98 KB, production 11-17), so a first miss read up to 500 of them (~18 MB) while the loop usually stops after the
+# places plus INCIDENTAL_LOOKAHEAD groups. The first batch after each plan is small and each next one doubles, up to
+# RESOURCE_BATCH: the same rows in the same order, read only as far as the loop goes. No new read on the request path.
+FIRST_RESOURCE_BATCH = 50
 EXECUTION_WINDOW = 7 * 24 * 3600  # gateway runs are kept seven days (edge_gateway prune)
 EXECUTION_SPEED_STEP_MS = 5000  # runs within one step of each other count as equally fast
 EXECUTION_CALLERS_MAX = 5  # distinct callers beyond this add nothing
@@ -1005,16 +1010,20 @@ class QualityRecommender(Recommender):
         # contracts in bounded batches, in the order they will be examined.
         bulk = getattr(self.store,'recommendation_resources',None)
         loaded = {}
-        upcoming = {'ids':[], 'at':{}}
+        upcoming = {'ids':[], 'at':{}, 'size':FIRST_RESOURCE_BATCH}
         def plan(ids):
             upcoming['ids'] = ids
             upcoming['at'] = {rid:index for index,rid in enumerate(ids)}
+            upcoming['size'] = FIRST_RESOURCE_BATCH
         def resource_at(rid):
             if not callable(bulk):
                 return self.store.resource(rid)
             if rid not in loaded:
                 start = upcoming['at'].get(rid)
-                batch = [rid] if start is None else [i for i in upcoming['ids'][start:start+RESOURCE_BATCH] if i not in loaded]
+                size = max(1, min(RESOURCE_BATCH, upcoming['size']))
+                batch = [rid] if start is None else [i for i in upcoming['ids'][start:start+size] if i not in loaded]
+                if start is not None:
+                    upcoming['size'] = size * 2
                 found = bulk(batch)
                 loaded.update({i:found.get(i) for i in batch})
             return loaded[rid]

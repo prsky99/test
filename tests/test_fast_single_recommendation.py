@@ -269,3 +269,25 @@ def test_broad_questions_read_listing_contracts_in_bounded_ranked_batches(catalo
     assert ask(client)['data']['recommendations'][0]['id']==ids[-1]
     assert batches and all(len(batch)<=3 for batch in batches)
     assert batches[0]==[ids[6],ids[5],ids[4]]
+
+
+def test_contract_batches_start_small_and_double_so_an_early_stop_reads_little(catalog,monkeypatch):
+    # PM 11-17 10:4x: admission_loop 0.75-0.94 s, resource_read 0.43-0.50 s. An MCP contract averages 37 KB, and a
+    # first miss read the next 500 of them although the loop stops after the places and a bounded lookahead.
+    from agent_market.concierge import selection
+    store,front,client,add,now=catalog
+    ids=[add(f'Weather {n}',health_at=now-100+n) for n in range(30)]
+    batches=[]
+    def bulk(batch):
+        batches.append(list(batch))
+        return {rid:store.resource(rid) for rid in batch}
+    monkeypatch.setattr(store,'recommendation_resources',bulk,raising=False)
+    monkeypatch.setattr(selection,'FIRST_RESOURCE_BATCH',2)
+    monkeypatch.setattr(selection,'INCIDENTAL_LOOKAHEAD',3)
+    assert ask(client)['data']['recommendations'][0]['id']==ids[-1]
+    sizes=[len(batch) for batch in batches]
+    assert sizes[:3]==[2,4,8]                                   # the same order, read as far as the loop goes
+    assert batches[0]==[ids[29],ids[28]]
+    assert sum(sizes)<len(ids)                                  # the early stop left the tail unread
+    loaded=[rid for batch in batches for rid in batch]
+    assert len(loaded)==len(set(loaded))                        # nothing read twice
