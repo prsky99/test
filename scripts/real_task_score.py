@@ -210,11 +210,15 @@ def pick_tool(tools, needs, preferred):
     stem = lambda ws: {w[:6] for w in ws}  # noqa: E731  ("geocoding" and "geocode" are one word here)
     want = stem(words(needs))
     def score(t):
-        named = 1 if t['name'] in preferred else 0
         hit = len(want & stem(words(t['name'] + ' ' + str(t.get('description', '')))))
-        if 'revers' in stem(words(t['name'])) and 'revers' not in want:
+        reverse = 'revers' in stem(words(t['name'])) and 'revers' not in want
+        if reverse:
             hit -= 1  # a reverse lookup is the opposite of the task unless the task asks for it
-        return (hit, named)
+        # PM 11-18 (agent team, p08 of the 05:33 round): the tool the recommendation named comes first, the word hits only
+        # order the rest. With (hit, named) a tool with a long description beat the recommended `search` with
+        # `search_authors` and the case failed as bad_answer. A recommended reverse lookup for a forward task still loses.
+        named = 1 if t['name'] in preferred and not reverse else 0
+        return (named, hit)
     return max(callable_tools, key=score)
 
 

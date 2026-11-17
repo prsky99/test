@@ -260,3 +260,26 @@ def test_an_agent_whose_terms_prohibit_this_use_is_never_called(monkeypatch, tmp
     refused = {'error': {'code': -32000, 'data': {'error_code': 'TERMS_RESTRICTED'}}}
     assert rts.cause_of(400, refused) == 'terms_prohibits'
     assert rts.cause_of(502, {'error': {'data': {'error_code': 'UPSTREAM_TIMEOUT'}}}) == 'connection_failed'
+
+
+def test_the_recommended_tool_comes_before_a_longer_description(  # PM 11-18, p08 of the 05:33 round (39577)
+):
+    tools = [{'name': 'search', 'description': 'Search papers'},
+             {'name': 'search_authors', 'description': 'Search authors by name, affiliation or research topic and list their recent '
+                                                       'publications on retrieval augmented generation'}]
+    task = 'recent research papers on retrieval augmented generation'
+    assert rts.pick_tool(tools, task, {'search'})['name'] == 'search'
+    assert rts.pick_tool(tools, task, set())['name'] == 'search_authors'   # nothing recommended: the word hits decide as before
+
+
+def test_a_recommended_name_that_is_not_in_the_tool_list_falls_back_to_the_word_hits():
+    tools = [{'name': 'get_forecast', 'description': 'weather forecast for a city'}, {'name': 'get_alerts', 'description': 'alerts'}]
+    assert rts.pick_tool(tools, 'weather forecast for Seoul', {'forecast_v2'})['name'] == 'get_forecast'
+
+
+def test_among_several_recommended_tools_the_better_word_hit_wins_and_a_reverse_lookup_still_loses():
+    tools = [{'name': 'lookup_city', 'description': 'city profile'}, {'name': 'lookup_country', 'description': 'country profile and capital'},
+             {'name': 'reverse_lookup', 'description': 'country from capital'}]
+    assert rts.pick_tool(tools, 'capital of a country', {'lookup_city', 'lookup_country'})['name'] == 'lookup_country'
+    assert rts.pick_tool(tools, 'capital of a country', {'reverse_lookup'})['name'] == 'lookup_country'   # the task did not ask for reverse
+    assert rts.pick_tool(tools, 'reverse lookup of a country by its capital', {'reverse_lookup'})['name'] == 'reverse_lookup'
