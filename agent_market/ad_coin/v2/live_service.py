@@ -102,7 +102,7 @@ def create_live_ad_coin_v2_router(
     if store is None and app_store is not None:
         store = store_from_application(app_store)
         key_vault = key_vault or default_key_vault()  # production path: keys shared by every process
-    commercial, resolver, _ = build_live_service(
+    commercial, resolver, vault = build_live_service(
         store,
         key_vault=key_vault,
         taxonomy=taxonomy,
@@ -181,10 +181,17 @@ def create_live_ad_coin_v2_router(
 
         paid_config = PaidConfig.from_env()
         paid_rpc = default_rpc()   # R36: 4 s, one retry, two public nodes must agree
-        base_router.include_router(paid_router(commercial, PaidBookings(
+        paid_bookings = PaidBookings(
             commercial.store, paid_config, rpc=paid_rpc,
             sanctions=Sanctions(os.environ.get("AD_COIN_OFAC_LIST", DEFAULT_OFAC_LIST)),
-            taxonomy=commercial.taxonomy, regions=commercial.regions), resolve_auth=resolver))
+            taxonomy=commercial.taxonomy, regions=commercial.regions)
+        base_router.include_router(paid_router(commercial, paid_bookings, resolve_auth=resolver))
+        if vault.owner_link_persistent:   # keyless orders (PM 11-17 B): ids need the stable server secret
+            from .keyless_sponsor import KeylessSponsor
+            from .keyless_sponsor_http import router_for as keyless_router
+
+            base_router.include_router(keyless_router(KeylessSponsor(
+                commercial, paid_bookings, owner_link_key=vault.get_owner_link_key())))
     from .advertiser_applications_http import router_for as applications_router
 
     base_router.include_router(applications_router(commercial, resolve_auth=resolver))
