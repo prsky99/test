@@ -98,3 +98,13 @@ def test_texts_the_tokenizer_could_not_count_are_estimated_and_counted(tmp_path)
     half = lambda texts: [5] * 10 + [None] * (len(texts) - 10)          # a 429 after ten texts
     counted = nvr.measured_tokens(root, "s", [("r5", "20261118")], counter=half)
     assert counted["texts_estimated_after_rate_limit_or_cap"] == 50
+
+
+def test_every_single_comparison_says_it_is_the_whole_task_alone():
+    from scripts import necklace_value_report as r
+    m = {"accuracy": {"necklace": {"correct": 29, "of": 30}, "best_single": {"correct": 10, "cases": 30},
+                      "delta_points": 63.3}, "time_ms": {}}
+    lines = r.public_lines(m, [], "topic-evidence-brief")
+    assert r.SINGLE_BASIS in lines and "whole task alone" in r.SINGLE_BASIS
+    no_single = r.public_lines({"accuracy": {"necklace": {"correct": 29, "of": 30}}, "time_ms": {}}, [], "x")
+    assert r.SINGLE_BASIS not in no_single

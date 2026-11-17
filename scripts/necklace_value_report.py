@@ -178,6 +178,14 @@ def steps_count(slug: str) -> int | None:
         return None
 
 
+# PM 11-17 (review E): the single baseline is graded on the whole task, so a member that answers one step can never
+# pass; every comparison says so, in the public lines and the report.
+SINGLE_BASIS = ("The comparison is with a single agent answering the whole task alone, graded by the same rules; "
+                "no single agent covers every step.")
+SINGLE_BASIS_KO = ("단일 기준선은 단일 에이전트가 과제 전체를 혼자 답했을 때와 비교한 값입니다(같은 채점 규칙). 한 단계만 "
+                   "답하는 멤버는 구조상 과제 전체를 통과할 수 없으므로, Δ는 이 조건에서의 차이입니다.")
+
+
 def public_lines(m: dict, verdicts: list, slug: str) -> list[str]:
     """Only measured facts (PM 11-17): accuracy, delta, the number of steps; time only from a public address. Token
     figures are estimates (characters / 4) and never go here."""
@@ -185,6 +193,8 @@ def public_lines(m: dict, verdicts: list, slug: str) -> list[str]:
     lines = [f"Correct on {a['necklace']['correct']} of {a['necklace']['of']} held-out test cases over two test rounds"
              + (f", against {a['best_single']['correct']} of {a['best_single']['cases']} for the best single agent on "
                 f"the same cases ({a['delta_points']:+g} points)" if a.get("best_single") else "") + "."]
+    if a.get("best_single"):
+        lines.append(SINGLE_BASIS)
     n = steps_count(slug)
     if n:
         lines.append(f"Finding and combining {n} agents' answers is one call.")
@@ -225,6 +235,7 @@ def readme(m: dict, verdicts: list, rounds: list, slug: str) -> str:
 {rows}
 
 - Δ(목걸이 − 최고 단일, 같은 사례): {a['delta_points']}%p
+- {SINGLE_BASIS_KO}
 
 ## 2. 사례당 시간({path_label(verdicts[0] if verdicts else None)})
 - p50 {tm['p50']} ms, p95 {tm['p95']} ms. 공개 주소 기준 시간은 공개 뒤 user_slo와 공개 실행 기록으로 따로 잽니다.
