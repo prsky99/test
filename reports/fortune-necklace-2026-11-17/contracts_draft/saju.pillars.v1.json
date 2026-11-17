@@ -88,6 +88,10 @@
         "type": "string",
         "pattern": "^https://",
         "maxLength": 2000
+      },
+      "boundary_note": {
+        "type": "string",
+        "maxLength": 300
       }
     },
     "required": [
@@ -102,7 +106,8 @@
     "the year pillar changes at Ipchun (立春) and the month pillar at each solar term (節氣), not at lunar new year or lunar month starts",
     "without birth_hour, hour_pillar is null and basis says \"no hour pillar\" (three pillars, six characters)",
     "basis names the time standard: Korea standard time, no true-solar-time correction",
-    "read-only calculation; no account, payment or write; the birth date is used for the calculation only and never stored or logged"
+    "read-only calculation; no account, payment or write; the birth date is used for the calculation only and never stored or logged",
+    "boundary_note, when given, says that Ipchun or a solar term falls on the birth date and how the pillar was decided"
   ],
   "test_inputs": [
     {
