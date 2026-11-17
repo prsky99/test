@@ -54,3 +54,4 @@ new/.publication-*/
 # One-off report insertion scripts (data loaders, not maintained code)
 /insert_batch*.py
 /scripts/insert_batch*.py
+.claude/settings.local.json

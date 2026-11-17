@@ -777,6 +777,86 @@
 - 쿠키 띠는 머리글 위 본문 흐름(PM 결정 A, head nonce 스크립트가 선택 여부 먼저 읽음). 탐색 폰·데스크톱 첫 그림 CLS 수정.
 - 게이트에 화면 품질 시험(tests/test_main_ui_touch_targets.py, test_cookie_banner_phone.py) 추가. 작업 전부터 실패하던 시험 목록도 보고서에.
 
+## 11-11 검색과 RAG: 탐색 0건 줄이기 2차, 넓은 행 읽기 조사
+- 1e268a9d·9a177a7c(zero-fix r3): 첫 검색에서 기능어만 빼고 조건어는 0건일 때만 뺀다. "A to B"의 to는 남긴다.
+- dfabcef1: 0건이면 이어진 단어 묶음을 긴 것부터 모두 다시 찾는다(가운데 단어 포함). 재검색은 글자 색인만 쓴다(0.07~0.33초, 임베딩 포함 0.6~2초). 일반어(advisory·lookup 등)는 혼자 찾지 않는다.
+- 넓은 행 읽기: 탐색 경로에는 SELECT *가 없다. 운영 평균 22ms는 캐시가 빠졌을 때의 디스크 읽기다(데워진 상태에서는 2~3ms). 해법은 열 줄이기가 아니라 메모리(초안 A·B·D)다.
+- 탐색 서버 시간의 대부분은 임베딩 ANN(호출당 0.13~0.5초)이 쓴다.
+- 11-11 06시: e0f312ee(탐색 안쪽 Server-Timing: observed가 측정 문맥을 끊던 것 수정), 596856c0(문서 큐 대조 1/6, 재검색 2초 뒤 near, 언어·지역=조건어) frontend·jobs 배포. A(halfvec) full 리허설: 크기 절반, 그러나 필터된 운영 형태 recall@100 0.26·3만 블록은 그대로 → reports/탐색 지연 DB 결정 요청 2026-11-11.md(D' 종류별 부분 HNSW, P1 투영 표). 공개 40개 p50 1.70초.
+- 11-11 성장·유통: 99bfdf6d(페이지당 CSS 1·지연 JS 1, bundle-frontend r1 배포: 요청 13→4, 렌더 차단 6→1, FCP 중앙값은 그대로 2.0~2.3초 — 남은 원인은 HTML 첫 바이트 1.0~1.5초와 CSS 57KB, 제안 A 해시 CSP+HTML 엣지 캐시·B CSS 줄이기), 5c5b9f4f(법적 문서 34개도 묶음), a5315b63(check API·MCP check_agent, 새 SQL 0, 스냅샷 url_key), 7b463668(바닥글 Advertise), 410f13fb(소유 증명 표 리허설 passed, 승인 대기), cfbee97c(소유 증명 토큰·확인 API, OWNER_PROOF_SECRET 없으면 503, 저장 꺼짐).
+- 11-11 저녁 성장·유통: 해시 CSP·공개 HTML s-maxage=60(8a76b4c5, usdc 묶음으로 운영) + Cloudflare 3번 규칙 Public HTML 60s(HIT 0.74~1.17초, FCP 중앙값은 그대로). 오늘 기준 전수 점검 16:56 실패 27(live 화면은 LAX EXPIRED/MISS → swr 제안). 첫 화면 CSS(B): 생성기·9화면 파일(gzip 12.5~17.4KB)·브라우저 비교 시험·게이트(f59e9099), 상태 규칙 포함·상대 url 절대화·원본 해시 검사. Chat 폰 CLS 0.055는 원래 있던 것. 소유 증명 표는 사용자 실행 대기(권한 막힘). 카테고리·주간 캐시 d5fb6159 → 08시 묶음 뒤 2번 규칙 HTML 전용 절.
+- 11-11 20시 성장·유통(페이지 1초, PM 19시): 기준 공개 화면 10개 첫 요청 10/10 EXPIRED·LAX, 첫 바이트 1.27~5.15초. 7ac34f2c(옛 묶음 URL이 이전 릴리스 폴더에서 같은 바이트로 200·immutable — swr 조건 시험, warm_edge.py 배포 직후 1회, user_slo pages에 cf-cache-status), cf86b6a3(숨은 패널 템플릿 → panels.js, 첫 화면 CSS 포함 HTML gzip 56~60KB → 31~37KB). 둘 다 push 보류(PM 답 대기). 주의: 첫 화면 CSS만 나가면 HTML gzip이 44 → 57KB로 커진다(인라인 CSS 14~17KB).
+- 11-11 23시 성장·유통: 414782c6까지 푸시(08시 묶음). Smart Tiered Cache 21:44 켬(9172a0b8 문서). 389965a5 post_deploy_check(11-12 07:35 before 예약 pid 60578). 43275460 Chat 폰 CLS → 0(다음 묶음). 로컬 커밋은 다른 팀 로컬 커밋 4개 위에 있어 push 보류.
+- 11-12 15:2x 검색과 RAG: 재조사 전후 낱말 변화 기록을 별도 브랜치 rag/cap-changes-1117(2dfa1385)에 커밋했다. 11-17 jobs 묶음에서 합친다. 공유 브랜치에는 올리지 않았다.
+  - 오늘 밤 측정 추가: 사본 단계 D(a14 추적)와 E(30과제 2회). 공개 30과제 2회는 11-13 05:40(pid 48381)이고, 결과는 scratchpad flaky_public.jsonl에 남는다.
+
+## 11-14 워크플로우 팀(옛 백앤드): 진주 목걸이 생성·관리 설계안 (첫 과제)
+- e07850e2 reports/necklace-design-2026-11-14/README.md. 운영 DB 읽기 전용 실측 결과: 공개 28개는 모두 순차 사슬이고 실행기도 노드를 하나씩 돈다(workflows.py:961). fallback 스위치는 enabled=1이지만 정책 3개가 10-25에 만료됐고, 실행 1회당 대체는 1회다.
+- 설계: 파일 정의(DB 구조 변경 없음), 수명주기 candidate→qualifying→trial→live⇄held→retired, 정책 v2 사슬(외부 ≤6, Agentcon ≤2 맨 뒤), 웨이브 병렬 실행, 후보 5개, 기존 33개 정리안
+- PM 결정 5건 대기. 다음 과제: 역할 계약 11개, 정의 파일 5개, 정답 세트 생성기
+- 11-14 04:0x 워크플로우 팀: 생산체계 bde4ede9(푸시) reports/necklace-production-2026-11-14/. 수요·논문 조사, 첫 10개(11-28 5개: package-risk-audit, cve-incident-brief, company-due-diligence, topic-evidence-brief, paper-cross-search), 공정 9단계, 스냅샷 계약 확정, 관문 95%(보류 60건 중 57), 운영·SRE 넘김 묶음, 기존 33개 ①16 ②14 ③3. PM 결정(06:3x): 파일 방식·읽기 전용 완화(readOnlyHint 명시+is_relay_safe_tool)·관문 무관 진행·옛 워크플로우 is_active=0 승인. 다음: agent_market/necklaces/ 역할 계약·정의·정답 세트 생성기
+- 11-14 04:1x 워크플로우 팀: 생산체계 98fe294c(PM 07:5x 결정: 첫 5개·관문 60건 30×2·동의 문구·Agentcon 대체 10개 조건). 코드 b2287cb5 agent_market/necklaces/(model 검증기·readiness·digest, 계약 5, 정의 package-risk-audit·cve-incident-brief v1, judge 두 열쇠 스냅샷), tests/test_necklaces_*.py 32 passed. 미배포. 발견: 실행 본문 14일 정리가 운영에서 안 돎(PM 결정 대기). 다음: 정답 세트 생성기, Agentcon NVD·KEV·GitHub Advisory
+- 11-14 05시 워크플로우 팀: 감시 설계 417be778(PM 승인), members.json 51c802d8, 매시간 감시 c0ff54fb, 매일 집계 f9aafdef·69047090(헌장 단계 1~4), 브랜드 AgentValCon 3b39a0d4, 정답 세트 나눔 고침 62655888. 시험 57개. AgentValCon fallback 개발은 에이전트 팀(헌장 956c74b3), 연결 조건(resource_id 등록·annotations 명시) 전달. 정답 세트 CVE 단계 백그라운드 진행 중(scratchpad gold-build.log). 다음: 목걸이 실행기·재시험 실행기
+- 11-14 04:3x 워크플로우 팀: 단계별 대응 9f4f02df(자리 단계 1~4, 나빠질 때만 경보, 4단계 보류, 스냅샷 stage·held_at·events), 역할 과제 4역할 추가 bc0aabce(15역할 35건). 시험 61개. 세션 메시지 한도(20) 도달 → PM 보고는 현황판 '넘기는 일'. 다음: 목걸이 실행기(웨이브 병렬·사슬 v2·runs·계정 알림 notices.json)
+- 11-14 04:5x 워크플로우 팀: 목걸이 실행기 ab86ffa7(agent_market/necklaces/runner.py, 시험 11개, 전체 72개). AgentValCon fallback 필요 역할 우선순위를 현황판으로 에이전트 팀에 넘김. package 정답 세트 --resplit으로 16:14 균형(백그라운드 작업 끝나면 다시 resplit 필요: 옛 코드로 덮어씀). 다음: 재시험 실행기(retest.py: 정답 세트·retest_requests·35분 예산), 공개 실행 경로 연결, 계정 알림 notices.json
+- 11-14 04:4x 워크플로우 팀: 정답 세트 첫 생성 완료(1381512a 기록). package 90(16:14), cve 90(KEV 15:15, NVD 전부, EPSS 누락 0), 공개 호출 347건. 원자료 gateway-data/necklaces/gold/raw/. 에이전트 팀에 cve tuning 경로를 현황판으로 넘김. 운영·SRE가 워크플로우 보존 기본 적용(6cc0e2e7) 커밋함 → 배포 확인 뒤 동의 문구 보존 문장 검토
+- 11-14 04:5x 워크플로우 팀: PM 연계 점검 3건(767cc5db 북극성 출처 분류·contracts 15개 기준 목록·중간 일정), 9a206101 공동 예산 래퍼(budgeted_caller). 시험 76개. 성장·유통에 traffic.py INTERNAL_UA에 AgentValCon 없음 알림(현황판). 다음: 재시험 실행기(retest.py: 정답 세트 30건/일, retest_requests, 35분 예산, budgeted_caller 'necklace_retest'), 공개 실행 경로 연결
+- 11-14 04:5x 워크플로우 팀: contracts 32개 = role_catalog(c3146c8c, 동일성 시험), 정의를 에이전트 팀 fallback(82219181: nvd-cve·cisa-kev tuning 30/30) 이름에 맞춤 fc9b05dd(planned). 결정 대기: fallback 등록 방식(안 B 권장, 카탈로그 행=운영 DB 쓰기) — 11-19 첫 관문의 열쇠
+- 11-14 04:5x 에이전트 팀(신설): AgentValCon 자체 대체 1차 82219181(agent_market/fallback_agents, 시험 43, 미배포). nvd-cve(NVD 피드 스냅샷 42.6만 건·244MB, API는 13~27초·503이라), cisa-kev(KEV+EPSS), cve-org, github-advisory. tuning: 30/30·30/30·24/30(원천 차이)·27/30(범위 판정 고쳐 재측정). 운영·SRE에 관문 10절 신청, PM 결정 대기: 비공개 자원 등록(실행기가 resource_id 경로만 씀), cve-org 채점 기준, 다음 자리(package.health 권장). 보고서 reports/fallback-agents-2026-11-14
+- 11-14 04:5x 워크플로우 팀: quality.success_7d·cumulative(6bfc4a16, 같은 버전만·하루 1회·새 버전 0부터) 성장·유통 요청 반영, 현황판 회신. 시험 78개
+- 11-14 05:0x 워크플로우 팀: 공개 실행 진입점 service.run_for_surface + 안 A(fallback_agents 프로세스 안 실행) 지원 cc96f227, cve 정답 cvss_record(cvelistV5 CNA/ADP) 095b599f. 발견: workflows.sensitive가 토큰 값을 못 잡음 → 목걸이 진입점에만 TOKEN 검사, PM에 보고. 시험 86개. 다음: 재시험 실행기(retest.py), jobs 연결(감시·집계·판정)
+- 11-14 05:0x 워크플로우 팀: ed21385c(gold CVSS 최신 버전 우선 → 2건 변경, health 사슬에 package-registry, stale 시험, 역할 과제 파일 전부 검사). 검색과 RAG 표본 4건 검토 통과(현황판). 시험 89개
+- 11-14 05:2x 워크플로우 팀: 재시험 실행기 30249349, 증거 서명·중계 429 수정 5893e359, company 정답 cbe79aa1. 사건: 05:11 자체 시험이 중계 429를 제공자 429로 오인해 공동 장부 3개 도메인 정지 → 제거·원인 수정·운영·SRE 보고. cve 자체 시험 재실행(백그라운드). 시험 104개
+- 11-14 05:3x 워크플로우 팀: topic-evidence-brief v1 정의·정답 세트(98주제)·채점기 38fb9a2b, 날씨 기준 MET Norway. 실수: 공유 작업본에서 git merge --ff-only 실행(충돌 없음) → 현황판에 알림, 재발 금지. 자체 대체 4개는 운영·SRE 보류 30/30, approvals 승인 대기(보고서 v2 85점 뒤). 시험 105개
+
+- 11-14 05:4x 검색과 RAG: 자체 대체 에이전트(avc:<agent_id>)를 시험 보고서 v2에 연결(b3662d08·915b1921). 판·점수·서명 사슬은 쌓고, 진주 순위·role_groups·깔때기에서는 뺀다. pearl_daily가 exports/pearls/avc-results-<날짜>.json을 결과별 키로 한 번씩 가져온다. 첫 실측: 16건 → 6개 88~90점, 순위 진입 0. 에이전트 팀에는 현황판 넘기는 일로 전달(세션 메시지는 앱 차단).
+- 11-14 05:4x 워크플로우 팀: cve 자체 시험 2회차 2/30 = 정규화기 결함(CVSS 버전을 점수로) → f7fdf2b0 고침(구조화 점수 우선, 호출별 남은 마감 시간 제한, 원응답 2KB 저장). 기록 무효 격리. 운영·SRE 확인 요청: 47161 중계 403, 37259 "execution unavailable". 재측정 다음 KST 날(오늘 재시험 몫 소진). 시험 107개
+- 11-14 05:4x 워크플로우 팀: PM 결정 ③(자체 대체 없는 역할 3개는 선택 자리·외부 2개 이상만) 검증기 반영, wiki-grounding을 topic web 자리에. 시험 108개
+- 11-14 05:5x 워크플로우 팀: 자체 대체 감시 연동 4b77730c(failing 2시간 강등·6시간 복귀). 시험 109개
+- 11-14 07:0x 워크플로우 팀: company 정답 LEI 보강 676de750(보류 LEI 40·CIK 42, 층 has_lei/cik_only). 시험 111개
+
+## 11-15 10:3x 검색과 RAG 진행 메모
+- 1단계 R10·R11·R12·R13·R15·R18 끝, 평가 dq-2026-11-15b(aade9a42). 첫 목걸이 네 역할 결함 고침·우선 배정.
+- B+C 묶음 = rag/bc-1116c (scratchpad wt-r2, 활성 frontend r2 b89b2304 + jobs 2376f4a6 위, ac39d1a1, 정책 해시 1c7ba78b). 검증은 wt-pm16(r1 기준, 검색 코드 같음).
+- 남은 일: Chat 시험 통과 뒤 MailerDot(fast_chat mentioned_only_last, 미커밋) 커밋·묶음에 넣기 → scratchpad bc_launch.sh로 사본 검증(18:00 전 PM 보고).
+- 00:30 패키징 직전 ./agentcon status로 활성 커밋 확인: frontend r2(r1+131c3f5d·480e9b19)면 그 위로 다시 얹기. 01:30 안에 끝, 01:45 동결.
+- 11-16 09:12 뒤: 역할별 최근 7일 과제 수 분포(1·2·3개 이상) 한 줄 PM 보고. 11-17까지 네 역할 결과 보고.
+
+## 11-15 10:3x 성장·유통 — 정밀 검토 R80·R76 커밋
+- R80 cdd620e1(클릭 블록 3개 role=button·Enter/Space, 입력 5개 aria-label), R76 c3a488f8(내용 검사가 실제 new/en 화면을 읽음, build_en.py 은퇴, AGENT_FRONT.md 한글 두 절 영어로). 푸시 안 함.
+- R78·R07·R79·R64·R81은 pm16-frontend-20261115-r2(b89b2304)에 들어 있음. R80·R76은 다음 frontend 묶음.
+- R73 문구 제안은 공유 노트 growth-R73-public-numbers-wording-1115.md. 다음: 고객 CSS A~D 첫 방문 비교(heavy_slot 대기 중).
+- 11:1x r3 = pm16-frontend-20261115-r3 (지금 d994adbb = b89b2304 + 73170eb5, 11:30까지 /ads/library 수정이 오면 커밋 바뀜). 활성 되면: wt-r3(73170eb5를 bc-1116d 위에 미리 얹음)를 r3 최종 커밋 기준으로 다시 만들기 → 문서 비교 → bc1116e-frontend-20261115-g1(base r3) 패키징·release_gate(내가 맡음). bc1116d-frontend-g1은 11:05 통과(r2 기준).
+
+## 11-15 11:2x 성장·유통 — CSP 결함·F17·매출 후속
+- 73170eb5: /advertise·/methodology·/necklaces/*가 기본 CSP로 운영에서 스타일 없이 보이던 결함 수정(오늘 r3로 배포 예정, 배포 뒤 4경로 1280·375·밝음·어두움 확인 남음). /ads/library는 AI AD Coin.
+- b9ec59f9 게이트 시험(자기 CSS 부르는데 style-src 'self' 없으면 실패), 5d25bec9 목걸이 실행 폼·결과·상태 줄·오류 문장(F17), 6c4d39bb usage-daily UTC 자정 30분 뒤 기록(11-14 손으로 채움, 11-15는 11-16 09:30 이후), 4f26fc0a 제공자 입구 초안.
+- F17 넘긴 일은 노트 growth-F17-first-run-audit-1115.md(워크플로우 example_input·용량 코드, 검색과 RAG 목걸이 추천).
+- 11:3x 최종 후보 bc1116e-frontend-20261115-g2 (rag/bc-1116e d2ebb5a4, scratchpad wt-r3, base r3 55ccf931). gate_e2.sh가 게이트→ABBA 2회전(scratchpad abba2/) 실행. 1차 ABBA는 r3 배포와 겹쳐 무효. 74613dd6로 MailerDot 규칙을 capability_terms로 좁힘(a10 회귀).
+- 12:3x PM 확정: 오늘 밤 B+C 배포. 18:00까지 g3(p13 시계 첫 검색 수정 포함) 게이트 통과면 g3, 아니면 bc1116e-frontend-20261115-g2. 18:00 뒤 묶음 변경 없음.
+  밤 순서: 23:3x jobs 릴리스 패키징(같은 커밋, base pm16-jobs-20261115-r1)·jobs release_gate → 00:30 직전 ./agentcon status(frontend r3 55ccf931, jobs r1 2376f4a6 아니면 멈추고 PM) → 잠금 줄 → frontend·jobs 배포 --no-prune → 01:30 안 끝 → 01:45 동결.
+  배포 뒤: 공개 탐색·추천 표본(새 질의·새 연결), 58997·136184·38613 relay 1회씩(관문 check, 분당 9건 간격), /api/pearl/status, 광고 데몬 작업자 코드 바뀜 여부 → 현황판·PM 보고. 스크립트 초안 scratchpad deploy_day.py.
+- 12:2x g3 게이트 통과(642 passed, Chat 90→100/110). 밤 배포 실행기 pid 78105(scratchpad deploy_night.py, 기록 deploy_night.log) 예약: 00:30 jobs bc1116e-jobs-20261115-g3 → frontend bc1116e-frontend-20261115-g3. 배포 뒤 확인·보고는 이 세션(대기 작업이 끝나면 깨움). 광고 데몬: jobs 쪽 작업자 코드 바뀜 → AI AD Coin에 재설치 판단 넘김.
+
+## 2026-11-15 12:3x 에이전트 팀 (E7·E5·E6)
+- E7 검증 레지스트리: 043ceed3(자체 확인·빠짐 기록) → 73c9f4c9(운영 검토 수정 3건, 통과). jobs 단계 16857bc9(운영·SRE). 공개 11-18.
+- E5 변경 피드 b54e8c3a + 03d24a7e(fields_known false면 fields ['unknown'], 운영·SRE 기록 쪽 한 줄 요청 중).
+- E6 수명 신호 ff08e76f: tool_lifecycle.run_job, 새 등록 SELECT verified_registry.source.aac8c60e127d, RDAP는 장부 lifecycle_rdap. 운영·SRE 검토 대기.
+- 소유 확인 화면 마운트 fe3a1921(성장·유통 25ddc53a), 11-19 묶음.
+- 남은 메모: 등재 후보가 3만 행을 넘으면 SELECT_PAGE를 id 인덱스 순서 읽기로(운영·SRE 참고). 카탈로그 파일 해시 28개 어긋남은 오버레이 재생성 때 정리.
+
+- 11-15 13:50 검색과 RAG: PM 13:46 두 건 처리
+  - 공시 과제 823bb130: sec.filings.v1 RAG 과제 4건(AAPL 10-K 11-03, MSFT 10-Q 10-28/10-K 07-29, 등록 없음 농심·Mercadona), must_not_match·valid_until 추가, 옛 sec-apple-filings 은퇴
+  - 뉴스 시드 9d2caa33: 키 없는 일반 뉴스 후보 12개를 news.search 시드 맨 앞에 넣음
+  - 밤 배포 실행기 pid 78105는 00:30 대기 중
+- 11-15 14:3x 검색과 RAG: 진주 대기열·채점기
+  - 53be2eb5 PM 역할 순서·좌표 시간대, 3eb5471a web.grounding 2번·약관 순서
+  - 375ca306 website 사이트 파일 대조
+  - 8c1c11de 사례별 판정·계약 모양 완전성(평가 dq-2026-11-15c), 2c626aed 장부 거부=참조값 없음
+  - 374f882c 웹 검색 A 8개·B등급 시험(공식 숫자에서 뺌)·이름 규칙 확장·재시험 약관 금지 제외
+  - 재채점 뒤 공식 숫자: 보고서 186, 85+ 25, 최종 11·잠정 5, 검증 13. 58997·132732는 약관 금지
+- 11-16 할 일(에이전트 팀): census-geocode us-street 남은 11건 + 고친 4건(MSG·PMA·Hollywood Bowl·State House, a219725c) 재시험(census.gov 몫 30). GDELT 실제 확인(11-15 429). DB-IP tos.php 읽고 ip.lookup. sec-filings report_input 1회(11-16·11-17). silent 3곳(38608·178542·241601) 다른 주소 재확인. depsdev 보고서 입력.
+
 ## 11-16 PM(프론트앤드 세션): 소스 검토 개선의 압축 적용, 첫 목걸이 관문 전날 준비, 문서 최신화 착수
 - 사용자 지시(요지): 소스 검토 개선 일정이 너무 늦다 → 지금 바로, 시스템 문제 없이. 지금 할 수 있는 일을 권장 순서로 진행. 진행 중인 작업이 끝나면 문서를 소스 기준으로 최신화하고 필요 없는 파일 정리. 남의 커밋이 섞인 푸시는 지금처럼 건별 승인.
 - 배포: r2(10:46~11:11 네 역할) → r6 → r7 → r8c → r9(15:11~15:16, d8359782). r10은 21:00의 원격 끝에서 묶어 22:00 전 배포(b5300dd0·951b1673만 되돌림). 22:00부터 11-17 topic 2회차 판정까지 배포와 runner·retest·fallback_agents 동결. r11은 판정 직후.
