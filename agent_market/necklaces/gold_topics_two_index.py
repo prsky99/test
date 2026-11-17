@@ -40,6 +40,9 @@ DECIDED = "PM 11-17 decision (k fixed at 10/50 before any answer of these sets w
 SOURCES = [{"name": "OpenAlex (title search, most cited, top 50)", "url": "https://api.openalex.org/works"},
            {"name": "Crossref (title search, most referenced, top 50)", "url": "https://api.crossref.org/works"}]
 TARGET = 30
+# PM 11-17: both requests go to the providers' polite pools with our published contact address (Crossref's own
+# advice; OpenAlex takes mailto the same way). CROSSREF already carries it. Calls are made one at a time (no threads).
+OPENALEX_POLITE = OPENALEX + "&mailto=contact@agentconcierge.biz"
 FILL_AT = 22          # gold_topics_r7.TOPICS[:22] fill holdout-r5-2i, [22:] fill holdout-r6-2i
 
 
@@ -132,7 +135,7 @@ def step(root: Path = DEFAULT_ROOT, split: str = "holdout-r6-2i", get=fetch_json
                 row["dropped"] = "no standard Wikipedia page"
                 continue
             if "openalex" not in row:
-                _, body = get(OPENALEX % (WIDE, quote(phrase)))
+                _, body = get(OPENALEX_POLITE % (WIDE, quote(phrase)))
                 row["openalex"], row["openalex_at"] = openalex_list(body), _now()      # raw first
                 save()
             if "crossref" not in row:

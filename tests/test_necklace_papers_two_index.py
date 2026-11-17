@@ -31,7 +31,7 @@ def fake_get(calls, openalex, crossref, wiki_titles=None):
         if "wikipedia" in url:
             return 200, {"query": {"pages": [{"title": t, "description": "d", "fullurl": "https://en.wikipedia.org/wiki/" + t}
                                              for t in wiki_titles]}}
-        phrase = unquote(url.split("title.search:")[-1] if "openalex" in url else url.split("query.title=")[1].split("&")[0])
+        phrase = unquote(url.split("title.search:")[-1].split("&")[0] if "openalex" in url else url.split("query.title=")[1].split("&")[0])
         if "openalex" in url:
             return 200, oa_body(openalex(phrase))
         return 200, cr_body(crossref(phrase))
@@ -58,6 +58,7 @@ def test_r6_set_takes_the_first_30_topics_with_a_non_empty_g_and_records_the_rul
     assert entry["dropped_count"] == 2
     assert sum("wikipedia" in u for u in calls) == 1 and sum("openalex" in u for u in calls) == 32
     assert all("per-page=50" in u for u in calls if "openalex" in u) and all("rows=50" in u for u in calls if "crossref" in u)
+    assert all("mailto=contact@agentconcierge.biz" in u for u in calls if "openalex" in u or "crossref" in u)
 
 
 def r5_root(tmp_path, n=30):
