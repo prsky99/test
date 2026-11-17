@@ -1,7 +1,7 @@
 """jobs steps for the fallback agents: the hourly watch and the daily airport index (PM 11-14)."""
 from datetime import datetime
 
-from agent_market.fallback_schedule import AirportIndexRefresh, FallbackWatchStep, airport_window
+from agent_market.fallback_schedule import AirportIndexRefresh, FallbackWatchStep, OfacIndexRefresh, airport_window
 
 
 class Watch:
@@ -40,3 +40,30 @@ def test_airport_refresh_once_a_day_in_its_window_and_not_without_an_index(tmp_p
     assert step.run_due() is None                       # once a day
     missing = AirportIndexRefresh(clock=lambda: at(7, 20), path=tmp_path / 'airports.json')
     assert missing.run_due() == {'airport_index': 'no_index'} and missing.thread is None
+
+
+
+def test_ofac_index_refresh_is_scheduled_daily_and_waits_for_a_first_index(tmp_path):
+    """ops 11-17: the jobs scheduler holds OfacIndexRefresh; it runs once a day in the airport window and does nothing
+    before the first index exists."""
+    from pathlib import Path
+    at = lambda h, m: datetime(2026, 11, 14, h, m).timestamp()
+    src = Path(__file__).resolve().parents[1].joinpath("agent_market/gateway/server.py").read_text()
+    assert "OfacIndexRefresh()" in src
+    calls = []
+    step = OfacIndexRefresh(clock=lambda: at(7, 20), sync=lambda: calls.append(1) or {"entities": 1})
+    assert step.run_due() == {"ofac_index": "started"}
+    step.thread.join(5)
+    assert calls == [1] and step.last["ok"] is True and step.run_due() is None          # once a day
+    missing = OfacIndexRefresh(clock=lambda: at(7, 20), path=tmp_path / "ofac-sdn.json")
+    assert missing.run_due() == {"ofac_index": "no_index"}
+
+
+def test_ofac_host_is_capped_by_its_limiter_inside_the_ledger_total():
+    """OFAC publishes no rate limit, so the ledger keeps its default total (DOMAIN_TOTAL needs a checked published
+    limit); the fallback limiter is the tighter cap: six calls a day (SDN + ALT, refreshes and a first sync)."""
+    from agent_market.fallback_agents.limits import limiters
+    from agent_market.provider_budget import domain, domain_total
+    host = limiters()["sanctionslistservice.ofac.treas.gov"]
+    assert host.count == 6 and host.window == 86400.0
+    assert domain_total(domain("https://sanctionslistservice.ofac.treas.gov/x")) >= 6

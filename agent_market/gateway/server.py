@@ -249,7 +249,7 @@ def _compose_app(
             from ..workspace_admin_retention import Retention
             from ..workflow_retention_schedule import WorkflowRetention
             from ..nvd_snapshot_schedule import NvdSnapshotRefresh
-            from ..fallback_schedule import AirportIndexRefresh, FallbackWatchStep
+            from ..fallback_schedule import AirportIndexRefresh, FallbackWatchStep, OfacIndexRefresh
             from ..necklace_schedule import NecklaceStep, RetestStep, RoleTaskRefresh  # PM 11-14/15: necklace jobs
             from ..graph_cap_schedule import GraphCapRefresh  # PM 11-15: daily graph-cap refresh (no-op before the column)
             from ..member_fingerprints import MemberFingerprintStep  # PM 11-15: members' fingerprints every 6 hours
@@ -258,6 +258,7 @@ def _compose_app(
                                   front.workflows if service_role == 'legacy' else None,
                                   summaries=[HealthSummaries(store), Retention(store), WorkflowRetention(front.workflows),
                                              NvdSnapshotRefresh(), FallbackWatchStep(), AirportIndexRefresh(),
+                                             OfacIndexRefresh(),   # ofac-sdn daily SDN index (PM 11-17)
                                              NecklaceStep(store), RetestStep(), GraphCapRefresh(),
                                              RoleTaskRefresh(), MemberFingerprintStep(store),
                                              VerifiedRegistryStep(store), LifecycleStep(store)])
