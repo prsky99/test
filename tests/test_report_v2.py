@@ -322,7 +322,7 @@ def test_listed_roles_without_a_task_stay_out_of_the_queue():
     judged on nothing, so it matches no tool (never queued) and is left off the public methodology page."""
     from scripts import role_catalog
     blocked = {r for r, spec in role_catalog.ROLES.items() if spec.get('queue')}
-    assert blocked == {'docs.readme.v1', 'sun.times.v1', 'site.reachability.v1', 'agent.record.v1'}
+    assert blocked >= {'docs.readme.v1', 'sun.times.v1', 'site.reachability.v1', 'agent.record.v1'}   # + the fortune six after 11-20
     for role in blocked:
         assert not V.case_for(role, day=0) and not role_catalog.default_checks(role)
         assert not role_catalog.COMPILED[role].match('get_sun_times') and not role_catalog.COMPILED[role].match('')
