@@ -626,5 +626,311 @@
   "role": "fx.rate",
   "id": 36306,
   "tool": "get_exchange_rate"
+ },
+ {
+  "role": "company.profile.v1",
+  "id": 39451,
+  "tool": "lookup_company",
+  "host": "sec.multyplylabs.com"
+ },
+ {
+  "role": "company.profile.v1",
+  "id": 42425,
+  "tool": "verify_company_record",
+  "host": "hatchloop.dev"
+ },
+ {
+  "role": "company.profile.v1",
+  "id": 34216,
+  "tool": "search_sec_edgar",
+  "host": "mcp.tensorfeed.ai"
+ },
+ {
+  "role": "company.registry.v1",
+  "id": 42425,
+  "tool": "verify_company_record",
+  "host": "hatchloop.dev"
+ },
+ {
+  "role": "company.registry.v1",
+  "id": 47171,
+  "tool": "sanctions_resolve_entity",
+  "host": "sanctions-screening.caseyjhand.com"
+ },
+ {
+  "role": "country.indicator.v1",
+  "id": 178542,
+  "tool": "country_info",
+  "host": "augur-trade.com"
+ },
+ {
+  "role": "country.indicator.v1",
+  "id": 42768,
+  "tool": "get_historical_indicators",
+  "host": "datoqa.bhazarstudio.workers.dev"
+ },
+ {
+  "role": "country.indicator.v1",
+  "id": 58194,
+  "tool": "get_macro_indicators",
+  "host": "mcp.bull-run.org"
+ },
+ {
+  "role": "events.search.v1",
+  "id": 47989,
+  "tool": "get_upcoming_events",
+  "host": "mcp.hiddenevents.online"
+ },
+ {
+  "role": "events.search.v1",
+  "id": 107335,
+  "tool": "festival_and_vrat_dates",
+  "host": "cosmicchemistry.co"
+ },
+ {
+  "role": "github.releases.v1",
+  "id": 178541,
+  "tool": "github_repo",
+  "host": "augur-trade.com"
+ },
+ {
+  "role": "github.releases.v1",
+  "id": 45601,
+  "tool": "depwatch_preview",
+  "host": "oracles-production.up.railway.app"
+ },
+ {
+  "role": "github.repo.v1",
+  "id": 52559,
+  "tool": "repo_health_check",
+  "host": "presend.pages.dev"
+ },
+ {
+  "role": "github.repo.v1",
+  "id": 88731,
+  "tool": "check_repo",
+  "host": "mcp.archestack.com"
+ },
+ {
+  "role": "mcp.registry.lookup.v1",
+  "id": 33550,
+  "tool": "search_servers",
+  "host": "mcpjunction.ai"
+ },
+ {
+  "role": "mcp.registry.lookup.v1",
+  "id": 36749,
+  "tool": "list_mcp_servers",
+  "host": "brofindai.com"
+ },
+ {
+  "role": "mcp.registry.lookup.v1",
+  "id": 42500,
+  "tool": "search_servers",
+  "host": "mcp.mcpnav.dev"
+ },
+ {
+  "role": "mcp.registry.lookup.v1",
+  "id": 45870,
+  "tool": "list_mcp_servers",
+  "host": "inktdlomgdqrsqaalpey.supabase.co"
+ },
+ {
+  "role": "mcp.registry.lookup.v1",
+  "id": 56617,
+  "tool": "search_servers",
+  "host": "mcp-marketplace.io"
+ },
+ {
+  "role": "package.advisories.v1",
+  "id": 52559,
+  "tool": "vulnerability_check",
+  "host": "presend.pages.dev"
+ },
+ {
+  "role": "package.advisories.v1",
+  "id": 267005,
+  "tool": "vulnerabilities",
+  "host": "api.wiscolabs.dev"
+ },
+ {
+  "role": "package.advisories.v1",
+  "id": 37259,
+  "tool": "query_package",
+  "host": "cve-security.com"
+ },
+ {
+  "role": "package.advisories.v1",
+  "id": 34216,
+  "tool": "get_osv_advisory_for_package",
+  "host": "mcp.tensorfeed.ai"
+ },
+ {
+  "role": "package.advisories.v1",
+  "id": 58944,
+  "tool": "find_package_advisories",
+  "host": "varexis.tech"
+ },
+ {
+  "role": "package.advisories.v1",
+  "id": 274848,
+  "tool": "check_package",
+  "host": "mcp.keepmesecure.dev"
+ },
+ {
+  "role": "package.health.v1",
+  "id": 35565,
+  "tool": "package_status",
+  "host": "vigia.coredls.cloud"
+ },
+ {
+  "role": "package.health.v1",
+  "id": 43727,
+  "tool": "read_package_info",
+  "host": "extcord.io"
+ },
+ {
+  "role": "package.releases.v1",
+  "id": 241601,
+  "tool": "npm_package",
+  "host": "web2mcp.cwei59969.workers.dev"
+ },
+ {
+  "role": "package.releases.v1",
+  "id": 178541,
+  "tool": "package_info",
+  "host": "augur-trade.com"
+ },
+ {
+  "role": "package.releases.v1",
+  "id": 35565,
+  "tool": "list_versions",
+  "host": "vigia.coredls.cloud"
+ },
+ {
+  "role": "place.search.v1",
+  "id": 38072,
+  "tool": "search_place",
+  "host": "getaroundhongkong.com"
+ },
+ {
+  "role": "software.incident.v1",
+  "id": 46788,
+  "tool": "search_public_cve_records",
+  "host": "hackerbob.ai"
+ },
+ {
+  "role": "software.incident.v1",
+  "id": 358790,
+  "tool": "cve_search",
+  "host": "excessionlabs.ai"
+ },
+ {
+  "role": "tls.certificate.v1",
+  "id": 267572,
+  "tool": "check_tls",
+  "host": "api.makerradar.io"
+ },
+ {
+  "role": "tls.certificate.v1",
+  "id": 34409,
+  "tool": "check_https",
+  "host": "weio.ai"
+ },
+ {
+  "role": "web.grounding.v1",
+  "id": 47381,
+  "tool": "vc_web_search",
+  "host": "vibes-coded-mcp-production.up.railway.app"
+ },
+ {
+  "role": "web.grounding.v1",
+  "id": 157022,
+  "tool": "web_search",
+  "host": "content.robotbase.cc"
+ },
+ {
+  "role": "web.grounding.v1",
+  "id": 166688,
+  "tool": "web_search",
+  "host": "web3.robotbase.cc"
+ },
+ {
+  "role": "web.grounding.v1",
+  "id": 214656,
+  "tool": "serp_live_search",
+  "host": "mcp.argosor.com"
+ },
+ {
+  "role": "web.grounding.v1",
+  "id": 56366,
+  "tool": "web_search",
+  "host": "robotbase.cc"
+ },
+ {
+  "role": "cve.record.v1",
+  "id": 204621,
+  "tool": "search_vulnerabilities",
+  "host": "kevwire.com"
+ },
+ {
+  "role": "cve.record.v1",
+  "id": 34216,
+  "tool": "get_cve_record",
+  "host": "mcp.tensorfeed.ai"
+ },
+ {
+  "role": "cve.record.v1",
+  "id": 166821,
+  "tool": "get_advisory",
+  "host": "patchwire.monowire.dev"
+ },
+ {
+  "role": "fx.rate.v1",
+  "id": 241601,
+  "tool": "currency_latest",
+  "host": "web2mcp.cwei59969.workers.dev"
+ },
+ {
+  "role": "fx.rate.v1",
+  "id": 178542,
+  "tool": "fx_rates",
+  "host": "augur-trade.com"
+ },
+ {
+  "role": "fx.rate.v1",
+  "id": 86011,
+  "tool": "exchange_rates",
+  "host": "tidydata-api.tidydata.workers.dev"
+ },
+ {
+  "role": "fx.rate.v1",
+  "id": 37318,
+  "tool": "fx_rates",
+  "host": "market.datakoot.com"
+ },
+ {
+  "role": "fx.rate.v1",
+  "id": 45852,
+  "tool": "workflow.run_forex_currency_converter_live",
+  "host": "tradingcalc.io"
+ },
+ {
+  "role": "papers.search.v1",
+  "id": 178541,
+  "tool": "doi_lookup",
+  "host": "augur-trade.com"
+ },
+ {
+  "role": "papers.search.v1",
+  "id": 159640,
+  "tool": "researchpilot_search_literature",
+  "host": "researchpilot-academy-production.up.railway.app"
+ },
+ {
+  "role": "papers.search.v1",
+  "id": 325037,
+  "tool": "lookup_paper",
+  "host": "api.scigantic.com"
  }
 ]

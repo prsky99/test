@@ -1,0 +1,2193 @@
+{
+ "generated": "2026-11-17 11:5x",
+ "by": "검색과 RAG (W2 review)",
+ "count": 94,
+ "task": "W1-style argument mapping: for each tool, which role-task input key should fill each unfilled required argument (CASE_KEYS pattern or added case input). Do not call the tools.",
+ "roles": {
+  "company.profile.v1": [
+   {
+    "resource_id": 40800,
+    "tool": "get_company",
+    "host": "siliconfloor.com",
+    "required": [
+     "symbol"
+    ],
+    "unfilled": [
+     "symbol"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "symbol"
+    }
+   },
+   {
+    "resource_id": 288314,
+    "tool": "company_filings",
+    "host": "plainquant.com",
+    "required": [
+     "symbol"
+    ],
+    "unfilled": [
+     "symbol"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "symbol"
+    }
+   },
+   {
+    "resource_id": 38619,
+    "tool": "get_company",
+    "host": "ipogrid.com",
+    "required": [
+     "cik"
+    ],
+    "unfilled": [
+     "cik"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "cik": "cik"
+    }
+   },
+   {
+    "resource_id": 39451,
+    "tool": "company_facts",
+    "host": "sec.multyplylabs.com",
+    "required": [
+     "cik"
+    ],
+    "unfilled": [
+     "cik"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "cik": "cik"
+    }
+   },
+   {
+    "resource_id": 39451,
+    "tool": "company_filings",
+    "host": "sec.multyplylabs.com",
+    "required": [
+     "cik"
+    ],
+    "unfilled": [
+     "cik"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "cik": "cik"
+    }
+   },
+   {
+    "resource_id": 39556,
+    "tool": "get_sec_events",
+    "host": "mcp.nexqual.com",
+    "required": [
+     "symbol"
+    ],
+    "unfilled": [
+     "symbol"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "symbol"
+    }
+   },
+   {
+    "resource_id": 41381,
+    "tool": "get_fundamentals",
+    "host": "tickerfacts.com",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 57781,
+    "tool": "get_stock_fundamentals",
+    "host": "alphayou.net",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 57781,
+    "tool": "get_company_disclosures",
+    "host": "alphayou.net",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 57781,
+    "tool": "get_company_earnings",
+    "host": "alphayou.net",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 289425,
+    "tool": "get_latest_fundamentals",
+    "host": "www.tradingagentapp.com",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 289425,
+    "tool": "get_fundamentals_history",
+    "host": "www.tradingagentapp.com",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 292027,
+    "tool": "get_company",
+    "host": "mcp.jaryo.org",
+    "required": [
+     "id"
+    ],
+    "unfilled": [
+     "id"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "cik": "id"
+    }
+   },
+   {
+    "resource_id": 401904,
+    "tool": "get_company",
+    "host": "earnings.opennash.com",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 34238,
+    "tool": "get_company",
+    "host": "mcp.tickerscout.ai",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 35522,
+    "tool": "wejob_get_company",
+    "host": "mcp.wejob.ch",
+    "required": [
+     "id"
+    ],
+    "unfilled": [
+     "id"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "cik": "id"
+    }
+   },
+   {
+    "resource_id": 36313,
+    "tool": "get_sec_filing_bundle",
+    "host": "alpha402x.com",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 48369,
+    "tool": "get_company",
+    "host": "api.ddbx.uk",
+    "required": [
+     "market",
+     "ticker"
+    ],
+    "unfilled": [
+     "market",
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 48635,
+    "tool": "get_company",
+    "host": "www.stockhuntr.net",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 48863,
+    "tool": "get_company_detail",
+    "host": "mcp.nzxplorer.co.nz",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 56149,
+    "tool": "get_company_fundamentals",
+    "host": "mcp.valuein.biz",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 56149,
+    "tool": "get_sec_filing_links",
+    "host": "mcp.valuein.biz",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 56149,
+    "tool": "get_company_brief_pack",
+    "host": "mcp.valuein.biz",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 58194,
+    "tool": "get_company_relationships",
+    "host": "mcp.bull-run.org",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 59521,
+    "tool": "get_company_timeline",
+    "host": "mcp.cubesphere.xyz",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 254494,
+    "tool": "get_company",
+    "host": "api.equireason.com",
+    "required": [
+     "ticker"
+    ],
+    "unfilled": [
+     "ticker"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "ticker": "ticker"
+    }
+   },
+   {
+    "resource_id": 274814,
+    "tool": "get_company",
+    "host": "realgeeks-company-api.worker.beacon.host",
+    "required": [
+     "id"
+    ],
+    "unfilled": [
+     "id"
+    ],
+    "case_inputs": {
+     "company-profile-nvidia": [
+      "company"
+     ],
+     "company-profile-caterpillar": [
+      "company"
+     ]
+    },
+    "w2_arg_map": {
+     "cik": "id"
+    }
+   }
+  ],
+  "company.registry.v1": [
+   {
+    "resource_id": 38450,
+    "tool": "search_filers",
+    "host": "mcp.holdingsintel.com",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "query"
+    }
+   },
+   {
+    "resource_id": 39451,
+    "tool": "company_facts",
+    "host": "sec.multyplylabs.com",
+    "required": [
+     "cik"
+    ],
+    "unfilled": [
+     "cik"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "cik": "cik"
+    }
+   },
+   {
+    "resource_id": 39451,
+    "tool": "company_filings",
+    "host": "sec.multyplylabs.com",
+    "required": [
+     "cik"
+    ],
+    "unfilled": [
+     "cik"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "cik": "cik"
+    }
+   },
+   {
+    "resource_id": 41381,
+    "tool": "search_companies",
+    "host": "tickerfacts.com",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "query"
+    }
+   },
+   {
+    "resource_id": 47171,
+    "tool": "sanctions_get_entity",
+    "host": "sanctions-screening.caseyjhand.com",
+    "required": [
+     "lei"
+    ],
+    "unfilled": [
+     "lei"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "lei": "lei"
+    }
+   },
+   {
+    "resource_id": 52621,
+    "tool": "validate_lei",
+    "host": "qiniso.qinisolabs.workers.dev",
+    "required": [
+     "lei"
+    ],
+    "unfilled": [
+     "lei"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "lei": "lei"
+    }
+   },
+   {
+    "resource_id": 270909,
+    "tool": "resolve_entity",
+    "host": "agentum.asimplek.cloud",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "query",
+     "country": "jurisdiction"
+    }
+   },
+   {
+    "resource_id": 292027,
+    "tool": "verify_company",
+    "host": "mcp.jaryo.org",
+    "required": [
+     "q"
+    ],
+    "unfilled": [
+     "q"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "q"
+    }
+   },
+   {
+    "resource_id": 35642,
+    "tool": "lei_kyb_check",
+    "host": "mcp.ainumbers.co",
+    "required": [
+     "lei"
+    ],
+    "unfilled": [
+     "lei"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "lei": "lei"
+    }
+   },
+   {
+    "resource_id": 128786,
+    "tool": "resolve_entity",
+    "host": "mcp.optimistfi.com",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "query"
+    }
+   },
+   {
+    "resource_id": 252094,
+    "tool": "find_registered_agent",
+    "host": "migrationagent.review",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "query"
+    }
+   },
+   {
+    "resource_id": 274814,
+    "tool": "search_companies",
+    "host": "realgeeks-company-api.worker.beacon.host",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "company-apple": [
+      "country",
+      "domain",
+      "name"
+     ],
+     "company-microsoft": [
+      "country",
+      "domain",
+      "name"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "query",
+     "country": "country"
+    }
+   }
+  ],
+  "country.indicator.v1": [
+   {
+    "resource_id": 47147,
+    "tool": "oecd_search_datasets",
+    "host": "oecd.caseyjhand.com",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "country-kor-population-2023": [
+      "country",
+      "indicator",
+      "year"
+     ],
+     "country-deu-gdp-2022": [
+      "country",
+      "indicator",
+      "year"
+     ],
+     "country-jpn-capital": [
+      "country",
+      "indicator"
+     ]
+    },
+    "w2_arg_map": {
+     "country": "query"
+    }
+   },
+   {
+    "resource_id": 47169,
+    "tool": "reliefweb_get_country",
+    "host": "reliefweb.caseyjhand.com",
+    "required": [
+     "iso3"
+    ],
+    "unfilled": [
+     "iso3"
+    ],
+    "case_inputs": {
+     "country-kor-population-2023": [
+      "country",
+      "indicator",
+      "year"
+     ],
+     "country-deu-gdp-2022": [
+      "country",
+      "indicator",
+      "year"
+     ],
+     "country-jpn-capital": [
+      "country",
+      "indicator"
+     ]
+    },
+    "w2_arg_map": {
+     "country": "iso3"
+    }
+   }
+  ],
+  "dns.mail_auth.v1": [
+   {
+    "resource_id": 42308,
+    "tool": "check_dns_propagation",
+    "host": "certdesk.dev",
+    "required": [
+     "name",
+     "type"
+    ],
+    "unfilled": [
+     "name"
+    ],
+    "case_inputs": {
+     "dns-mail-python-org": [
+      "domain",
+      "record_type",
+      "type"
+     ],
+     "dns-mail-github-com": [
+      "domain",
+      "record_type",
+      "type"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "name",
+     "type": "type"
+    }
+   },
+   {
+    "resource_id": 163703,
+    "tool": "generate_dmarc",
+    "host": "mcp.couryo.com",
+    "required": [
+     "domain",
+     "policy"
+    ],
+    "unfilled": [
+     "policy"
+    ],
+    "case_inputs": {
+     "dns-mail-python-org": [
+      "domain",
+      "record_type",
+      "type"
+     ],
+     "dns-mail-github-com": [
+      "domain",
+      "record_type",
+      "type"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "domain"
+    }
+   },
+   {
+    "resource_id": 163728,
+    "tool": "check_security_txt",
+    "host": "mcp.dotmoose.com",
+    "required": [
+     "target"
+    ],
+    "unfilled": [
+     "target"
+    ],
+    "case_inputs": {
+     "dns-mail-python-org": [
+      "domain",
+      "record_type",
+      "type"
+     ],
+     "dns-mail-github-com": [
+      "domain",
+      "record_type",
+      "type"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "target"
+    }
+   },
+   {
+    "resource_id": 163728,
+    "tool": "test_robots_txt",
+    "host": "mcp.dotmoose.com",
+    "required": [
+     "target"
+    ],
+    "unfilled": [
+     "target"
+    ],
+    "case_inputs": {
+     "dns-mail-python-org": [
+      "domain",
+      "record_type",
+      "type"
+     ],
+     "dns-mail-github-com": [
+      "domain",
+      "record_type",
+      "type"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "target"
+    }
+   },
+   {
+    "resource_id": 305643,
+    "tool": "ud_get_name_dns",
+    "host": "mcp.unique.domains",
+    "required": [
+     "name"
+    ],
+    "unfilled": [
+     "name"
+    ],
+    "case_inputs": {
+     "dns-mail-python-org": [
+      "domain",
+      "record_type",
+      "type"
+     ],
+     "dns-mail-github-com": [
+      "domain",
+      "record_type",
+      "type"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "name"
+    }
+   },
+   {
+    "resource_id": 308770,
+    "tool": "resolve_dns",
+    "host": "pianam.cn",
+    "required": [
+     "name"
+    ],
+    "unfilled": [
+     "name"
+    ],
+    "case_inputs": {
+     "dns-mail-python-org": [
+      "domain",
+      "record_type",
+      "type"
+     ],
+     "dns-mail-github-com": [
+      "domain",
+      "record_type",
+      "type"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "name",
+     "type": "type"
+    }
+   },
+   {
+    "resource_id": 40592,
+    "tool": "get_dns_history",
+    "host": "mcp.scanmalware.com",
+    "required": [
+     "name"
+    ],
+    "unfilled": [
+     "name"
+    ],
+    "case_inputs": {
+     "dns-mail-python-org": [
+      "domain",
+      "record_type",
+      "type"
+     ],
+     "dns-mail-github-com": [
+      "domain",
+      "record_type",
+      "type"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "name"
+    }
+   }
+  ],
+  "events.search.v1": [
+   {
+    "resource_id": 157812,
+    "tool": "list_events",
+    "host": "mcp.penguin-stats.io",
+    "required": [
+     "server"
+    ],
+    "unfilled": [
+     "server"
+    ],
+    "case_inputs": {
+     "events-san-francisco": [
+      "limit",
+      "place",
+      "query"
+     ],
+     "events-diwali-2026": [
+      "month",
+      "query",
+      "year"
+     ]
+    },
+    "w2_arg_map": {
+     "limit": "limit"
+    }
+   }
+  ],
+  "github.releases.v1": [
+   {
+    "resource_id": 241601,
+    "tool": "github_repo",
+    "host": "web2mcp.cwei59969.workers.dev",
+    "required": [
+     "owner",
+     "repo"
+    ],
+    "unfilled": [
+     "owner"
+    ],
+    "case_inputs": {
+     "gh-release-requests": [
+      "repo",
+      "repository"
+     ],
+     "gh-release-express": [
+      "repo",
+      "repository"
+     ]
+    },
+    "w2_arg_map": {
+     "repo": "repo",
+     "owner": "owner"
+    }
+   },
+   {
+    "resource_id": 35565,
+    "tool": "list_versions",
+    "host": "vigia.coredls.cloud",
+    "required": [
+     "ecosystem",
+     "name"
+    ],
+    "unfilled": [
+     "ecosystem",
+     "name"
+    ],
+    "case_inputs": {
+     "gh-release-requests": [
+      "repo",
+      "repository"
+     ],
+     "gh-release-express": [
+      "repo",
+      "repository"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "name"
+    }
+   },
+   {
+    "resource_id": 45760,
+    "tool": "extract_github",
+    "host": "api.freshcontext.dev",
+    "required": [
+     "url"
+    ],
+    "unfilled": [
+     "url"
+    ],
+    "case_inputs": {
+     "gh-release-requests": [
+      "repo",
+      "repository"
+     ],
+     "gh-release-express": [
+      "repo",
+      "repository"
+     ]
+    },
+    "w2_arg_map": {
+     "repo": "url"
+    }
+   },
+   {
+    "resource_id": 45760,
+    "tool": "extract_changelog",
+    "host": "api.freshcontext.dev",
+    "required": [
+     "url"
+    ],
+    "unfilled": [
+     "url"
+    ],
+    "case_inputs": {
+     "gh-release-requests": [
+      "repo",
+      "repository"
+     ],
+     "gh-release-express": [
+      "repo",
+      "repository"
+     ]
+    },
+    "w2_arg_map": {
+     "repo": "url"
+    }
+   }
+  ],
+  "github.repo.v1": [
+   {
+    "resource_id": 40754,
+    "tool": "scan_public_repo",
+    "host": "shipreadymetrics.com",
+    "required": [
+     "url"
+    ],
+    "unfilled": [
+     "url"
+    ],
+    "case_inputs": {
+     "github-react-license": [
+      "repo"
+     ]
+    },
+    "w2_arg_map": {
+     "url": "url"
+    }
+   },
+   {
+    "resource_id": 46542,
+    "tool": "check_repo_trust",
+    "host": "archimedes.market",
+    "required": [
+     "owner",
+     "repo"
+    ],
+    "unfilled": [
+     "owner"
+    ],
+    "case_inputs": {
+     "github-react-license": [
+      "repo"
+     ]
+    },
+    "w2_arg_map": {
+     "repo": "repo",
+     "owner": "owner"
+    }
+   }
+  ],
+  "mcp.registry.lookup.v1": [
+   {
+    "resource_id": 87751,
+    "tool": "get_server",
+    "host": "socketlist.pages.dev",
+    "required": [
+     "slug"
+    ],
+    "unfilled": [
+     "slug"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "slug"
+    }
+   },
+   {
+    "resource_id": 144282,
+    "tool": "mcp_server_changes",
+    "host": "apiwatch.reignventures.co",
+    "required": [
+     "server"
+    ],
+    "unfilled": [
+     "server"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "server"
+    }
+   },
+   {
+    "resource_id": 33165,
+    "tool": "get_server",
+    "host": "everymcp.ai",
+    "required": [
+     "id"
+    ],
+    "unfilled": [
+     "id"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "id"
+    }
+   },
+   {
+    "resource_id": 38490,
+    "tool": "list_mcp_tools",
+    "host": "api.htagai.com",
+    "required": [
+     "server"
+    ],
+    "unfilled": [
+     "server"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "server"
+    }
+   },
+   {
+    "resource_id": 40435,
+    "tool": "check_mcp_server",
+    "host": "rightaichoice.com",
+    "required": [
+     "server"
+    ],
+    "unfilled": [
+     "server"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "server"
+    }
+   },
+   {
+    "resource_id": 43522,
+    "tool": "mcp_get",
+    "host": "catalog.agentage.io",
+    "required": [
+     "slug"
+    ],
+    "unfilled": [
+     "slug"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "slug"
+    }
+   },
+   {
+    "resource_id": 46239,
+    "tool": "verify_mcp_server",
+    "host": "hvtracker.net",
+    "required": [
+     "server"
+    ],
+    "unfilled": [
+     "server"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "server"
+    }
+   },
+   {
+    "resource_id": 56619,
+    "tool": "get_server",
+    "host": "mcprating.io",
+    "required": [
+     "slug"
+    ],
+    "unfilled": [
+     "slug"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "slug"
+    }
+   },
+   {
+    "resource_id": 56619,
+    "tool": "discover_server",
+    "host": "mcprating.io",
+    "required": [
+     "slug"
+    ],
+    "unfilled": [
+     "slug"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "slug"
+    }
+   },
+   {
+    "resource_id": 308980,
+    "tool": "get_server",
+    "host": "mcpmorning.com",
+    "required": [
+     "id"
+    ],
+    "unfilled": [
+     "id"
+    ],
+    "case_inputs": {
+     "mcp-registry-agent-concierge": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "name": "id"
+    }
+   }
+  ],
+  "place.search.v1": [
+   {
+    "resource_id": 47150,
+    "tool": "openmeteo_search_locations",
+    "host": "open-meteo.caseyjhand.com",
+    "required": [
+     "name"
+    ],
+    "unfilled": [
+     "name"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "name"
+    }
+   },
+   {
+    "resource_id": 38831,
+    "tool": "nearby_places",
+    "host": "knowchelsea.com",
+    "required": [
+     "latitude",
+     "longitude"
+    ],
+    "unfilled": [
+     "latitude",
+     "longitude"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "latitude": "latitude",
+     "longitude": "longitude"
+    }
+   },
+   {
+    "resource_id": 38832,
+    "tool": "nearby_places",
+    "host": "knowfulham.com",
+    "required": [
+     "latitude",
+     "longitude"
+    ],
+    "unfilled": [
+     "latitude",
+     "longitude"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "latitude": "latitude",
+     "longitude": "longitude"
+    }
+   },
+   {
+    "resource_id": 39953,
+    "tool": "resolve_place",
+    "host": "petnecto.com",
+    "required": [
+     "near"
+    ],
+    "unfilled": [
+     "near"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "city": "near"
+    }
+   },
+   {
+    "resource_id": 41083,
+    "tool": "get_nearby_places",
+    "host": "suomiatlas.com",
+    "required": [
+     "place"
+    ],
+    "unfilled": [
+     "place"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "place"
+    }
+   },
+   {
+    "resource_id": 59184,
+    "tool": "list_venues",
+    "host": "www.gigstamp.co.uk",
+    "required": [
+     "city"
+    ],
+    "unfilled": [
+     "city"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "city": "city"
+    }
+   },
+   {
+    "resource_id": 184171,
+    "tool": "chercher_places",
+    "host": "dispola.ca",
+    "required": [
+     "ville"
+    ],
+    "unfilled": [
+     "ville"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "latitude": "lat",
+     "longitude": "lng"
+    }
+   },
+   {
+    "resource_id": 262260,
+    "tool": "localhum_venue",
+    "host": "localhum.app",
+    "required": [
+     "name"
+    ],
+    "unfilled": [
+     "name"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "name"
+    }
+   },
+   {
+    "resource_id": 265997,
+    "tool": "find_birthplace",
+    "host": "astrodai.com",
+    "required": [
+     "place"
+    ],
+    "unfilled": [
+     "place"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "place"
+    }
+   },
+   {
+    "resource_id": 423832,
+    "tool": "find_places_near",
+    "host": "halfwhere.com",
+    "required": [
+     "lat",
+     "lon"
+    ],
+    "unfilled": [
+     "lat",
+     "lon"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "latitude": "lat",
+     "longitude": "lon"
+    }
+   },
+   {
+    "resource_id": 426191,
+    "tool": "place_profile",
+    "host": "patrician.ch",
+    "required": [
+     "place"
+    ],
+    "unfilled": [
+     "place"
+    ],
+    "case_inputs": {
+     "place-eiffel-tower": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "place"
+    }
+   }
+  ],
+  "tls.certificate.v1": [
+   {
+    "resource_id": 283238,
+    "tool": "check_matter_certification",
+    "host": "mattercatalog.com",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "tls-python-org": [
+      "domain",
+      "host",
+      "hostname",
+      "url"
+     ],
+     "tls-github-com": [
+      "domain",
+      "host",
+      "hostname",
+      "url"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "query"
+    }
+   },
+   {
+    "resource_id": 43848,
+    "tool": "search_certifications",
+    "host": "mcp-rncp.com",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "tls-python-org": [
+      "domain",
+      "host",
+      "hostname",
+      "url"
+     ],
+     "tls-github-com": [
+      "domain",
+      "host",
+      "hostname",
+      "url"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "query"
+    }
+   }
+  ],
+  "cve.record.v1": [
+   {
+    "resource_id": 46788,
+    "tool": "search_public_cve_records",
+    "host": "hackerbob.ai",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "record-cve-2021-44228": [
+      "cve_id"
+     ],
+     "record-cve-2023-4863": [
+      "cve_id"
+     ],
+     "record-cve-2024-3094": [
+      "cve_id"
+     ]
+    },
+    "w2_arg_map": {
+     "cve_id": "query"
+    }
+   }
+  ],
+  "geocode.address.v1": [
+   {
+    "resource_id": 125921,
+    "tool": "lokal_geocode",
+    "host": "rettfrabonden.com",
+    "required": [
+     "place"
+    ],
+    "unfilled": [
+     "place"
+    ],
+    "case_inputs": {
+     "geocode-white-house": [
+      "address"
+     ]
+    },
+    "w2_arg_map": {
+     "address": "place"
+    }
+   }
+  ],
+  "papers.search.v1": [
+   {
+    "resource_id": 47101,
+    "tool": "crossref_get_work",
+    "host": "crossref.caseyjhand.com",
+    "required": [
+     "doi"
+    ],
+    "unfilled": [
+     "doi"
+    ],
+    "case_inputs": {
+     "papers-attention": [
+      "query"
+     ],
+     "papers-bert": [
+      "query"
+     ],
+     "papers-rag": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "doi",
+     "limit": "limit"
+    }
+   },
+   {
+    "resource_id": 34216,
+    "tool": "get_research_papers",
+    "host": "mcp.tensorfeed.ai",
+    "required": [
+     "source"
+    ],
+    "unfilled": [
+     "source"
+    ],
+    "case_inputs": {
+     "papers-attention": [
+      "query"
+     ],
+     "papers-bert": [
+      "query"
+     ],
+     "papers-rag": [
+      "query"
+     ]
+    },
+    "w2_arg_map": {
+     "limit": "limit"
+    }
+   }
+  ],
+  "unit.convert.v1": [
+   {
+    "resource_id": 46970,
+    "tool": "calc_units",
+    "host": "math-mcp.fastmcp.app",
+    "required": [
+     "value",
+     "from_unit",
+     "to_unit",
+     "unit_type"
+    ],
+    "unfilled": [
+     "unit_type"
+    ],
+    "case_inputs": {
+     "convert-10-miles-km": [
+      "from",
+      "to",
+      "value"
+     ]
+    },
+    "w2_arg_map": {
+     "value": "value",
+     "from": "from_unit",
+     "to": "to_unit",
+     "unit_type": "unit_type"
+    }
+   }
+  ],
+  "airport.lookup.v1": [
+   {
+    "resource_id": 40131,
+    "tool": "search_supported_airports",
+    "host": "proflightsearch.com",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "airport-icn": [
+      "code"
+     ],
+     "airport-lax": [
+      "code"
+     ]
+    },
+    "w2_arg_map": {
+     "code": "query"
+    }
+   }
+  ],
+  "book.search.v1": [
+   {
+    "resource_id": 52621,
+    "tool": "validate_isbn",
+    "host": "qiniso.qinisolabs.workers.dev",
+    "required": [
+     "isbn"
+    ],
+    "unfilled": [
+     "isbn"
+    ],
+    "case_inputs": {
+     "book-pride-prejudice": [
+      "query",
+      "title"
+     ],
+     "book-1984": [
+      "query",
+      "title"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "isbn"
+    }
+   },
+   {
+    "resource_id": 52621,
+    "tool": "validate_isbn10",
+    "host": "qiniso.qinisolabs.workers.dev",
+    "required": [
+     "isbn"
+    ],
+    "unfilled": [
+     "isbn"
+    ],
+    "case_inputs": {
+     "book-pride-prejudice": [
+      "query",
+      "title"
+     ],
+     "book-1984": [
+      "query",
+      "title"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "isbn"
+    }
+   },
+   {
+    "resource_id": 235703,
+    "tool": "lookup_isbn",
+    "host": "mangainfo.com",
+    "required": [
+     "isbn"
+    ],
+    "unfilled": [
+     "isbn"
+    ],
+    "case_inputs": {
+     "book-pride-prejudice": [
+      "query",
+      "title"
+     ],
+     "book-1984": [
+      "query",
+      "title"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "isbn"
+    }
+   },
+   {
+    "resource_id": 206499,
+    "tool": "commercebook_market",
+    "host": "commercebook.ai",
+    "required": [
+     "action"
+    ],
+    "unfilled": [
+     "action"
+    ],
+    "case_inputs": {
+     "book-pride-prejudice": [
+      "query",
+      "title"
+     ],
+     "book-1984": [
+      "query",
+      "title"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "q"
+    }
+   },
+   {
+    "resource_id": 284163,
+    "tool": "convert_isbn",
+    "host": "eancheck.com",
+    "required": [
+     "isbn"
+    ],
+    "unfilled": [
+     "isbn"
+    ],
+    "case_inputs": {
+     "book-pride-prejudice": [
+      "query",
+      "title"
+     ],
+     "book-1984": [
+      "query",
+      "title"
+     ]
+    },
+    "w2_arg_map": {
+     "query": "isbn"
+    }
+   }
+  ],
+  "domain.lookup.v1": [
+   {
+    "resource_id": 241082,
+    "tool": "lookup_domain_whois",
+    "host": "ipipai.com",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "domain-python-org": [
+      "domain"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "query"
+    }
+   },
+   {
+    "resource_id": 43835,
+    "tool": "registrar",
+    "host": "api.domainkits.com",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "domain-python-org": [
+      "domain"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "query"
+    }
+   },
+   {
+    "resource_id": 48325,
+    "tool": "resolve_registrar",
+    "host": "referencesource.org",
+    "required": [
+     "query"
+    ],
+    "unfilled": [
+     "query"
+    ],
+    "case_inputs": {
+     "domain-python-org": [
+      "domain"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "query"
+    }
+   },
+   {
+    "resource_id": 315558,
+    "tool": "check_domain_availability",
+    "host": "biznamechecker.com",
+    "required": [
+     "name"
+    ],
+    "unfilled": [
+     "name"
+    ],
+    "case_inputs": {
+     "domain-python-org": [
+      "domain"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "name"
+    }
+   }
+  ],
+  "website.ai_readiness.v1": [
+   {
+    "resource_id": 163728,
+    "tool": "test_robots_txt",
+    "host": "mcp.dotmoose.com",
+    "required": [
+     "target"
+    ],
+    "unfilled": [
+     "target"
+    ],
+    "case_inputs": {
+     "site-wikipedia": [
+      "domain"
+     ],
+     "site-python": [
+      "domain"
+     ]
+    },
+    "w2_arg_map": {
+     "domain": "target"
+    }
+   }
+  ]
+ }
+}
