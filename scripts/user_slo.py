@@ -426,6 +426,27 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
+USUAL_COLO = 'LAX'          # the usual Cloudflare point from this Mac (Korea -> LAX on the free plan)
+USUAL_TLS_S = 0.45          # median TLS seconds at or under this is the usual path
+
+
+def route(record):
+    """Which Cloudflare points answered this run and whether it was the usual path (PM 11-18: 02:09 went through
+    MAN/DUB, TLS 0.57-0.59 s). Shown only: the run's samples stay in every attainment number (no sample is left out);
+    weekly reports count route_shift runs beside them."""
+    colos, tls = set(), []
+    for part in ('explore', 'recommend', 'pages'):
+        for sample in (record.get(part) or {}).get('samples') or []:
+            if sample.get('colo'):
+                colos.add(sample['colo'])
+            if isinstance(sample.get('tls_s'), (int, float)):
+                tls.append(sample['tls_s'])
+    tls.sort()
+    median = tls[len(tls) // 2] if tls else None
+    shift = bool(colos) and (USUAL_COLO not in colos or (median is not None and median > USUAL_TLS_S))
+    return {'colos': sorted(colos), 'tls_median_s': median, 'route_shift': shift}
+
+
 def main(argv=()):
     parse_args(list(argv))   # the command line only from __main__; an in-process call parses nothing
     record = {'at': datetime.now().strftime('%Y-%m-%d %H:%M'), 'targets': TARGET, 'connection': 'new per sample'}
@@ -439,6 +460,7 @@ def main(argv=()):
     # 11-14 (user, via PM): the same samples judged against the final and the interim target, none left out.
     record['interim_targets'] = INTERIM
     record['attainment'] = {'final': attainment(record, TARGET), 'interim': attainment(record, INTERIM)}
+    record['route'] = route(record)   # PM 11-18: shown only; attainment above already counts every sample
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open('a') as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + '\n')
