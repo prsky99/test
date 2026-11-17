@@ -99,7 +99,10 @@ DOMAIN_TOTAL = {'sec.gov': 600, 'arxiv.org': 600, 'met.no': 600, 'openalex.org':
 # read 11-17), and the gate rounds call research-papers (Crossref) the same day. No spend; the dated key ends it.
 # npmjs.org 120 on 11-18 (PM 11-17): the package-readme answer set reads up to about 61 npm calls as 'gate' (30 cases x 2 plus
 # one public search for the spare ranking); the public registry read has no fee.
-ONE_DAY_TOTAL = {'20261118': {'openalex.org': 80, 'crossref.org': 220, 'npmjs.org': 120}}
+ONE_DAY_TOTAL = {'20261118': {'openalex.org': 80, 'crossref.org': 220, 'npmjs.org': 120},
+                 # PM 11-17 22:5x: cwei59969.workers.dev (topic v2 background 241601) publishes no limit, its terms are
+                 # silent, it runs on the Cloudflare workers.dev free tier; 11-19 only: trial 5 + rounds 30+30 + 10 spare
+                 '20261119': {'cwei59969.workers.dev': 75}}
 # Exact one-day shares, not scaled by the day total (PM 11-17: Crossref 220 on 11-18, the answer-set builder keeps 72).
 ONE_DAY_SHARE = {'20261118': {('reference_checks', 'crossref.org'): 72}}
 # Domains no path of ours may call: their day total is 0 and the ledger refuses every reserve.
