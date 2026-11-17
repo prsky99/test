@@ -130,6 +130,9 @@ def test_a2_numbers_on_the_pages_are_the_ones_the_code_uses(person):
     assert PLACEMENTS_PER_DAY == 2 and 'two placements a day' in on and 'Each pair has two placements a day' in details
     assert HORIZON_DAYS == 30 and 'from tomorrow up to 30 days ahead' in details
     assert 'no stored balance and no subscription' in on and 'There is no stored balance and no subscription' in details
+    # 11-17 audit F-A4: a quote is 5 USDC plus a unique tail under 0.01 USDC (R32), and the wording says so
+    assert 'plus a small identifying amount' in on and 'under 0.01 USDC' in ad_slot.PRICE_LINE
+    assert 'USDC on Base per placement per day plus a small identifying amount' in ad_slot.buy_line()
     for word in ('guaranteed', '#1', ' best ', 'top-rated', 'always use'):
         assert word not in on.lower() and word not in details.lower(), word
 

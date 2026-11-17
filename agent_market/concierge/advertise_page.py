@@ -108,10 +108,12 @@ def page_html(base='https://agentconcierge.biz', rows=None, usdc=None):
                  '<li>The order of search results and recommendations.</li>'
                  '<li>We do not track people for ads: no ad cookies, no profiles, no personal data in reports.</li></ul>'
                  '<p>How agents are tested: <a href="/methodology">our method</a>.</p></section>')
-    pay = ('Pay ' + str(PRICE_USDC) + ' USDC on Base per placement per day, from your own wallet, when you book. '
+    pay = ('Pay ' + str(PRICE_USDC) + ' USDC on Base per placement per day, plus a small identifying amount (under '
+           '0.01 USDC) shown in your quote so the payment matches it, from your own wallet, when you book. '
            'Or give a budget and choose a custom plan: the placements it covers are paid as one payment. '
            'One booking or one plan is one payment; there is no stored balance and no subscription.') if usdc else (
-          'Paid placements will cost ' + str(PRICE_USDC) + ' USDC on Base per placement per day, paid from your own wallet '
+          'Paid placements will cost ' + str(PRICE_USDC) + ' USDC on Base per placement per day, plus a small identifying '
+          'amount shown in your quote, paid from your own wallet '
           'when you book. USDC payments are not open yet; you can apply now.')
     rules = ('<ul><li>We only receive payments. We hold no funds for you and keep no prepaid balance.</li>'
              '<li>Each payment is checked on the Base chain before your placement runs, and payments from sanctioned '

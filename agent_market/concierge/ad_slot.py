@@ -92,7 +92,9 @@ def context(surface, tool, structured=None, headers=None, task=None):
             'counted': _header(headers, 'early-data') != '1' and not qa}
 
 
-PRICE_LINE = '5 USDC on Base per placement per day, or a custom plan sized to your budget; paid once per booking from your own wallet (no prepaid balance, no stored funds)'
+PRICE_LINE = ('5 USDC on Base per placement per day plus a small identifying amount (under 0.01 USDC) shown in your '
+              'quote, or a custom plan sized to your budget; paid once per booking from your own wallet (no prepaid '
+              'balance, no stored funds)')
 
 
 # The values the keyless order accepts (11-17 audit F-B1: the documents named the fields but not their values, so a
