@@ -61,7 +61,9 @@ def test_live_recipe_clicks_bind_inputs_and_execute_the_local_agent(browser, ope
         page.locator('#testRunBtn').click()
         expect(page.locator('#testResStatusBadge')).to_contain_text('성공')
         expect(page.locator('#testOutputFormatted')).to_contain_text(arguments['query'])
-        assert len(source_calls) > before
+        # technology-news answers from the hourly GDELT bundle (1e03611a, 11-16): a run calls GDELT only when the bundle is due,
+        # so the source is proven by the bundle's own GDELT request, not by a new one on this run
+        assert any(r.url.host == 'api.gdeltproject.org' for r in source_calls)
         assert all('/owned-data/' not in url for url in external)
         folder = Path('reports/admin-current-alignment-2026-10-21')
         folder.mkdir(parents=True, exist_ok=True)

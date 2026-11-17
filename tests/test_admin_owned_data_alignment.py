@@ -53,8 +53,14 @@ def test_staff_recipe_executes_local_agent_with_real_adapter_output(operating, m
         data = result.json()
         assert data['ok'] and data['execution_succeeded'] and not data['simulated']
         assert data['request_wire']['execution'] == 'local'
-        assert data['response_wire']['structuredContent']['agent']
-        assert len(calls) > before
+        agent = data['response_wire']['structuredContent']['agent']
+        assert agent
+        # technology-news answers from the hourly GDELT bundle (1e03611a, 11-16): a run calls GDELT only when the bundle is due,
+        # so the source is proven by the bundle's own GDELT request, other agents by a new source request
+        if agent == 'technology-news':
+            assert any(r.url.host == 'api.gdeltproject.org' for r in calls)
+        else:
+            assert len(calls) > before
         # Existing execution control remains authoritative for the local path.
         with front.store.tx() as db:
             db.execute('UPDATE execution_controls SET invoke_enabled=0')

@@ -114,7 +114,9 @@ def test_new_workbench_executes_owned_recipe_with_edited_inputs(operating, brows
         expect(page.locator("#adm-main")).to_contain_text(
             "Isolated browser climate research"
         )
-        assert len(calls) > before
+        # technology-news answers from the hourly GDELT bundle (1e03611a, 11-16): a run calls GDELT only when the bundle is due,
+        # so the source is proven by the bundle's own GDELT request, not by a new one on this run
+        assert any(r.url.host == "api.gdeltproject.org" for r in calls)
         shot(page, "A03-after-owned-execution")
         assert not errors and not external
     finally:
