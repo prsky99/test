@@ -78,3 +78,21 @@ def test_agent_offer_product_explains_fields_free_trial_facts_and_opt_out():
         assert expected in t, expected
     assert 'ads=none' not in t                                   # no opt-out: ads are always shown (user 11-15)
     assert 'href="/ads/library"' in ap.page_html(rows=[], usdc=True)
+
+
+def test_necklace_slot_custom_plans_payment_rules_and_the_keyless_path():
+    """PM 11-17: the page sells the necklace-answer slot and custom plans, states the payment rules, and shows agents the
+    keyless path with the same steps as llms.txt and skill.md; no measured-number field is added before there is one."""
+    from agent_market.concierge import ad_slot
+    on = text(ap.page_html(rows=[], usdc=True))
+    for expected in ('Necklace answers (MCP, A2A)', 'custom plan', 'One booking or one plan is one payment',
+                     'We hold no funds for you and keep no prepaid balance', 'refund due',
+                     'sends the amount back by hand to the address that paid', 'For AI agents: buy without an account',
+                     'The read key is shown once'):
+        assert expected in on, expected
+    for step in ad_slot.buy_entry()['keyless']['steps']:
+        assert step in on, step
+    off = text(ap.page_html(rows=[], usdc=False))
+    assert 'For AI agents: buy without an account' not in off and 'refund due' not in off
+    for word in ('impressions so far', 'clicks so far', 'conversion'):
+        assert word not in on.lower()

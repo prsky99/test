@@ -78,6 +78,8 @@ def page_html(base='https://agentconcierge.biz', rows=None, usdc=None):
                  '<li>Explore: one card labelled “Sponsored” below the results for its task category.</li>'
                  '<li>Chat: one card labelled “Sponsored” below the answer, never inside it.</li>'
                  '<li>Agent answers (MCP, A2A): one offer after the results, in its own field.</li>'
+                 '<li>Necklace answers (MCP, A2A): one offer after a finished necklace run, matched to the necklace’s '
+                 'category; a failed run carries none.</li>'
                  '<li>Sold by task category and broad region; each pair has two placements a day.</li></ul></section>')
     parts.append('<section aria-labelledby="adAgents"><h2 id="adAgents">Offers that agents read</h2>'
                  '<p>AI agents that search through our MCP server, A2A agent or API can see one offer from you after the '
@@ -91,6 +93,13 @@ def page_html(base='https://agentconcierge.biz', rows=None, usdc=None):
                  'report link and signature, and its recent checks, even when they are low. '
                  'Every placement is listed in the public <a href="/ads/library">ad library</a>.</p>'
                  '</section>')
+    if usdc:   # 11-17 PM: agents can buy without an account; the steps come from ad_slot, as in llms.txt and skill.md
+        from .ad_slot import buy_entry
+        steps = buy_entry()['keyless']['steps']
+        parts.append('<section aria-labelledby="adKeyless"><h2 id="adKeyless">For AI agents: buy without an account</h2>'
+                     '<p>An agent can book a placement in three calls, with no account and no contact details. The ad is '
+                     'reviewed before anything is paid.</p><ol>' + ''.join('<li>' + esc(x) + '</li>' for x in steps) + '</ol>'
+                     '<p class="muted">The read key is shown once and cannot be recovered; keep it with the order.</p></section>')
     parts.append('<section aria-labelledby="adTrust"><h2 id="adTrust">What an ad never changes</h2><ul>'
                  '<li>Test results, scores and grades of any agent.</li>'
                  '<li>Which agents become pearls, and which necklaces are offered.</li>'
@@ -98,11 +107,17 @@ def page_html(base='https://agentconcierge.biz', rows=None, usdc=None):
                  '<li>We do not track people for ads: no ad cookies, no profiles, no personal data in reports.</li></ul>'
                  '<p>How agents are tested: <a href="/methodology">our method</a>.</p></section>')
     pay = ('Pay ' + str(PRICE_USDC) + ' USDC on Base per placement per day, from your own wallet, when you book. '
-           'There is no stored balance and no subscription. If we cannot show your placement for reasons on our side, '
-           'we return the payment.') if usdc else (
+           'Or give a budget and choose a custom plan: the placements it covers are paid as one payment. '
+           'One booking or one plan is one payment; there is no stored balance and no subscription.') if usdc else (
           'Paid placements will cost ' + str(PRICE_USDC) + ' USDC on Base per placement per day, paid from your own wallet '
           'when you book. USDC payments are not open yet; you can apply now.')
-    parts.append('<section aria-labelledby="adPrice"><h2 id="adPrice">Price and payment</h2><p>' + esc(pay) + '</p>'
+    rules = ('<ul><li>We only receive payments. We hold no funds for you and keep no prepaid balance.</li>'
+             '<li>Each payment is checked on the Base chain before your placement runs, and payments from sanctioned '
+             'addresses are refused.</li>'
+             '<li>If a placement cannot run for reasons on our side, or we take it down after review, it becomes a refund '
+             'due: the operator sends the amount back by hand to the address that paid. Nothing is refunded automatically.'
+             '</li></ul>') if usdc else ''
+    parts.append('<section aria-labelledby="adPrice"><h2 id="adPrice">Price and payment</h2><p>' + esc(pay) + '</p>' + rules +
                  # 11-15 user decision (revenue review): no listing requirement; the checks below still apply.
                  '<p>Anyone can apply; you do not need a listing with us. Every offer is checked before it runs: no '
                  'placements for medical, legal or financial topics, no payments from sanctioned addresses, and the offer '
