@@ -193,6 +193,16 @@ def public_lines(m: dict, verdicts: list, slug: str) -> list[str]:
     return lines
 
 
+def tokens_counted_section(m: dict) -> str:
+    tc = m.get("tokens_counted") or {}
+    if not tc.get("cases"):
+        return "- 토크나이저로 센 값: 이 회차의 답 원문(results/selftest)이 없어 세지 못했습니다."
+    return (f"- 토크나이저로 센 값(내부, 공개 금지; {tc['counted_by']}, {tc['cases']}건): 목걸이 답 중앙값 "
+            f"{tc['necklace_answer']['median']}, 멤버 답 합계 중앙값 {tc['member_answers']['median']}. 원문이 "
+            f"{KEEP_RAW}자에서 잘린 멤버 답 {tc['member_answers_cut_estimated']}개는 글자÷4로 셌습니다. "
+            "목걸이 없이 같은 과제를 실제로 한 기록과 비교한 값은 아직 없습니다.")
+
+
 def readme(m: dict, verdicts: list, rounds: list, slug: str) -> str:
     a, t, tm, fb = m["accuracy"], m["tokens"], m["time_ms"], m["fallbacks"]
     ok, why = gate_passed(verdicts, m)
@@ -223,6 +233,8 @@ def readme(m: dict, verdicts: list, rounds: list, slug: str) -> str:
 - 멤버를 직접 부를 때 읽는 답(같은 회차의 멤버 호출 전부): 중앙값 {t['agent_reads_member_answers']['median']} (비율 {t.get('ratio_member_answers_to_necklace')})
 - 찾기·정리 포함 전체 값: 중앙값 {t['agent_full_with_finding_and_merging']['median']} (비율 {t.get('ratio_full_to_necklace')}), 추정 부분: {', '.join(t['agent_full_with_finding_and_merging']['estimated_parts']) or '없음'}
 
+{tokens_counted_section(m)}
+
 ## 4. 대체 발생
 - 필수 자리를 첫 멤버가 아닌 다음 멤버가 답한 사례: {fb['cases']}건 {fb['by_slot']}
 - 실패한 멤버 호출(상위): {json.dumps(fb['failed_member_calls'], ensure_ascii=False)}
@@ -230,6 +242,83 @@ def readme(m: dict, verdicts: list, rounds: list, slug: str) -> str:
 ## 5. 공개용 영어 문장(두 회차 통과 + Δ>0일 때만)
 {pub}
 """
+
+
+KEEP_RAW = 2000          # retest keeps this many characters of each member answer (Runner keep_raw)
+
+
+def count_tokens(texts: list[str], project: Path | None = None) -> list[int] | None:
+    """Token counts from Anthropic's count_tokens through scripts/count_tokens_helper.py in the existing
+    gateway-data/ops-llm-venv (PM 11-17); None when it cannot run (no venv, no key, key past 12-01, an error)."""
+    import subprocess
+    project = Path(project or Path(__file__).resolve().parents[1])
+    python = project / "gateway-data/ops-llm-venv/bin/python"
+    if not texts or not python.exists():
+        return None
+    try:
+        done = subprocess.run([str(python), str(project / "scripts/count_tokens_helper.py")], input=json.dumps(texts),
+                              capture_output=True, text=True, timeout=900, cwd=str(project))
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if done.returncode != 0:
+        return None
+    try:
+        counts = json.loads(done.stdout)
+    except ValueError:
+        return None
+    return counts if isinstance(counts, list) and len(counts) == len(texts) else None
+
+
+def measured_tokens(root: Path, slug: str, rounds: list, counter=count_tokens) -> dict:
+    """Per case: the necklace answer (the whole output the run returned) and the member answers an agent would read,
+    counted by a tokenizer where the stored text is whole; a member answer cut at KEEP_RAW characters, or a run
+    without a tokenizer, falls back to characters / 4 and is marked. Never a public figure (PM 11-17)."""
+    neck, members, cut = [], [], 0
+    for split, day in rounds:
+        path = Path(root) / "results" / slug / f"selftest-{day}.jsonl"
+        if not path.exists():
+            continue
+        wanted = {l["case_id"] for l in read_lines(root, day) if l.get("type") == "case" and l.get("slug") == slug
+                  and l.get("set") == split}
+        last = {}
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                d = json.loads(line)
+            except ValueError:
+                continue
+            if d.get("case_id") in wanted and "output" in d:
+                last[d["case_id"]] = d
+        for d in last.values():
+            neck.append(json.dumps(d.get("output") or {}, ensure_ascii=False, default=str))
+            texts, est = [], 0
+            for attempts in (d.get("attempts") or {}).values():
+                for a in attempts:
+                    raw, chars = a.get("raw"), int(a.get("chars_out") or 0)
+                    if not chars:
+                        continue
+                    if isinstance(raw, str) and len(raw) < KEEP_RAW and len(raw) >= chars * 0.9:
+                        texts.append(raw)
+                    else:
+                        est += math.ceil(chars / 4)
+                        cut += 1
+            members.append((texts, est))
+    if not neck:
+        return {"cases": 0}
+    flat = neck + [t for texts, _ in members for t in texts]
+    counts = counter(flat)
+    tokenizer = counts is not None
+    if counts is None:
+        counts = [math.ceil(len(t) / 4) for t in flat]
+    n_neck = counts[:len(neck)]
+    rest, i, per_case = counts[len(neck):], 0, []
+    for texts, est in members:
+        per_case.append(sum(rest[i:i + len(texts)]) + est)
+        i += len(texts)
+    return {"cases": len(neck), "counted_by": "Anthropic count_tokens" if tokenizer else "characters / 4 (estimate)",
+            "necklace_answer": {"median": statistics.median(n_neck), "p95": pct(n_neck, .95)},
+            "member_answers": {"median": statistics.median(per_case), "p95": pct(per_case, .95)},
+            "member_answers_cut_estimated": cut,
+            "note": "internal only; comparing with a real run without the necklace is not measured yet"}
 
 
 def measure_rounds(root: Path, slug: str, rounds: list, version: int | None = None) -> dict:
@@ -266,6 +355,7 @@ def main(argv=None) -> int:
             p.error(f"round {item!r}: use split@YYYYMMDD")
         rounds.append((split, day))
     m = measure_rounds(ns.root, ns.slug, rounds, ns.version)
+    m["tokens_counted"] = measured_tokens(ns.root, ns.slug, rounds)
     if not m["graded"]:
         print(json.dumps({"error": "no graded case lines for these rounds"})); return 1
     verdicts = [verdict_for(ns.slug, sp, d, ns.logs) for sp, d in rounds]

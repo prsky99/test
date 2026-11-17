@@ -67,3 +67,21 @@ def test_cli_writes_readme_and_json(tmp_path):
                      "--out", str(tmp_path / "out")]) == 0
     body = json.loads((tmp_path / "out" / "necklace-value-s-20261118" / "value.json").read_text())
     assert body["graded"] == 30 and body["public"] is False
+
+
+def test_tokens_counted_by_a_tokenizer_where_the_text_is_whole_and_estimated_where_cut(tmp_path):
+    root = tmp_path / "root"
+    write_day(root, "20261118", lines("r5"))
+    folder = root / "results" / "s"
+    folder.mkdir(parents=True)
+    rows = [{"case_id": f"c{i}", "output": {"a": "x" * 40},
+             "attempts": {"a": [{"raw": "y" * 100, "chars_out": 100}, {"raw": "z" * 2000, "chars_out": 9000}]}}
+            for i in range(30)]
+    (folder / "selftest-20261118.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    seen = []
+    counted = nvr.measured_tokens(root, "s", [("r5", "20261118")], counter=lambda texts: seen.extend(texts) or [7] * len(texts))
+    assert counted["counted_by"] == "Anthropic count_tokens" and counted["necklace_answer"]["median"] == 7
+    assert counted["member_answers"]["median"] == 7 + 2250 and counted["member_answers_cut_estimated"] == 30
+    assert len(seen) == 60                                    # 30 answers + 30 whole member texts, the cut ones not sent
+    fallback = nvr.measured_tokens(root, "s", [("r5", "20261118")], counter=lambda texts: None)
+    assert fallback["counted_by"].startswith("characters / 4")
