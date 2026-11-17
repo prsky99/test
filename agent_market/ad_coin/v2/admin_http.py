@@ -121,6 +121,23 @@ def router_for(
                                                         reason=body.get("reason")))
         return await respond(call)
 
+    @router.get("/auto-approvals")
+    async def auto_approvals(request: Request):
+        """PM 11-17 (b): automatic approvals a person has not looked at yet (look within 24 hours)."""
+        async def call():
+            ctx = await get_admin_context(request)
+            from .auto_review import approvals_to_check
+            return await run_in_threadpool(approvals_to_check, commercial, ctx.principal)
+        return await respond(call)
+
+    @router.post("/auto-approvals/{approval_id}/checked")
+    async def auto_approval_checked(approval_id: str, request: Request):
+        async def call():
+            ctx, _ = await operator_write(request)
+            from .auto_review import mark_checked
+            return await run_in_threadpool(mark_checked, commercial, ctx.principal, approval_id)
+        return await respond(call)
+
     @router.get("/advertisers/{advertiser_id}/history")
     async def advertiser_history(advertiser_id: str, request: Request):
         from .advertiser_history import history

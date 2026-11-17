@@ -349,6 +349,57 @@ def recheck_offers(commercial, *, app_store=None, limit=200, now_ms=None):
     return withdrawn
 
 
+# ---- a person looks again within 24 hours (PM 11-17, condition (b) for switching automatic review on) --------------
+CHECKED = "auto_approval_checked"
+RECHECK_HOURS = 24
+RECHECK_LIST_DAYS = 7
+_DAY_MS = 86_400_000
+
+
+def _advertiser_of(store, event, target):
+    if event == APPROVED_REVIEW:
+        row = store.one("review_get", (target,))
+        return (row["advertiser_id"], row["campaign_id"]) if row else (None, None)
+    row = store.one("campaign_get", (target,))
+    return (row["advertiser_id"], target) if row else (None, target)
+
+
+def approvals_to_check(commercial, operator, *, now_ms=None):
+    """Automatic approvals of the last RECHECK_LIST_DAYS days that no person has looked at yet, oldest first, each
+    with the time a person should have looked by (approval + RECHECK_HOURS) and whether that time has passed. A wrong
+    one is taken down with the existing takedown (paid placements that cannot run become refunds due; the refund
+    transfer is made by the user)."""
+    commercial.access.require_operator(operator)
+    now_ms = int(time.time() * 1000) if now_ms is None else int(now_ms)
+    store, items = commercial.store, []
+    with store.atomic():
+        for row in store.all("audit_auto_approvals_since", (now_ms - RECHECK_LIST_DAYS * _DAY_MS,)):
+            if store.one("audit_by_target_event", (row["id"], CHECKED)) is not None:
+                continue
+            advertiser_id, campaign_id = _advertiser_of(store, row["event_type"], row["target_id"])
+            due = int(row["timestamp_ms"]) + RECHECK_HOURS * 3_600_000
+            items.append({"approval_id": row["id"], "kind": "campaign" if row["event_type"] == APPROVED_REVIEW else "agent_offer",
+                          "target_id": row["target_id"], "advertiser_id": advertiser_id, "campaign_id": campaign_id,
+                          "approved_ms": int(row["timestamp_ms"]), "check_by_ms": due, "overdue": now_ms > due})
+    return {"items": items, "check_within_hours": RECHECK_HOURS,
+            "take_down": "POST /api/ad-coin/v2/admin/advertisers/{advertiser_id}/takedown"}
+
+
+def mark_checked(commercial, operator, approval_id, *, now_ms=None):
+    """A person looked at one automatic approval and kept it. Idempotent; only automatic approvals can be marked."""
+    commercial.access.require_operator(operator)
+    approval_id = identifier(approval_id)
+    store = commercial.store
+    with store.atomic():
+        row = store.one("audit_by_id", (approval_id,))
+        if row is None or row["event_type"] not in (APPROVED_REVIEW, APPROVED_OFFER) or row["actor_principal_id"] != AUTO_PRINCIPAL:
+            raise ContractError("unknown_resource", 404)
+        if store.one("audit_by_target_event", (approval_id, CHECKED)) is None:
+            AuditLogger.log(store, CHECKED, "succeeded", actor_principal_id=str(operator.id), target_id=approval_id,
+                            now_ms=now_ms)
+    return {"approval_id": approval_id, "checked": True}
+
+
 def takedown(commercial, operator, advertiser_id, *, reason, now_ms=None):
     """Operator: stop everything an advertiser shows, now (suspend, pause running campaigns, withdraw offers)."""
     access, store = commercial.access, commercial.store

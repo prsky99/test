@@ -227,6 +227,8 @@ SQL.update(
         "audit_for_target": "SELECT event_type,status,timestamp_ms,details_json FROM adc2_audit_log WHERE target_id=? ORDER BY timestamp_ms LIMIT 100",
         "paid_bookings_table": "SELECT to_regclass('adc2_paid_bookings') IS NOT NULL AS present",
         "audit_by_target_event": "SELECT * FROM adc2_audit_log WHERE target_id=? AND event_type=? ORDER BY timestamp_ms DESC LIMIT 1",
+        "audit_by_id": "SELECT * FROM adc2_audit_log WHERE id=?",
+        "audit_auto_approvals_since": "SELECT * FROM adc2_audit_log WHERE event_type IN ('review_auto_approved','offer_auto_approved') AND timestamp_ms>=? ORDER BY timestamp_ms LIMIT 200",
         "applications_by_person": "SELECT COUNT(*) AS n FROM adc2_audit_log WHERE actor_principal_id=? AND event_type=?",
         "advertisers_suspended": "SELECT id,status FROM adc2_advertisers WHERE status='suspended' AND id<>? ORDER BY id LIMIT ?",
         "audit_log_recent": "SELECT * FROM adc2_audit_log ORDER BY timestamp_ms DESC LIMIT ?",

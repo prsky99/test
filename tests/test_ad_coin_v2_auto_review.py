@@ -181,3 +181,65 @@ def test_a_pass_stops_taking_items_when_its_time_is_up_and_says_auto_review(p1_s
     late, _ = _pending_review(p1_suite)
     stopped = auto_review.run(p1_suite.service, budget_s=60, clock=iter([0, 1000, 1000, 1000]).__next__)
     assert stopped["approved_reviews"] == 0 and stopped["out_of_time"] == 1 and _state(p1_suite, late) == "in_review"
+
+
+def test_a_person_looks_again_at_every_automatic_approval_within_24_hours(p1_suite):  # noqa: F811
+    """PM 11-17 condition (b): automatic approvals wait in a list until a person marks them, overdue after 24 hours."""
+    campaign_id, review_id = _pending_review(p1_suite)
+    held, _ = _pending_review(p1_suite, creative_text="Guaranteed results: the best research agent.")
+    assert auto_review.run(p1_suite.service)["approved_reviews"] == 1
+    op = operator(p1_suite)
+    now = int(time.time() * 1000)
+    items = auto_review.approvals_to_check(p1_suite.service, op, now_ms=now)["items"]
+    assert [(i["kind"], i["target_id"], i["campaign_id"], i["advertiser_id"], i["overdue"]) for i in items] == [
+        ("campaign", review_id, campaign_id, p1_suite.advertiser, False)]   # the held one is not an approval
+    late = auto_review.approvals_to_check(p1_suite.service, op, now_ms=items[0]["approved_ms"] + 25 * 3_600_000)
+    assert late["items"][0]["overdue"] is True and late["check_within_hours"] == 24
+    from uuid import UUID, uuid4
+    from agent_market.ad_coin.v2.access import HUMAN_CAPABILITIES
+    from agent_market.ad_coin.v2.identity import Kind, Principal
+    pid, owner = str(uuid4()), str(uuid4())
+    p1_suite.service.access.provision_principal(pid, Kind.HUMAN, owner_id=owner, capabilities=HUMAN_CAPABILITIES)
+    person = Principal(UUID(pid), Kind.HUMAN, 1, time.time() + 300, owner_id=UUID(owner), csrf_verified=True,
+                       audience='aiac-v2-model')
+    with pytest.raises(Exception):
+        auto_review.approvals_to_check(p1_suite.service, person)      # operators only
+    assert auto_review.mark_checked(p1_suite.service, op, items[0]["approval_id"]) == {
+        "approval_id": items[0]["approval_id"], "checked": True}
+    auto_review.mark_checked(p1_suite.service, op, items[0]["approval_id"])          # idempotent
+    assert auto_review.approvals_to_check(p1_suite.service, op, now_ms=now)["items"] == []
+    with p1_suite.service.store.atomic():
+        other = p1_suite.service.store.one("audit_by_target_event", (held, auto_review.HELD_REVIEW))
+    with pytest.raises(Exception):                                   # only automatic approvals can be marked
+        auto_review.mark_checked(p1_suite.service, op, other["id"] if other else "00000000-0000-0000-0000-000000000000")
+
+
+def test_the_recheck_routes_use_the_operator_checks_of_every_admin_route(p1_suite):  # noqa: F811
+    """PM 11-17: the new routes ride the public frontend app, so they must refuse anyone but a signed-in operator with
+    CSRF, exactly like the review and takedown routes; a person's check is in the audit log."""
+    from tests.test_ad_coin_v2_operator_review import admin
+    _pending_review(p1_suite)
+    assert auto_review.run(p1_suite.service)["approved_reviews"] == 1
+    client, h = admin(p1_suite)
+    listed = client.get('/api/ad-coin/v2/admin/auto-approvals', headers=h)
+    assert listed.status_code == 200, listed.text
+    item = listed.json()['items'][0]
+    path = '/api/ad-coin/v2/admin/auto-approvals/' + item['approval_id'] + '/checked'
+    contract = {'X-AIAC-Contract': h['X-AIAC-Contract']}
+    assert client.get('/api/ad-coin/v2/admin/auto-approvals', headers=contract).status_code in (401, 403)   # no session
+    assert client.post(path, json={}, headers=contract).status_code in (401, 403)
+    person, ph = admin(p1_suite, operator=False)
+    assert person.get('/api/ad-coin/v2/admin/auto-approvals', headers=ph).status_code == 403
+    assert person.post(path, json={}, headers=ph).status_code == 403
+    takedown = '/api/ad-coin/v2/admin/advertisers/' + item['advertiser_id'] + '/takedown'
+    assert person.post(takedown, json={'reason': 'not an operator'}, headers=ph).status_code == 403
+    no_csrf = {k: v for k, v in h.items() if k != 'X-CSRF-Token'}
+    assert client.post(path, json={}, headers=no_csrf).status_code == 403
+    assert client.post('/api/ad-coin/v2/admin/auto-approvals/' + item['target_id'] + '/checked', json={},
+                       headers=h).status_code == 404                       # not an automatic approval id
+    done = client.post(path, json={}, headers=h)
+    assert done.status_code == 200 and done.json() == {'approval_id': item['approval_id'], 'checked': True}
+    assert client.get('/api/ad-coin/v2/admin/auto-approvals', headers=h).json()['items'] == []
+    with p1_suite.service.store.atomic():
+        audit = p1_suite.service.store.one("audit_by_target_event", (item['approval_id'], auto_review.CHECKED))
+    assert audit is not None and audit['actor_principal_id'] not in (None, auto_review.AUTO_PRINCIPAL)
