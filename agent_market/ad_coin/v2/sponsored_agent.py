@@ -8,10 +8,16 @@ also checked with check_public_url (an endpoint that stops resolving to public a
 Served counts per day, campaign, category, region and surface go to adc2_sponsored_impressions with placement 'mcp' or
 'a2a' (no person, no query), only once migrate-agent-ads has widened its placement CHECK; until then nothing is
 counted and nothing fails (PM 11-14).
+Necklace answers (PM 11-17): the impressions CHECK allows explore/chat/mcp/a2a only and the schema stays as it is, so
+offers served in a necklace answer are also counted in memory per day, surface, necklace slug and category, and each
+flush appends one JSON line to logs/growth/necklace-ad-served.jsonl under AGENTCON_PROJECT_ROOT (counts only: no
+person, address, query or answer text). necklace_ad_served() sums that file for reports.
 Facts are not filled here: ad_slot reads them from our own records and replaces whatever the ad side sends.
 """
 import json
 import logging
+import os
+from pathlib import Path
 from threading import Event, Lock, Thread
 import time
 
@@ -22,16 +28,72 @@ from .sponsored_offer import (AGENT_PLACEMENTS, OfferError, advertiser_name_ok, 
 logger = logging.getLogger(__name__)
 REFRESH_SECONDS = 30
 OFFER_LIMIT = 5000
+NECKLACE_LOG = 'logs/growth/necklace-ad-served.jsonl'
+KEEP_PENDING = 50_000
+
+
+def necklace_log_path():
+    """<AGENTCON_PROJECT_ROOT>/logs/growth/necklace-ad-served.jsonl, or None outside the services (nothing written)."""
+    root = os.environ.get('AGENTCON_PROJECT_ROOT')
+    return Path(root) / NECKLACE_LOG if root else None
+
+
+def _day(day_ms):
+    return time.strftime('%Y-%m-%d', time.gmtime(day_ms / 1000))
+
+
+def write_necklace_counts(path, pending, now):
+    """Append ONE line for PENDING {(day_ms, surface, necklace, category): served}. Raises OSError on failure."""
+    rows = sorted(pending.items())
+    line = {'day': _day(max(k[0] for k, _ in rows)), 'flushed_at': int(now),
+            'counts': [{'day': _day(day_ms), 'surface': surface, 'necklace': necklace, 'category': category,
+                        'served': served} for (day_ms, surface, necklace, category), served in rows]}
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, 'a', encoding='utf-8') as handle:
+        handle.write(json.dumps(line, sort_keys=True) + '\n')
+
+
+def necklace_ad_served(days=7, path=None, today=None):
+    """{(necklace, surface): served} summed over the lines whose count day is within the last DAYS UTC days
+    (today included). Unreadable lines are skipped; a missing file is an empty result."""
+    path = path or necklace_log_path()
+    if path is None:
+        return {}
+    today_ms = int((time.time() if today is None else today) * 1000)
+    since = _day(today_ms - today_ms % DAY_MS - (max(1, int(days)) - 1) * DAY_MS)
+    try:
+        lines = Path(path).read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return {}
+    totals = {}
+    for text in lines:
+        try:
+            line = json.loads(text)
+        except ValueError:
+            continue
+        for row in (line.get('counts') if isinstance(line, dict) else None) or []:
+            if not isinstance(row, dict):
+                continue
+            day = row.get('day') or line.get('day')
+            served = row.get('served')
+            if not isinstance(day, str) or day < since or type(served) is not int or served < 0:
+                continue
+            key = (str(row.get('necklace')), str(row.get('surface')))
+            totals[key] = totals.get(key, 0) + served
+    return totals
 
 
 class AgentOfferProvider:
-    def __init__(self, slots, *, clock=None, url_check=None):
+    def __init__(self, slots, *, clock=None, url_check=None, necklace_log=None):
         self.slots, self.store = slots, slots.store
         self._clock = clock or time.time
         self._url_check = url_check or public_endpoint
         self._offers = {}
         self._lock = Lock()
         self._served = {}
+        self._necklace_served = {}  # (day_ms, surface, necklace slug, category) -> served, for the growth log
+        self._necklace_log = necklace_log
         self._counting = False      # True once adc2_sponsored_impressions accepts 'mcp' and 'a2a'
         self._timer = None
 
@@ -56,7 +118,32 @@ class AgentOfferProvider:
         self._offers = offers
         return len(offers)
 
+    def flush_necklace(self):
+        """Append the pending necklace counts as one line; on failure keep them for the next flush (bounded)."""
+        with self._lock:
+            pending, self._necklace_served = self._necklace_served, {}
+        if not pending:
+            return 0
+        path = self._necklace_log or necklace_log_path()
+        if path is None:
+            return 0                                    # not inside the services (no project root): nothing to keep
+        try:
+            write_necklace_counts(path, pending, self._clock())
+        except OSError:
+            with self._lock:
+                for key, served in pending.items():
+                    if len(self._necklace_served) < KEEP_PENDING:
+                        self._necklace_served[key] = self._necklace_served.get(key, 0) + served
+            return 0
+        return sum(pending.values())
+
     def flush_now(self):
+        try:
+            necklace = self.flush_necklace()
+            if necklace:
+                logger.info("Agent offer necklace served counts flushed: %d", necklace)
+        except Exception:
+            logger.warning("Agent offer necklace served counts not flushed", exc_info=True)
         with self._lock:
             pending, self._served = self._served, {}
         if not pending:
@@ -70,7 +157,7 @@ class AgentOfferProvider:
         except Exception:
             with self._lock:   # keep for the next try (bounded), never fail serving
                 for key, served in pending.items():
-                    if len(self._served) < 50_000:
+                    if len(self._served) < KEEP_PENDING:
                         self._served[key] = self._served.get(key, 0) + served
             return 0
         return sum(pending.values())
@@ -123,11 +210,17 @@ class AgentOfferProvider:
                 continue                                 # R33: a name that fails the screen never reaches agents
             block = agent_block(card, offer, category=category, region=region)
             block["click_url"] = "/api/ad-coin/v2/sponsored/click/%s?surface=%s&category=%s" % (card["id"], surface, site)
-            if ctx.get("counted") and self._counting:
+            if ctx.get("counted"):
                 now_ms = int(self._clock() * 1000)
-                key = (now_ms - now_ms % DAY_MS, card["id"], category, region, surface)
+                day_ms = now_ms - now_ms % DAY_MS
+                necklace = ctx.get("necklace") if ctx.get("tool") == "necklace" else None
                 with self._lock:
-                    self._served[key] = self._served.get(key, 0) + 1
+                    if self._counting:
+                        key = (day_ms, card["id"], category, region, surface)
+                        self._served[key] = self._served.get(key, 0) + 1
+                    if isinstance(necklace, str) and necklace and len(self._necklace_served) < KEEP_PENDING:
+                        nkey = (day_ms, surface, necklace[:80], category)
+                        self._necklace_served[nkey] = self._necklace_served.get(nkey, 0) + 1
             return block
         return None
 
