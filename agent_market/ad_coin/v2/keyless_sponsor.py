@@ -50,6 +50,8 @@ LOST_KEY_NOTE = ("Keep the read_key: it is shown once and is never stored. Witho
 TAKEDOWN_NOTE = ("This order was taken down by an operator. It will not run again and no new quote is offered. "
                  "Payments for placements that can no longer run are refunded manually by the operator to the paying "
                  "address after review; nothing is stored for you here.")
+OFFER_NOTE = ("The ad passed review; its agent offer (the line agents read after MCP and A2A answers) is reviewed "
+              "separately. A quote appears once the offer is approved. No money has moved.")
 PAY_NOTE = ("Send exactly amount_usdc in USDC on Base (chain 8453) to pay_to before expires_at, then POST the "
             "transaction hash to payment_url. Any other amount is not matched.")
 
@@ -360,6 +362,16 @@ class KeylessSponsor:
             with self.store.atomic():
                 held = flags_of(self.store, HELD_REVIEW, review["id"]) if review else []
             return {**base, "state": "in_review", "hold_reasons": held}
+        offer_state, offer_reasons = self._offer_status(order_id, campaign_id, order, write=write)
+        base = {**base, "offer_state": offer_state, "offer_hold_reasons": offer_reasons}
+        if offer_state not in ("approved", "none"):
+            # 11-17 audit F-B2: we never take money for a product that cannot run. The agent offer is part of what the
+            # order buys, so no quote is made until it is approved too; a quote already paid stays visible.
+            paid = self._open_quote(order_id, campaign_id, order)
+            if paid is not None and paid["state"] != "quoted":
+                return {**base, "state": "approved", "quote": paid, "note": PAY_NOTE}
+            return {**base, "state": "approved", "quote": None, "quote_error": "offer_" + offer_state,
+                    "note": OFFER_NOTE}
         if campaign["state"] == "eligible":
             if not write:
                 return {**base, "state": "approved", "quote": None, "quote_error": "retry_without_early_data"}
@@ -377,6 +389,35 @@ class KeylessSponsor:
         except ContractError as exc:
             return {**base, "state": "approved", "quote": None, "quote_error": exc.code}
         return {**base, "state": "approved", "quote": quote, "note": PAY_NOTE}
+
+    def _offer_status(self, order_id, campaign_id, order, *, write=True):
+        """(offer_state, reasons) of the order's agent offer: none (the order carries no offer), approved, pending,
+        held (the automatic review's recorded flags), rejected (with the reason), refused (it could not be stored) or
+        unavailable (no offer tables). Read only, except that write=True stores an offer an earlier creation missed."""
+        if not order.get("offer"):
+            return "none", []
+        from .auto_review import HELD_OFFER, flags_of
+        with self.store.atomic():
+            if not self.store.one("sponsored_offers_table")["present"]:
+                return "unavailable", ["offers_not_available"]
+            row = self.store.one("sponsored_offer_get", (campaign_id,))
+        if row is None and write:
+            from .sponsored_offer import submit_offer
+            try:
+                submit_offer(self.store, order_id, campaign_id, order["offer"])
+            except ContractError as exc:
+                return "refused", [exc.code]
+            with self.store.atomic():
+                row = self.store.one("sponsored_offer_get", (campaign_id,))
+        if row is None:
+            return "pending", []
+        if row["state"] == "approved":
+            return "approved", []
+        if row["state"] == "rejected":
+            return "rejected", [row["reason"] or "offer_not_approved"]
+        with self.store.atomic():
+            held = flags_of(self.store, HELD_OFFER, campaign_id)
+        return ("held", held) if held else ("pending", [])
 
     def _quote_once(self, order_id, campaign_id, order):
         """The order's open quote, or a new one: one transaction holds the order's advisory lock while it re-reads the

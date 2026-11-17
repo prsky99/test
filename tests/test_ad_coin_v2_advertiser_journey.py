@@ -357,7 +357,7 @@ def test_b2_order_review_quote_pay_confirm_and_serve_in_the_steps_the_documents_
     slots = SponsoredSlots(shop.store, taxonomy=shop.commercial.taxonomy, regions=shop.commercial.regions, clock=clock)
     cards = slots.response('web_search', 'US', 'explore', 2)['cards']
     assert [c['id'] for c in cards] == [campaign_id] and cards[0]['text'] == GOOD['text']
-    # the agent offer: once approved (here by the automatic review with its checks passed) it follows MCP answers
+    # the agent offer, approved with the campaign by review(), follows MCP answers
     auto_review.run(shop.commercial, limit=50, screen=lambda *a, **k: [])
     provider = AgentOfferProvider(slots, clock=clock, url_check=lambda url: True)
     assert provider.refresh() == 1
@@ -376,16 +376,26 @@ def test_b2_order_review_quote_pay_confirm_and_serve_in_the_steps_the_documents_
     assert served == [{'placement': 'mcp', 'served': 1}]
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='F-B2: status says approved and quotes as soon as the campaign review passes, '
-                   'but the agent offer (the MCP/A2A placement the documents sell) is reviewed separately and stays '
-                   'pending or held (endpoint:not_in_catalog) until a person approves it; the buyer can pay and get '
-                   'no MCP/A2A offer, and status never shows the offer state')
 def test_b3_status_shows_the_agent_offer_state_before_the_buyer_pays(shop):  # noqa: F811
+    """11-17 audit F-B2: status said approved and quoted once the campaign passed, while the agent offer the documents
+    sell could still be held for a person. Now the quote waits for the offer and status names its state."""
     created = order(shop).json()
-    review(shop, created['order_id'])
+    review(shop, created['order_id'], offer=False)
+    waiting = status(shop, created['order_id'], created['read_key']).json()
+    assert waiting['quote'] is None and waiting['offer_state'] == 'pending'
+    paid_now = shop.post(created['status_url'] + '/payment', json={'tx_hash': shop.rpc.send(5_000_001)},
+                         headers={'X-Read-Key': created['read_key']})
+    assert paid_now.status_code == 409 and paid_now.json()['error']['code'] == 'no_open_quote'
+    review_offer_only(shop, created['order_id'])
     answer = status(shop, created['order_id'], created['read_key']).json()
-    assert answer['state'] == 'approved' and answer['quote'] is not None
-    assert answer.get('offer_state') in ('approved', 'pending')
+    assert answer['offer_state'] == 'approved' and answer['quote']['state'] == 'quoted'
+
+
+def review_offer_only(shop, order_id):  # noqa: F811
+    from agent_market.ad_coin.v2 import auto_review
+    from agent_market.ad_coin.v2.sponsored_offer import decide_offer
+    decide_offer(shop.store, shop.commercial.access, auto_review.principal(shop.commercial.access),
+                 shop.sponsor._campaign_id(order_id), approve=True)
 
 
 @pytest.mark.parametrize('extra', [{}, {'day': None, 'budget_usdc': '10'}])

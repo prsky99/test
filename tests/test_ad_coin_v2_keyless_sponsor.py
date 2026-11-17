@@ -75,7 +75,7 @@ def order(shop, **changes):
     return shop.post('/api/ad-coin/v2/sponsor', json=body)
 
 
-def review(shop, order_id, verdict='eligible', reason='verified'):
+def review(shop, order_id, verdict='eligible', reason='verified', offer=True):
     from agent_market.ad_coin.v2 import auto_review, operator_review
     campaign_id = shop.sponsor._campaign_id(order_id)
     store = shop.store
@@ -83,7 +83,14 @@ def review(shop, order_id, verdict='eligible', reason='verified'):
         campaign = store.one('campaign_get', (campaign_id,))
         review_row = store.one('review_latest', (campaign['current_revision_id'],))
     operator = auto_review.principal(shop.commercial.access)
-    return operator_review.decide(shop.commercial, operator, review_row['id'], verdict=verdict, reason_code=reason)
+    decided = operator_review.decide(shop.commercial, operator, review_row['id'], verdict=verdict, reason_code=reason)
+    if verdict == 'eligible' and offer:      # 11-17 F-B2: the agent offer is approved too before any quote
+        from agent_market.ad_coin.v2.sponsored_offer import decide_offer
+        with store.atomic():
+            pending = store.one('sponsored_offer_get', (campaign_id,))
+        if pending is not None and pending['state'] == 'pending':
+            decide_offer(store, shop.commercial.access, operator, campaign_id, approve=True)
+    return decided
 
 
 def status(shop, order_id, key, **headers):
@@ -258,12 +265,34 @@ def test_routes_mount_only_with_paid_bookings_and_a_stable_secret(store, monkeyp
 
 
 def test_the_automatic_review_lets_a_clean_order_quote_right_away(shop):
+    """11-17 audit F-B2 (PM approved): no quote until the agent offer is approved too; status names the offer state
+    and the hold reasons the automatic review recorded. We never take money for a product that cannot run."""
     from agent_market.ad_coin.v2 import auto_review
     created = order(shop).json()
     done = auto_review.run(shop.commercial, limit=50, screen=lambda *a, **k: ['offer:held_in_test'])  # no RDAP
-    assert done['approved_reviews'] >= 1
+    assert done['approved_reviews'] >= 1 and done['held_offers'] == 1
+    held = status(shop, created['order_id'], created['read_key']).json()
+    assert held['state'] == 'approved' and held['quote'] is None and held['quote_error'] == 'offer_held'
+    assert held['offer_state'] == 'held' and held['offer_hold_reasons'] == ['offer:held_in_test']
+    assert 'No money has moved' in held['note'] and rows(shop.store, 'SELECT id FROM adc2_paid_bookings') == []
+    auto_review.run(shop.commercial, limit=50, screen=lambda *a, **k: [])                          # checks pass
     answer = status(shop, created['order_id'], created['read_key']).json()
     assert answer['state'] == 'approved' and answer['quote']['state'] == 'quoted'
+    assert answer['offer_state'] == 'approved' and answer['offer_hold_reasons'] == []
+
+
+def test_a_campaign_approved_without_its_offer_gets_no_quote_and_a_rejected_offer_says_why(shop):
+    from agent_market.ad_coin.v2 import auto_review
+    from agent_market.ad_coin.v2.sponsored_offer import decide_offer
+    created = order(shop).json()
+    review(shop, created['order_id'], offer=False)                       # a person approved only the campaign
+    pending = status(shop, created['order_id'], created['read_key']).json()
+    assert (pending['quote'], pending['offer_state'], pending['quote_error']) == (None, 'pending', 'offer_pending')
+    decide_offer(shop.store, shop.commercial.access, auto_review.principal(shop.commercial.access),
+                 shop.sponsor._campaign_id(created['order_id']), approve=False, reason='endpoint not reachable')
+    rejected = status(shop, created['order_id'], created['read_key']).json()
+    assert rejected['offer_state'] == 'rejected' and rejected['offer_hold_reasons'] == ['endpoint not reachable']
+    assert rejected['quote'] is None and rows(shop.store, 'SELECT id FROM adc2_paid_bookings') == []
 
 
 def test_an_idempotency_key_is_refused_so_no_layer_keeps_the_read_key(shop):
