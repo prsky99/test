@@ -65,3 +65,22 @@ def test_a_card_with_a_credential_in_its_address_gets_no_direct_endpoint():
     card = _card(url='https://x711.io/mcp?key=secret', tool_unlisted=True, connection_note='Not relayed.')
     assert 'direct_endpoint' not in card and card['connection_note'] == 'Not relayed.'
     assert 'secret' not in str(card)
+
+
+@pytest.mark.parametrize('url', [
+    'https://mcp.example.com/sse/9f86d081884c7d659a2feaa0c55ad015a3bf4f1b',     # hex key
+    'https://mcp.example.com/mcp/aGVsbG8td29ybGQtc2VjcmV0LXRva2VuLTEyMw',       # base64 run
+    'https://mcp.example.com/u/sk_live_51HbXyZ2eKj4Lm9QwErTy0',                 # mixed token
+])
+def test_an_address_with_a_key_in_its_path_is_not_given(url):
+    """PM 11-18: a key in the path is a credential too; a public registry listing it is no reason to repeat it."""
+    assert direct_endpoint({'kind': 'mcp', 'url': url}) is None
+
+
+@pytest.mark.parametrize('url', [
+    'https://x402-bazaar-rank.x402-bazaar-rank-worker.workers.dev/mcp',
+    'https://mcp.example.com/my-weather-forecast-mcp-server/v1/mcp',          # a readable slug of 30 characters
+    'https://server.smithery.ai/@acme/weather/mcp',
+])
+def test_a_readable_path_is_still_given(url):
+    assert direct_endpoint({'kind': 'mcp', 'url': url}) == url

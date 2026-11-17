@@ -78,6 +78,24 @@ _NOT_PUBLIC_HOST = re.compile(r'(?:^localhost$|\.local$|\.localhost$|\.internal$
 DIRECT_NOTE = ' Connect from your own client at the direct_endpoint below; we do not relay this tool.'
 
 
+def _token_segment(segment):
+    """A path piece that may be a credential (PM 11-18): 24+ characters of hex, or a mixed high-entropy run
+    (/sse/<base64>, /mcp/<token>). A readable slug of words (my-weather-mcp-server) is not one."""
+    import math
+    from collections import Counter
+    text = unquote(segment)
+    if len(text) < 24:
+        return False
+    if re.fullmatch(r'[0-9a-fA-F]{24,}', text):
+        return True
+    if re.fullmatch(r'[a-z]+(?:[-_.][a-z]+)*', text):
+        return False
+    counts = Counter(text)
+    entropy = -sum(n / len(text) * math.log2(n / len(text)) for n in counts.values())
+    kinds = sum(bool(re.search(pattern, text)) for pattern in (r'[a-z]', r'[A-Z]', r'[0-9]'))
+    return entropy >= 3.5 and kinds >= 2
+
+
 def direct_endpoint(value, resource=None):
     """The provider's own public MCP address for a card our gateway does not relay (PM 11-18 decision, option A), or None.
 
@@ -106,6 +124,8 @@ def direct_endpoint(value, resource=None):
         pass                                   # a name, not an address
     if any(_SECRET_QUERY.search(name) for name, _ in query):
         return None
+    if any(_token_segment(piece) for piece in parsed.path.split('/') if piece):
+        return None                            # a key in the path: never repeated in an answer (PM 11-18)
     return url.strip()
 
 
