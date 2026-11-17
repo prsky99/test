@@ -869,8 +869,14 @@ class Runner:
         self._submit(pool, st, rank, member, st["values"], run_started)
 
     def _advance(self, pool, st, values, run_started):
-        """Start the next chain member of a slot that has no answer and nothing in flight."""
-        while st["queue"] and not st["inflight"] and not st["result"].answers:
+        """Start the next chain member of a slot that has no answer yet, while fewer members than its fanout are in
+        flight. Fanout 1: once nothing is in flight (unchanged). Fanout 2 and more (PM 11-17, topic v1 round 1): a lead
+        that fails frees its place at once, so the next member starts next to a slow lead instead of waiting for it to
+        time out (133019 never started in 16 of 19 cases). Never more in flight than the leads started together
+        (a fallback only takes a place a failed lead freed), and a slot that has an answer starts nobody new
+        (unchanged), so an answered slot never waits longer than before."""
+        places = max(1, st.get("places", 1))
+        while st["queue"] and not st["result"].answers and len(st["inflight"]) < places:
             rank, member = st["queue"].pop(0)
             if (st["deadline"] - self.clock()) * 1000 < MIN_ATTEMPT_MS:
                 st["result"].attempts.append(Attempt(member.get("resource_id"), member["tool"], member["kind"],
@@ -884,8 +890,9 @@ class Runner:
         fanout = max(1, st["slot"].get("fanout", 1))
         lead = [(r, m) for r, m in st["ranked"] if m["kind"] == "external"][:fanout]
         st["queue"] = [x for x in st["ranked"] if x not in lead]
-        for rank, member in lead:
-            self._submit(pool, st, rank, member, values, run_started)
+        # members in flight at once before an answer: the leads actually sent (a lead our cap refused frees no
+        # place, so a full cap is not retried with the next member; at least one, _advance)
+        st["places"] = sum(bool(self._submit(pool, st, rank, member, values, run_started)) for rank, member in lead)
         self._advance(pool, st, values, run_started)
 
     @staticmethod
