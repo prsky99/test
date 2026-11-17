@@ -663,13 +663,31 @@ def is_about(entry_text: str, title: str, values: dict) -> bool:
     words = name_words(legal)
     head = re.sub(r"\([^)]*\)", " ", _TAG.sub("", title or "")).lower()
     title_words = name_words(head)
-    if not words or not title_words or sorted(set(title_words)) != sorted(set(words)):
+    if not words or not title_words:
         return False
+    if sorted(set(title_words)) != sorted(set(words)):
+        return renamed_entity(text, title_words, words)
     # the title's legal forms must be the company's own ("Sun Group" is not "SUN"; "Scholastic Corporation" is
     # "SCHOLASTIC CORP")
     if not _forms(head) <= _forms(legal) | {"the", "and", "of", "new"}:
         return False
     return bool(COMPANY_WORDS.search(text))
+
+
+ENTITY_FORM = r"(?:inc|incorporated|corp|corporation|co|company|ltd|limited|plc|llc|lp)"   # not group or holdings ("Sun Group" is not SUN)
+
+
+def renamed_entity(text: str, title_words: list[str], words: list[str]) -> bool:
+    """PM 11-18 (company v3 round 1, 2 of the 3 failed companies with an article): the article's title is a later or
+    brand name ("Deckers Brands" for DECKERS OUTDOOR CORP, "Acuity Brands" for ACUITY INC.). The entry is still the
+    company when its title has the name's first distinctive word and its opening text (first 600 characters) names
+    the registered entity: the name's words in a row followed by a legal form ("Deckers Outdoor Corporation",
+    "Acuity Inc."), over a text that reads as a company. A person, a list or another company that only mentions the
+    name has neither ("Acuity Brands, Inc." is not "Acuity Inc.")."""
+    if words[0] not in title_words:
+        return False
+    phrase = r"\b" + r"[^a-z0-9]{1,3}".join(re.escape(w) for w in words) + r"[^a-z0-9]{1,3}" + ENTITY_FORM + r"\b"
+    return bool(re.search(phrase, text[:600])) and bool(COMPANY_WORDS.search(text))
 
 
 _SAME_FORM = {"corporation": "corp", "incorporated": "inc", "company": "co", "limited": "ltd", "holding": "holdings"}
