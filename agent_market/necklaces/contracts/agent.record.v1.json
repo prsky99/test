@@ -1,0 +1,124 @@
+{
+  "id": "agent.record.v1",
+  "role": "AgentValCon's own record of one agent or MCP server: whether we list it, its quality grade, recent reachability checks and its latest role test score (workflow 11-16 for mcp-server-trust-check; the source is our collection and test records, nothing is called)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "name": {
+        "type": "string",
+        "minLength": 3,
+        "maxLength": 200
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      },
+      "found": {
+        "type": "boolean"
+      },
+      "agent_id": {
+        "type": "integer"
+      },
+      "name": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "mcp",
+          "a2a",
+          "x402"
+        ]
+      },
+      "grade": {
+        "type": "string",
+        "pattern": "^[A-F]$"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "healthy",
+          "degraded",
+          "down",
+          "inactive",
+          "unknown"
+        ]
+      },
+      "last_checked_at": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "success_rate": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      },
+      "checks": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "role_test": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "tested_at": {
+            "type": "string",
+            "maxLength": 40
+          }
+        },
+        "required": [
+          "role",
+          "score",
+          "tested_at"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "answer",
+      "source",
+      "found"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "not listed is a normal answer: found false",
+    "grade or status named: grade [A-F]|healthy|degraded|down|inactive|not listed|no record",
+    "read-only lookup of our own records; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "url": "https://agentconcierge.biz/mcp",
+      "name": "AgentValCon"
+    }
+  ]
+}

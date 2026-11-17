@@ -133,6 +133,11 @@ SITE_TLS = {"name": "The website's own TLS certificate (read in the TLS handshak
             "license": "Public facts a server presents to every visitor; nothing is downloaded beyond the handshake",
             "notice": "Port 443 only, to a public address checked before connecting; the certificate the site serves now."}
 
+OUR_RECORDS = {"name": "AgentValCon collection and test records (published snapshots)",
+               "url": "https://agentconcierge.biz/methodology", "license": "our own data",
+               "notice": "The task-page catalog (daily), the verified MCP registry (hourly) and the role test "
+                         "snapshot; nothing is called and an agent outside them is answered as not found."}
+
 NPM_README = {**NPM, "name": "npm public registry (package README)",
               "license": "npm Open-Source Terms (https://docs.npmjs.com/policies/open-source-terms); each README "
                          "stays under its own package's license, quoted only for the first code example"}
@@ -394,6 +399,13 @@ SPECS = {
                        "the final address after redirects and whether it stays on HTTPS; read-only, the body is not kept.",
         "sources": [SITE_GET],
         "rate": "one GET a check (redirects followed one hop at a time); no cache",
+    },
+    "agent-record": {
+        "name": "AgentValCon Agent Record", "tool": "check_agent_record", "contract": "agent.record.v1",
+        "description": "What AgentValCon's own records say about an agent or MCP server, by its https URL or name: "
+                       "listed or not, quality grade, reachability, last check and best role test score; read-only.",
+        "sources": [OUR_RECORDS],
+        "rate": "no network calls; reads our published snapshots",
     },
     "package-readme": {
         "name": "AgentValCon Package README Guide", "tool": "get_package_readme", "contract": "docs.readme.v1",

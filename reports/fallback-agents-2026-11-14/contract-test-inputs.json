@@ -994,5 +994,22 @@
    null,
    {}
   ]
+ ],
+ "agent-record": [
+  [
+   {
+    "url": "https://agentconcierge.biz/mcp",
+    "name": "AgentValCon"
+   },
+   "ok",
+   "fresh_cache",
+   {}
+  ],
+  [
+   {},
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }

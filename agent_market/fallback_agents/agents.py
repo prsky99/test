@@ -68,7 +68,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
            "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400, "tls-certificate": 86400,
            "sec-company-profile": 24 * 3600, "sun-times": 10 * 365 * 86400, "site-reachability": 60,
-           "dns-spf-dmarc": 86400, "package-readme": 86400}  # rules age from the library release; update the pin at least yearly
+           "dns-spf-dmarc": 86400, "package-readme": 86400, "agent-record": 2 * 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -1706,6 +1706,66 @@ class FallbackAgents:
         else:
             out["answer"] = f"{domain}: the TLS certificate does not validate ({facts.get('reason') or 'unknown reason'})."
         return out, cache, False, {"TLS handshake": as_of}
+
+    def _agent_record(self, args, remaining):
+        """agent.record.v1 (mcp-server-trust-check our_record seat, agent team 11-17): what AgentValCon's own
+        published records say about an agent or MCP server, found by its URL or name (our_records.py: the task-page
+        catalog, the verified registry and the verify snapshot). Nothing is called and the database is not read; a
+        server outside those records is answered as not found in our published records."""
+        from datetime import datetime as _dt, timezone as _tz
+        from ..concierge.agent_check import CheckError
+        from .our_records import RECORDS
+        url = str(args.get("url") or "").strip() or None
+        name = str(args.get("name") or "").strip() or None
+        if not url and not name:
+            raise FallbackUnavailable("invalid_input", "Give the agent's https URL or its name.")
+        try:
+            rid, matched = RECORDS.find(url, name)
+        except CheckError as exc:
+            raise FallbackUnavailable("invalid_input", str(exc)) from exc
+        source = "AgentValCon collection and test records (published snapshots)"
+        if rid is None:
+            what = url or name
+            return ({"found": False, "source": source,
+                     "answer": f"{what} is not in AgentValCon's published records (listed agents, verified MCP servers "
+                               "and tested agents). Nothing was called to answer this."},
+                    {"status": "fresh_cache", "age_seconds": 0}, False, {source: _now_iso(self.utc_now())})
+        entry = RECORDS.entry(rid)
+        cat, reg, ver = entry.get("catalog") or {}, entry.get("registry") or {}, entry.get("verify") or {}
+        meta = ((reg.get("_meta") or {}).get("biz.agentconcierge/verification") or {})
+        out = {"found": True, "agent_id": rid, "source": source, "url": f"https://agentconcierge.biz/agent/{rid}"}
+        name_out = cat.get("name") or (reg.get("server") or {}).get("name") or ver.get("name")
+        if isinstance(name_out, str):
+            out["name"] = _text(name_out, 200)
+        kind = cat.get("kind") or ver.get("kind") or ("mcp" if reg else None)
+        if kind in ("mcp", "a2a", "x402"):
+            out["kind"] = kind
+        grade = cat.get("eval_grade") or meta.get("grade") or ver.get("grade")
+        if isinstance(grade, str) and grade in "ABCDEF" and len(grade) == 1:
+            out["grade"] = grade
+        status = cat.get("health_status")
+        out["status"] = status if status in ("healthy", "degraded", "down", "inactive") else "unknown"
+        if isinstance(cat.get("last_check_at"), (int, float)):
+            out["last_checked_at"] = _dt.fromtimestamp(cat["last_check_at"], _tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        elif isinstance(meta.get("last_success_at"), str):
+            out["last_checked_at"] = meta["last_success_at"][:40]
+        tested = [r for r in ver.get("roles") or [] if isinstance(r, dict) and isinstance(r.get("score"), (int, float))
+                  and r.get("tested_at")]
+        if tested:
+            best = max(tested, key=lambda r: (r["score"], str(r["tested_at"])))
+            out["role_test"] = {"role": _text(best.get("role"), 80), "score": round(float(best["score"]), 1),
+                                "tested_at": _text(best["tested_at"], 40)}
+        parts = [f"{out.get('name', rid)} (AgentValCon agent {rid}, matched by {matched})"]
+        if out.get("grade"):
+            parts.append(f"quality grade {out['grade']}")
+        parts.append(f"reachability {out['status']}" + (f", last checked {out['last_checked_at']}" if out.get("last_checked_at") else ""))
+        if meta.get("listed"):
+            parts.append("listed in our verified MCP registry" + (f" (tool {meta['checked_tool']} called)" if meta.get("checked_tool") else ""))
+        if out.get("role_test"):
+            rt = out["role_test"]
+            parts.append(f"best role test {rt['role']} {rt['score']}/100 on {rt['tested_at']}")
+        out["answer"] = "; ".join(parts) + ". From our published records; nothing was called."
+        return out, {"status": "fresh_cache", "age_seconds": 0}, False, {source: _now_iso(self.utc_now())}
 
     def _package_readme(self, args, remaining):
         """docs.readme.v1 (package-risk-audit v2 usage seat, agent team 11-17): how to use an npm package now, from the

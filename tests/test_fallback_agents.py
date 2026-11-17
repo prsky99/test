@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile", "sun-times", "site-reachability", "dns-spf-dmarc", "package-readme"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile", "sun-times", "site-reachability", "dns-spf-dmarc", "package-readme", "agent-record"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2757,3 +2757,34 @@ def test_package_readme_gate_judge_and_builder():
                     lambda owner, repo: README)
     assert len(cases) == 1 and cases[0]["truth"]["code_blocks"] == ["const leftPad = require('left-pad')\nleftPad('foo', 5)"]
     assert cases[0]["truth"]["repository_github"] == "x/left-pad"
+
+
+
+# ---------------------------------------------------------------- agent-record (agent team 11-17)
+def test_agent_record_answers_from_our_published_snapshots(tmp_path, monkeypatch):
+    import hashlib
+    from agent_market.fallback_agents import our_records
+    cat = {"catalog": [{"id": 7, "name": "Weather Tools", "kind": "mcp", "eval_grade": "A", "health_status": "healthy",
+                        "last_check_at": 1.8e9, "url_key": hashlib.sha256(b"https://wx.example.com/mcp").hexdigest()[:20]}]}
+    reg = {"servers": [{"_id": 9, "server": {"name": "io.github.example/files", "remotes": [{"url": "https://files.example.com/mcp"}]},
+                        "_meta": {"biz.agentconcierge/verification": {"listed": True, "grade": "A", "checked_tool": "list_files",
+                                                                       "last_success_at": "2027-01-15T08:00:00Z"}}}]}
+    ver = {"agents": {"7": {"roles": [{"role": "weather.forecast.v1", "score": 91.5, "tested_at": "2027-01-14T09:12:00+0900"},
+                                      {"role": "geo.v1", "score": 40, "tested_at": "2027-01-13T09:12:00+0900"}]}}}
+    for env, value in (("AGENT_RECORD_CATALOG", cat), ("AGENT_RECORD_REGISTRY", reg), ("AGENT_RECORD_VERIFY", ver)):
+        path = tmp_path / (env + ".json"); path.write_text(json.dumps(value)); monkeypatch.setenv(env, str(path))
+    monkeypatch.setattr(our_records, "RECORDS", our_records.Records())
+    a, _ = agents(tmp_path, {})
+    r = a.execute("agent-record", {"url": "https://wx.example.com/mcp/"})["result"]
+    assert r["found"] and r["agent_id"] == 7 and r["grade"] == "A" and r["status"] == "healthy" and r["kind"] == "mcp"
+    assert r["role_test"] == {"role": "weather.forecast.v1", "score": 91.5, "tested_at": "2027-01-14T09:12:00+0900"}
+    assert r["url"] == "https://agentconcierge.biz/agent/7" and "matched by url" in r["answer"]
+    r = a.execute("agent-record", {"name": "IO.GITHUB.EXAMPLE/FILES"})["result"]
+    assert r["found"] and r["agent_id"] == 9 and r["status"] == "unknown" and "list_files" in r["answer"]
+    assert r["last_checked_at"] == "2027-01-15T08:00:00Z" and "role_test" not in r
+    r = a.execute("agent-record", {"url": "https://nobody.example.com/mcp"})["result"]
+    assert r["found"] is False and "not in AgentValCon's published records" in r["answer"]
+    for bad in ({}, {"url": "https://127.0.0.1/mcp"}):
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("agent-record", bad)
+        assert err.value.code == "invalid_input"
