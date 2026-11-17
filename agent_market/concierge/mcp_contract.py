@@ -23,12 +23,12 @@ DESCRIPTIONS_B = {
 def mcp_tools():
     TOKEN_ARG = {"visitor_token": {"type": "string", "description": "Your visitor token (vt_…) so I remember you. Omit on first contact."}}
     TOOLS = [
-        {"name": "hello", "description": "Optional greeting. Greets you, remembers you if you pass your visitor token, and asks what you need.",
+        {"name": "hello", "description": "Get a visitor token so later calls remember you (optional). Greets you and asks what you need.",
          "inputSchema": {"type": "object", "properties": {**TOKEN_ARG, "name": {"type": "string", "description": "Your agent name"}}},
          "annotations": {"readOnlyHint": False}},
-        {"name": "chat", "description": "Converse: describe a task in plain English and refine it over several turns ('only free ones', 'details 1', 'more', 'what's new', 'stop'). Keeps the conversation for your visitor token; replies are in English.",
+        {"name": "chat", "description": "Find an agent by describing your task in plain English and narrowing it over several turns ('only free ones', 'details 1', 'more', 'what's new', 'stop'). Keeps the conversation for your visitor token; replies are in English.",
          "inputSchema": {"type": "object", "properties": {"message": {"type": "string"}, **TOKEN_ARG}, "required": ["message"]}},
-        {"name": "search", "description": "Browse: list up to three catalog matches for a task so you can compare names, grades and latest successful verification. Stateless and read-only; no conversation is saved. Searches A2A first, then MCP; x402 requires an explicit choice. price_status is free, paid or paid_or_unknown (price_usdc null). Returns the same ranked list as find_agents; use find_agents when you are ready to connect.",
+        {"name": "search", "description": "Compare up to three catalog agents for a task by name, grade and last successful check. Stateless and read-only; no conversation is saved. Searches A2A first, then MCP; x402 requires an explicit choice. price_status is free, paid or paid_or_unknown (price_usdc null). Returns the same ranked list as find_agents; use find_agents when you are ready to connect.",
          "inputSchema": {"type": "object", "properties": {
              "task": {"type": "string", "description": "The specific capability needed (e.g. 'weather forecast', 'stock price', 'web search')"},
              "kind": {"type": "string", "enum": [*KINDS, "any"], "description": "Explicit recommendation protocol filter; Any searches A2A then MCP, excluding x402. Defaults to A2A first, then MCP; x402 requires an explicit choice."},
@@ -36,26 +36,26 @@ def mcp_tools():
              "auth": {"type": "string", "enum": ["none", "agent"], "description": "Compatibility field; authentication preference does not affect ranking."},
              "k": {"type": "integer", "description": "Compatibility field; at most three results is returned."},
              **TOKEN_ARG}, "required": ["task"]}},
-        {"name": "find_agents", "description": "Recommend and connect: pick up to three active agents for a task and get what you need to connect to each (endpoint, verification evidence, calling details). Stateless and read-only; no conversation is saved. price_status is free, paid (price_usdc per call in micro-USDC) or paid_or_unknown (the provider states a price or none is known; price_usdc is null). A listing our gateway can run has connection_available (same as gateway_ready) and run_here: pass its arguments to this server's call tool to run it in this session; mcp_config is a settings entry for an MCP host. Each result shows when the agent was last checked; before a later call, run check_agent on its endpoint, and if a call fails, call report with ok false for alternatives.",
+        {"name": "find_agents", "description": "Get up to three recently verified agents for your task, with what you need to call each one (endpoint, verification evidence, calling details). Stateless and read-only; no conversation is saved. price_status is free, paid (price_usdc per call in micro-USDC) or paid_or_unknown (the provider states a price or none is known; price_usdc is null). A listing our gateway can run has connection_available (same as gateway_ready) and run_here: pass its arguments to this server's call tool to run it in this session; mcp_config is a settings entry for an MCP host. Each result shows when the agent was last checked; before a later call, run check_agent on its endpoint, and if a call fails, call report with ok false for alternatives.",
          "inputSchema": {"type": "object", "properties": {
              "task": {"type": "string", "description": "What you need done"},
              "kind": {"type": "string", "enum": [*KINDS, "any"], "description": "Explicit recommendation protocol filter; Any searches A2A then MCP, excluding x402. Defaults to A2A first, then MCP; x402 requires an explicit choice."},
              "category": {"type": "string", "enum": list(CATEGORIES.keys()), "description": "Compatibility field; task relevance is derived from the task text."},
              "auth": {"type": "string", "enum": ["none", "agent"], "description": "Compatibility field; authentication preference does not affect ranking."},
              **TOKEN_ARG}, "required": ["task"]}},
-        {"name": "check_agent", "description": "Read-only check before you call an agent: our recorded status, recent check success rate and latency, grade, evidence sources and up to three alternatives for an endpoint or agent-card URL. The URL is only looked up, never called. Use it before each call, also for agents we recommended earlier: status changes between checks.",
+        {"name": "check_agent", "description": "See an agent's recorded status, success rate and latency before you call it, with its grade, evidence sources and up to three alternatives (read-only, for an endpoint or agent-card URL). The URL is only looked up, never called. Use it before each call, also for agents we recommended earlier: status changes between checks.",
          "inputSchema": {"type": "object", "properties": {
              "url": {"type": "string", "description": "The agent's endpoint or agent-card URL (public http or https)."},
              **TOKEN_ARG}, "required": ["url"]}},
-        {"name": "whats_new", "description": "Read the last task saved by chat and re-evaluate its evidence without changing it. Use chat to save a task first (valid visitor token required).",
+        {"name": "whats_new", "description": "Re-check the evidence for the last task you saved with chat, without changing it. Use chat to save a task first (valid visitor token required).",
          "inputSchema": {"type": "object", "properties": TOKEN_ARG, "required": ["visitor_token"]}},
-        {"name": "subscribe", "description": "Legacy contact command. Use /api/task-updates with explicit task scope and authorization; this command cannot grant permission.",
+        {"name": "subscribe", "description": "This legacy command is closed. Use POST /api/task-updates with an explicit task scope.",
          "inputSchema": {"type": "object", "properties": {"contact_url": {"type": "string"},
                                                           "contact_type": {"type": "string", "enum": ["webhook", "a2a"]}, **TOKEN_ARG},
                          "required": ["contact_url"]}},
-        {"name": "verify_contact", "description": "Confirm your contact with the 6-digit code I sent there.",
+        {"name": "verify_contact", "description": "This legacy contact check is closed. Use POST /api/task-updates with an explicit task scope.",
          "inputSchema": {"type": "object", "properties": {"code": {"type": "string"}, **TOKEN_ARG}, "required": ["code", "visitor_token"]}},
-        {"name": "call", "description": "Run one tool of a listing you chose, through our gateway, after checking its current schema. Only tools classified read-only are relayed; destructive tools and tools that need the provider's own credentials are refused. A paid listing runs only with a payment proof you supply. Do not retry an uncertain outcome automatically.",
+        {"name": "call", "description": "Run a read-only tool of a recommended agent through our gateway and get its answer in this session, after checking its current schema. Only tools classified read-only are relayed; destructive tools and tools that need the provider's own credentials are refused. A paid listing runs only with a payment proof you supply. Do not retry an uncertain outcome automatically.",
          "inputSchema": {"type": "object", "properties": {
              "resource_id": {"type": "integer", "description": "The resource_id of the agent, MCP server, or API to call"},
              "tool": {"type": "string", "description": "The specific tool name to execute"},
@@ -66,7 +66,7 @@ def mcp_tools():
              "idempotency_key": {"type": "string", "minLength": 1, "maxLength": 128,
                  "description": "Stable caller key for supported ticketed delivery while its execution record is retained. Reuse with identical input; uncertain execution stays paused for review."},
              **TOKEN_ARG}, "required": ["resource_id", "tool"]}},
-        {"name": "report", "description": "Record caller feedback. On failure, suggest up to three currently verified alternatives and eligible published workflows without executing a retry. Retain the selected protocol and reject known shared failure domains.",
+        {"name": "report", "description": "Tell us whether a call worked; on a failure, get up to three currently verified alternatives and eligible published workflows (no retry is executed). Retain the selected protocol and reject known shared failure domains.",
          "inputSchema": {"type": "object", "properties": {
              "resource_id": {"type": "integer", "description": "The resource_id of the agent/tool that was executed"},
              "ok": {"type": "boolean", "description": "Whether the tool call succeeded (true) or failed (false)"},
@@ -77,12 +77,12 @@ def mcp_tools():
                  "description": "Optional explicit recovery scope; otherwise retain the prior selection."},
              "task": {"type": "string", "description": "The task query (optional; defaults to your last searched task)"},
              **TOKEN_ARG}, "required": ["resource_id", "ok"]}},
-        {"name": "credit", "description": "Check your own virtual credit balance using a valid visitor token. Top-ups and subscriptions are being prepared; this tool only reads the current balance.",
+        {"name": "credit", "description": "Read your virtual credit balance (visitor token required). Top-ups and subscriptions are being prepared; this tool only reads the current balance.",
          "inputSchema": {"type": "object", "properties": {
              "action": {"type": "string", "enum": ["balance"], "description": "Action: balance to check your credits."},
              "account_id": {"type": "string", "description": "Your own visitor account ID (defaults to the authenticated visitor ID)"},
              **TOKEN_ARG}, "required": ["action"]}},
-        {"name": "adapt_rest", "description": "Turn a public OpenAPI/Swagger document into tools (action list_tools, which only reads the document) or call one of its endpoints (action call). A call sends the HTTP method the document declares, including POST, PUT or DELETE, to that public API without credentials, so it can change data there.",
+        {"name": "adapt_rest", "description": "Turn a public OpenAPI document into tools you can call, or call one of its endpoints (action list_tools only reads the document; action call sends the request). A call sends the HTTP method the document declares, including POST, PUT or DELETE, to that public API without credentials, so it can change data there.",
          "inputSchema": {"type": "object", "properties": {
              "spec_url": {"type": "string", "description": "URL of the OpenAPI/Swagger JSON specification."},
              "spec": {"type": "object", "description": "Inline OpenAPI JSON specification object."},
@@ -93,12 +93,12 @@ def mcp_tools():
              **TOKEN_ARG}}},
     ]
     TOOLS.extend([
-        {'name': 'search_workflows', 'description': 'Find up to three relevant published workflows by purpose, node capability, or English and common non-English aliases. Discovery does not execute it.',
+        {'name': 'search_workflows', 'description': 'Find up to three ready-made multi-agent workflows (necklaces) for a purpose, by capability or common aliases. Discovery does not execute it.',
          'inputSchema': {'type': 'object', 'properties': {
              'task': {'type': 'string', 'minLength': 1, 'maxLength': 2000},
              'protocol': {'type': 'string', 'enum': [*KINDS, 'any'], 'description': 'Optional explicit constraint on workflow node protocols.'},
              **TOKEN_ARG}, 'required': ['task']}, 'annotations': {'readOnlyHint': True}},
-        {'name': 'workflow_details', 'description': 'Read a currently public workflow definition and its recorded execution readiness. Review inputs and use the existing authorized workflow run API to execute.',
+        {'name': 'workflow_details', 'description': 'See a published workflow\'s steps and whether it is ready to run. Review inputs and use the existing authorized workflow run API to execute.',
          'inputSchema': {'type': 'object', 'properties': {
              'template_id': {'type': 'integer', 'minimum': 1, 'maximum': 2147483647}, **TOKEN_ARG},
              'required': ['template_id']}, 'annotations': {'readOnlyHint': True}},
@@ -111,8 +111,8 @@ def mcp_tools():
         'find_agents': ('Use when you want to connect to one of them now or run it here with call.', '{"task": "extract text from a PDF", "kind": "mcp"}'),
         'check_agent': ('Use before each call to an agent, including one we recommended earlier, or when you already have an agent URL.', '{"url": "https://agent.example.org/.well-known/agent-card.json"}'),
         'whats_new': ('Use when you saved a task through chat earlier and want its evidence re-checked.', '{"visitor_token": "vt_..."}'),
-        'subscribe': ('Use only for legacy contact registration; task updates use /api/task-updates.', '{"contact_url": "https://example.org/hook", "contact_type": "webhook"}'),
-        'verify_contact': ('Use after subscribe, with the code delivered to that contact.', '{"code": "123456", "visitor_token": "vt_..."}'),
+        'subscribe': ('Closed; task updates use POST /api/task-updates with an explicit task scope.', '{"contact_url": "https://example.org/hook", "contact_type": "webhook"}'),
+        'verify_contact': ('Closed; task updates use POST /api/task-updates with an explicit task scope.', '{"code": "123456", "visitor_token": "vt_..."}'),
         'call': ('Use when you have chosen a listing and want this gateway to run one of its admitted tools.', '{"resource_id": 133020, "tool": "get_country_profile", "arguments": {"country_code": "US"}}'),
         'report': ('Use after a call to record the outcome and, on failure, get verified alternatives.', '{"resource_id": 133020, "ok": false, "error_type": "timeout"}'),
         'credit': ('Use when you need your own credit balance before a paid call.', '{"action": "balance", "visitor_token": "vt_..."}'),

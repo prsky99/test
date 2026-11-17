@@ -25,9 +25,9 @@ def test_tool_names_are_unchanged():
 
 def test_search_find_agents_and_chat_open_with_their_own_purpose():
     tools = by_name()
-    assert tools['search']['description'].startswith('Browse:')
-    assert tools['find_agents']['description'].startswith('Recommend and connect:')
-    assert tools['chat']['description'].startswith('Converse:')
+    assert tools['search']['description'].startswith('Compare up to three catalog agents')
+    assert tools['find_agents']['description'].startswith('Get up to three recently verified agents')
+    assert tools['chat']['description'].startswith('Find an agent by describing your task')
     leads = [first_sentence(t) for t in mcp_tools()]
     assert len(set(leads)) == len(leads)          # no two tools open with the same words
 
