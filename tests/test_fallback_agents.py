@@ -2857,3 +2857,42 @@ def test_agent_record_gate_builder_judge_and_start_condition(tmp_path, monkeypat
     assert "md5(id::text || 'record-r1')" in G.select_sql("record-r1", 25)
     monkeypatch.setenv("AGENT_RECORD_INDEX", str(tmp_path / "none.sqlite3"))
     assert G.index_ok()[0] is False and G.main(["--split", "x"]) == 3          # no index: the gate does not start
+
+
+
+def test_readme_builder_leaves_out_packages_without_a_code_example():
+    """PM 11-17: 'both have none' would pass for free, so a README without code is not a case."""
+    from scripts import gold_package_readme as G
+    readmes = {"a": README, "b": "# b\n\nNo code here.", "c": README}
+    excluded = []
+    cases = G.build(["a", "b", "norepo", "c"], lambda p: {} if p == "norepo" else {"repository": f"https://github.com/x/{p}"},
+                    lambda owner, repo: readmes[repo], keep=2, excluded=excluded)
+    assert [c["truth"]["package"] for c in cases] == ["a", "c"]
+    assert excluded == [{"package": "b", "reason": "the README has no code example"},
+                        {"package": "norepo", "reason": "no GitHub repository in the npm entry"}]
+
+
+@pytest.mark.parametrize("module", ["gold_mail_auth", "gold_package_readme"])
+def test_answer_set_builders_stop_before_any_call_when_the_ledger_refuses(module, tmp_path, monkeypatch):
+    """PM 11-17: a refused reservation ends the build with no request sent (no share is overrun at night)."""
+    import importlib
+    import httpx as _httpx
+    from agent_market import provider_budget
+    G = importlib.import_module("scripts." + module)
+    slug = tmp_path / "gateway-data/necklaces/gold" / G.SLUG
+    slug.mkdir(parents=True)
+    line = {"input": {"domain": "example.org"}} if module == "gold_mail_auth" else {"input": {"package": "a", "ecosystem": "npm"}}
+    (slug / "holdout-r2.jsonl").write_text(json.dumps(line) + "\n")
+    monkeypatch.setattr(G, "ROOT", tmp_path)
+    monkeypatch.setattr(provider_budget, "reserve", lambda url, system, *a, **k: (False, "domain_daily_total"))
+    sent = []
+    monkeypatch.setattr(_httpx.Client, "get", lambda self, *a, **k: sent.append(a) or (_ for _ in ()).throw(AssertionError("sent")))
+    with pytest.raises(SystemExit) as stop:
+        G.main(["--from", "holdout-r2", "--split", "x"])
+    assert "ledger refused" in str(stop.value) and sent == []
+
+
+def test_agent_record_builder_calls_no_provider():
+    """gold_agent_record reads only our own database through scripts.prod_ro_sql: no provider, no ledger share."""
+    src = Path(__file__).resolve().parents[1].joinpath("scripts/gold_agent_record.py").read_text()
+    assert "httpx" not in src and "prod_ro_sql" in src

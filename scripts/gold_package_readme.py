@@ -56,16 +56,25 @@ def repo_of(latest: dict) -> tuple[str, str] | None:
     return (m.group(1), m.group(2)) if m else None
 
 
-def build(packages: list[str], get_latest, get_readme, keep: int = 30, origin: dict | None = None) -> list[dict]:
-    """ORIGIN maps a package to the split it came from; each case records it (PM 11-17 12:0x: fill cases are named)."""
+def build(packages: list[str], get_latest, get_readme, keep: int = 30, origin: dict | None = None,
+          excluded: list | None = None) -> list[dict]:
+    """ORIGIN maps a package to the split it came from; each case records it (PM 11-17 12:0x: fill cases are named).
+    EXCLUDED collects the packages left out and why (PM 11-17: a README without a code example would pass on 'both
+    have none', so such a package is not a case; the next one in order is taken)."""
     cases = []
+    skipped = excluded if excluded is not None else []
     for package in packages:
         latest = get_latest(package)
         repo = repo_of(latest or {})
         if not repo:
+            skipped.append({"package": package, "reason": "no GitHub repository in the npm entry"})
             continue
         readme = get_readme(*repo)
         if readme is None:
+            skipped.append({"package": package, "reason": "no README.md at the repository's default branch"})
+            continue
+        if not code_blocks(readme):
+            skipped.append({"package": package, "reason": "the README has no code example"})
             continue
         cases.append({"case_id": f"readme:{package}", "input": {"package": package, "ecosystem": "npm"},
                       "task_type": "substitute", "stratum": "npm", "source_split": (origin or {}).get(package),
@@ -128,9 +137,13 @@ def main(argv=None) -> int:
     def get_readme(owner, repo):
         r = fetch(f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD/README.md")
         return r.text if r is not None else None
-    cases = build(packages, get_latest, get_readme, origin=origin)
+    excluded = []
+    cases = build(packages, get_latest, get_readme, origin=origin, excluded=excluded)
     if len(cases) < 30:
-        print(f"only {len(cases)} cases from {len(packages)} packages; not written"); return 1
+        print(f"only {len(cases)} cases from {len(packages)} packages ({len(excluded)} left out); not written")
+        for e in excluded:
+            print(f"  left out {e['package']}: {e['reason']}")
+        return 1
     src = [{"name": "GitHub repository README (raw.githubusercontent.com, default branch), each under its own license",
             "url": "https://raw.githubusercontent.com/", "fetched_at": fetched},
            {"name": "npm public registry (repository field only)", "url": "https://registry.npmjs.org/", "fetched_at": fetched}]
@@ -148,7 +161,8 @@ def main(argv=None) -> int:
     data.setdefault("files", {})[ns.split] = {
         "cases": len(cases), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), "from": ns.source.split(","),
         "for": "package-readme substitute gate (docs.readme.v1)", "spares": spare_note,
-        "spare_cases": [c["case_id"] for c in cases if c.get("source_split") == "spare"]}
+        "spare_cases": [c["case_id"] for c in cases if c.get("source_split") == "spare"],
+        "excluded": [{**e, "split": origin.get(e["package"])} for e in excluded]}
     tmp = manifest.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1))
     tmp.replace(manifest)
