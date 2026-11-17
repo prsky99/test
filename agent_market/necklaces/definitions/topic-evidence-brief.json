@@ -1,9 +1,9 @@
 {
   "slug": "topic-evidence-brief",
-  "version": 1,
+  "version": 2,
   "status": "candidate",
   "name": "Topic evidence brief",
-  "summary": "A cited brief on one topic: a grounded web answer, the most relevant papers from more than one index, an encyclopedia summary and recent news.",
+  "summary": "A cited brief on one topic: a grounded web answer, the most relevant papers, an encyclopedia summary and recent news.",
   "input_schema": {
     "type": "object",
     "properties": {
@@ -20,12 +20,12 @@
   },
   "budget_ms": {
     "total": 5000,
-    "slot": 3500
+    "slot": 4500
   },
   "synthesis": {
     "kind": "merge-v1",
     "rules": [
-      "papers from two indexes are merged by DOI or arXiv id and marked agreed when both list them",
+      "papers keep their DOI or arXiv id and source link",
       "every statement keeps its source link",
       "news is optional and dated"
     ]
@@ -82,84 +82,8 @@
       "slot": "papers",
       "contract": "papers.search.v1",
       "required": true,
-      "fanout": 2,
+      "fanout": 1,
       "chain": [
-        {
-          "kind": "external",
-          "resource_id": 39577,
-          "tool": "search_papers",
-          "registrable_domain": "nobleblocks.com",
-          "upstream": [
-            "unknown"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "pearl": false,
-          "state": "active",
-          "input_map": {
-            "query": "{{input.topic}}",
-            "limit": 10
-          }
-        },
-        {
-          "kind": "external",
-          "resource_id": 34550,
-          "tool": "search_papers",
-          "registrable_domain": "cutgpt.app",
-          "upstream": [
-            "unknown"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "pearl": false,
-          "state": "active",
-          "input_map": {
-            "query": "{{input.topic}}",
-            "limit": 10
-          }
-        },
-        {
-          "kind": "external",
-          "resource_id": 34807,
-          "tool": "search_papers",
-          "registrable_domain": "openkrill.app",
-          "upstream": [
-            "unknown"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "pearl": false,
-          "state": "active",
-          "input_map": {
-            "query": "{{input.topic}}",
-            "limit": 10
-          }
-        },
-        {
-          "kind": "external",
-          "resource_id": 47151,
-          "tool": "openalex_search_entities",
-          "registrable_domain": "caseyjhand.com",
-          "upstream": [
-            "openalex"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "pearl": false,
-          "state": "active",
-          "input_map": {
-            "entity_type": "works",
-            "query": "{{input.topic}}"
-          }
-        },
         {
           "kind": "agentcon",
           "agent_id": "arxiv-search",
@@ -228,42 +152,6 @@
           }
         },
         {
-          "kind": "external",
-          "resource_id": 47189,
-          "tool": "wikipedia_get_summary",
-          "registrable_domain": "caseyjhand.com",
-          "upstream": [
-            "wikipedia"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": null,
-          "resend_safe": false,
-          "pearl": false,
-          "state": "active",
-          "input_map": {
-            "title": "{{input.topic}}"
-          }
-        },
-        {
-          "kind": "external",
-          "resource_id": 143970,
-          "tool": "wiki_summary",
-          "registrable_domain": "faceabot.com",
-          "upstream": [
-            "wikipedia"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "pearl": false,
-          "state": "active",
-          "input_map": {
-            "title": "{{input.topic}}"
-          }
-        },
-        {
           "kind": "agentcon",
           "agent_id": "wikipedia-summary",
           "resource_id": null,
@@ -291,44 +179,6 @@
       "fanout": 1,
       "chain": [
         {
-          "kind": "external",
-          "resource_id": 147960,
-          "tool": "search_news",
-          "registrable_domain": "galactic.inc",
-          "upstream": [
-            "unknown"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": null,
-          "resend_safe": false,
-          "pearl": false,
-          "state": "active",
-          "input_map": {
-            "query": "{{input.topic}}",
-            "limit": 5
-          }
-        },
-        {
-          "kind": "external",
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "resource_id": 32841,
-          "tool": "search_news",
-          "registrable_domain": "analyticslegends.ai",
-          "upstream": [
-            "unknown"
-          ],
-          "state": "active",
-          "pearl": false,
-          "input_map": {
-            "query": "{{input.topic}}",
-            "limit": 5
-          }
-        },
-        {
           "kind": "agentcon",
           "agent_id": "gdelt-news",
           "resource_id": null,
@@ -353,6 +203,6 @@
   "replaces_templates": [
     38
   ],
-  "notes": "v1 candidate (workflow team 11-14). Primaries by failure domain: pipeworx.io owns web, nobleblocks.com papers, caseyjhand.com background, galactic.inc news. Both background externals read Wikipedia (one upstream); the AgentValCon fallback reads it too. 11-15 (PM 13:53): background leads with verified pearl 241601 (wikipedia_search), 47189 and 143970 behind it, so the necklace has one verified pearl slot; papers.search or web.grounding brings the second.",
+  "notes": "v1 candidate (workflow team 11-14). Primaries by failure domain: pipeworx.io owns web, nobleblocks.com papers, caseyjhand.com background, galactic.inc news. Both background externals read Wikipedia (one upstream); the AgentValCon fallback reads it too. 11-15 (PM 13:53): background leads with verified pearl 241601 (wikipedia_search), 47189 and 143970 behind it, so the necklace has one verified pearl slot; papers.search or web.grounding brings the second. v2 (PM 11-17 11:2x, after v1 round 1 of 11-17 timed out at the 3.5 s slot cap): 47151, 47189 and 147960 answered after the cap through the relay and 39577 is refused by our relay rule until the 11-18 00:30 release, so they are out; papers is led by our research-papers (133019) with fanout 1; the slot cap is 4.5 s inside the 5 s total (complex answers 5 s). Provisional members, replaced when pearls answer in time (user 11-15).",
   "demand": "Strong in both: outside rank 3 (Fetch 203k, Firecrawl 170k, Perplexity 54.1k visits); our 30-day external queries after the correction: papers 26, news 16, the only repeated chain papers -> news (reports/necklace-demand-2026-11-15)."
 }
