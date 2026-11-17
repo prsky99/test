@@ -44,15 +44,19 @@ def request(client,channel,task='MCP weather forecast'):
 def test_credential_values_removed_but_call_schema_preserved(catalog,channel):
     store,_,client,add,_=catalog
     secret='audit-credential-marker-not-a-real-key'
-    add(auth_observed=1,auth_method='api_key',auth_info=json.dumps({'instructions':['Authorization: Bearer '+secret,'api_key='+secret,'API key: '+secret,'key='+secret]}),
+    # PM 11-18: a listing that needs the provider's own key is no longer a first recommendation (provider
+    # authorization goes direct), so this audit had nothing to inspect (0 items). The listing here needs no key, yet
+    # still carries credential-looking values everywhere they could leak: auth notes, an optional key field's
+    # default/enum/const and an example.
+    add(auth_info=json.dumps({'instructions':['Authorization: Bearer '+secret,'api_key='+secret,'API key: '+secret,'key='+secret]}),
         usage_guide=json.dumps({'tools':[{'name':'forecast','inputSchema':{
             'type':'object','properties':{'api_key':{'type':'string','default':secret,'enum':[secret],'const':secret},
-            'city':{'type':'string','examples':[secret]},'units':{'type':'string','enum':['C','F']}},'required':['api_key','city']}}]}))
+            'city':{'type':'string','examples':[secret]},'units':{'type':'string','enum':['C','F']}},'required':['city']}}]}))
     response,items=request(client,channel)
-    assert len(items)==1 and secret not in response.text
+    assert len(items)==1 and secret not in response.text     # the audit inspects a real recommendation
     schema=items[0]['tools_schema'][0]['inputSchema']
     assert schema['properties']['api_key']=={'type':'string'}
-    assert schema['required']==['api_key','city'] and schema['properties']['units']['enum']==['C','F']
+    assert schema['required']==['city'] and schema['properties']['units']['enum']==['C','F']
     saved=store.query('SELECT last_results FROM agent_visitors')
     if channel=='mcp':
         assert saved==[]  # Read-only lookup must not create a conversation to inspect.
@@ -142,10 +146,10 @@ def test_nonfinite_provider_schema_cannot_break_public_json_response(catalog,cha
 def test_calling_detail_and_recommendation_share_credential_redaction(catalog):
     _,_,client,add,_=catalog
     secret='audit-detail-placeholder-not-a-real-key'
-    rid=add(auth_observed=1,auth_method='api_key',auth_info=json.dumps({'instructions':['Authorization: Bearer '+secret]}),
+    rid=add(auth_info=json.dumps({'instructions':['Authorization: Bearer '+secret]}),
         usage_guide=json.dumps({'tools':[{'name':'forecast','inputSchema':{'type':'object','properties':{
-            'apiKey':{'type':'string','default':secret},'city':{'type':'string','examples':[secret]}},'required':['apiKey']}}]}))
+            'apiKey':{'type':'string','default':secret},'city':{'type':'string','examples':[secret]}},'required':['city']}}]}))
     response=client.get(f'/api/agents/{rid}')
     assert response.status_code==200 and secret not in response.text
     _,items=request(client,'rest')
-    assert items[0]['tools_schema'][0]['inputSchema']['properties']['apiKey']=={'type':'string'}
+    assert len(items)==1 and items[0]['tools_schema'][0]['inputSchema']['properties']['apiKey']=={'type':'string'}
