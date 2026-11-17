@@ -95,9 +95,23 @@ def context(surface, tool, structured=None, headers=None, task=None):
 PRICE_LINE = '5 USDC on Base per placement per day, or a custom plan sized to your budget; paid once per booking from your own wallet (no prepaid balance, no stored funds)'
 
 
+# The values the keyless order accepts (11-17 audit F-B1: the documents named the fields but not their values, so a
+# guess only got unsupported_targeting). This side never imports ad_coin; tests/test_ad_coin_v2_advertiser_journey.py
+# pins them to live_service.DEFAULT_REGIONS, sponsored.SITE_CATEGORIES minus the sensitive ones, HORIZON_DAYS and the
+# plan budget limits.
+KEYLESS_REGIONS = ('US', 'KR', 'JP', 'GB', 'DE')
+KEYLESS_CATEGORIES = ('agent_infra', 'ai_models', 'communication_messaging', 'commerce_marketing', 'data_utility',
+                      'database_analytics', 'dev_tools', 'docs_knowledge', 'education_culture', 'media_generation',
+                      'network_ops', 'productivity', 'security', 'social', 'travel_maps_weather', 'web_search')
+KEYLESS_ACCEPTED = {'region': list(KEYLESS_REGIONS), 'category': list(KEYLESS_CATEGORIES),
+                    'day': 'YYYY-MM-DD (UTC), from tomorrow up to 30 days ahead',
+                    'budget_usdc': 'instead of day: 10 to 300 USDC, quoted as one plan of 5 USDC placements',
+                    'text': 'one line of up to 120 characters that describes the offer', 'url': 'https endpoint'}
 KEYLESS_STEPS = (
-    'POST /api/ad-coin/v2/sponsor with {name, text, url, category, region, day | budget_usdc}: returns order_id, '
-    'status_url and read_key (shown once; it cannot be recovered)',
+    'POST /api/ad-coin/v2/sponsor with {name, text, url, category, region, day | budget_usdc} (region US, KR, JP, GB '
+    'or DE; category a site category such as web_search or dev_tools; day YYYY-MM-DD from tomorrow up to 30 days '
+    'ahead, or budget_usdc from 10 to 300): returns order_id, status_url and read_key (shown once; it cannot be '
+    'recovered)',
     'GET /api/ad-coin/v2/sponsor/{order_id} with header X-Read-Key: in_review until the ad passes review, then the quote '
     '(exact USDC amount, pay_to, chain 8453, expiry)',
     'POST /api/ad-coin/v2/sponsor/{order_id}/payment with {tx_hash} and header X-Read-Key, after sending exactly that '
@@ -124,7 +138,7 @@ def buy_entry():
             'keyless': {'method': 'POST', 'path': '/api/ad-coin/v2/sponsor',
                         'body': ['name', 'text', 'url', 'category', 'region', 'day | budget_usdc'],
                         'headers': {'X-Read-Key': 'the read_key from the first call (shown once, cannot be recovered)'},
-                        'steps': list(KEYLESS_STEPS),
+                        'steps': list(KEYLESS_STEPS), 'accepted': KEYLESS_ACCEPTED,
                         'account': 'none', 'review': 'before any payment',
                         'payment': 'USDC on Base, once per order; no prepaid balance, no stored funds'},
             'library': '/ads/library', 'library_json': '/ads/library.json', 'disclosure': STATEMENT}

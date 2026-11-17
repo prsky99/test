@@ -299,13 +299,26 @@ def test_b1_the_documents_name_the_routes_header_and_fields_the_api_takes(shop):
     assert card_text is not None and card_text[1]['keyless'] == entry
 
 
-@pytest.mark.xfail(strict=True, raises=KeyError, reason='F-B1: the agent documents name the fields but not the values the API accepts '
-                   '(region US/KR/JP/GB/DE, a site category, day YYYY-MM-DD from tomorrow to 30 days, budget_usdc of '
-                   'at least 10); a wrong guess only gets unsupported_targeting or day_not_bookable')
-def test_b1b_the_documents_say_which_values_are_accepted():
-    from agent_market.ad_coin.v2.live_service import DEFAULT_REGIONS
-    entry = ad_slot.buy_entry()['keyless']
-    assert set(entry['accepted']['region']) == set(DEFAULT_REGIONS)
+def test_b1b_the_documents_say_which_values_are_accepted(shop):  # noqa: F811
+    """11-17 audit F-B1: the documents named the fields but not the values; a wrong guess only got
+    unsupported_targeting or day_not_bookable. The values are pinned to what the live service accepts."""
+    from agent_market.ad_coin.v2.live_service import DEFAULT_REGIONS, DEFAULT_TAXONOMY
+    from agent_market.ad_coin.v2.paid_plans import MAX_BUDGET_UNITS, MIN_PLAN_UNITS
+    from agent_market.ad_coin.v2.sponsored import SITE_CATEGORIES
+    from agent_market.ad_coin.v2.sponsored_offer import LINE_LIMIT, SENSITIVE_SITE_CATEGORIES
+    accepted = ad_slot.buy_entry()['keyless']['accepted']
+    assert set(accepted['region']) == set(DEFAULT_REGIONS)
+    assert set(accepted['category']) == set(SITE_CATEGORIES) - SENSITIVE_SITE_CATEGORIES
+    assert all(SITE_CATEGORIES[c] in DEFAULT_TAXONOMY for c in accepted['category'])
+    assert HORIZON_DAYS == 30 and 'up to 30 days ahead' in accepted['day']
+    assert (MIN_PLAN_UNITS, MAX_BUDGET_UNITS) == (10 * paid.USDC_UNITS, 300 * paid.USDC_UNITS)
+    assert '10 to 300' in accepted['budget_usdc'] and str(LINE_LIMIT) in accepted['text']
+    step = ad_slot.KEYLESS_STEPS[0]
+    assert 'US, KR, JP, GB or DE' in step and 'from 10 to 300' in step and step in ad_slot.buy_line()
+    # the shop's narrower test targeting refuses what is outside it, with the codes an agent can act on
+    assert order(shop, region='JP').json()['error']['code'] == 'unsupported_targeting'
+    assert order(shop, day='2020-01-01').json()['error']['code'] == 'day_not_bookable'
+    assert order(shop, day=None, budget_usdc='301').json()['error']['code'] == 'budget_too_large'
 
 
 def test_b2_order_review_quote_pay_confirm_and_serve_in_the_steps_the_documents_give(shop, monkeypatch):  # noqa: F811
