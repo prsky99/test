@@ -155,7 +155,8 @@
           "resend_safe": true,
           "state": "planned",
           "input_map": {
-            "title": "{{slot.registry.search_name}}"
+            "title": "{{slot.registry.search_name}}",
+            "subject_kind": "company"
           },
           "absence_final": true,
           "note": "PM 11-18: an exact-title lookup; its 'no article' ends the step (company v3 round 1: 14 no-article companies failed when 47189 timed out on the missing title). Listed after the external members (model rule); the runtime chain runs it before 47189 once its substitute gate gives it provisional standing (watch.runtime_chain)."

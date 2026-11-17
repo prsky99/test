@@ -8,6 +8,15 @@
         "type": "string",
         "minLength": 1,
         "maxLength": 300
+      },
+      "subject_kind": {
+        "type": "string",
+        "enum": [
+          "company",
+          "topic"
+        ],
+        "default": "topic",
+        "description": "PM 11-18: what the title names. company: the member checks the article is about that company (the same is_about rule as the runner) and answers not_found when none is; topic (default): a plain title lookup. Optional; outside members may ignore it."
       }
     },
     "required": [
