@@ -8,6 +8,7 @@ import re
 import secrets
 import stat
 import threading
+import time
 
 from ..concierge.http_security import bounded_client, OutboundBudget
 from .auth import derived, service_mac
@@ -28,6 +29,7 @@ QUERY = '''query EdgeUsage($account: string, $start: string, $end: string, $wind
   } }
 }'''
 RETRY_SECONDS = 5
+TRANSIENT_CODES = ('OBSERVATION_UNAVAILABLE',)
 ROLLOVER_SECONDS = 300   # first minutes of the UTC day (09:00-09:05 KST)
 log = logging.getLogger(__name__)
 # 11-11 runtime block rule (PM decision). Any Worker error in the UTC day used to block Worker execution
@@ -155,14 +157,25 @@ class Monitor:
 
     def loop(self):
         while not self.stop.is_set():
+            started = time.monotonic()
             try:
                 try:
                     self.refresh()
                 except Exception as first:
-                    # One transient analytics/health miss (rate limit, 5xx, timeout) is retried
-                    # once before readiness is withdrawn; freshness expiry still bounds it.
-                    logging.getLogger(__name__).info('Edge observation retry after %s (%s)', getattr(first, 'code', type(first).__name__),
-                                                     getattr(first, 'edge_leg', 'check'))
+                    # One transient analytics/health miss (rate limit, 5xx, timeout, connection) is retried once before
+                    # readiness is withdrawn; freshness expiry still bounds it. A refusal that cannot change in five
+                    # seconds (configuration, schema, stale evidence) is not retried, and neither is an analytics
+                    # miss in the first minutes of the UTC day (the daily query is asked for a day that has just
+                    # begun: 39 of 45 final failures, 09:00-09:05 KST).
+                    leg = getattr(first, 'edge_leg', 'check')
+                    transient = not isinstance(first, EdgeError) or getattr(first, 'code', '') in TRANSIENT_CODES
+                    if not transient or (leg == 'analytics' and self.service.clock() % 86400 < ROLLOVER_SECONDS):
+                        raise
+                    # The host and leg of each retry go to the log with the time it took (the ConnectTimeout target
+                    # was unknown: analytics call or health call).
+                    logging.getLogger(__name__).info('Edge observation retry after %s (%s, %.1f s)',
+                                                     getattr(first, 'code', type(first).__name__), leg,
+                                                     time.monotonic() - started)
                     if self.stop.wait(RETRY_SECONDS):
                         break
                     self.refresh()
@@ -182,6 +195,13 @@ class Monitor:
                         execute(db, 'health', ('', 0))
                 except Exception:
                     logging.getLogger(__name__).warning('Edge readiness invalidation unavailable; freshness expiry remains enforced')
+            try:
+                closed = self.service.sweep()
+                if closed['lost'] or closed['unclaimed']:
+                    logging.getLogger(__name__).info('Edge runs closed: %s lost attempts, %s unclaimed tickets',
+                                                     closed['lost'], closed['unclaimed'])
+            except Exception as error:
+                logging.getLogger(__name__).info('Edge run cleanup skipped: %s', getattr(error, 'code', type(error).__name__))
             self.stop.wait(60)
 
     def close(self):

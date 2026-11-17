@@ -125,7 +125,8 @@ class PostgresSelectionMixin:
                 FROM (SELECT resource_id, CASE WHEN left(principal, 7) = 'native-' THEN NULL ELSE principal END
                           AS principal,
                         count(*) FILTER (WHERE state='succeeded') AS ok,
-                        count(*) FILTER (WHERE state IN ('failed','outcome_unknown')) AS bad,
+                        count(*) FILTER (WHERE state IN ('failed','outcome_unknown')
+                            AND COALESCE(error_code,'') NOT IN ('COMPLETION_MISSING','CALLER_ABORTED')) AS bad,
                         sum((finished-created)*1000) FILTER (WHERE state='succeeded' AND finished IS NOT NULL) AS ms
                       FROM edge_gateway_runs WHERE created>=%s
                       GROUP BY resource_id, CASE WHEN left(principal, 7) = 'native-' THEN NULL ELSE principal END

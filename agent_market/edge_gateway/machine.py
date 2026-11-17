@@ -102,7 +102,8 @@ def execute(front, resource_id, tool, arguments, *, principal, idempotency_key=N
                 return refused(unknown=True)
             return {'ok': True, 'result': saved['output'], 'hash_verified': True,
                     'transport_ok': True, 'protocol_valid': True, 'retry_safe': False,
-                    'delivery_backend': row['backend'], 'latency_ms': 0}
+                    'delivery_backend': row['backend'],
+                    'latency_ms': int(max(0, (row['finished'] - row['created']) * 1000)) if row.get('finished') else 0}
         if row['state'] != 'prepared':
             return refused(unknown=True)
         if prepare_only:

@@ -16,6 +16,7 @@ from .config import EdgeError, parse
 from .state import nonce
 
 SDK = Path(__file__).with_name('sdk.js')
+_SEEN_REFUSALS = set()
 log = logging.getLogger(__name__)
 
 
@@ -276,7 +277,16 @@ def install(app, front):
             if exc.code != 'PROFILE_UNAVAILABLE' and denied is None:
                 raise
             if denied not in (None, 'INVALID_INPUT'):
-                log.warning('Edge public prepare: tool refused (%s); handed to the Origin gateway', denied)
+                # UNSAFE_TOOL is by design (the listing is not an edge member, e.g. 39577): it is logged once per
+                # (listing, reason) at INFO, not as a WARNING on every call (37 warnings counted as edge errors, 11-17).
+                key = (value.get('resource_id'), denied)
+                if denied == 'UNSAFE_TOOL':
+                    if key not in _SEEN_REFUSALS and len(_SEEN_REFUSALS) < 1000:
+                        _SEEN_REFUSALS.add(key)
+                        log.info('Edge public prepare: tool refused (%s) for listing %s; handed to the Origin gateway (logged once)',
+                                 denied, key[0])
+                else:
+                    log.warning('Edge public prepare: tool refused (%s); handed to the Origin gateway', denied)
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         backend = 'worker' if grant['stream_path'].startswith('/api/edge-') else 'origin'
         try:

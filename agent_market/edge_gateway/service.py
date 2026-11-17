@@ -16,7 +16,7 @@ from ..concierge.http_security import validate_public_url
 from ..execution_authority import require_enabled
 from .auth import canonical, derived, digest, sign_ticket, verify_ticket
 from .config import EdgeError, PROFILE
-from .state import execute, ready, rows, transaction
+from .state import CLAIM_SECONDS, LOST_SECONDS, execute, ready, rows, transaction
 
 OUTCOME_CODES = {
     'failed': {'EXECUTION_FAILED', 'PROVIDER_METHOD_UNSUPPORTED', 'PROVIDER_INPUT_REJECTED',
@@ -215,8 +215,8 @@ class Service:
         with transaction(self.store) as db:
             self.policy(db, lock=True)
             # Lost attempts become unknown, never prepared again.
-            execute(db, 'expire_unknown', (now, now - 180))
-            active = rows(db, 'active')[0]['n']
+            execute(db, 'expire_unknown', (now - LOST_SECONDS,))
+            active = rows(db, 'active', (now - CLAIM_SECONDS,))[0]['n']
             if active >= self.config.max_inflight:
                 raise EdgeError('CAPACITY_EXCEEDED', 503)
             if backend == 'worker':
@@ -339,11 +339,20 @@ class Service:
             code=None if row['state']=='succeeded' else 'UPSTREAM_TIMEOUT' if row['state']=='outcome_unknown' else 'UPSTREAM_TOOL_ERROR',
             artifact_hash=artifact, dataset='edge-worker-execution-v1', guard=unrecorded)
 
+    def sweep(self):
+        """Close lost attempts and unclaimed tickets (monitor loop, once a minute): rows are closed at the time they were
+        lost, not whenever the next request happens to look, and a closed row never holds an in-flight slot."""
+        now = self.clock()
+        with transaction(self.store) as db:
+            lost = execute(db, 'expire_unknown', (now - LOST_SECONDS,)).rowcount
+            unclaimed = execute(db, 'expire_unclaimed', (now,)).rowcount
+        return {'lost': lost, 'unclaimed': unclaimed}
+
     def status(self, principal, run_id):
         self.require_ready()
         now = self.clock()
         with transaction(self.store) as db:
-            execute(db, 'expire_unknown', (now, now - 180))
+            execute(db, 'expire_unknown', (now - LOST_SECONDS,))
             found = rows(db, 'run', (run_id,))
             if not found or not hmac.compare_digest(found[0]['principal'], principal):
                 raise EdgeError('AUTH_REQUIRED', 404)

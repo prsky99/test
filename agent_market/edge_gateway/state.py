@@ -2,6 +2,9 @@
 from contextlib import contextmanager
 import time
 
+CLAIM_SECONDS = 45
+LOST_SECONDS = 180
+
 from .config import EdgeError
 
 SCHEMA = (
@@ -46,7 +49,9 @@ Q = {
     'idempotency': 'SELECT * FROM edge_gateway_runs WHERE principal=? AND idempotency=?',
     'insert': "INSERT INTO edge_gateway_runs VALUES(?,?,?,?,?,?,?,'prepared',?,NULL,?,?,NULL,NULL)",
     'claim': "UPDATE edge_gateway_runs SET state='dispatch_reserved',backend=?,attempt=? WHERE id=? AND state='prepared' AND expires>?",
-    'active': "SELECT COUNT(*) AS n FROM edge_gateway_runs WHERE state='dispatch_reserved'",
+    # Only a claim made in the last CLAIM_SECONDS holds an in-flight slot: a lost attempt (caller left, no report) must not
+    # keep a slot for the 180 s until it is expired (11-15: four such claims filled the four slots and six runs stuck).
+    'active': "SELECT COUNT(*) AS n FROM edge_gateway_runs WHERE state='dispatch_reserved' AND created>?",
     'finish': "UPDATE edge_gateway_runs SET state=?,finished=?,error_code=? WHERE id=? AND attempt=? AND state='dispatch_reserved'",
     'event': 'INSERT INTO edge_gateway_events VALUES(?,?,?,?,?) ON CONFLICT(run_id,event_id) DO NOTHING',
     'nonce': 'INSERT INTO edge_gateway_nonces VALUES(?,?) ON CONFLICT(id) DO NOTHING',
@@ -54,7 +59,12 @@ Q = {
     'summary': '''SELECT r.backend,r.state,COUNT(*) AS n,COALESCE(SUM(e.output_bytes),0) AS body_bytes
         FROM edge_gateway_runs r LEFT JOIN edge_gateway_events e ON e.run_id=r.id AND e.event_id=r.attempt
         WHERE r.created>? GROUP BY r.backend,r.state''',
-    'expire_unknown': "UPDATE edge_gateway_runs SET state='outcome_unknown',finished=?,error_code='OUTCOME_UNKNOWN' WHERE state='dispatch_reserved' AND created<?",
+    # A lost attempt is closed with the time it was lost (created+180), not the time someone happened to look, and with its
+    # own code so counts can tell "no completion report arrived" from a provider's unknown outcome (11-17: 35 runs closed
+    # thousands of seconds late with finished = the next run's creation time).
+    'expire_unknown': "UPDATE edge_gateway_runs SET state='outcome_unknown',finished=created+180,error_code='COMPLETION_MISSING' WHERE state='dispatch_reserved' AND created<?",
+    # A ticket nobody claimed stays as a row; it is closed (not deleted) so it no longer reads as a run in progress.
+    'expire_unclaimed': "UPDATE edge_gateway_runs SET state='expired_unclaimed',finished=expires,error_code='EXPIRED_UNCLAIMED' WHERE state='prepared' AND expires<?",
     'prune_events': "DELETE FROM edge_gateway_events WHERE run_id IN (SELECT id FROM edge_gateway_runs WHERE created<? AND state<>'dispatch_reserved' ORDER BY created,id LIMIT 100)",
     'prune_runs': "DELETE FROM edge_gateway_runs WHERE id IN (SELECT id FROM edge_gateway_runs WHERE created<? AND state<>'dispatch_reserved' ORDER BY created,id LIMIT 100)",
 }
