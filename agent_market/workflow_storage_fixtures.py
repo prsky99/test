@@ -44,6 +44,7 @@ from .workflows import WorkflowRuntime, SCHEMA as WORKFLOW_SCHEMA
 PROFILE = 'synthetic-workflow-storage-fixture-v1'
 ORIGIN = 'https://storage-fixture.example'
 MAX_COMPLETED = 40
+UNKNOWN_BODY = frozenset({'snapshot', 'result'})   # compacted after UNKNOWN_DAYS (workflow_maintenance, PM 11-14)
 GRANT_QUERIES = {
     'workflow_deployment_grants': {
         'inactive': 'SELECT id,revision,active,revoked FROM workflow_deployment_grants WHERE active=0 ORDER BY id',
@@ -251,7 +252,12 @@ class SyntheticFixture:
         def rows(sql, params=()): return [tuple(row) for row in self.store.query(sql, params)]
         return {'replay': rows('SELECT id,actor,idempotency_key FROM workflow_runs ORDER BY id'),
                 'attempts': rows('SELECT run_id,node_id,input_hash,status FROM workflow_execution_attempts ORDER BY run_id,node_id'),
-                'unknown': rows("SELECT * FROM workflow_runs WHERE execution_outcome='unknown' ORDER BY id"),
+                # PM 11-14 (e0764bfe): unknown-outcome runs keep their bodies UNKNOWN_DAYS, then the body (snapshot,
+                # result) is compacted with a signed archive; everything else about the run must stay as it was
+                'unknown': [tuple((key, row[key]) for key in row.keys() if key not in UNKNOWN_BODY)
+                            for row in self.store.query("SELECT * FROM workflow_runs WHERE execution_outcome='unknown' ORDER BY id")],
+                'unknown_bodies': {row['id']: (row['snapshot'], row['result']) for row in self.store.query(
+                    "SELECT id,snapshot,result FROM workflow_runs WHERE execution_outcome='unknown'")},
                 'tampered': rows('SELECT * FROM workflow_checkpoints WHERE run_id=? ORDER BY node_id', (self.refs['tampered_run'],)),
                 'held': rows('SELECT * FROM workflow_checkpoints WHERE run_id=? ORDER BY node_id', (self.refs['held_run'],)),
                 'outbox': rows('SELECT * FROM workflow_result_outbox ORDER BY id'),
@@ -283,7 +289,10 @@ class SyntheticFixture:
             no_comparison = denied(lambda: Comparison(self.runtime).load(store, self.refs['literal_proof'], 'news.search.v1'))
         return {'replay_tombstones_retained': after['replay'] == baseline['replay'],
                 'attempt_tombstones_retained': after['attempts'] == baseline['attempts'],
-                'unknown_outcomes_unchanged': after['unknown'] == baseline['unknown'],
+                # metadata unchanged, and a body that changed was compacted under a signed archive (never edited)
+                'unknown_outcomes_unchanged': after['unknown'] == baseline['unknown'] and all(
+                    body == baseline['unknown_bodies'].get(run_id) or run_id in {row['run_id'] for row in archives}
+                    for run_id, body in after['unknown_bodies'].items()),
                 'invalid_checkpoint_held': after['tampered'] == baseline['tampered'],
                 'pending_delivery_bodies_held': after['held'] == baseline['held'] and after['outbox'] == baseline['outbox'] and after['manual'] == baseline['manual'],
                 'event_replay_receipts_retained': after['events'] == baseline['events'],
