@@ -1350,6 +1350,11 @@ def publish(board=True):
         write_replace(OUT / PROVISIONAL, json.dumps(provisional_members(resource_status(ids)), indent=1, ensure_ascii=False))
     except Exception as e:                                       # the pearl numbers above never wait on this list
         print('provisional members not written:', e)
+    try:                     # PM 11-18: the public pearl list (pages, Explore, cards) from these same results
+        from agent_market import pearls_public
+        pearls_public.write(official, {'roles': ranked}, member_terms())
+    except Exception as e:                                       # the pearl numbers above never wait on this list
+        print('public pearl list not written:', e)
     try:                     # the necklace judge trusts the snapshot only under the official evaluator (16:1x, 워크플로우)
         import verify_snapshot
         verify_snapshot.main()
