@@ -86,3 +86,22 @@ def test_active_releases_cover_all_four_roles_and_check_names_missing_roles(tmp_
     assert got['reason'] == 'roles_not_rehearsed' and got['missing'] == ['a1', 'e1']
     passed(['f0', 'j1', 'a1', 'e1'])                       # frontend moved on since
     assert rehearsal.check(str(sql), now=1000.0 + 60)['reason'] == 'active_releases_changed'
+
+
+def test_concurrently_runs_outside_one_transaction_and_comments_do_not_count(tmp_path):
+    """11-18 01:40: CREATE INDEX CONCURRENTLY failed inside psql -1 (change_failed)."""
+    a = tmp_path / 'a.sql'
+    a.write_text('-- run outside a transaction; CONCURRENTLY in a comment only\nUPDATE t SET x = 1;\n')
+    b = tmp_path / 'b.sql'
+    b.write_text('-- index\nCREATE INDEX CONCURRENTLY IF NOT EXISTS i ON t (x);\n')
+    assert rehearsal.single_transaction(a) is True and rehearsal.single_transaction(b) is False
+
+
+def test_a_seed_is_recorded_beside_the_change_and_never_in_its_digest(tmp_path):
+    """PM 11-18: check binds to the file that will run in production; the seed only prepares the copy."""
+    change = tmp_path / 'change.sql'
+    change.write_text('UPDATE t SET x = 1;\n')
+    seed = tmp_path / 'seed.sql'
+    seed.write_text('INSERT INTO t VALUES (1);\n')
+    assert rehearsal.change_digest(sql=str(change)) == rehearsal.change_digest(sql=str(change))
+    assert rehearsal.seed_digest(seed).startswith('seed:') and rehearsal.seed_digest(seed) != rehearsal.change_digest(sql=str(change))[4:]

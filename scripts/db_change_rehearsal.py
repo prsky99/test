@@ -21,6 +21,7 @@ Data: --data minimal (default) restores the full schema and all data except the 
 import argparse
 import hashlib
 import json
+import re
 import os
 from pathlib import Path
 import shlex
@@ -76,6 +77,10 @@ print(json.dumps(out))
 
 class RehearsalRefused(SystemExit):
     pass
+
+
+def seed_digest(seed):
+    return 'seed:' + hashlib.sha256(Path(seed).read_bytes()).hexdigest()
 
 
 def change_digest(sql=None, command=None):
@@ -195,11 +200,34 @@ def check_release(release, cluster, port, key_path):
         return {'ok': False, 'error': 'check_crashed', 'stderr': result.stderr[-1500:]}
 
 
+_CONCURRENTLY = re.compile(r'\bCONCURRENTLY\b', re.IGNORECASE)
+
+
+def single_transaction(sql) -> bool:
+    """psql -1 (all or nothing) unless the file has CREATE/DROP/REINDEX ... CONCURRENTLY, which PostgreSQL refuses
+    inside a transaction block (11-18 01:40 cap index rehearsal: change_failed). Comment lines are ignored; such a
+    file then runs statement by statement with ON_ERROR_STOP, as it must in production."""
+    text = '\n'.join(line for line in Path(sql).read_text().splitlines() if not line.lstrip().startswith('--'))
+    return not _CONCURRENTLY.search(text)
+
+
+def _psql_file(cluster, port, path, single=True):
+    return subprocess.run([str(BIN / 'psql'), '-v', 'ON_ERROR_STOP=1', *(['-1'] if single else []), '-h', cluster['socket'],
+                           '-p', str(port), '-U', 'postgres', '-d', 'postgres', '-f', str(Path(path).resolve())],
+                          env=_environment(), capture_output=True, text=True, timeout=1800)
+
+
+def apply_seed(cluster, port, seed):
+    """Rows the change expects that the restored copy does not have (PM 11-18: the caller-aborted cleanup needs the
+    four runs it updates). Applied in one transaction before the change; never part of the change digest."""
+    result = _psql_file(cluster, port, seed, single=True)
+    return {'ok': result.returncode == 0, 'returncode': result.returncode, 'seed': seed_digest(seed),
+            'stdout': result.stdout[-800:], 'stderr': result.stderr[-800:]}
+
+
 def apply_change(cluster, port, sql=None, command=None, key_path=None):
     if sql:
-        result = subprocess.run([str(BIN / 'psql'), '-v', 'ON_ERROR_STOP=1', '-1', '-h', cluster['socket'], '-p', str(port),
-                                 '-U', 'postgres', '-d', 'postgres', '-f', str(Path(sql).resolve())],
-                                env=_environment(), capture_output=True, text=True, timeout=1800)
+        result = _psql_file(cluster, port, sql, single=single_transaction(sql))
     else:
         dsn_file = Path(cluster['root']) / 'rehearsal.dsn'
         descriptor = os.open(dsn_file, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
@@ -213,7 +241,7 @@ def apply_change(cluster, port, sql=None, command=None, key_path=None):
             'stdout': result.stdout[-1500:], 'stderr': result.stderr[-1500:]}
 
 
-def run(sql=None, command=None, backup=None, releases=None, mode='minimal', report=None):
+def run(sql=None, command=None, backup=None, releases=None, mode='minimal', report=None, seed=None):
     from scripts.rehearse_storage_adapter_postgres import _private_cluster, PORT
     if command:
         refuse_production(command)
@@ -222,6 +250,10 @@ def run(sql=None, command=None, backup=None, releases=None, mode='minimal', repo
     began = time.time()
     result = {'started': began, 'backup': backup.name, 'releases': releases, 'data': mode,
               'change': change_digest(sql, command), 'production_connected': False}
+    if seed:
+        result['seed'] = seed_digest(seed)          # recorded beside the change, never in its digest (PM 11-18)
+    if sql:
+        result['transaction'] = 'single' if single_transaction(sql) else 'per statement (CONCURRENTLY)'
     tools = {name: str(BIN / name) for name in ('initdb', 'pg_ctl')}
     with _private_cluster(tools) as cluster:
         key_path = Path(cluster['root']) / 'workflow.key'
@@ -232,7 +264,12 @@ def run(sql=None, command=None, backup=None, releases=None, mode='minimal', repo
         if result['restore']['ok']:
             result['before'] = {release: check_release(release, cluster, PORT, key_path) for release in releases}
             if all(item.get('ok') for item in result['before'].values()):
-                result['apply'] = apply_change(cluster, PORT, sql, command, key_path)
+                if seed:
+                    result['seed_apply'] = apply_seed(cluster, PORT, seed)
+                if not seed or result['seed_apply']['ok']:
+                    result['apply'] = apply_change(cluster, PORT, sql, command, key_path)
+                else:
+                    result['apply'] = {'ok': False, 'error': 'seed_failed'}
                 if result['apply']['ok']:
                     result['after'] = {release: check_release(release, cluster, PORT, key_path) for release in releases}
     result['ok'] = bool(result.get('after')) and all(item.get('ok') for item in result['after'].values())
@@ -250,7 +287,8 @@ def run(sql=None, command=None, backup=None, releases=None, mode='minimal', repo
             records = json.loads(passed.read_text())
         except (OSError, ValueError):
             records = {}
-        records[result['change']] = {'at': time.time(), 'releases': releases, 'report': str(path)}
+        records[result['change']] = {'at': time.time(), 'releases': releases, 'report': str(path),
+                                     **({'seed': result['seed']} if seed else {})}
         passed.write_text(json.dumps(records, indent=2) + '\n')
     result['report'] = str(path)
     return result
@@ -335,6 +373,7 @@ def main(argv=None):
     parser.add_argument('--releases', help='comma separated; default: the active release of all four roles')
     parser.add_argument('--data', choices=('minimal', 'full'), default='minimal')
     parser.add_argument('--report')
+    parser.add_argument('--seed', help='SQL rows the change expects, applied before it (run only; not in the change digest)')
     args = parser.parse_args(argv)
     if args.action == 'drill':
         if not args.backup:
@@ -347,7 +386,7 @@ def main(argv=None):
         result = check(args.sql, args.command)
     else:
         result = run(args.sql, args.command, args.backup, args.releases.split(',') if args.releases else None,
-                     args.data, args.report)
+                     args.data, args.report, seed=args.seed)
     print(json.dumps(result, indent=2))
     return 0 if result['ok'] else 1
 
