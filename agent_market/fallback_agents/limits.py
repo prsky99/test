@@ -176,7 +176,7 @@ def _table(clock, sleep) -> dict[str, HostLimiter]:
         "data.iana.org": HostLimiter(10.0, 24, 86400.0, clock, sleep),
         "api.gdeltproject.org": HostLimiter(5.0, 200, 86400.0, clock, sleep),  # GDELT DOC API: one every 5 s (ours)
         "geocoding.geo.census.gov": HostLimiter(1.0, 600, 3600.0, clock, sleep),  # Census Geocoder: one a second (ours)
-        "registry.modelcontextprotocol.io": HostLimiter(1.0, 600, 3600.0, clock, sleep),  # official MCP Registry
+        "registry.modelcontextprotocol.io": HostLimiter(0.5, 600, 3600.0, clock, sleep),  # official MCP Registry; 0.5 s so a phrase's 4 spellings fit one call's 3.3 s (PM 11-17), 600 an hour kept
         "www.wikidata.org": HostLimiter(0.2, 40, 60.0, clock, sleep),  # sequential; Wikimedia API 200/min, ours 20%
         "query.wikidata.org": HostLimiter(0.5, 60, 60.0, clock, sleep),  # WDQS: few parallel, 60 s of query time a minute
     }

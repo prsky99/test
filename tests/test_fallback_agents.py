@@ -2139,6 +2139,35 @@ def test_mcp_registry_lookup_reads_latest_and_not_found_is_an_answer(tmp_path):
     assert err.value.code == "invalid_input"
 
 
+
+def test_mcp_registry_phrase_search_tries_spellings_the_substring_search_can_find(tmp_path):
+    """PM 11-17 (gate 13:10, role task 0/1): the registry search is a substring of the name, so "agent concierge"
+    returns nothing. The phrase is retried hyphen-joined, without spaces and by its longest word (at most 4 calls),
+    stopping when a name's last part is the phrase; the closest name is picked, never a longer fork."""
+    from agent_market.fallback_agents.agents import registry_search_variants
+    ours = {"server": {"name": "biz.agentconcierge/agent-concierge", "version": "1.1.0"}}
+    fork = {"server": {"name": "io.github.someone/agent-concierge-mcp", "version": "0.1.0"}}
+    other = {"server": {"name": "io.github.x/hotel-concierge", "version": "1.0.0", "description": "an agent for hotels"}}
+    answers = {"agent concierge": [], "agent-concierge": [fork, ours], "agentconcierge": [ours], "concierge": [other, fork, ours]}
+
+    def search(request):
+        return httpx.Response(200, json={"servers": answers.get(request.url.params.get("search"), [])})
+    calls = []
+    a, _ = agents(tmp_path, {"https://registry.modelcontextprotocol.io/v0.1/servers?": search}, calls)
+    out = a.execute("mcp-registry", {"query": "agent concierge"})["result"]
+    assert out["listed"] and out["name"] == "biz.agentconcierge/agent-concierge" and out["version"] == "1.1.0"
+    assert [httpx.URL(c).params["search"] for c in calls] == ["agent concierge", "agent-concierge"]   # stopped early
+    assert registry_search_variants("agent concierge") == ["agent concierge", "agent-concierge", "agentconcierge", "concierge"]
+    assert registry_search_variants("fetch") == ["fetch"]
+    calls.clear()
+    answers.update({"hotel booking": [], "hotel-booking": [], "hotelbooking": [], "booking": []})
+    none = a.execute("mcp-registry", {"query": "hotel booking"})["result"]
+    assert none["listed"] is False and len(calls) == 4                              # at most 4 calls a phrase
+    calls.clear()
+    answers.update({"concierge hotels": [], "concierge-hotels": [], "conciergehotels": [], "concierge": [other, fork, ours]})
+    vague = a.execute("mcp-registry", {"query": "concierge hotels"})["result"]
+    assert vague["listed"] and vague["name"] == "io.github.x/hotel-concierge"       # words in name or description
+
 def test_github_releases_lists_tags_gaps_and_open_issues(tmp_path):
     """PM 11-15 16:12: releases and issues, two calls, issues without pull requests, no made-up release."""
     rel = [{"tag_name": "v2.32.3", "published_at": "2026-10-30T10:00:00Z"}, {"tag_name": "v2.32.2", "published_at": "2026-09-30T10:00:00Z"},

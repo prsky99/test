@@ -101,6 +101,37 @@ def _now_iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+
+def registry_search_variants(query: str) -> list[str]:
+    """Search strings for the MCP Registry's substring search: as typed, hyphen-joined, without spaces, longest word."""
+    words = [w for w in re.split(r"[\s_]+", query.strip().lower()) if w]
+    out = [query.strip()]
+    if len(words) > 1:
+        out += ["-".join(words), "".join(words), max(words, key=len)]
+    return list(dict.fromkeys(v for v in out if len(v) >= 2))[:4]
+
+
+def registry_rank(row: dict, query: str) -> tuple:
+    """(level, -name length): 4 the full name is the query; 3 the name's last part is the phrase hyphen-joined or
+    without spaces; 2 every word of the phrase is in the name; 1 every word is in the name, title or description; 0
+    otherwise. Shorter names win ties (the closest entry, not a fork with a suffix)."""
+    server = row.get("server") or {}
+    name = str(server.get("name") or "").lower()
+    words = [w for w in re.split(r"[\s_]+", query.strip().lower()) if w]
+    last = name.rsplit("/", 1)[-1]
+    text = " ".join(str(server.get(k) or "") for k in ("name", "title", "description")).lower()
+    if name == query.strip().lower():
+        level = 4
+    elif words and last in ("-".join(words), "".join(words)):
+        level = 3
+    elif words and all(w in name for w in words):
+        level = 2
+    elif words and all(w in text for w in words):
+        level = 1
+    else:
+        level = 0
+    return level, -len(name)
+
 class FallbackAgents:
     def __init__(self, *, http=None, snapshot: Snapshot | None = None, data_dir: Path | str | None = None,
                  usage_dir: Path | str | None = None, clock=time.monotonic, wall=time.time, utc_now=None,
@@ -1931,10 +1962,28 @@ class FallbackAgents:
                 except FallbackUnavailable:
                     return None, _now_iso(self.utc_now())          # 404: not in the registry
                 return raw, _now_iso(self.utc_now())
-            raw = self._get_json(base, rem, params={"search": query, "limit": 10}, limit=1024 * 1024)
-            rows = [r for r in raw.get("servers") or [] if isinstance(r, dict) and isinstance(r.get("server"), dict)]
-            exact = [r for r in rows if r["server"].get("name", "").lower() == query.lower()]
-            pick = exact[0] if exact else (rows[0] if len(rows) == 1 else None)
+            # PM 11-17: the registry's search is a substring of the name, so "agent concierge" finds nothing while
+            # "agent-concierge" does. A phrase is searched as typed, hyphen-joined, joined without spaces, then by its
+            # longest word (at most 4 calls, each through net.get and the ledger), stopping once a name matches.
+            rows, seen = [], set()
+            for i, variant in enumerate(registry_search_variants(query)):
+                try:
+                    raw = self._get_json(base, rem, params={"search": variant, "limit": 30}, limit=1024 * 1024)
+                except SourceBusy:
+                    if i == 0 or not rows:
+                        raise          # nothing read yet: busy, never a false "not listed"
+                    break              # out of time: answer from the spellings already read
+                for r in raw.get("servers") or []:
+                    server = r.get("server") if isinstance(r, dict) else None
+                    if isinstance(server, dict) and server.get("name") not in seen:
+                        seen.add(server.get("name"))
+                        rows.append(r)
+                if rows and max(registry_rank(r, query) for r in rows)[0] >= 3:
+                    break                                   # a name matches the phrase: no further call
+            if not rows:
+                return None, _now_iso(self.utc_now())
+            best = max(rows, key=lambda r: registry_rank(r, query))
+            pick = best if registry_rank(best, query)[0] >= 1 or len(rows) == 1 else None
             return pick, _now_iso(self.utc_now())
         (raw, as_of), cache = self._cached(("mcp-registry", name.lower() or "q:" + query.lower()), TTL["mcp-registry"],
                                            live, remaining)

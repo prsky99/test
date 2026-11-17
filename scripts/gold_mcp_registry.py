@@ -1,6 +1,7 @@
 """Answer set for the mcp-registry substitute gate (agent team 11-16, PM: 11-17 13:10 gate).
 
     .venv/bin/python -m scripts.gold_mcp_registry --split substitute-r1 [--listed 24 --absent 6]
+    .venv/bin/python -m scripts.gold_mcp_registry --split substitute-r2 --exclude-split substitute-r1   # a re-judgement
 
 Truth is read once from the Official MCP Registry list (CC0) and frozen in
 gateway-data/necklaces/gold/mcp-server-trust-check/<split>.jsonl: the server's name, latest version, publish time,
@@ -57,7 +58,20 @@ def latest_only(rows):
     return [(r, meta) for _, r, meta in sorted(best.values(), key=lambda x: x[1]["server"]["name"])]
 
 
-def build(rows, listed=24, absent=6, seed="substitute-r1"):
+def seen_names(folder: Path, splits) -> set:
+    """Server names already used by earlier splits (deploy/NECKLACE_GATE.md: a re-judgement never reuses a case)."""
+    names = set()
+    for split in splits:
+        path = folder / f"{split}.jsonl"
+        if split and not path.exists():
+            raise SystemExit(f"--exclude-split {split}: {path} not found")
+        if split:
+            names |= {json.loads(l)["input"]["name"] for l in path.read_text().splitlines() if l.strip()}
+    return names
+
+
+def build(rows, listed=24, absent=6, seed="substitute-r1", exclude=frozenset()):
+    rows = [(r, meta) for r, meta in rows if r["server"]["name"] not in exclude]
     chosen = rows[:: max(1, len(rows) // listed)][:listed] if rows else []
     cases = []
     for r, meta in chosen:
@@ -84,7 +98,9 @@ def main(argv=None) -> int:
     p.add_argument("--split", default="substitute-r1")
     p.add_argument("--listed", type=int, default=24)
     p.add_argument("--absent", type=int, default=6)
+    p.add_argument("--exclude-split", default="", help="comma-separated earlier splits whose servers are left out")
     ns = p.parse_args(argv)
+    seen = seen_names(ROOT / "gateway-data/necklaces/gold" / SLUG, [x.strip() for x in ns.exclude_split.split(",")])
     out = ROOT / "gateway-data/necklaces/gold" / SLUG / f"{ns.split}.jsonl"
     if out.exists():
         print(f"{out} exists; a split is never rewritten"); return 2
@@ -97,11 +113,15 @@ def main(argv=None) -> int:
             raise SystemExit(f"ledger refused: {why}")
         validate_public_url(url)
         r = client.get(url, params=params)
+        if r.status_code in (403, 429):   # a provider limit stops the build (ops 11-17)
+            from agent_market.provider_budget import note
+            note(url, "reference_checks", 429, evidence={"origin": "provider_http", "retry_after": r.headers.get("Retry-After")})
+            raise SystemExit(f"provider refused ({r.status_code}); stopped, nothing written")
         r.raise_for_status()
         time.sleep(1.0)
         return r.json()
     rows = latest_only(fetch_pages(get))
-    cases = build(rows, ns.listed, ns.absent, ns.split)
+    cases = build(rows, ns.listed, ns.absent, ns.split, exclude=seen)
     if len(cases) < ns.listed + ns.absent:
         print(f"only {len(cases)} cases; not written"); return 1
     src = [{"name": "Official MCP Registry (preview; CC0)", "url": BASE, "fetched_at": fetched}]
@@ -109,7 +129,7 @@ def main(argv=None) -> int:
     with out.open("w") as fh:
         for c in cases:
             fh.write(json.dumps({**c, "truth_sources": src}, ensure_ascii=False) + "\n")
-    print(f"wrote {len(cases)} cases to {out} ({len(rows)} servers seen)")
+    print(f"wrote {len(cases)} cases to {out} ({len(rows)} servers seen, {len(seen)} left out from {ns.exclude_split or 'no split'})")
     return 0
 
 
