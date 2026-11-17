@@ -270,6 +270,18 @@ GUARD_NOTE = MAIN / 'logs/ops/test-load-guard.json'
 TEST_NICE = 15
 
 
+def at_test_nice():
+    """Set the child's niceness to TEST_NICE, never adding to one it already has (11-18 night: night_tests ran
+    `nice -n 15` inside this wrapper's nice 15, so the suite sat at the ceiling 20; there macOS refuses any nice()
+    call with EPERM and the three run() tests in tests/test_heavy_slot.py failed with 'Exception occurred in
+    preexec_fn'). Raising the value only; a failure leaves the child at the caller's niceness instead of failing."""
+    try:
+        if os.getpriority(os.PRIO_PROCESS, 0) < TEST_NICE:
+            os.setpriority(os.PRIO_PROCESS, 0, TEST_NICE)
+    except OSError:
+        pass
+
+
 def _server_median(entry):
     values = sorted(x['server_ms'] for kind in ('explore', 'recommend')
                     for x in (entry.get(kind) or {}).get('samples') or []
@@ -387,7 +399,7 @@ def run(command, team, what, minutes, board=None, lock=None, now=None, load=None
             sys.path.insert(0, str(ROOT))   # afternoon real_task_score died here with No module named 'scripts')
         from scripts.pytest_env import clean_environment, is_test_command
         env = clean_environment() if is_test_command(command) else None   # R03: tests never get production pointers
-        child = subprocess.Popen(command, preexec_fn=lambda: os.nice(TEST_NICE), env=env)
+        child = subprocess.Popen(command, preexec_fn=at_test_nice, env=env)
         return child.wait()
     except KeyboardInterrupt:
         if child and child.poll() is None:

@@ -105,3 +105,24 @@ def test_the_limit_is_90_minutes_and_the_slowest_table_is_read():
              '(28 durations < 0.005s hidden.  Use -vv to show these durations.)', '=== 5 passed in 20s ===']
     assert nt.slowest_tests(lines) == ['12.31s call     tests/test_a.py::test_x', '3.02s setup    tests/test_b.py::test_y']
     assert nt.slowest_tests(['=== 1 passed ===']) == []
+
+
+def test_the_pytest_child_is_raised_to_nice_15_never_past_it(monkeypatch):
+    """PM 11-18 05:12: heavy_slot nice 15 plus `nice -n 15` reached the ceiling 20, where nice() fails with EPERM.
+    Both helpers only raise to 15: from 0 they set 15, from 15 or 20 they leave it, and a refusal does not fail."""
+    import os
+    from scripts import heavy_slot as hs
+    assert 'nice' not in nt.run.__code__.co_consts   # no `nice -n 15` prefix any more
+    for helper in (nt.at_test_nice, hs.at_test_nice):
+        for start, want in ((0, [15]), (10, [15]), (15, []), (20, [])):
+            calls = []
+            monkeypatch.setattr(os, 'getpriority', lambda *a, s=start: s)
+            monkeypatch.setattr(os, 'setpriority', lambda which, who, value: calls.append(value))
+            helper()
+            assert calls == want, (helper, start)
+
+        def refuse(*a):
+            raise PermissionError(1, 'Operation not permitted')
+        monkeypatch.setattr(os, 'getpriority', lambda *a: 0)
+        monkeypatch.setattr(os, 'setpriority', refuse)
+        helper()   # no exception: the child keeps the caller's niceness

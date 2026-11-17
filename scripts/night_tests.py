@@ -21,6 +21,7 @@ What it does
 from __future__ import annotations
 
 import json
+import os
 import re
 import signal
 import subprocess
@@ -49,6 +50,19 @@ STATE = ROOT / 'logs/ops/night-tests-state.json'
 TIMEOUT_S = 90 * 60     # PM 11-17 night: 50 min timed out three nights running (11-15..11-17), no result at all
 INTERRUPT_GRACE_S = 120 # after the limit pytest gets SIGINT and this long to write the partial JUnit XML
 STALE_DAYS = 2
+TEST_NICE = 15
+
+
+def at_test_nice():
+    """nice 15 for the pytest child, only raising it (PM 11-18 05:12). Was `nice -n 15` in front of the command: run
+    inside heavy_slot (already nice 15) the two added up to the ceiling 20, where macOS refuses nice() with EPERM and
+    the run() tests of tests/test_heavy_slot.py failed. Outside heavy_slot this still gives 15. Same as
+    heavy_slot.at_test_nice, kept here because this file also runs from the pinned code folder."""
+    try:
+        if os.getpriority(os.PRIO_PROCESS, 0) < TEST_NICE:
+            os.setpriority(os.PRIO_PROCESS, 0, TEST_NICE)
+    except OSError:
+        pass
 # Team names as commit messages write them (status board names on the right).
 TEAM_WORDS = (('운영·SRE', '운영·SRE'), ('ops 11-', '운영·SRE'), ('검색과 RAG', '검색과 RAG'), ('search team', '검색과 RAG'),
               ('워크플로우', '워크플로우'), ('workflow', '워크플로우'), ('에이전트 팀', '에이전트 팀'), ('agent team', '에이전트 팀'),
@@ -172,12 +186,13 @@ def run(now=None) -> int:
     xml = OUT / f'{day}.xml'
     dirty = len(subprocess.run(['git', 'status', '--porcelain'], cwd=ROOT, capture_output=True, text=True).stdout.splitlines())
     head = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip()
-    cmd = ['nice', '-n', '15', str(ROOT / '.venv-tests/bin/python'), '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
+    cmd = [str(ROOT / '.venv-tests/bin/python'), '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
            '--durations=30', f'--junitxml={xml}', 'tests']
     started = time.time()
     before = machine()
     partial = False
-    proc = subprocess.Popen(cmd, cwd=ROOT, env=clean_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=clean_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                            preexec_fn=at_test_nice)
     try:
         stdout, _ = proc.communicate(timeout=TIMEOUT_S)
     except subprocess.TimeoutExpired:
