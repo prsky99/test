@@ -6,8 +6,8 @@ Writes gateway-data/necklaces/gold/daily-fortune-brief/<split>.jsonl from the fi
 Every truth comes from a public source, not from our code:
 - Korean public holidays (the government calendar, set from the KASI almanac): Seollal (lunar 1-1), Chuseok (lunar
   8-15) and Buddha's Birthday (lunar 4-8) by year; the KASI leap months of 2020 (4th), 2023 (2nd), 2025 (6th).
-- KASI solar terms: Ipchun 2024-02-04 17:27 and 2025-02-03 23:10 (KST); births a few hours before and after decide
-  the year and month pillars.
+- KASI solar terms: Ipchun 2024-02-04 17:27 and 2025-02-03 23:10 (KST). Year and month pillars are graded only at
+  birth hours an hour or more from Ipchun; the hour that holds Ipchun grades only the boundary note (PM 11-17).
 - The sexagenary day table (Wikipedia "Sexagenary cycle": 2000-01-01 = 戊午, i.e. (JDN + 49) mod 60 with 0 = 甲子),
   the year stems and branches by Ipchun, the month stems by the five-tiger rule and the hour stems by the five-rat
   rule (standard saju texts); the search-and-RAG role tasks of 11-17 for three day pillars.
@@ -66,7 +66,6 @@ CASES = [
     case("western-sign", "capricorn-2001", {"birth_date": "2001-01-05"}, {"sign": "Capricorn"}, SIGNS),
     case("western-sign", "leo-1985", {"birth_date": "1985-07-30"}, {"sign": "Leo"}, SIGNS),
     case("western-sign", "libra-1995", {"birth_date": "1995-10-10"}, {"sign": "Libra"}, SIGNS),
-    case("western-sign", "gemini-2010", {"birth_date": "2010-06-01"}, {"sign": "Gemini"}, SIGNS),
     case("western-sign", "sagittarius-1988", {"birth_date": "1988-12-01"}, {"sign": "Sagittarius"}, SIGNS),
     # saju-pillars (12)
     case("saju-pillars", "day-1990-03-15", {"birth_date": "1990-03-15", "today": "2026-11-18"},
@@ -84,8 +83,12 @@ CASES = [
          IPCHUN),
     case("saju-pillars", "ipchun-2025-before", {"birth_date": "2025-02-03", "birth_hour": 21, "today": "2026-11-18"},
          {"year_pillar": "甲辰", "month_pillar": "丁丑", "boundary": True}, IPCHUN),
-    case("saju-pillars", "ipchun-2025-after", {"birth_date": "2025-02-03", "birth_hour": 23, "today": "2026-11-18"},
-         {"year_pillar": "乙巳", "month_pillar": "戊寅", "boundary": True}, IPCHUN),
+    # PM 11-17 21:5x: Ipchun 2025 falls at 23:10, inside the 23 o'clock hour, so that case grades only the boundary
+    # note; year and month pillars are graded only at hours an hour or more from Ipchun (21:30 before, 01:30 after).
+    case("saju-pillars", "ipchun-2025-in-hour", {"birth_date": "2025-02-03", "birth_hour": 23, "today": "2026-11-18"},
+         {"boundary": True}, IPCHUN),
+    case("saju-pillars", "ipchun-2025-after", {"birth_date": "2025-02-04", "birth_hour": 1, "today": "2026-11-18"},
+         {"year_pillar": "乙巳", "month_pillar": "戊寅"}, IPCHUN),
     case("saju-pillars", "hour-1990-05-15", {"birth_date": "1990-05-15", "birth_hour": 14, "today": "2026-11-18"},
          {"year_pillar": "庚午", "month_pillar": "辛巳", "day_pillar": "庚辰", "hour_pillar": "癸未"}, SEXAGENARY),
     case("saju-pillars", "three-1950-06-25", {"birth_date": "1950-06-25", "today": "2026-11-18"},

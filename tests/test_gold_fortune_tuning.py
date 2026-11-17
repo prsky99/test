@@ -19,6 +19,8 @@ def test_thirty_cases_cover_the_four_agents_and_their_boundaries():
     assert len({c["case_id"] for c in CASES}) == 30
     assert sum(1 for c in CASES if c["truth"].get("refused")) == 3            # before 1912, after 2100, bad leap flag
     assert sum(1 for c in CASES if c["truth"].get("boundary")) == 4           # Ipchun day, before and after
+    in_hour = next(c for c in CASES if c["case_id"] == "fortune:ipchun-2025-in-hour")
+    assert set(in_hour["truth"]) == {"boundary"}                              # 23:10 Ipchun: pillars not graded
     assert all(SLUG[c["agent"]] == "daily-fortune-brief" and c["truth_sources"][0]["url"].startswith("https://")
                for c in CASES)
 
