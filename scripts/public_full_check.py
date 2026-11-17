@@ -74,7 +74,11 @@ WRITE_TOOLS = {'call', 'run_workflow', 'report', 'credit', 'subscribe', 'verify_
 
 
 def client():
-    return httpx.Client(timeout=30, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=True, http2=False)
+    # IPv4 only (PM 11-18): the edge names a caller by an HMAC of its address, and this Mac also leaves over IPv6
+    # (rotating addresses), so a run of this check could not be told from an outside user
+    # (side-session note edge-principal-map-1118.md).
+    return httpx.Client(timeout=30, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=True, http2=False,
+                        transport=httpx.HTTPTransport(local_address='0.0.0.0'))
 
 
 def phases(marks, start):

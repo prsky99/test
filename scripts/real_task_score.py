@@ -441,7 +441,11 @@ def main(argv=None):
         tasks = [t for t in tasks if t['id'] in keep]
     started = datetime.now(timezone.utc)
     rows = []
-    with httpx.Client(timeout=args.timeout, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=False) as client:
+    # IPv4 only (PM 11-18): the edge names a caller by an HMAC of its address, and this Mac also leaves over IPv6
+    # (rotating addresses), so a run of this check could not be told from an outside user
+    # (side-session note edge-principal-map-1118.md).
+    with httpx.Client(timeout=args.timeout, headers={'User-Agent': UA, **QA_HEADER}, follow_redirects=False,
+                      transport=httpx.HTTPTransport(local_address='0.0.0.0')) as client:
         for task in tasks:
             t0 = time.monotonic()
             try:
