@@ -1822,14 +1822,26 @@ def test_watch_records_health_snapshots_quota_and_alerts_once_a_day(tmp_path):
     assert health("unit-convert", tmp_path)["status"] == "idle"
 
 
-def test_watch_runs_outside_the_measurement_window(tmp_path):
+def test_watch_runs_outside_the_measurement_window(tmp_path, monkeypatch):
+    """PM 11-18: run() probes each sole member live (02900b54), so this test fakes the probe and fails if any real
+    outside call is attempted (net.get's client, a raw socket); before this, every run called nine sources off the
+    ledger (the conftest ledger is a tmp folder)."""
+    import socket
+    from agent_market.fallback_agents import net, watch
     from agent_market.fallback_agents.watch import FallbackWatch
     import time as _t
+    outside, probed = [], []
+    monkeypatch.setattr(net, "bounded_client", lambda *a, **k: outside.append("net.get") or (_ for _ in ()).throw(
+        AssertionError("real outside call in a test")))
+    monkeypatch.setattr(socket, "create_connection", lambda *a, **k: outside.append("socket") or (_ for _ in ()).throw(
+        AssertionError("real outside call in a test")))
+    monkeypatch.setattr(watch, "probe", lambda agent_id, args, make=None: probed.append(agent_id) or "ok")
     base = _t.mktime((2026, 11, 14, 10, 30, 0, 0, 0, -1))
     w = FallbackWatch(data_dir=tmp_path, clock=lambda: base, quota=lambda: None)
     assert w.due()
     out = w.run()
     assert out["failing"] == [] and (tmp_path / "watch" / "state.json").exists() and not w.due()
+    assert outside == [] and probed, (outside, probed)     # the sole members were probed, through the fake only
     quiet = FallbackWatch(data_dir=tmp_path, clock=lambda: base + 26 * 60, quota=lambda: None)  # 10:56
     assert not quiet.due()
 
