@@ -246,7 +246,7 @@ def test_an_a2a_advertise_message_answers_how_to_buy_and_runs_nothing_else(clien
     monkeypatch.setattr(Front, 'chat', never)
     monkeypatch.setattr(Front, 'identify', never)                # no visitor is created or written
     monkeypatch.setattr(necklace_surface, 'a2a_answer', never)
-    for text in ('How do I buy a sponsored placement?', 'advertise', '  ADVERTISE with you'):
+    for text in ('How do I buy a sponsored placement?', 'how can I book a sponsored placement', '  Advertise on AgentValCon.'):
         body = {'jsonrpc': '2.0', 'id': 1, 'method': 'message/send',
                 'params': {'message': {'role': 'user', 'messageId': 'm1', 'parts': [{'kind': 'text', 'text': text}]}}}
         parts = client.post('/a2a', json=body).json()['result']['parts']
@@ -254,5 +254,6 @@ def test_an_a2a_advertise_message_answers_how_to_buy_and_runs_nothing_else(clien
         data = parts[1]['data']
         assert data['intent'] == 'advertise' and data['keyless']['path'] == '/api/ad-coin/v2/sponsor'
         assert 'sponsored' not in data
-    for other in ('advertisement agencies with an API', 'find an agent that can advertise', 'research sources'):
+    for other in ('advertisement agencies with an API', 'find an agent that can advertise', 'research sources',
+                  'advertise tools for my shop', 'advertise', 'how do I buy a sponsored placement for my client?'):
         assert ad_slot.a2a_advertise(other) is None

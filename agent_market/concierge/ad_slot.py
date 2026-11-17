@@ -130,7 +130,9 @@ def buy_entry():
             'library': '/ads/library', 'library_json': '/ads/library.json', 'disclosure': STATEMENT}
 
 
-ADVERTISE_ASK = re.compile(r'\s*(?:how do i buy a sponsored placement|advertise)\b', re.I)
+# Only an explicit question about buying a placement here; a discovery request such as "advertise tools for my
+# shop" must still reach the recommender (PM 11-17 review).
+ADVERTISE_ASK = re.compile(r'\s*(?:how (?:do|can) i (?:buy|book) a sponsored placement|advertise (?:on|with) (?:agentvalcon|agentconcierge(?:\.biz)?))\s*[?.!]?\s*\Z', re.I)
 
 
 def a2a_advertise(text, base='https://agentconcierge.biz'):
