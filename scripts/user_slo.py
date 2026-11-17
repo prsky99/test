@@ -94,6 +94,9 @@ class _Phases:
         out['stages'] = dict(sorted(found.items(), key=lambda item: -item[1])[:8])
         # Garbage collection is kept even when it is not among the slowest 8 (PM 11-13 20:2x).
         out['stages'].update({name: found[name] for name in ('gc', 'gc_all') if name in found})
+        # Every step of the Chat path is kept too (PM 11-17): step_search alone could not say whether the
+        # search or the checks after it grew (admit, relay, offer, no_match).
+        out['stages'].update({name: value for name, value in found.items() if name.startswith('step_')})
         return out
 
 
