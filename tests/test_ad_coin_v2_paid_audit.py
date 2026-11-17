@@ -324,8 +324,13 @@ def test_reconcile_finds_the_day_blocks_and_reads_transfers_in_chunks():
 
 def test_night_rehearsal_checks_both_rollbacks_and_leaves_the_copy_migrated(store):  # noqa: F811
     """PM 11-14: the copy rehearsal also proves the paid-events rollback stops when the table holds rows."""
+    from pathlib import Path
+    import scripts.ad_coin_night_1115_rehearse as rehearse
     from scripts.ad_coin_night_1115_rehearse import check_rollbacks
     from scripts.ad_coin_v2_migrate import migrate_agent_ads, migrate_impressions, migrate_paid, migrate_paid_events
+    # 11-17 (PM 09:3x): the pinned ops-code folder carries only the code paths, not deploy/ad_coin's rollback SQL
+    if not (Path(rehearse.__file__).resolve().parents[1] / 'deploy' / 'ad_coin').is_dir():
+        pytest.skip('deploy/ad_coin is not in this folder (pinned ops-code copy)')
     store.migrate_model()
     migrate_paid(store)
     migrate_impressions(store)
