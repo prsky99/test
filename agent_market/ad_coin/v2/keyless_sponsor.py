@@ -47,6 +47,9 @@ MARKER_ATOMS = "2"                    # a Sponsored-only campaign (never offered
 SPAN_DAYS_AFTER_HORIZON = 2
 LOST_KEY_NOTE = ("Keep the read_key: it is shown once and is never stored. Without it this order cannot be read, "
                  "quoted or paid, and it cannot be recovered because no contact details are collected.")
+TAKEDOWN_NOTE = ("This order was taken down by an operator. It will not run again and no new quote is offered. "
+                 "Payments for placements that can no longer run are refunded manually by the operator to the paying "
+                 "address after review; nothing is stored for you here.")
 PAY_NOTE = ("Send exactly amount_usdc in USDC on Base (chain 8453) to pay_to before expires_at, then POST the "
             "transaction hash to payment_url. Any other amount is not matched.")
 
@@ -213,6 +216,30 @@ class KeylessSponsor:
             pass       # the read key is already issued: the next status read creates the campaign again
         return {**view, "state": "in_review", "hold_reasons": flags}
 
+    def _taken_down(self, order_id):
+        """True once an operator took the order's advertiser down (auto_review.takedown's audit record)."""
+        from .auto_review import TAKEDOWN
+        with self.store.atomic():
+            return self.store.one("audit_by_target_event", (order_id, TAKEDOWN)) is not None
+
+    def _refunds(self, order_id):
+        """What the takedown left to refund: the order's paid bookings, or its paid plans with their placements, that
+        are refund_due or already refunded. Nothing is held here; the operator sends refunds by hand."""
+        from .paid_bookings import _usdc
+        owed = ("refund_due", "refunded")
+        with self.store.atomic():
+            rows = [dict(r) for r in self.store.all("paid_bookings_by_advertiser", (order_id,))]
+        refunds = [{"kind": "booking", "id": r["id"], "state": r["state"], "amount_usdc": _usdc(r["amount_units"]),
+                    "day": time.strftime("%Y-%m-%d", time.gmtime(int(r["day_ms"]) / 1000))}
+                   for r in rows if r["note"] != "plan" and r["state"] in owed]
+        if any(r["note"] == "plan" and r["state"] in owed for r in rows) and self.plans.ready():
+            for plan in self.plans.list(order_id)["items"]:
+                items = [i for i in plan["items"] if i["state"] in owed]
+                if items and plan["tx_hash"]:
+                    refunds.append({"kind": "plan", "id": plan["id"], "state": plan["state"],
+                                    "amount_usdc": plan["amount_usdc"], "placements": items})
+        return refunds
+
     def _order(self, order_id):
         with self.store.atomic():
             row = self.store.one("audit_by_target_event", (order_id, ORDER_EVENT))
@@ -297,6 +324,8 @@ class KeylessSponsor:
                 "payment_url": "/api/ad-coin/v2/sponsor/" + order_id + "/payment",
                 "day": order.get("day"), "budget_usdc": order.get("budget_usdc"),
                 "category": order.get("site_category") or order.get("category"), "region": order.get("region")}
+        if self._taken_down(order_id):        # PM 11-17: no resume, no new quote, refunds due (sent by hand)
+            return {**base, "state": "taken_down", "refunds": self._refunds(order_id), "note": TAKEDOWN_NOTE}
         with self.store.atomic():
             applied = applications.status_of(self.store, order_id)
             rejected = self.store.one("audit_by_target_event", (order_id, applications.REJECTED))
@@ -382,6 +411,8 @@ class KeylessSponsor:
             store.lock("2:campaign:" + campaign_id, "keyless_budget:" + campaign_id)
             if self._order(order_id) is None or self._campaign_id(order_id) != campaign_id:
                 raise ContractError("not_a_keyless_campaign", 409)
+            if self._taken_down(order_id):
+                raise ContractError("order_taken_down", 409)
             campaign = commercial._campaign(campaign_id, True)
             if campaign["advertiser_id"] != order_id:
                 raise ContractError("not_a_keyless_campaign", 409)
@@ -469,6 +500,8 @@ class KeylessSponsor:
     # ---- 3. payment -------------------------------------------------------------------------------------------
     def pay(self, order_id, read_key, tx_hash):
         order_id, _ = self.authenticate(order_id, read_key)
+        if self._taken_down(order_id):
+            raise ContractError("order_taken_down", 409)
         order = self._order(order_id)
         campaign_id = self._campaign_id(order_id)
         quote = self._open_quote(order_id, campaign_id, order) if campaign_id else None

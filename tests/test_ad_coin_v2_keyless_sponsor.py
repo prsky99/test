@@ -394,3 +394,36 @@ def test_a_cookieless_agent_post_passes_the_frontend_security_layers(shop, tmp_p
         client.close()
         front.book.close()
         app_store._db.close()
+
+
+def test_a_taken_down_order_shows_its_refund_and_never_quotes_or_restarts(shop):
+    from agent_market.ad_coin.v2 import auto_review
+    from agent_market.ad_coin.v2.contracts import ContractError
+    created = order(shop).json()
+    order_id, key = created['order_id'], created['read_key']
+    review(shop, order_id)
+    quote = status(shop, order_id, key).json()['quote']
+    tx = shop.rpc.send(int(quote['amount_units']))
+    paid_now = shop.post('/api/ad-coin/v2/sponsor/' + order_id + '/payment', json={'tx_hash': tx},
+                         headers={'X-Read-Key': key})
+    assert paid_now.json()['quote']['state'] == 'confirmed'
+    access = shop.commercial.access
+    done = auto_review.takedown(shop.commercial, auto_review.principal(access), order_id, reason='misleading offer')
+    assert done['refunds_due'] == 1
+    for _ in range(2):
+        answer = status(shop, order_id, key)
+        assert answer.status_code == 200
+        body = answer.json()
+        assert body['state'] == 'taken_down' and 'quote' not in body and 'refunded manually' in body['note']
+        assert body['refunds'] == [{'kind': 'booking', 'id': quote['quote_id'], 'state': 'refund_due',
+                                    'amount_usdc': quote['amount_usdc'], 'day': tomorrow()}]
+    assert count(shop.store, 'SELECT id FROM adc2_paid_bookings') == 1        # no new quote
+    assert rows(shop.store, 'SELECT state FROM adc2_campaigns')[0]['state'] == 'paused'
+    pay = shop.post('/api/ad-coin/v2/sponsor/' + order_id + '/payment', json={'tx_hash': shop.rpc.send(5_000_001)},
+                    headers={'X-Read-Key': key})
+    assert pay.status_code == 409 and pay.json()['error']['code'] == 'order_taken_down'
+    with pytest.raises(ContractError) as error:
+        shop.sponsor.start_display_budget(shop.sponsor._campaign_id(order_id), order_id)
+    assert error.value.code == 'order_taken_down'
+    assert len(budget_events(shop.store)) == 1
+    assert status(shop, order_id, 'w' * 43).status_code == 404               # still needs the read key
