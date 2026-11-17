@@ -998,7 +998,8 @@ NOT_THIS_ROLE = {
 
 def rank(versions):
     """Per role: by the pass rate over the recent role tasks, then quality score; one place per registrable domain;
-    #1 is the final pearl when at least half of its recent tasks passed at 85+ on two different days (R12)."""
+    the final pearl is the best-ranked member with at least half of its recent tasks passed at 85+ on two different
+    days (R12; PM 11-17: among verified pearls only), a first-day candidate above it is the provisional pearl."""
     roles = defaultdict(list)
     for v in versions:
         if not is_own_fallback(v['resource_id']) and (canonical(v['role']), v['resource_id']) not in NOT_THIS_ROLE:
@@ -1028,12 +1029,21 @@ def rank(versions):
             if usable:
                 seen.add(v['registrable_domain'])
             ranked.append(entry)
-        top = next((e for e in ranked if e['rank'] == 1), None)
-        good = bool(top and top['best_recent_score'] >= PASS_MARK and top['recent_pass_rate'] >= PEARL_PASS_RATE
-                    and not top['stale'])
+        # PM 11-17 16:4x (charter 0: the final pearl is the role's #1 *verified* pearl): a first-day candidate ranked
+        # above a confirmed pearl no longer takes the role's final pearl away (website.ai_readiness 11-17 15:16:
+        # 37811 and 436744 at 1/1 put 132732, confirmed at 92.1, third). The final pearl is the best-ranked member
+        # that passes and is confirmed on two days; a first-day candidate ranked above it (or the first one when the
+        # role has no final pearl) is the provisional pearl. The rank order itself (recent pass rate, then score) is
+        # unchanged, so verified pearls are still compared by it.
+        good = lambda e: (bool(e['rank']) and e['best_recent_score'] >= PASS_MARK and e['recent_pass_rate'] >= PEARL_PASS_RATE
+                          and not e['stale'])
+        order = sorted((e for e in ranked if e['rank']), key=lambda e: e['rank'])
+        final = next((e for e in order if good(e) and e['success_days'] >= CONFIRM_DAYS), None)
+        provisional = next((e for e in order if good(e) and 1 <= e['success_days'] < CONFIRM_DAYS
+                            and (final is None or e['rank'] < final['rank'])), None)
         out[role] = {'domain': domain_of(role), 'members': ranked,
-                     'final_pearl': top['resource_id'] if good and top['success_days'] >= CONFIRM_DAYS else None,
-                     'provisional_pearl': top['resource_id'] if good and 1 <= top['success_days'] < CONFIRM_DAYS else None,
+                     'final_pearl': final['resource_id'] if final else None,
+                     'provisional_pearl': provisional['resource_id'] if provisional else None,
                      'fallbacks': [e['resource_id'] for e in ranked if e['rank'] in (2, 3)],
                      'needs_agentcon_fallback': len([e for e in ranked if e['rank'] and e['rank'] >= 2]) <= 1}
     return out

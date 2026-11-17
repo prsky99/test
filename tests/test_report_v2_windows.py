@@ -239,3 +239,29 @@ def test_role_groups_are_written_outside_git_and_published_once_a_night(out, mon
     V.main(['publish-groups'])
     assert called == []                                          # no ranking, nothing on the board
     assert published.read_text() == V.groups_file().read_text()
+
+
+def test_the_final_pearl_is_the_best_verified_member_and_a_first_day_leader_is_provisional(monkeypatch):
+    """PM 11-17 16:4x (charter 0): website.ai_readiness lost its final pearl 132732 (confirmed, 92.1, 1 of 2 recent
+    tasks) when two first-day candidates at 1/1 ranked above it."""
+    now = time.time()
+
+    def v(rid, score, domain):
+        return {'resource_id': rid, 'role': 'website.ai_readiness.v1', 'tool': 't', 'outcome': 'succeeded',
+                'quality': {'score': score}, 'tested': now - 60, 'domain': 'web', 'registrable_domain': domain,
+                'data_quality': {'accuracy': {'points': 25}}}
+    confirmed, fresh, second = v(132732, 92.1, 'a.com'), v(37811, 88.0, 'b.com'), v(436744, 85.0, 'c.com')
+    days = {132732: 2, 37811: 1, 436744: 1}
+    recent = {132732: [confirmed, {**confirmed, 'quality': {'score': 70.0}}], 37811: [fresh], 436744: [second]}
+    monkeypatch.setattr(V, 'success_days', lambda rid, role, tool, now, **k: days[rid])
+    monkeypatch.setattr(V, 'recent_tasks', lambda x, now=None: recent[x['resource_id']])
+    monkeypatch.setattr(V, 'stale_answer', lambda xs: False)
+    role = V.rank([confirmed, fresh, second])['website.ai_readiness.v1']
+    assert [m['resource_id'] for m in role['members'] if m['rank'] == 1] == [37811]     # the rank order is unchanged
+    assert role['final_pearl'] == 132732 and role['provisional_pearl'] == 37811
+    days[37811] = 2                                         # confirmed on a second day: it takes the final place
+    role = V.rank([confirmed, fresh, second])['website.ai_readiness.v1']
+    assert role['final_pearl'] == 37811 and role['provisional_pearl'] is None
+    days.update({132732: 1, 37811: 1})                      # no verified member: the first-day leader is provisional
+    role = V.rank([confirmed, fresh, second])['website.ai_readiness.v1']
+    assert role['final_pearl'] is None and role['provisional_pearl'] == 37811
