@@ -50,7 +50,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "mcp-registry": "mcp-server-trust-check",   # registry seat (agent team 11-16, scripts/gold_mcp_registry.py)
         "met-weather": "met-weather",               # 30 US points vs NWS, built right before the gate (PM 11-16)
         "dns-spf-dmarc": "website-trust-brief",     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)
-        "package-readme": "package-risk-audit"}     # split readme-r1 (scripts/gold_package_readme.py, agent team 11-17)     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)               # 30 US points vs NWS, built right before the gate (PM 11-16)
+        "package-readme": "package-risk-audit",     # split readme-r1 (scripts/gold_package_readme.py, agent team 11-17)
+        "agent-record": "mcp-server-trust-check"}   # split record-r1 (scripts/gold_agent_record.py, agent team 11-17)     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)               # 30 US points vs NWS, built right before the gate (PM 11-16)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -93,6 +94,19 @@ def judge(agent_id: str, case: dict, result: dict | None, error: str | None = No
         spf_ok = quoted(truth.get("spf") or [], "no SPF record published")
         dmarc_ok = quoted(truth.get("dmarc") or [], "no DMARC record published")
         return {"pass": spf_ok and dmarc_ok, "spf": spf_ok, "dmarc": dmarc_ok}
+    if agent_id == "agent-record":
+        # agent team 11-17: our own catalog, read from the production database right before the gate: found, the
+        # agent id and the grade (none when under review); reachability changes hourly and is not judged.
+        if bool(result.get("found")) != bool(truth.get("found")):
+            return {"pass": False, "got": result.get("found"), "want": truth.get("found")}
+        if not truth.get("found"):
+            return {"pass": True}
+        if result.get("agent_id") != truth.get("agent_id"):
+            return {"pass": False, "got": result.get("agent_id"), "want": truth.get("agent_id")}
+        if truth.get("reviewing"):
+            ok = "grade" not in result and "under review" in str(result.get("answer") or "")
+            return {"pass": ok, "got": result.get("grade"), "want": "under review, no grade"}
+        return {"pass": result.get("grade") == truth.get("grade"), "got": result.get("grade"), "want": truth.get("grade")}
     if agent_id == "package-readme":
         # agent team 11-17: the first example must be one of the code blocks of the package's GitHub README (an
         # independent copy of the README, read right before the gate), or both have none; install names the package.
@@ -440,6 +454,8 @@ def applies(agent_id: str, case: dict) -> bool:
         return bool((case.get("input") or {}).get("topic"))
     if agent_id == "github-releases":
         return bool((case.get("truth") or {}).get("repository_github"))
+    if agent_id == "agent-record":       # record cases only (truth built by scripts/gold_agent_record.py)
+        return "found" in (case.get("truth") or {})
     if agent_id == "package-readme":     # readme cases only (truth built by scripts/gold_package_readme.py)
         return "code_blocks" in (case.get("truth") or {})
     if agent_id == "dns-spf-dmarc":      # mail-auth cases only (truth built by scripts/gold_mail_auth.py)

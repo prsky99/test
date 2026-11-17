@@ -2835,3 +2835,23 @@ def test_answer_set_builders_fill_from_spares_and_stop_at_thirty(monkeypatch):
     assert len(cases) == 30 and cases[0]["input"]["domain"] == "d1.example"
     assert len([n for n in asked if not n.startswith("_dmarc.")]) == 31          # one failed domain, then 30
     assert not {"lodash", "express", "left-pad"} & set(R.SPARES) and len(R.SPARES) == len(set(R.SPARES))
+
+
+
+def test_agent_record_gate_builder_judge_and_start_condition(tmp_path, monkeypatch):
+    from agent_market.fallback_agents.gold_check import judge, applies
+    from scripts import gold_agent_record as G
+    rows = G.parse_rows("id|registry_name|eval_grade|eval_security|active\n5|io.github.x/files|B|ok|1\n6|io.github.x/held|A|quarantine|1\n")
+    cases = G.cases_from(rows, G.made_up("record-r1", 1))
+    assert [c["truth"] for c in cases] == [{"found": True, "agent_id": 5, "reviewing": False, "grade": "B"},
+                                           {"found": True, "agent_id": 6, "reviewing": True, "grade": None},
+                                           {"found": False}]
+    assert all(applies("agent-record", c) for c in cases) and not applies("agent-record", {"truth": {"spf": []}})
+    assert judge("agent-record", cases[0], {"found": True, "agent_id": 5, "grade": "B"})["pass"]
+    assert not judge("agent-record", cases[0], {"found": True, "agent_id": 5, "grade": "A"})["pass"]
+    assert judge("agent-record", cases[1], {"found": True, "agent_id": 6, "answer": "x; under review by AgentValCon"})["pass"]
+    assert not judge("agent-record", cases[1], {"found": True, "agent_id": 6, "grade": "A", "answer": "under review"})["pass"]
+    assert judge("agent-record", cases[2], {"found": False})["pass"] and not judge("agent-record", cases[2], {"found": True})["pass"]
+    assert "md5(id::text || 'record-r1')" in G.select_sql("record-r1", 25)
+    monkeypatch.setenv("AGENT_RECORD_INDEX", str(tmp_path / "none.sqlite3"))
+    assert G.index_ok()[0] is False and G.main(["--split", "x"]) == 3          # no index: the gate does not start
