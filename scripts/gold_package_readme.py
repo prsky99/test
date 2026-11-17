@@ -108,6 +108,10 @@ def main(argv=None) -> int:
         validate_public_url(url)
         r = client.get(url)
         time.sleep(1.0)
+        if r.status_code in (403, 429):   # ops 11-17: a provider limit stops the build (GitHub counts by address)
+            from agent_market.provider_budget import note
+            note(url, "gate", 429, evidence={"origin": "provider_http", "retry_after": r.headers.get("Retry-After")})
+            raise SystemExit(f"provider refused ({r.status_code}) at {url}; stopped, nothing written")
         return r if r.status_code == 200 else None
 
     packages, origin = [], {}

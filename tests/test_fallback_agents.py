@@ -2896,3 +2896,32 @@ def test_agent_record_builder_calls_no_provider():
     """gold_agent_record reads only our own database through scripts.prod_ro_sql: no provider, no ledger share."""
     src = Path(__file__).resolve().parents[1].joinpath("scripts/gold_agent_record.py").read_text()
     assert "httpx" not in src and "prod_ro_sql" in src
+
+
+
+@pytest.mark.parametrize("module,status", [("gold_mail_auth", 429), ("gold_package_readme", 403), ("gold_package_readme", 429)])
+def test_answer_set_builders_stop_at_a_provider_limit(module, status, tmp_path, monkeypatch):
+    """ops 11-17: a 403 or 429 stops the build at once (GitHub counts unauthenticated calls by address) and pauses
+    the domain in the ledger with provider evidence; nothing is written."""
+    import importlib
+    import httpx as _httpx
+    from agent_market import provider_budget
+    G = importlib.import_module("scripts." + module)
+    slug = tmp_path / "gateway-data/necklaces/gold" / G.SLUG
+    slug.mkdir(parents=True)
+    line = {"input": {"domain": "example.org"}} if module == "gold_mail_auth" else {"input": {"package": "a", "ecosystem": "npm"}}
+    (slug / "holdout-r2.jsonl").write_text(json.dumps(line) + "\n")
+    monkeypatch.setattr(G, "ROOT", tmp_path)
+    monkeypatch.setattr(G.time, "sleep", lambda s: None)
+    monkeypatch.setattr(provider_budget, "reserve", lambda url, system, *a, **k: (True, "ok"))
+    noted, sent = [], []
+    monkeypatch.setattr(provider_budget, "note", lambda *a, **k: noted.append((a, k)))
+    def get(self, url, *a, **k):
+        sent.append(url)
+        return _httpx.Response(status, headers={"Retry-After": "60"}, request=_httpx.Request("GET", url))
+    monkeypatch.setattr(_httpx.Client, "get", get)
+    with pytest.raises(SystemExit) as stop:
+        G.main(["--from", "holdout-r2", "--split", "x", *(["--no-spares"] if module == "gold_package_readme" else [])])
+    assert f"provider refused ({status})" in str(stop.value) and len(sent) == 1
+    assert noted[0][0][2] == 429 and noted[0][1]["evidence"]["retry_after"] == "60"
+    assert not list(slug.glob("x.jsonl"))

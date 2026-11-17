@@ -89,6 +89,10 @@ def main(argv=None) -> int:
         validate_public_url(DOH)
         r = client.get(DOH, params={"name": name, "type": "TXT"})
         time.sleep(1.0)
+        if r.status_code in (403, 429):   # a provider limit stops the build (ops 11-17)
+            from agent_market.provider_budget import note
+            note(DOH, "gate", 429, evidence={"origin": "provider_http", "retry_after": r.headers.get("Retry-After")})
+            raise SystemExit(f"provider refused ({r.status_code}) at {DOH}; stopped, nothing written")
         if r.status_code != 200:
             return None
         body = r.json()
