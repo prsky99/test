@@ -340,7 +340,7 @@ def test_adcoin_daemon_state_plist_and_reinstall(tmp_path):
     rel = tmp_path / 'releases'
     for name, body in (('old', 'v1'), ('same', 'v1'), ('new', 'v2')):
         (rel / name / 'scripts').mkdir(parents=True)
-        (rel / name / 'scripts/ad_coin_worker_daemon.py').write_text('daemon')
+        (rel / name / 'scripts/ad_coin_worker_daemon.py').write_text('def main():\n    from agent_market.ad_coin.v2.paid_bookings import enabled\n')
         (rel / name / 'agent_market/ad_coin/v2').mkdir(parents=True)
         (rel / name / 'agent_market/ad_coin/v2/paid_bookings.py').write_text(body)
         (rel / name / 'agent_market/ad_coin/v2/web').mkdir()
@@ -351,7 +351,7 @@ def test_adcoin_daemon_state_plist_and_reinstall(tmp_path):
 
     def run(active, printed='\tstate = running\n\tworking directory = /x/releases/old\n'):
         state.write_text(_json.dumps({'services': {'frontend': {'active': 'a', 'slots': {'a': active}}}}))
-        return w.check_adcoin_daemon(printed, plists, rel, state)
+        return w.check_adcoin_daemon(printed, plists, rel, state, ack_file=tmp_path / 'no-ack.json', sponsored_env=tmp_path / 'no.env')
 
     got = run('new')
     assert got['release'] == 'old' and got['active_frontend'] == 'new'
@@ -360,6 +360,61 @@ def test_adcoin_daemon_state_plist_and_reinstall(tmp_path):
     assert run('same')['problems'] == [] and run('same')['code_same_as_active'] is True
     assert run('old')['problems'] == []
     assert run('new', printed='')['problems'] == ['not_running']
+
+
+def test_adcoin_daemon_code_follows_imports_and_a_reviewed_pair(tmp_path):
+    """PM 11-18: only the files the daemon imports count (screen and page files do not); an AI AD Coin review of the
+    exact (daemon, active) pair, at most 24 h, shows 'reviewed' instead of reinstall_needed; auto review on voids it."""
+    import json as _json
+    import time as _time
+    from scripts import ops_watch as w
+    rel = tmp_path / 'releases'
+    entry = ('from agent_market.ad_coin.v2.workers import ModelWorkers\n'
+             'def main():\n    from agent_market.ad_coin.v2.paid_bookings import enabled\n')
+
+    def make(name, paid='v1', screen='a', page='p1'):
+        r = rel / name
+        (r / 'scripts').mkdir(parents=True)
+        (r / 'scripts/ad_coin_worker_daemon.py').write_text(entry)
+        v2 = r / 'agent_market/ad_coin/v2'
+        (v2 / 'web').mkdir(parents=True)
+        (r / 'agent_market/concierge').mkdir()
+        for d in (r / 'agent_market', r / 'agent_market/ad_coin', v2, r / 'agent_market/concierge'):
+            (d / '__init__.py').write_text('')
+        (v2 / 'workers.py').write_text('from ..v2 import paid_bookings\n')
+        (v2 / 'paid_bookings.py').write_text('enabled = 1  # ' + paid)
+        (v2 / 'web/admin.js').write_text(screen)
+        (r / 'agent_market/concierge/front.py').write_text('# ' + page)
+
+    make('old'), make('screen', screen='b', page='p2'), make('paid', paid='v2')
+    plists = tmp_path / 'LaunchAgents'
+    plists.mkdir()
+    (plists / (w.DAEMON + '.plist')).write_text('<plist/>')
+    state, ack, env = tmp_path / 'state.json', tmp_path / 'ack.json', tmp_path / 'sponsored.env'
+    env.write_text('AD_COIN_AUTO_REVIEW_ENABLED=0\n')
+
+    def run(active, now=None):
+        state.write_text(_json.dumps({'services': {'frontend': {'active': 'a', 'slots': {'a': active}}}}))
+        return w.check_adcoin_daemon('\tstate = running\n\tworking directory = /x/releases/old\n', plists, rel, state,
+                                     ack_file=ack, sponsored_env=env, now=now)
+
+    files = {str(f.relative_to(rel / 'old')) for f in w._daemon_files(rel / 'old')}
+    assert 'agent_market/ad_coin/v2/paid_bookings.py' in files and 'agent_market/ad_coin/v2/workers.py' in files
+    assert 'agent_market/ad_coin/v2/web/admin.js' not in files and 'agent_market/concierge/front.py' not in files
+    assert run('screen')['problems'] == []                                   # screen and page files only
+    assert run('paid')['problems'] == ['reinstall_needed']                   # a file the daemon imports
+    now = _time.time()
+    pair = {'daemon': w._daemon_code(rel / 'old'), 'active': w._daemon_code(rel / 'paid'), 'team': 'AI AD Coin',
+            'reason': 'worker path 0 changed lines', 'checked_at': now - 60}
+    ack.write_text(_json.dumps({'acks': [{**pair, 'expires_at': now + 3600}]}))
+    got = run('paid', now)
+    assert got['problems'] == [] and got['reviewed'].startswith('reviewed, reinstall planned')
+    assert run('paid', now + 7200)['problems'] == ['reinstall_needed']       # expired
+    env.write_text('AD_COIN_AUTO_REVIEW_ENABLED=1\n')
+    assert run('paid', now)['problems'] == ['reinstall_needed']              # auto review on voids the review
+    env.write_text('AD_COIN_AUTO_REVIEW_ENABLED=0\n')
+    ack.write_text(_json.dumps({'acks': [{**pair, 'expires_at': now + 30 * 3600}]}))
+    assert run('paid', now)['problems'] == ['reinstall_needed']              # longer than 24 h is not accepted
 
 
 def test_db_connections_per_role_by_socket_pairs():

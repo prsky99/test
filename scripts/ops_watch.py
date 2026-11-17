@@ -216,11 +216,82 @@ RELEASES = ROOT / 'gateway-data/services/releases'
 SERVICE_STATE = ROOT / 'gateway-data/services/state.json'
 
 
+DAEMON_ENTRY = 'scripts/ad_coin_worker_daemon.py'
+DAEMON_DATA = ('agent_market/ad_coin/sql_registry.json',)   # read as data, not imported
+DAEMON_ACK = ROOT / 'gateway-data/ops/adcoin-daemon-ack.json'
+SPONSORED_ENV = ROOT / 'gateway-data/sponsored.env'
+ACK_MAX_SECONDS = 24 * 3600
+
+
+def _daemon_files(release_dir):
+    """The files the worker daemon runs, found from its entry by following agent_market imports (PM 11-18): every
+    import in the entry script and in agent_market/ad_coin (the daemon calls into them, also inside functions), only
+    module-level imports elsewhere (a page module's lazy imports never run in the daemon); parent packages run
+    their __init__ too. Plus DAEMON_DATA. Screen files (web/*.js, admin pages) are not in it."""
+    import ast
+    root = Path(release_dir)
+
+    def module_file(name):
+        path = root.joinpath(*name.split('.'))
+        if (path / '__init__.py').is_file():
+            return path / '__init__.py'
+        return path.with_suffix('.py') if path.with_suffix('.py').is_file() else None
+
+    def module_level(tree):
+        out, stack = [], list(tree.body)
+        while stack:
+            node = stack.pop()
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                out.append(node)
+            elif isinstance(node, (ast.If, ast.Try)):
+                stack += node.body + node.orelse + getattr(node, 'finalbody', [])
+                stack += [x for h in getattr(node, 'handlers', []) for x in h.body]
+        return out
+
+    seen, todo = set(), [root / DAEMON_ENTRY]
+    while todo:
+        path = todo.pop()
+        if path in seen or not path.is_file():
+            continue
+        seen.add(path)
+        rel = path.relative_to(root).as_posix()
+        parts = rel[:-3].split('/')
+        package = parts[:-1]          # a module's package; an __init__'s own package is the same parts[:-1]
+        try:
+            tree = ast.parse(path.read_text(encoding='utf-8'))
+        except (OSError, SyntaxError, ValueError):
+            continue
+        deep = rel == DAEMON_ENTRY or rel.startswith('agent_market/ad_coin/')
+        nodes = [n for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))] if deep else module_level(tree)
+        for node in nodes:
+            if isinstance(node, ast.Import):
+                names = [alias.name for alias in node.names]
+            else:
+                if node.level:
+                    base = package[:len(package) - node.level + 1] if node.level > 1 else package
+                    module = '.'.join(base + ([node.module] if node.module else []))
+                else:
+                    module = node.module or ''
+                names = [module] + [module + '.' + alias.name for alias in node.names]
+            for name in names:
+                if name.split('.')[0] != 'agent_market':
+                    continue
+                bits = name.split('.')
+                for i in range(1, len(bits) + 1):
+                    found = module_file('.'.join(bits[:i]))
+                    if found:
+                        todo.append(found)
+    files = sorted(seen) + [root / name for name in DAEMON_DATA if (root / name).is_file()]
+    return files
+
+
 def _daemon_code(release_dir):
-    """sha256 over the files the worker daemon runs (its script and agent_market/ad_coin .py/.json), or None."""
+    """sha256 over the files the worker daemon runs (_daemon_files), or None."""
     import hashlib
-    files = [release_dir / 'scripts/ad_coin_worker_daemon.py']
-    files += sorted(f for f in (release_dir / 'agent_market/ad_coin').rglob('*') if f.suffix in ('.py', '.json'))
+    release_dir = Path(release_dir)
+    files = _daemon_files(release_dir)
+    if not files:
+        return None
     digest = hashlib.sha256()
     try:
         for f in files:
@@ -230,7 +301,40 @@ def _daemon_code(release_dir):
     return digest.hexdigest()
 
 
-def check_adcoin_daemon(printed=None, plist_dir=None, releases=None, state_file=None):
+def _auto_review_on(path=None):
+    """AD_COIN_AUTO_REVIEW_ENABLED=1 in gateway-data/sponsored.env (only that key is read)."""
+    try:
+        for line in Path(path or SPONSORED_ENV).read_text().splitlines():
+            key, _, value = line.partition('=')
+            if key.strip() == 'AD_COIN_AUTO_REVIEW_ENABLED':
+                return value.strip().strip('"\'') == '1'
+    except OSError:
+        pass
+    return False
+
+
+def _daemon_ack(ran, active, path=None, now=None):
+    """The AI AD Coin review of exactly this (daemon code, active code) pair, if one is recorded and not expired
+    (PM 11-18: at most 24 h; any hash change voids it). File: {"acks": [{"daemon": sha, "active": sha, "team",
+    "reason", "checked_at": epoch, "expires_at": epoch}]}."""
+    now = time.time() if now is None else now
+    try:
+        acks = json.loads(Path(path or DAEMON_ACK).read_text()).get('acks') or []
+    except (OSError, ValueError, AttributeError):
+        return None
+    for ack in acks:
+        try:
+            if (ack.get('daemon') == ran and ack.get('active') == active and ack.get('team') == 'AI AD Coin'
+                    and ack.get('reason') and float(ack['checked_at']) <= now < float(ack['expires_at'])
+                    and float(ack['expires_at']) - float(ack['checked_at']) <= ACK_MAX_SECONDS):
+                return ack
+        except (KeyError, TypeError, ValueError):
+            continue
+    return None
+
+
+def check_adcoin_daemon(printed=None, plist_dir=None, releases=None, state_file=None, ack_file=None, sponsored_env=None,
+                        now=None):
     """State of the AD Coin worker daemon and the problems to act on ('not_running', 'plist_missing',
     'reinstall_needed'). 11-14: it ran from adv-frontend-20261114-r1 with no plist on disk."""
     import os
@@ -259,7 +363,13 @@ def check_adcoin_daemon(printed=None, plist_dir=None, releases=None, state_file=
         ran, active = _daemon_code(releases / state['release']), _daemon_code(releases / state['active_frontend'])
         state['code_same_as_active'] = bool(ran and active and ran == active)
         if ran and active and ran != active:
-            problems.append('reinstall_needed')
+            ack = None if _auto_review_on(sponsored_env) else _daemon_ack(ran, active, ack_file, now)
+            if ack:
+                # PM 11-18: reviewed by AI AD Coin, reinstall planned; shown, not escalated. Auto review on voids it.
+                state['reviewed'] = 'reviewed, reinstall planned (expires %s): %s' % (
+                    time.strftime('%m-%d %H:%M', time.localtime(float(ack['expires_at']))), str(ack['reason'])[:200])
+            else:
+                problems.append('reinstall_needed')
     state['problems'] = problems
     return state
 
