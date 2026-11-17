@@ -1,7 +1,7 @@
 """Byte-bounded resource reads with snapshot-verified contract hydration."""
 from psycopg import sql
 from .application_sql import placeholders, resource_predicate
-from .concierge.retrieval_metrics import timed
+from .concierge.retrieval_metrics import count, timed
 MAX_RESOURCE_BYTES = 64 * 1024 * 1024
 
 
@@ -37,6 +37,8 @@ def resources(store, ids, where, parameters, *, allow_partial=False, source_only
     if not ids:
         return []
     ids = list(dict.fromkeys(ids))
+    count('resource_read_calls', 1)           # PM 11-18: how many separate contract reads one request makes
+    count('resource_read_rows', len(ids))
     result, decoded_bytes, reserved_bytes = [], 0, 0
     measured = columns or tuple(catalog)
     overhead = 8 * len(measured)

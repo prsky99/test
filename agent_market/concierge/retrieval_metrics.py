@@ -198,7 +198,9 @@ def count(name, value):
                     'projection_cache_hits', 'reranked_candidates', 'rerank_order_changed', 'rerank_budget_exhausted',
                     'constraint_unknown', 'constraint_mismatch', 'task_tool_verified', 'task_tool_unverified',
                     'projection_candidates_omitted', 'expansion_candidates',
-                    'compact_ranking_rows', 'rerank_skipped_compact'):
+                    'compact_ranking_rows', 'rerank_skipped_compact',
+                    # PM 11-18: listing contract reads per request (resource_read sums them), to see one-row reads
+                    'resource_read_calls', 'resource_read_rows'):
         raise ValueError('Unknown retrieval count.')
     current = _current.get()
     if current is not None:

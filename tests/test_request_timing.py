@@ -158,3 +158,27 @@ def test_a_new_pooled_session_is_timed_as_session_open_and_a_reused_one_is_not()
         with pool.lease_store():
             pass
     assert first['stages_ms']['session_open'] >= 40 and 'session_open' not in again['stages_ms']
+
+
+def _crowded(request):
+    """Thirty larger stages, a 0 ms head start marker and two contract reads (PM 11-18)."""
+    from agent_market.concierge.retrieval_metrics import _STAGES, add, count
+    for name in sorted(_STAGES - {'prefetch_hit', 'prefetch_miss', 'prefetch_skip', 'prefetch_unused', 'prefetch_run'})[:30]:
+        add(name, 50)
+    add('prefetch_unused', 0)
+    count('resource_read_calls', 1)
+    count('resource_read_rows', 50)
+    count('resource_read_calls', 1)
+    count('resource_read_rows', 1)
+    return JSONResponse({'ok': True})
+
+
+def test_head_start_markers_and_contract_read_counts_are_always_sent():
+    """The slowest 24 stages left out 0 ms markers and small counts; these are sent whatever their size (PM 11-18)."""
+    app = Starlette(routes=[Route('/mcp', _crowded, methods=['POST'])])
+    app.add_middleware(RequestTiming)
+    timing = TestClient(app).post('/mcp').headers['server-timing']
+    names = [part.split(';')[0].strip() for part in timing.split(',')]
+    assert 'prefetch_unused' in names and 'prefetch_hit' not in names     # only what the request recorded
+    assert 'resource_read_calls;dur=2' in timing and 'resource_read_rows;dur=51' in timing
+    assert len([n for n in names if n not in ('server', 'prefetch_unused', 'resource_read_calls', 'resource_read_rows')]) <= 24

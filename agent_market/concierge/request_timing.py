@@ -13,6 +13,10 @@ from .retrieval_metrics import capture, gc_stages, gc_total_ms
 
 # /api/agents and /api/feed (11-12 PM): the 13:04 full check saw 18.9 s and 11.4 s there with no server stages.
 # /api/agent/v1/discover (11-14 PM 16:2x): 2.77 s in the full check with no server stages (F07).
+# Always sent whatever their size (PM 11-18): the slowest 24 stages leave out 0 ms markers and small counts, so the
+# recommendation head start outcome and the contract read counts could not be seen in public samples.
+ALWAYS_STAGES = ('prefetch_hit', 'prefetch_miss', 'prefetch_skip', 'prefetch_unused', 'prefetch_run')
+ALWAYS_COUNTS = ('resource_read_calls', 'resource_read_rows')
 PATHS = ('/mcp', '/a2a', '/chat', '/agents/best', '/api/explore', '/api/agents', '/api/feed', '/api/agent/v1/discover')
 
 
@@ -42,6 +46,10 @@ class RequestTiming:
                     measured = sorted({**values['stages_ms'], **steps, **gc_stages(values, gc_since)}.items(),
                                       key=lambda item: -item[1])
                     stages += measured[:24]
+                    kept = {name for name, _ in stages}
+                    stages += [(name, values['stages_ms'][name]) for name in ALWAYS_STAGES
+                               if name in values['stages_ms'] and name not in kept]
+                    stages += [(name, values['counts'][name]) for name in ALWAYS_COUNTS if name in values['counts']]
                     headers = MutableHeaders(scope=message)
                     timing = ', '.join(f'{name};dur={value:.0f}' for name, value in stages)
                     headers['Server-Timing'] = (headers['Server-Timing'] + ', ' + timing) if 'server-timing' in headers else timing
