@@ -212,3 +212,22 @@ W1 공통 결함 2다.
   - mcp.trust_audit: 기대 단어가 일반어뿐이고, 맞는 도구가 2개뿐이다.
   - 실시간 기준값이 필요한 21개 역할과 목걸이 계획 밖 54개 역할.
 - **알려진 빈틈**: 새 역할은 data_quality.REQUIRED_OUTPUT에 없다. 그래서 JSON 답은 W1의 TLS처럼 완전성 0점이 된다. 첫 시험 답의 모양을 본 뒤 필수 칸을 정하고, 평가기 버전을 올리고 다시 채점한다.
+
+## 6. W2 효과: 15:12 진주 시험 회차
+
+- **결과**: 대기열에 든 W2 시드 27개 가운데 24개를 시험했다. 성공 19, 실패 4, 건너뜀 1이다.
+- **85점 이상 4개**: 모두 정확도를 통과했다. 오늘이 첫 성공한 날이다.
+
+  | 역할 | 후보 | 점수 |
+  |---|---|---:|
+  | company.registry.v1 | 42425 verify_company_record (hatchloop.dev) | 87.0 |
+  | package.advisories.v1 | 274848 check_package | 86.5 |
+  | package.health.v1 | 43727 read_package_info | 86.0 |
+  | package.advisories.v1 | 58944 find_package_advisories | 85.0 |
+
+- **비교**: 같은 회차에서 이름 규칙으로 잡힌 다른 새 후보는 56개 중 8개(14%)가 85점 이상이었다. W2 후보는 24개 중 4개(17%)다.
+  - 세 역할(company.registry, package.advisories, package.health)은 그때까지 최종 진주가 없었다.
+- **다음 (PM)**
+  - 네 개를 11-18 회차 재시험 맨 앞(first_picks)에 넣었다. 서로 다른 날 두 번째 성공으로 확정을 노린다.
+  - hatchloop.dev는 진주 시험 몫이 하루 5회이고 한 번 시험에 4회를 쓴다. 그래서 하루 한 번이다.
+  - 확정되면 워크플로우에 넘긴다. package.advisories와 package.health는 package-risk-audit, company.registry는 company-due-diligence v4의 후보다.
