@@ -125,3 +125,65 @@ def test_operating_browser_runs_examples_templates_and_exported_apps(operating, 
 
 
 from tests.test_front_workflow_browser import browser  # noqa: E402,F401
+
+
+@pytest.mark.xfail(strict=True, reason='ops 11-17: install() rewrites the stored definition only when usage_tools_hash '
+                   'is missing (activation.py); the fix lands after the 11-20 freeze, and this test then passes')
+def test_install_refreshes_the_stored_definition_when_the_tool_spec_changes(tmp_path, monkeypatch):
+    """ops 11-17 (r12): 1fe699cd and 1e03611a added data.note to the outputSchema of research-papers and
+    technology-news; install() kept the old stored definition, owned_capability_adapter.profile() refused it as
+    "schema changed" and approve_model_contracts failed until PM refreshed the rows by hand (987574c5)."""
+    from copy import deepcopy
+    from agent_market.owned_data_agents import activation
+    from agent_market.owned_data_agents.catalog import tool_spec
+    store = Store(str(tmp_path/'refresh.sqlite3'))
+    install(store, 'https://agentconcierge.biz')
+    identity = 'research-papers'
+
+    def changed(name):
+        spec = deepcopy(tool_spec(name))
+        if name == identity:
+            spec['outputSchema']['properties']['data']['properties']['added_by_test'] = {'type': 'string'}
+        return spec
+    monkeypatch.setattr(activation, 'tool_spec', changed)
+    install(store, 'https://agentconcierge.biz')
+    row = store.query('SELECT id FROM resources WHERE key=?', ('agentconcierge-owned:' + identity,))[0]
+    stored = json.loads(store.resource(row['id'])['usage_full_tools'])
+    store._db.close()
+    assert stored == [changed(identity)]
+
+
+def test_every_owned_tool_spec_matches_what_install_stores_on_a_fresh_store(tmp_path):
+    """ops 11-17 request 2: a fresh install stores exactly tool_spec() for each owned agent, so a changed tool_spec is
+    a changed stored definition (never "outside the fingerprint"): a commit that changes inputSchema, outputSchema or
+    description must say the stored rows need a refresh (see the xfail test above until install() refreshes them)."""
+    from agent_market.owned_data_agents.catalog import SPECS, tool_spec
+    store = Store(str(tmp_path/'fresh.sqlite3'))
+    install(store, 'https://agentconcierge.biz')
+    for identity in SPECS:
+        row = store.query('SELECT id FROM resources WHERE key=?', ('agentconcierge-owned:' + identity,))[0]
+        assert json.loads(store.resource(row['id'])['usage_full_tools']) == [tool_spec(identity)], identity
+    store._db.close()
+
+
+# ops 11-17 (r12: commit messages said "tool definition unchanged" while outputSchema changed). A change to any owned
+# agent's tool_spec (name, description, inputSchema, outputSchema) must show in the diff here.
+# If one changes: after deploy, refresh the stored definition (owned-usage refresh) and run approve_model_contracts.
+TOOL_SPEC_DIGESTS = {
+    'technology-news': '0ee5d43958f0d651',
+    'research-papers': 'fcf6174900e1ee93',
+    'country-profile': '6fba8e02b0472e3d',
+    'package-metadata': 'b26df804df28f393',
+    'economic-indicators': 'fc688abf8e3c49ca',
+    'package-advisories': '74f2b3edf5a7f32c',
+    'github-issues': 'ee3fb9694e959b71',
+}
+
+
+def test_owned_tool_spec_digests_are_pinned():
+    import hashlib
+    from agent_market.owned_data_agents.catalog import SPECS, tool_spec
+    got = {k: hashlib.sha256(json.dumps(tool_spec(k), sort_keys=True, separators=(',', ':')).encode()).hexdigest()[:16]
+           for k in SPECS}
+    assert got == TOOL_SPEC_DIGESTS, ('an owned tool definition changed: update TOOL_SPEC_DIGESTS, say so in the commit, '
+                                      'and after deploy refresh the stored definition and run approve_model_contracts')
