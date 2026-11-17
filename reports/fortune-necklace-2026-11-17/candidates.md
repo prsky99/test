@@ -106,3 +106,21 @@
     - 사자자리 과제는 출처 문장을 찾지 못해 뺐다.
 - **장부**: 위키백과 확인 6회는 adhoc 몫이다.
   - 1회는 예약 없이 먼저 보내서 바로 뒤에 사후 기록했다.
+
+## 8. 약관 판정 (에이전트 팀, 11-17 밤; member_terms 기록은 11-18 21:50 동결이 끝난 뒤)
+
+| id | 판정 | 근거 요약 | 자리 영향 |
+|---:|---|---|---|
+| 35054 wenbu.app | allowed | 합리적 사용이면 된다. 상업 이용 제한이 없다 | saju 1순위를 유지한다 |
+| 405618 getchineseastrology.com | allowed | 무료, 읽기 전용, 저장하지 않음. 요청은 "링크 남기기"뿐이다 | saju 2순위다 |
+| 188781 skyandsigns.com / 188782 morgenhimmel.de | silent | 약관 페이지가 없다 | western 오늘 글. 둘 중 하나만 쓴다 |
+| 167374 unifiedreading.com | silent | 약관 페이지가 없다 | western 태양궁 |
+| 36467 asternym.com | prohibits | 자동 요청을 금지하고(11절), 허락 없는 상업 이용을 금지한다(12절) | western·saju 모두에서 뺀다 |
+| 57935 totallytarot.net/mcp | prohibits | 앱의 자동 접근을 금지한다. /mcp는 약관 어디에도 없다 | calendar 폴백에서 뺀다. 등록된 /api/public 계산 엔드포인트를 쓰는 멤버라면 allowed가 될 수 있다 |
+| 263031 fatetell cast_bazi_chart | 쓰기 아님 | "Deterministic; nothing stored" | 약관 판정 뒤 saju 후보로 다시 본다 |
+
+- 정리된 순서
+  - **calendar**: 자체 대체(에이전트 팀 agent-team/fortune 4a066387, KASI 날짜와 대조함)를 1순위로 한다. 외부 폴백은 36240(중국 음력, 약관 unknown)만 남는다.
+  - **western**: 167374(태양궁), 188781 또는 188782(오늘 글).
+  - **saju**: 35054, 405618.
+  - **synthesis**: 자체 대체.
