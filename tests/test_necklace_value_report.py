@@ -106,5 +106,6 @@ def test_every_single_comparison_says_it_is_the_whole_task_alone():
                       "delta_points": 63.3}, "time_ms": {}}
     lines = r.public_lines(m, [], "topic-evidence-brief")
     assert r.SINGLE_BASIS in lines and "whole task alone" in r.SINGLE_BASIS
+    assert "none of the single agents we tested covers every step" in r.SINGLE_BASIS and "no single agent" not in r.SINGLE_BASIS
     no_single = r.public_lines({"accuracy": {"necklace": {"correct": 29, "of": 30}}, "time_ms": {}}, [], "x")
     assert r.SINGLE_BASIS not in no_single

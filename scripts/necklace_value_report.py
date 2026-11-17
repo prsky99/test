@@ -181,7 +181,7 @@ def steps_count(slug: str) -> int | None:
 # PM 11-17 (review E): the single baseline is graded on the whole task, so a member that answers one step can never
 # pass; every comparison says so, in the public lines and the report.
 SINGLE_BASIS = ("The comparison is with a single agent answering the whole task alone, graded by the same rules; "
-                "no single agent covers every step.")
+                "none of the single agents we tested covers every step.")
 SINGLE_BASIS_KO = ("단일 기준선은 단일 에이전트가 과제 전체를 혼자 답했을 때와 비교한 값입니다(같은 채점 규칙). 한 단계만 "
                    "답하는 멤버는 구조상 과제 전체를 통과할 수 없으므로, Δ는 이 조건에서의 차이입니다.")
 
