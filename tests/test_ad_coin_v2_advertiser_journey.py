@@ -251,16 +251,24 @@ def test_a5_the_report_counts_agent_answers_too(person):
     assert answer.status_code == 200 and answer.json()['totals']['mcp'] == 3
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='F-A2: /ad-coin/v2/advertise says a payment that does not match the quote is '
-                   'held for review and then confirmed or returned; R32 refuses it (amount_mismatch) and attaches '
-                   'nothing, so it only shows in the reconciliation and is returned by hand')
-def test_a6_a_payment_of_another_amount_is_held_for_review_as_the_page_says(person):
+def test_a6_a_payment_of_another_amount_is_refused_and_late_ones_are_held_as_the_page_says(person):
+    """11-17 audit F-A2: the page said a mismatched payment is held for review; R32 refuses it and attaches nothing.
+    The page now says what happens: another amount is refused (returned by hand), a late exact one is held."""
+    from agent_market.ad_coin.v2.admin_page import advertise_html
+    page = text_of(advertise_html())
+    assert 'a payment of any other amount than the quote is not attached to a booking' in page
+    assert 'arrives after the quote expired is held for review' in page
     advertiser, campaign = _started_campaign(person)
     root = '/advertisers/' + advertiser
     q = _write(person, root + '/paid-bookings', {'campaign_id': campaign['id'], 'day': DAY, 'task_category': 'research',
                                                  'region': 'US'}).json()
     sent = _write(person, root + '/paid-bookings/' + q['id'] + '/payment', {'tx_hash': person.rpc.send(5_000_000)})
-    assert sent.status_code == 200 and sent.json()['state'] == 'review', sent.text
+    assert sent.status_code == 409 and sent.json()['error']['code'] == 'amount_mismatch', sent.text
+    late = paid.PaidBookings(person.store, person.bookings.config, rpc=person.rpc, sanctions=person.bookings.sanctions,
+                             taxonomy=person.bookings.taxonomy, regions=person.bookings.regions, krw_rate=lambda: '1400',
+                             clock=lambda: (q['expires_ms'] + 60_000) / 1000)
+    held = late.submit(advertiser, q['id'], person.rpc.send(int(q['amount_units'])))
+    assert held['state'] == 'review'
 
 
 # ---------------------------------------------------------------------------------------------------------------------
@@ -432,8 +440,6 @@ def test_c2_ordinary_words_are_not_held_as_a_restricted_class(line):
     assert 'text:restricted_class' not in flags('text', line)
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='F-C3: /ad-coin/v2/advertise says "We do not count clicks" and the report '
-                   'says "not clicks", but offer clicks are counted on our server (count_click)')
 def test_c3_clicks_are_described_as_the_code_counts_them():
     """Clicks on an offer's link are counted on our server (sponsored_http.sponsored_click, count_click); the pages
     must not say clicks are not counted."""

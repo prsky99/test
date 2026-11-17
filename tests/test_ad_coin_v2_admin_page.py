@@ -70,7 +70,7 @@ def test_advertise_landing_is_english_honest_and_follows_the_usdc_switch(monkeyp
     page = client().get('/ad-coin/v2/advertise')
     assert page.status_code == 200 and '<html lang="en">' in page.text and '@@' not in page.text
     for fact in ('5 USDC', 'per placement per day', 'USDC payments open soon', 'never changes which agents we recommend',
-                 'We do not count clicks', 'contact@agentconcierge.biz'):
+                 'We do not track people', 'contact@agentconcierge.biz'):
         assert fact in page.text, fact
     assert '<style' not in page.text and 'style=' not in page.text
     monkeypatch.setenv('AD_COIN_PAID_BOOKING_ENABLED', '1')
