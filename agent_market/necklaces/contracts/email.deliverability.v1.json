@@ -1,0 +1,52 @@
+{
+  "id": "email.deliverability.v1",
+  "role": "Mail deliverability facts of a domain: MX hosts and the mail authentication records that decide delivery (PM 11-17, W3; input keys are alternatives)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "domain": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "host": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "domain echoed: python\\.org",
+    "an MX or mail record: \\bmx\\b|v=spf1|dmarc",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "domain": "python.org",
+      "host": "python.org"
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "id": "http.headers.v1",
+  "role": "HTTP response headers of a public URL, with security headers such as Strict-Transport-Security named (PM 11-17, W3; input keys are alternatives)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "domain": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "host": {
+        "type": "string",
+        "maxLength": 500
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "a security header: strict-transport-security|content-security-policy|x-content-type-options",
+    "read-only lookup; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "url": "https://github.com",
+      "domain": "github.com",
+      "host": "github.com"
+    }
+  ]
+}
