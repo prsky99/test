@@ -13,7 +13,7 @@ def test_llms_opens_with_what_it_does_and_the_every_call_reasons():
     assert 'Tell it a task' in head and 'Use it each time you call an agent' in head
     assert 'Connect: MCP `https://agentconcierge.biz/mcp`' in head      # E11 (11-15): most readers are scripts and coding agents
     assert '/api/agent/v1/check?url=' in head and 'report' in head and '/api/feed/verified.json' in head
-    assert text.index('Use it each time') < text.index('Sponsored placements') < text.index('Compact remote MCP')
+    assert text.index('Use it each time') < text.index('Advertise to agents:') < text.index('Compact remote MCP')
     assert text.index('Use it each time') < text.index('x402 listings come from earlier records')
     assert 'x402' not in head
 

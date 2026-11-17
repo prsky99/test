@@ -55,4 +55,7 @@ def test_the_daemon_release_is_pinned_once_and_the_prune_keeps_it(tmp_path):
 def test_the_install_script_pins_before_it_loads_the_daemon():
     from pathlib import Path
     text = (Path(__file__).resolve().parents[1] / 'deploy/launchd/install-adcoin-worker.sh').read_text()
-    assert text.index('pin_release') < text.index('bootstrap "gui/')
+    # 11-15 (480e9b19): the bootout/bootstrap step moved to adcoin-worker-load.sh, called after the pin
+    assert text.index('pin_release') < text.index('bash "$ROOT/deploy/launchd/adcoin-worker-load.sh"')
+    load = (Path(__file__).resolve().parents[1] / 'deploy/launchd/adcoin-worker-load.sh').read_text()
+    assert 'bootstrap "$DOMAIN" "$P"' in load
