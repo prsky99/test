@@ -376,10 +376,11 @@
     const h=document.createElement('h2');h.textContent='Sponsored placements';const p=document.createElement('p');
     card.append(h,p);
     if (!report.available||!report.rows.length) {p.textContent='No Sponsored placement has been shown yet. Counts appear here for each booked day (UTC).';return card;}
-    p.textContent='Times your Sponsored card was shown in the last '+report.days+' days: Explore '+report.totals.explore+', Chat '+report.totals.chat+'. We count showings only, not clicks or people.';
+    const agents=(report.totals.mcp||0)+(report.totals.a2a||0);
+    p.textContent='Times your Sponsored placement was shown in the last '+report.days+' days: Explore '+report.totals.explore+', Chat '+report.totals.chat+(agents?', agent answers '+agents:'')+'. These are showings only; we never count people.';
     const list=document.createElement('ul');list.className='stack';
     for (const row of report.rows) {const li=document.createElement('li');const name=document.createElement('strong');
-      name.textContent=row.day+' · '+(row.placement==='chat'?'Chat':'Explore');
+      name.textContent=row.day+' · '+({chat:'Chat',mcp:'Agent answers (MCP)',a2a:'Agent answers (A2A)'}[row.placement]||'Explore');
       li.append(name,document.createTextNode(': shown '+row.served+' times. '+(row.campaign||'Campaign')+', '+row.task_category+', '+row.region+'.'));list.append(li);}
     card.append(list);return card;
   }

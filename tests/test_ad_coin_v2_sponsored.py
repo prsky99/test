@@ -322,3 +322,28 @@ def test_a_failed_write_keeps_the_counts_for_the_next_try(p1_suite, monkeypatch)
     monkeypatch.setattr(store, 'execute', real)
     slots.flush_now()
     assert _served_in_db(store) == 4 and slots._served == {}
+
+
+def test_the_report_takes_agent_answer_rows_without_failing():
+    """11-17 audit F-A3: once MCP and A2A answers carry the slot, impression rows with placement mcp or a2a reach the
+    advertiser's report; it summed into an explore/chat-only dict and failed with KeyError (the report answered 500)."""
+    from contextlib import contextmanager
+    from agent_market.ad_coin.v2.advertiser_history import sponsored_report
+
+    class Store:
+        @contextmanager
+        def atomic(self):
+            yield
+
+        def one(self, name, params=()):
+            return {'present': True}
+
+        def all(self, name, params=()):
+            if name == 'ui_campaigns':
+                return []
+            day = NOW - NOW % 86_400_000
+            return [{'day_ms': day, 'campaign_id': 'c1', 'placement': p, 'task_category': 'research', 'region': 'US',
+                     'served': n} for p, n in (('explore', 2), ('chat', 1), ('mcp', 3), ('a2a', 4))]
+    report = sponsored_report(Store(), '00000000-0000-0000-0000-000000000001', now_ms=NOW)
+    assert report['totals'] == {'explore': 2, 'chat': 1, 'mcp': 3, 'a2a': 4}
+    assert {r['placement'] for r in report['rows']} == {'explore', 'chat', 'mcp', 'a2a'}

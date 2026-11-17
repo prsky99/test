@@ -103,6 +103,6 @@ def sponsored_report(store, advertiser_id, *, now_ms):
                  "served": int(r["served"])}
                 for r in store.all("sponsored_impressions_for_advertiser", (advertiser_id, since))]
     totals = {"explore": 0, "chat": 0}
-    for r in rows:
-        totals[r["placement"]] += r["served"]
+    for r in rows:   # agent answers (mcp, a2a) are counted too once migrate-agent-ads widened the CHECK (11-17 audit)
+        totals[r["placement"]] = totals.get(r["placement"], 0) + r["served"]
     return {"available": True, "rows": rows, "totals": totals, "days": REPORT_DAYS}
