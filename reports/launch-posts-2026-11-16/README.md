@@ -281,15 +281,18 @@ Measured: [측정 뒤 기입]. Some steps are still under verification and say s
 - **DKIM은 쓰지 않는다.** "SPF, DKIM and DMARC" 금지. DKIM 레코드는 보내는 쪽의 selector를 알아야 찾을 수 있기 때문이다. 결과에도 "SPF and DMARC are checked; DKIM is not, because a DKIM record can only be looked up with the sender's selector, which a domain does not publish."가 들어간다.
 - AI 크롤러 허용 여부는 선택 자리라 답에 나오지 않을 수 있다. 글에서 약속하지 않는다.
 - 숫자(토큰 절약·속도·정확도)는 회차 원자료로 잰 값만 쓴다. 응답 시간은 "원서버 경로 시간"이라고 밝힌다. 공개 주소 기준 시간은 공개 뒤 따로 잰다.
-- 멤버(워크플로우 11-17 기준, 공개 때 판정 스냅샷으로 다시 확인)
-  - 진주는 아직 없다.
-  - 임시 멤버는 화면과 글에 그렇게 밝힌다.
+- 멤버(워크플로우 11-17 runtime_chain 확인, 공개 때 판정 스냅샷으로 다시 확인)
+  - 외부 멤버 52559·39800은 검증 진주(verified_pearl)여서 우리 자체 멤버보다 앞선다. 그래서 "a verified third-party agent"라고 써도 된다.
+  - 자체 멤버는 모두 "under verification"으로 밝힌다.
+    - dns-spf-dmarc: 11-18 09:10 관문 전이다. 통과하면 처음엔 임시일 가능성이 크고, 21:50 판정 전에 확정한다.
+    - tls-certificate: 16:10 관문 뒤에도 임시일 것이다.
+  - 크롤러 자리(267572)는 선택이고, 사례 통과 판정에 들어가지 않는다.
 
-| 자리 | 외부 멤버 | 자체 멤버 |
+| 자리 | 먼저(외부, 검증 진주) | 실패하면(자체, 임시) |
 |---|---|---|
-| registration | 52559 | rdap-domain(임시) |
-| mail_auth | 39800 | dns-spf-dmarc |
-| tls | — | tls-certificate |
+| registration | 52559 | rdap-domain |
+| mail_auth | 39800 | dns-spf-dmarc(11-18 09:10 관문 뒤) |
+| tls | — | tls-certificate(유일, 임시) |
 
 ### 7.2 이번 커밋으로 화면·답에 들어가는 것 (공개 상태일 때만)
 - 추천 답 맨 앞 줄(necklace_leads.json):
@@ -297,7 +300,7 @@ Measured: [측정 뒤 기입]. Some steps are still under verification and say s
   - DKIM만 묻는 과제("look up the DKIM key")에는 붙이지 않는다.
   - "spf"만 쓴 과제(선크림 SPF)에도 붙이지 않는다.
   - 도메인은 과제에서 확실할 때만 채운다.
-- 원천 문장(necklace_sources.json): 단계별로 무엇을 읽는지와 "DKIM is not checked"를 적었다. 판정 스냅샷의 멤버가 다르면 공개 전에 고친다.
+- 원천 문장(necklace_sources.json): 단계별로 무엇을 읽는지("a verified third-party agent", 자체 멤버는 "under verification")와 "DKIM is not checked"를 적었다. 워크플로우 11-17 확인을 받았다. 판정 스냅샷의 멤버가 다르면 공개 전에 고친다.
 
 ### 7.3 공통 사실 (빈칸은 판정·측정 뒤)
 - `{NECKLACE}` Website trust brief / `{SLUG}` website-trust-brief / `{TOOL}` necklace_website_trust_brief / `{SKILL}` necklace-website-trust-brief
@@ -322,7 +325,8 @@ Input: {"domain": "<domain>"}
 Answer (first lines, today's real run): [측정 뒤 기입]
 Measured: [회차 원자료 측정 줄 그대로. 시간은 "origin path time"]
 
-Limits: some steps are led by an agent still under verification (the page shows which); free for now.
+Limits: the registration and mail steps are led by verified third-party agents with our own agents as
+fallbacks, which are still under verification, as is our TLS step (the page shows which); free for now.
 Missing a necklace you need? https://agentconcierge.biz/necklaces/request
 ```
 - Product Hunt(사용자 계정)·HN·dev.to(사용자가 직접 씀) 처리는 6.3과 같다.
