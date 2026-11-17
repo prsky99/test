@@ -86,12 +86,12 @@ def test_our_own_machine_is_not_counted_as_demand(tmp_path):
     """PM 11-17: the 11-16 rate-limit 429s (4,399 from 127.0.x.x, client class 'other') were our own requests."""
     from scripts import ad_coin_pass_signals as sig
     own = tmp_path / 'own-networks.txt'
-    own.write_text("203.0.113.7\n# a note\n2001:db8::5\nnot an address'); DROP\n\n")
-    assert sig.own_networks(own) == ['2001:db8::5', '203.0.113.7']
+    own.write_text("203.0.113.7\n198.51.100.0/24\n# a note\n2001:db8::5\nnot an address'); DROP\n\n")
+    assert sig.own_networks(own) == ['198.51.100.0/24', '2001:db8::5', '203.0.113.7']
     assert sig.own_networks(tmp_path / 'missing.txt') == []
     sql = sig.build_sql('2026-11-16', sig.own_networks(own))
     for part in ("ip NOT LIKE '127.%'", "ip NOT LIKE '10.%'", "ip NOT LIKE '192.168.%'", "ip <> '::1'",
-                 "'internal'", "ip NOT IN ('2001:db8::5','203.0.113.7')"):
+                 "'internal'", "ip NOT IN ('198.51.100.0/24','2001:db8::5','203.0.113.7')"):
         assert sql.count(part) == 2, part                       # both 429 statements
     assert 'DROP' not in sql and '\\' not in sql
     seen = []

@@ -67,8 +67,8 @@ def yesterday(now=None):
     return time.strftime('%Y-%m-%d', time.gmtime(now - 86_400))
 
 
-OWN_NETWORKS_FILE = 'gateway-data/ops/own-networks.txt'   # git-ignored: this Mac's public addresses, one per line
-_IP = re.compile(r'[0-9a-fA-F:.]{3,45}')
+OWN_NETWORKS_FILE = 'gateway-data/ops/own-networks.txt'   # git-ignored: this Mac's public networks as stored (a.b.c.0/24)
+_IP = re.compile(r'[0-9a-fA-F:.]{3,45}(/[0-9]{1,3})?')   # security_events keeps coarse networks such as a.b.c.0/24
 # PM 11-17: requests from our own machine are not demand. Loopback and private ranges (this Mac reaching the origin
 # directly: 11-16 had 4,399 rate-limit 429s from 127.0.x.x with client class 'other', so the 'internal' class alone
 # missed them), the 'internal' client class, and any public address listed in OWN_NETWORKS_FILE are left out.
