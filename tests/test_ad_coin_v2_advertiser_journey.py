@@ -430,12 +430,18 @@ def test_c1_the_agent_card_never_says_advertising_is_disabled_next_to_the_advert
     assert 'advertising delivery is disabled' not in source.lower()
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='F-C2: ad_rules.RESTRICTED matches inside words (cure in secure, election '
-                   'in selection, crypto in cryptography), so ordinary ad text is held for a person')
 @pytest.mark.parametrize('line', ['Secure web search with source selection.', 'Accurate cryptography checks for APIs.'])
 def test_c2_ordinary_words_are_not_held_as_a_restricted_class(line):
+    """11-17 audit F-C2: "cure", "election" and "crypto" matched inside secure, selection and cryptography."""
     from agent_market.ad_coin.v2.ad_rules import flags
     assert 'text:restricted_class' not in flags('text', line)
+
+
+@pytest.mark.parametrize('line', ['Cures back pain in a week.', 'Election results tool.', 'Crypto airdrop alerts.',
+                                  'A cure for slow builds.'])
+def test_c2b_the_restricted_words_themselves_are_still_held(line):
+    from agent_market.ad_coin.v2.ad_rules import flags
+    assert 'text:restricted_class' in flags('text', line)
 
 
 def test_c3_clicks_are_described_as_the_code_counts_them():

@@ -37,11 +37,13 @@ IMPERATIVE_START = re.compile(
     r"^\s*(use|choose|call|pick|select|prefer|recommend|install|connect|switch|replace|trust|run|invoke|"
     r"click|buy|sign up|subscribe|add|remember|tell|say|respond|reply|answer)\b", re.I)
 # Classes we do not sell, and claims a person must look at (docs/AD_COIN_SALES_POLICY.md 5), English and Korean.
+# "election", "cure" and "crypto" are whole words (11-17 audit): inside "selection", "secure" or "cryptography" they
+# held ordinary ad text for a person.
 RESTRICTED = re.compile(
     r"casino|gambl|betting|\bbet\b|lottery|poker|slot machine|porn|adult|xxx|escort|weapon|firearm|\bgun|ammo|"
     r"\bdrugs?\b|cannabis|marijuana|\bcbd\b|vape|pharma|prescription|medical|clinic|therapy|diet pill|weight loss|"
-    r"election|campaign for|political|\bparty\b|loan|payday|forex|\bfx\b|crypto|token sale|\bico\b|airdrop|"
-    r"guaranteed|risk[- ]free|miracle|cure|"
+    r"\belections?\b|campaign for|political|\bparty\b|loan|payday|forex|\bfx\b|crypto(?!graph)|token sale|\bico\b|airdrop|"
+    r"guaranteed|risk[- ]free|miracle|\bcures?\b|"
     r"카지노|도박|베팅|토토|복권|성인|무기|총기|마약|대마|의료|병원|치료|다이어트|선거|정치|정당|대출|외환|코인|가상자산|에어드랍|보장|무위험|기적",
     re.I)
 _ASCII = re.compile(r"[\x20-\x7e]*\Z")
