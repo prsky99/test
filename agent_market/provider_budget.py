@@ -42,6 +42,8 @@ SHARE = {
     'pearl_batch': 3,        # 02:30 report batch (its own earlier rule: 3 a provider a day)
     'gate': DAILY_TOTAL,     # necklace launch gate rounds: whatever is left of the total
     'adhoc': 2,              # one-off checks by a team (reproduce a failure)
+    'auto_run': 6,           # PM 11-17 10:5x plan 1: the first recommendation run inside an outside caller's answer
+                             # (concierge/auto_run.py), 10% of the day total to start; reviewed after three days
     'reference_checks': 10,  # answer-key references of the data-quality score (fx rate, versions, feeds; PM F15 11-14)
     'provider_claims': 6,    # provider self-claim checks: one GET when a provider presses Verify, one per origin on
                              # the 30-day recheck (docs/PROVIDER_SELF_CLAIM.md, agent team 11-15)

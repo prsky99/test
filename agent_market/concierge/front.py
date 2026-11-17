@@ -2346,7 +2346,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                                request.headers.get('user-agent', ''), getattr(request, '_body', None),
                                request.headers, response.headers,
                                cause=request.scope.get('traffic_cause'), gateway=request.scope.get('traffic_gateway'),
-                               source=request.query_params.get('from'))
+                               source=request.query_params.get('from'), auto_run=request.scope.get('traffic_auto_run'))
             if request.url.path == '/api/explore' and response.status_code == 200:
                 recorder().explore_topic(request.query_params.get('q', ''), client_ip, request.headers.get('user-agent', ''),
                                          request.headers.get('x-agentcon-qa'), request.query_params.get('offset'))
@@ -3649,6 +3649,16 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             return JSONResponse({"jsonrpc": "2.0", "id": rid, "result": message})
         from . import ad_slot  # agent ad plan (A): the slot is filled after the answer is final (always on, 11-15)
         data = ad_slot.strip_option(data)
+        # PM 11-17 10:3x plan 1: for an outside caller, the first recommendation may run inside this answer
+        # (auto_run.offer from the recommendation, collect below); our own measurements never spend provider calls.
+        from . import auto_run
+        run_token = run_slot = None
+        caller_ip = front.security.resolve_ip(request)
+        if auto_run.AUTO_RUN_ENABLED and not _ours(request, caller_ip):
+            run_token, run_slot = auto_run.arm(
+                lambda run_rid, run_tool, run_args: front.proxy.execute(run_rid, run_tool, run_args, None, None, public=True,
+                                                                        timeout=auto_run.PROVIDER_TIMEOUT_S),
+                fingerprint(caller_ip, request.headers.get("user-agent")))
         try:
             v, reply = await run_in_threadpool(front.chat, request, "a2a", "\n".join(texts).replace("\x00", "")[:MAX_MESSAGE], data, token,
                                                name if isinstance(name, str) else None, ctx)
@@ -3656,6 +3666,10 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             if exc.status_code != 400:
                 raise
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Conversation context is unavailable. Start without a contextId."}}
+        finally:
+            if run_token is not None:
+                auto_run.disarm(run_token)
+        recommendation_ready = time.monotonic()
         first_contact = not ctx
         if not ctx:  # hand out an unguessable context so later messages in it are recognised without a token
             ctx = front.book.new_context_id()
@@ -3668,6 +3682,15 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         if first_contact:
             payload.setdefault("return_visit", A2A_RETURN_VISIT)
         reply_text = reply.text
+        if run_slot is not None and run_slot.future is not None:
+            record = await run_in_threadpool(auto_run.collect, run_slot, recommendation_ready)
+            lead, ran = auto_run.presented(record)
+            if ran:
+                request.scope['traffic_auto_run'] = ran
+                if ran.get('ran'):
+                    payload['auto_run'] = ran
+            if lead:
+                reply_text = lead + '\n\n' + reply_text
         if ad_slot.registered() and isinstance(reply.data.get('recommendations'), list) and reply.data['recommendations']:
             reply_text, payload = await run_in_threadpool(ad_slot.attach_a2a, reply_text, payload,
                                                            ad_slot.context('a2a', 'message', reply.data, request.headers))

@@ -1041,6 +1041,11 @@ class FastConcierge(Concierge):
         items = relayable_only(items)
         if offset == 0 and CLOCK_TASK.search(str(task or '')):
             items = self._clock_first(task, items, protocol, excluded, started, step)
+        if offset == 0 and items:
+            # PM 11-17 10:3x plan 1: on an armed request (an outside A2A caller) the first runnable of the first two
+            # items starts through the gateway beside the answer; offer() hands it to a pool and returns at once.
+            from .auto_run import offer
+            offer(items[:2], task)
         if not items:
             if persist:
                 with self.book.batch():

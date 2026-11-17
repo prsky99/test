@@ -338,7 +338,7 @@ class Traffic:
         self.explore_topics = Counter()   # "category|client" -> first-page Explore searches (11-15 PM: demand, no text)
 
     def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None, cause=None,
-                gateway=None, source=None):
+                gateway=None, source=None, auto_run=None):
         entry = entry_of(method, path)
         if entry is None:
             return
@@ -407,11 +407,11 @@ class Traffic:
                     # cause (11-10): our own security blocks (blocked_ip, policy_denied) are counted apart
                     # from protocol failures so a block window does not read as a client problem.
                     self.errors[entry + '|' + str(status) + (':' + cause if cause else '') + '|' + request_shape(method, path, headers) + '|' + (rpc or '-')] += 1
-            self._funnel_locked(entry, method, status, ua, client, body, digest, gateway, headers)
+            self._funnel_locked(entry, method, status, ua, client, body, digest, gateway, headers, auto_run)
             if self.clock() - self.flushed >= FLUSH_SECONDS:
                 self._write_locked()
 
-    def _funnel_locked(self, entry, method, status, ua, client, body, digest, gateway, headers=None):
+    def _funnel_locked(self, entry, method, status, ua, client, body, digest, gateway, headers=None, auto_run=None):
         """North star funnel (11-12 PM): recommendation requests, gateway connections and successful executions.
 
         GATEWAY is what the gateway handler decided: {'step': 'connect'|'execute', 'ok': bool, 'rid': int}. Pairs
@@ -439,6 +439,17 @@ class Traffic:
                 bucket.add(digest)
             if digest in self.recommended or len(self.recommended) < 50_000:
                 self.recommended.setdefault(digest, set()).add(surface)
+        # PM 11-17 10:3x (d): a call we ran inside the answer (concierge/auto_run.py) is counted apart from executions
+        # the caller asked for: 'auto_run|class|attempt|ok|attached', pairs in 'auto_run|class'.
+        if isinstance(auto_run, dict) and auto_run.get('ran'):
+            self.funnel['auto_run|' + cls + '|attempt'] += 1
+            if auto_run.get('ok'):
+                self.funnel['auto_run|' + cls + '|ok'] += 1
+                pairs = self.funnel_sets['auto_run|' + cls]
+                if len(pairs) < 50_000:
+                    pairs.add(digest + str(auto_run.get('resource_id')).encode())
+        elif isinstance(auto_run, dict) and auto_run.get('reason') == 'not_ready_in_time':
+            self.funnel['auto_run|' + cls + '|late'] += 1
         # /api/gateway/* connections and executions, and the in-session MCP 'call' tool on /mcp (11-12 PM)
         if entry in ('gateway', 'mcp', 'a2a') and isinstance(gateway, dict) and gateway.get('step') in ('connect', 'execute'):
             if entry == 'a2a':

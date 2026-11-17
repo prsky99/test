@@ -18,6 +18,8 @@ _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', '
                      # gc = passes run by this request's own thread, gc_all = every pass in the process meanwhile
                      # (the interpreter lock stops all threads during one).
                      'gc', 'gc_all',
+                     # PM 11-17 10:5x: how long the answer waited for the call auto_run started (concierge/auto_run.py)
+                     'auto_run_wait', 'auto_run_offer',
                      # Recommendation A2A/MCP head start outcome (protocol_prefetch, PM 11-15 19:5x)
                      'prefetch_hit', 'prefetch_miss', 'prefetch_skip', 'prefetch_unused',
                      # Explore document reads split into the statement and the rest (P0 11-16)

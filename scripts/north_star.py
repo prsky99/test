@@ -14,6 +14,8 @@ Sources: the frontend's anonymous day files (logs/service-frontend/traffic/<day>
 within one process, so a day with a deploy switch may count a pair twice — 'processes' says how many there were)
 and edge_gateway_runs (one read-only connection). Before the frontend records the funnel (39140d17 and later),
 the day files have no 'funnel' section; the line is then built from their older counters and says 'approx'.
+From 11-17 (PM 10:3x) each class also has 'auto_run': calls we ran inside an answer (concierge/auto_run.py), counted
+apart from the caller's own executions and never part of the north star value.
 From 11-16 (PM 08:2x) the funnel also says what each recommendation request was for ('ask|surface|class|intent':
 task, liveness, outreach, security, fixture, command, empty; agent_market/concierge/ask_intent.py). The first stage
 is then the outside requests that carry a task ('denominator': 'task'); the others are shown under 'intents'.
@@ -57,7 +59,12 @@ def from_funnel(files):
                 'connect': {'pairs': distinct.get('connect|' + cls, 0), 'attempts': counts.get('connect|' + cls + '|attempt', 0),
                             'ok': counts.get('connect|' + cls + '|ok', 0)},
                 'execute': {'pairs': distinct.get('execute|' + cls, 0), 'attempts': counts.get('execute|' + cls + '|attempt', 0),
-                            'ok': counts.get('execute|' + cls + '|ok', 0)}} for cls in CLASSES}
+                            'ok': counts.get('execute|' + cls + '|ok', 0)},
+                # PM 11-17 10:3x (d): calls we ran inside the answer (concierge/auto_run.py), apart from 'execute' and
+                # never part of the north star value; 'late' = started but not in the answer in time.
+                'auto_run': {'pairs': distinct.get('auto_run|' + cls, 0), 'attempts': counts.get('auto_run|' + cls + '|attempt', 0),
+                             'ok': counts.get('auto_run|' + cls + '|ok', 0), 'late': counts.get('auto_run|' + cls + '|late', 0)}}
+          for cls in CLASSES}
     # 11-14 (growth plan 7, item 1): connections and executions by the surface whose recommendation the same
     # client (same salted digest, same day) had received; 'none' = it came without one.
     for key, value in distinct.items():
