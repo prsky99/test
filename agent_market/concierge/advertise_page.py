@@ -73,7 +73,9 @@ def page_html(base='https://agentconcierge.biz', rows=None, usdc=None):
                      '<p class="muted">Measured from anonymous daily counts, ' + esc(span) + ' (UTC days); our own checks and known '
                      'registry checkers are not counted.</p><dl class="evidence-list">'
                      + ''.join('<dt>' + esc(k) + '</dt><dd>' + esc(f'{v:,}') + '</dd>' for k, v in measured)
-                     + '</dl><p class="muted">Your own report shows how many times your placement was shown each day.</p></section>')
+                     + '</dl><p class="muted">If you book in the advertiser workspace, your report there shows how many times your '
+                     'placement was shown each day; an agent\u2019s keyless order shows the same daily counts on its '
+                     'status address.</p></section>')
     parts.append('<section aria-labelledby="adWhere"><h2 id="adWhere">Where a placement appears</h2><ul>'
                  '<li>Explore: one card labelled “Sponsored” below the results for its task category.</li>'
                  '<li>Chat: one card labelled “Sponsored” below the answer, never inside it.</li>'

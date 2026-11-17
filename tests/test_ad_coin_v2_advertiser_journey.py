@@ -435,13 +435,26 @@ def test_b4_money_that_arrives_after_expiry_is_never_lost(shop, extra):  # noqa:
     assert item['note'] == 'late_payment' and item['tx_hash'] == tx        # the operator sees it and decides
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='F-B4: /advertise says your own report shows how often the placement was shown; '
-                   'a keyless buyer has no workspace and the status answer carries no served counts')
 def test_b5_a_keyless_buyer_can_read_served_counts(shop):  # noqa: F811
-    created = order(shop).json()
-    review(shop, created['order_id'])
-    answer = status(shop, created['order_id'], created['read_key']).json()
-    assert 'served' in answer
+    """11-17 audit F-B4: /advertise promised a report; a keyless buyer has no workspace. The status answer now carries
+    this order's daily counts (and only this order's), and the page says where each kind of buyer reads them."""
+    from agent_market.concierge import advertise_page
+    mine, other = order(shop).json(), order(shop, name='Other Research Agent').json()
+    for created in (mine, other):
+        review(shop, created['order_id'])
+        assert status(shop, created['order_id'], created['read_key']).json()['served'] == []
+    day_ms = int(time.time() * 1000) // DAY_MS * DAY_MS
+    with shop.store.atomic():
+        for created, served in ((mine, 3), (other, 9)):
+            shop.store.execute('sponsored_impression_add', (day_ms, shop.sponsor._campaign_id(created['order_id']),
+                                                            'research', 'US', 'mcp', served))
+    answer = status(shop, mine['order_id'], mine['read_key']).json()
+    assert answer['served'] == [{'day': time.strftime('%Y-%m-%d', time.gmtime(day_ms / 1000)), 'placement': 'mcp',
+                                 'served': 3}]
+    page = text_of(advertise_page.page_html(rows=[{'day': '2026-11-16', 'human_visitors': 1, 'explore_external': 1,
+                                                   'chat_external': 1, 'mcp_sessions_real': 1,
+                                                   'a2a_messages_external': 1}], usdc=True))
+    assert 'Your own report shows' not in page and 'keyless order shows the same daily counts' in page
 
 
 def test_b6_takedown_after_payment_shows_the_refund_due_and_stops_serving(shop, monkeypatch):  # noqa: F811

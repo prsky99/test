@@ -327,7 +327,8 @@ class KeylessSponsor:
                 "day": order.get("day"), "budget_usdc": order.get("budget_usdc"),
                 "category": order.get("site_category") or order.get("category"), "region": order.get("region")}
         if self._taken_down(order_id):        # PM 11-17: no resume, no new quote, refunds due (sent by hand)
-            return {**base, "state": "taken_down", "refunds": self._refunds(order_id), "note": TAKEDOWN_NOTE}
+            return {**base, "state": "taken_down", "refunds": self._refunds(order_id), "served": self._served(order_id),
+                    "note": TAKEDOWN_NOTE}
         with self.store.atomic():
             applied = applications.status_of(self.store, order_id)
             rejected = self.store.one("audit_by_target_event", (order_id, applications.REJECTED))
@@ -363,7 +364,7 @@ class KeylessSponsor:
                 held = flags_of(self.store, HELD_REVIEW, review["id"]) if review else []
             return {**base, "state": "in_review", "hold_reasons": held}
         offer_state, offer_reasons = self._offer_status(order_id, campaign_id, order, write=write)
-        base = {**base, "offer_state": offer_state, "offer_hold_reasons": offer_reasons}
+        base = {**base, "offer_state": offer_state, "offer_hold_reasons": offer_reasons, "served": self._served(order_id)}
         if offer_state not in ("approved", "none"):
             # 11-17 audit F-B2: we never take money for a product that cannot run. The agent offer is part of what the
             # order buys, so no quote is made until it is approved too; a quote already paid stays visible.
@@ -389,6 +390,19 @@ class KeylessSponsor:
         except ContractError as exc:
             return {**base, "state": "approved", "quote": None, "quote_error": exc.code}
         return {**base, "state": "approved", "quote": quote, "note": PAY_NOTE}
+
+    def _served(self, order_id):
+        """Daily showings of this order's placement, last 30 UTC days, newest first (11-17 audit F-B4): counts only,
+        per day and placement (explore, chat, mcp, a2a), read with the advertiser report's registered statement."""
+        from .advertiser_history import DAY_MS as _DAY, REPORT_DAYS
+        now_ms = int(self.commercial.clock_ms())
+        since = now_ms - now_ms % _DAY - (REPORT_DAYS - 1) * _DAY
+        with self.store.atomic():
+            if not self.store.one("sponsored_impressions_table")["present"]:
+                return []
+            rows = self.store.all("sponsored_impressions_for_advertiser", (order_id, since))
+        return [{"day": time.strftime("%Y-%m-%d", time.gmtime(int(r["day_ms"]) / 1000)), "placement": r["placement"],
+                 "served": int(r["served"])} for r in rows]
 
     def _offer_status(self, order_id, campaign_id, order, *, write=True):
         """(offer_state, reasons) of the order's agent offer: none (the order carries no offer), approved, pending,
