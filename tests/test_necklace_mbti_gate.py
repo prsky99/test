@@ -27,7 +27,7 @@ def test_the_sample_follows_the_rule_is_reproducible_and_stays_in_range():
 
 
 def test_the_contract_states_the_same_rule():
-    c = json.loads(Path("reports/mbti-fortune-necklace-2026-11-17/contracts_draft/persona.mbti_profile.v1.json").read_text())
+    c = json.loads(Path("agent_market/necklaces/contracts/persona.mbti_profile.v1.json").read_text())
     assert "mbti-fortune|v1|" in c["sample_rule"] and "seed mod" in c["sample_rule"]
     assert c["output_schema"]["properties"]["sample_notice"]["const"] == g.SAMPLE_NOTICE
 

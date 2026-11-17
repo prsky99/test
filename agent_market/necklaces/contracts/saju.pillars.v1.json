@@ -1,0 +1,126 @@
+{
+  "id": "saju.pillars.v1",
+  "role": "four pillars (saju, BaZi) of a solar birth date: year pillar from Ipchun, month pillar from the solar terms, day pillar, hour pillar only with birth_hour (Korea standard time, no true-solar-time correction); and today's day pillar (iljin)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "birth_date": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "date": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "birth_hour": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 23
+      },
+      "today": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "year_pillar": {
+        "type": "string",
+        "pattern": "^[A-Z][a-z]+-[a-z]+ [甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]$",
+        "maxLength": 40
+      },
+      "month_pillar": {
+        "type": "string",
+        "pattern": "^[A-Z][a-z]+-[a-z]+ [甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]$",
+        "maxLength": 40
+      },
+      "day_pillar": {
+        "type": "string",
+        "pattern": "^[A-Z][a-z]+-[a-z]+ [甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]$",
+        "maxLength": 40
+      },
+      "hour_pillar": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^[A-Z][a-z]+-[a-z]+ [甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]$",
+            "maxLength": 40
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "day_master": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "today": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "today_day_pillar": {
+        "type": "string",
+        "pattern": "^[A-Z][a-z]+-[a-z]+ [甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]$",
+        "maxLength": 40
+      },
+      "today_relation": {
+        "type": "string",
+        "maxLength": 400
+      },
+      "basis": {
+        "type": "string",
+        "maxLength": 400
+      },
+      "source": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "boundary_note": {
+        "type": "string",
+        "maxLength": 300
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "answer and source are required, as in every contract; the structured fields are optional (an outside member may answer in text; the normalizer reads both), and our own substitute fills them all",
+    "pillars are written as romanized Korean and hanzi, e.g. \"Gap-ja 甲子\"",
+    "the year pillar changes at Ipchun (立春) and the month pillar at each solar term (節氣), not at lunar new year or lunar month starts",
+    "without birth_hour, hour_pillar is null and basis says \"no hour pillar\" (three pillars, six characters)",
+    "basis names the time standard: Korea standard time, no true-solar-time correction",
+    "read-only calculation; no account, payment or write; the birth date is used for the calculation only and never stored or logged",
+    "boundary_note, when given, says that Ipchun or a solar term falls on the birth date and how the pillar was decided"
+  ],
+  "test_inputs": [
+    {
+      "birth_date": "1990-03-15",
+      "date": "1990-03-15",
+      "today": "2026-11-18"
+    },
+    {
+      "birth_date": "1990-03-15",
+      "date": "1990-03-15",
+      "birth_hour": 9,
+      "today": "2026-11-18"
+    }
+  ],
+  "status": "draft (검색과 RAG 11-17, BRIEF 2절; necklace path frozen until 11-20)"
+}
