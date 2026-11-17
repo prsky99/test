@@ -417,7 +417,7 @@ class Front:
             "stay_in_touch": "Request optional task updates at /api/task-updates with explicit task authorization and "
                              "destination confirmation. Browser notifications require a test notification click; HTTPS "
                              "webhook and A2A inboxes require a received verification code. Marketing is a separate "
-                             "optional permission record; advertising delivery is disabled.",
+                             "optional permission record; no marketing messages are sent.",
             "live_agents": {k: counts.get(k, 0) for k in KINDS},
             "categories": {c.id: {"name": getattr(c, "name_en", c.name), "description": c.description} for c in CATEGORIES.values()},
             "discovery": {"agent_card": f"{base}/.well-known/agent-card.json", "llms_txt": f"{base}/llms.txt",
@@ -830,7 +830,7 @@ def agent_card(base: str) -> dict:
              "description": "Remembers your past requests across visits (send your visitor token) and reports better options since then.",
              "tags": ["memory", "updates"], "examples": ["what's new"]},
             {"id": "stay_in_touch", "name": "Message me when something better appears",
-             "description": "Request task-scoped updates with explicit operator authorization, using a verified browser notification, verified private inbox, or explicit manual polling. Marketing permission is separate and advertising delivery is disabled. See /api/task-updates.",
+             "description": "Request task-scoped updates with explicit operator authorization, using a verified browser notification, verified private inbox, or explicit manual polling. Marketing permission is separate and no marketing messages are sent. See /api/task-updates.",
              "tags": ["notifications", "webhook"], "examples": ["Get updates for this task", "stop"]},
             {"id": "advertise", "name": "Buy a sponsored placement",
              "description": "Answers with the three keyless calls that buy one labelled Sponsored placement (review first, USDC on Base per order).",

@@ -424,8 +424,6 @@ def test_b6_takedown_after_payment_shows_the_refund_due_and_stops_serving(shop, 
 # Public wording on the path, against the code and the ad rules
 # ---------------------------------------------------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='F-C1: the A2A card skill stay_in_touch and the welcome answer still say '
-                   '"advertising delivery is disabled" next to the advertise skill that sells placements')
 def test_c1_the_agent_card_never_says_advertising_is_disabled_next_to_the_advertise_skill():
     from agent_market.concierge import front
     source = open(front.__file__, encoding='utf-8').read()
