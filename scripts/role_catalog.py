@@ -114,6 +114,17 @@ ROLES = {
     'earthquake.feed.v1': {'tools': r'^(?:get_earthquakes|earthquakes|recent_earthquakes|usgs_earthquakes|search_earthquakes|earthquake_feed|earthquake_search_events)$',
                            'input': {'min_magnitude': 5, 'minmagnitude': 5, 'magnitude': 5},
                            'checks': [('magnitude', r'\bmag'), ('M5 or more', r'\b[5-9]\.\d\b')]},
+    # Daily fortune and 16-type reading necklaces (workflow d1f863e9, after the 11-20 verdict): all six seats are our own
+    # computed substitutes and none has a role task, so r'(?!)' (matches no tool name) keeps them out of the pearl queue
+    # with a 'queue' note, like docs.readme and the others (6ac035db). The 16-type scan found no usable outside member
+    # (reports/mbti-fortune-necklace-2026-11-17); outside saju candidates (wenbu calculate_bazi, getchineseastrology
+    # get_bazi_chart) wait for a role task.
+    'calendar.lunar_convert.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet (computed by our substitute)'},
+    'astro.western_sign.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet (computed by our substitute)'},
+    'saju.pillars.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet (outside candidates wait for one)'},
+    'fortune.daily.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet (our rule-table reading)'},
+    'persona.mbti_profile.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet, no outside member found'},
+    'fortune.mbti_daily.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet, no outside member found'},
     # Pearl scout W3 review (검색과 RAG with the workflow team, PM 11-17): roles a necklace draft or plan uses
     # (company-sanctions-screen, regulation-brief cases, cve-incident-brief v2, website-trust v2, entity checks);
     # tool names narrowed from Antigravity's patterns after reading the grade A snapshot; tasks in role-tasks-rag-v1.
