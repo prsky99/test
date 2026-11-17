@@ -181,3 +181,34 @@ W1 공통 결함 2다.
     - 한 회차에 같은 도메인은 한 멤버만 시험한다. 예: tensorfeed.ai·robotbase.cc가 두 역할에 걸려 있다.
   - 공정 사용 규칙이라 그대로 두고, 다음 회차에 넘어간다.
 - **인자 대응이 모자란 94개**: `w2_arg_gaps.json`에 정리했다. 역할, 도구, 필수 인자, 못 채운 인자, 역할 과제 입력 키, W2의 arg_map을 담았다. 안티그래비티의 다음 과제(W1 방식의 인자 대응 안)로 넘긴다.
+
+## 5. W3 검토: 새 역할 62개 (11-17 13:0x, 워크플로우와 함께)
+
+- **정답 재확인**: 고정 정답 과제가 있는 41개 역할, 121건을 대상으로 했다. 출처 27곳을 호출 장부 몫 안에서 한 번씩 다시 열었다. 원자료는 검색과 RAG의 scratchpad에 있다.
+  - 118건은 기대 단어가 출처에 있었다. 위키백과 묶음 조회는 한 문서 안에 같이 있는지까지 봤다.
+  - 3건은 출처에 없었다: loan-auto-5yr-30k, fare-london-tariff, medcode-loinc-hemoglobin.
+- **그대로 쓸 수 없는 이유**: 기대 단어 대부분이 'status', 'score', 'trust', 'MX', '0', 'epss', 'percentile'처럼 아무 답이나 통과하는 일반어다.
+  - 정답 오류도 있었다. email-mx-cloudflare-com은 기대한 mailstream·cloudflare.net이 실제 DNS 응답에 없다. 실제 MX는 cf-emailsecurity.net이다.
+  - 출처가 사실을 확인하지 않는 경우도 있었다. 헤더 과제 3건은 출처가 헤더 설명 문서여서, 그 사이트가 실제로 그 헤더를 보내는지는 확인하지 않은 상태였다.
+- **목걸이 적합성**: 워크플로우 검토(그 팀 노트 w3_fit_lines)에서 우리 정의·계획에 맞는 역할은 8개다.
+  - sanctions.screen, regulation.search, court.case, cve.epss, http.headers, email.deliverability, mcp.trust_audit, wikidata.entity
+  - 나머지 54개는 이름만 이은 제안이거나 수요 근거가 없다.
+- **수요**: 최근 30일 들어온 질의를 셌다(agent_messages, 측정 꼬리 번호와 internal 제외).
+  - 위 역할들은 0건이다. 메일 인증(SPF·DKIM)만 25건이고, 서로 다른 방문자가 25명이며, 우리 시험 문장이 아니다.
+  - W3의 demand_evidence는 공급 쪽 API 문서라 수요 근거로 쓰지 않는다.
+- **받아들임: 6개 역할, 과제 16건** (보관 브랜치 rag/w3-roles-1117 2e0c887a, 워크플로우 계약을 기다림)
+  - sanctions.screen: Lazarus, Tornado Cash(OFAC·SDN)
+    - 무혐의 W3C 과제는 출처로 확인할 수 없어 뺐다.
+    - 이름 규칙에서 지갑·주소 검사(screen_address, screen_agent_wallet, screen_sanctions_wallet)를 뺐다.
+  - court.case: Miranda, Marbury, Alice. 출처 그대로다.
+    - courtlistener의 판사·재산 공개·변론 도구는 이름 규칙에서 뺐다.
+  - cve.epss: Log4Shell, CitrixBleed, MOVEit. 기대값을 지금 EPSS인 0.99로 좁혔다.
+    - get_epss_movers, kev_by_vendor, CVE 검색 도구는 뺐다.
+  - http.headers: github·cloudflare는 HSTS max-age 31536000, wikipedia는 106384710. 11-17 실제 응답 헤더 기준이다.
+  - email.deliverability: gmail-smtp-in.l.google.com, cf-emailsecurity.net. example.com null MX 과제는 일반어뿐이라 뺐다.
+  - wikidata.entity: Q42 Hitchhiker·writer, Q937 physicist·relativity, Q312 Cupertino. 엔터티 기록 도구는 뺐다.
+- **미룸**
+  - regulation.search: 정답 출처가 eCFR 제목 목록뿐이다. 조항 제목을 다시 확인해야 한다.
+  - mcp.trust_audit: 기대 단어가 일반어뿐이고, 맞는 도구가 2개뿐이다.
+  - 실시간 기준값이 필요한 21개 역할과 목걸이 계획 밖 54개 역할.
+- **알려진 빈틈**: 새 역할은 data_quality.REQUIRED_OUTPUT에 없다. 그래서 JSON 답은 W1의 TLS처럼 완전성 0점이 된다. 첫 시험 답의 모양을 본 뒤 필수 칸을 정하고, 평가기 버전을 올리고 다시 채점한다.
