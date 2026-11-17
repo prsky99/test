@@ -541,15 +541,34 @@ IDENTITY_MISMATCH = "identity_mismatch"
 NOT_FOUND_NOTE = "No encyclopedia article found for this company."
 # PM 11-17 (company-diligence-brief, agent team's proposal): a slot marked absence_is_answer answers "no record" when
 # every member it called said not_found; a later step that needs its values is then not run, which is not a failure
-ABSENT_NOTE = "No record found by any member of this step (each said it has no record for this input)."
+# the sources named in an absence answer (a member's upstream tag -> the source's public name)
+SOURCE_NAMES = {"sec-edgar": "SEC EDGAR", "gleif": "GLEIF", "ofac": "the OFAC SDN list", "wikipedia": "Wikipedia",
+                "rdap": "RDAP"}
 UPSTREAM_ABSENT_NOTE = "Not run: an earlier step found no record to look this up with."
 
 
 def absent(slot: dict, attempts) -> bool:
-    """True for an absence_is_answer slot whose every sent member said not_found (at least one asked)."""
-    from .refusals import not_sent
-    sent = [a for a in attempts if not not_sent(a.error_class) and a.error_class != "not_needed"]
-    return bool(slot.get("absence_is_answer")) and bool(sent) and all(a.error_class == "not_found" for a in sent)
+    """True for an absence_is_answer slot whose every attempt was a member saying not_found (PM 11-17: only
+    not_found; a timeout, a 401/403, a 5xx, an empty answer or a call we did not send keeps the step failed)."""
+    tried = [a for a in attempts if a.error_class != "not_needed"]
+    return bool(slot.get("absence_is_answer")) and bool(tried) and all(a.error_class == "not_found" for a in tried)
+
+
+def absence_answer(slot: dict, attempts, at: float | None = None) -> dict:
+    """The absence answer with the sources asked and the time (PM 11-17: 'no record found in <sources> as of
+    <date>'; never 'clear' or 'safe')."""
+    names = []
+    for a in attempts:
+        member = next((m for m in slot.get("chain") or [] if (a.resource_id is not None and m.get("resource_id") == a.resource_id)
+                       or (a.resource_id is None and m.get("resource_id") is None and m.get("tool") == a.tool)), None)
+        for tag in (member or {}).get("upstream") or []:
+            name = SOURCE_NAMES.get(str(tag).lower(), str(tag))
+            if name not in names:
+                names.append(name)
+    when = time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime(time.time() if at is None else at))
+    sources = " or ".join(names) if names else "the sources asked"
+    return {"not_found": True, "sources": names, "checked_at": when,
+            "note": f"No record found in {sources} as of {when}."}
 # PM 11-16 (company round 1, before the 11-17 06:00 topic gate): a member that says it has no article ("not_found",
 # e.g. our wikipedia-summary) is evidence too, and an attempt our side refused (our ledger budget or quota, our
 # capacity, our relay pace, a provider asking for a pause) says nothing about the article, so it does not break the
@@ -1157,7 +1176,8 @@ class Runner:
         if need and not failed and pearls_answered < need:
             failed.append("pearls_answered")
         output = {name: (merge(states[name]["slot"]["contract"], r.answers) if r.answers else
-                         {"not_found": True, "note": ABSENT_NOTE if name in absent_slots else NOT_FOUND_NOTE}
+                         absence_answer(states[name]["slot"], r.attempts) if name in absent_slots else
+                         {"not_found": True, "note": NOT_FOUND_NOTE}
                          if r.not_found else {"skipped": True, "note": UPSTREAM_ABSENT_NOTE}
                          if r.skipped == "upstream_absent" else {"missing": True})
                   for name, r in results.items()}

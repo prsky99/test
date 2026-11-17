@@ -23,7 +23,9 @@ def test_every_member_not_found_is_the_answer_and_the_next_step_is_skipped_not_f
     out = runner.Runner(caller_from({1: "screened", 10: Fail("not_found"), 11: Fail("not_found")}, calls)).run(
         defn(), {"q": "x"})
     assert out["ok"] and out["failed_slot"] is None
-    assert out["output"]["registry"] == {"not_found": True, "note": runner.ABSENT_NOTE}
+    reg = out["output"]["registry"]
+    assert reg["not_found"] and reg["sources"] == ["src2"] and reg["note"].startswith("No record found in src2 as of ")
+    assert "clear" not in reg["note"].lower() and "safe" not in reg["note"].lower()
     assert out["output"]["filings"] == {"skipped": True, "note": runner.UPSTREAM_ABSENT_NOTE}
     assert sorted(rid for rid, _ in calls) == [1, 10, 11]                  # both registry members asked, filings not
 
@@ -39,3 +41,10 @@ def test_without_the_mark_not_found_is_still_a_failure():
     del d["slots"][1]["absence_is_answer"]
     out = runner.Runner(caller_from({1: "screened", 10: Fail("not_found"), 11: Fail("not_found")})).run(d, {"q": "x"})
     assert not out["ok"] and out["failed_slot"] == "registry"
+
+
+def test_only_not_found_counts_a_timeout_a_403_an_empty_answer_or_an_unsent_call_keeps_it_failed():
+    for other in (Fail("timeout"), Fail("UPSTREAM_HTTP_403"), Fail("UPSTREAM_5XX"), Fail("contract_invalid"),
+                  Fail("capacity")):
+        out = runner.Runner(caller_from({1: "screened", 10: Fail("not_found"), 11: other})).run(defn(), {"q": "x"})
+        assert not out["ok"] and out["failed_slot"] == "registry", other.error_code
