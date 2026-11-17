@@ -63,7 +63,11 @@ def _environment(root):
     # No inherited PG*, libpq services, password files, HOME or shell config.
     return {'PATH': TOOL_PATH, 'HOME': str(home), 'TMPDIR': str(root), 'LC_ALL': 'C', 'LANG': 'C',
             'PGPASSFILE': str(root / 'no-password-file'), 'PGSERVICEFILE': str(root / 'no-service-file'),
-            'PGSYSCONFDIR': str(root)}
+            'PGSYSCONFDIR': str(root),
+            # 11-18 (운영·SRE): a child's DataAgents refreshed the technology-news bundle into the shared
+            # gateway-data/owned-data-agents/tech-news.json that production reads (fake test articles, 11-17 02:05,
+            # 11-18 04:33, 06:28). Children of a private cluster keep it inside the cluster's own folder.
+            'OWNED_NEWS_BUNDLE': str(root / 'tech-news.json')}
 
 
 def _run(args, env, *, timeout=30, input=None):

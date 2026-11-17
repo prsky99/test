@@ -192,6 +192,11 @@ def _no_production_storage_leak():
 import os as _os
 import tempfile as _tempfile
 _os.environ['AGENTCON_SIGNING_DIR'] = _tempfile.mkdtemp(prefix='agentcon-test-signing-')
+# 11-18 (운영·SRE): rehearsal scripts that tests start as child processes (rehearse_qa7_remediation's DataAgents)
+# do not see the isolated_news_bundle fixture, so their background refresh wrote two fake articles into the shared
+# gateway-data/owned-data-agents/tech-news.json that production reads (11-17 02:05, 11-18 04:33 and 06:28).
+# tech_news.PATH follows OWNED_NEWS_BUNDLE, which every child inherits.
+_os.environ['OWNED_NEWS_BUNDLE'] = _os.path.join(_tempfile.mkdtemp(prefix='agentcon-test-news-'), 'tech-news.json')
 
 
 # PM 11-17: test runs never touch production records, secrets or the production database (tests/report_redirect.py):
