@@ -43,8 +43,22 @@ def test_without_the_mark_not_found_is_still_a_failure():
     assert not out["ok"] and out["failed_slot"] == "registry"
 
 
-def test_only_not_found_counts_a_timeout_a_403_an_empty_answer_or_an_unsent_call_keeps_it_failed():
+def test_only_not_found_counts_a_timeout_a_403_a_5xx_or_an_empty_or_invalid_answer_keeps_it_failed():
     for other in (Fail("timeout"), Fail("UPSTREAM_HTTP_403"), Fail("UPSTREAM_5XX"), Fail("contract_invalid"),
-                  Fail("capacity")):
+                  Fail("UPSTREAM_EMPTY")):
         out = runner.Runner(caller_from({1: "screened", 10: Fail("not_found"), 11: other})).run(defn(), {"q": "x"})
         assert not out["ok"] and out["failed_slot"] == "registry", other.error_code
+
+
+def test_a_source_never_asked_is_left_out_and_with_none_asked_the_step_fails():
+    d = defn()
+    d["slots"][1]["chain"][1]["upstream"] = ["src3"]
+    # the second registry member's call never went out (our ledger said no): only the first source is named
+    out = runner.Runner(caller_from({1: "screened", 10: Fail("not_found"), 11: Fail("budget_domain_daily_total")})).run(
+        d, {"q": "x"})
+    assert out["ok"] and out["output"]["registry"]["sources"] == ["src2"]
+    assert "src3" not in out["output"]["registry"]["note"]
+    # no call reached any source: no "no record" answer, the step fails
+    out = runner.Runner(caller_from({1: "screened", 10: Fail("capacity"), 11: Fail("budget_domain_daily_total")})).run(
+        d, {"q": "x"})
+    assert not out["ok"] and out["failed_slot"] == "registry"

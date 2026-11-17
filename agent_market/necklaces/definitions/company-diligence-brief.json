@@ -34,6 +34,27 @@
       "fanout": 1,
       "chain": [
         {
+          "kind": "external",
+          "resource_id": 42429,
+          "tool": "screen_sanctions",
+          "registrable_domain": "hatchloop.dev",
+          "upstream": [
+            "ofac",
+            "eu",
+            "uk"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": false,
+          "input_map": {
+            "name": "{{input.name}}"
+          },
+          "note": "Provisional member (PM 11-17, terms allowed, agent-team abc88055): OFAC SDN, EU and UK lists, not UN; keyless 100 a day across its premium tools, our share 50. Only screen_sanctions is called on this server."
+        },
+        {
           "kind": "agentcon",
           "agent_id": "ofac-sdn",
           "resource_id": null,
@@ -255,6 +276,6 @@
     ]
   },
   "answer_set": "company-diligence-brief-v1",
-  "notes": "v1 draft (workflow 11-17; PM 11-17: renamed from company-sanctions-screen and led as a company due-diligence brief, where demand is strong, with the sanctions check as one step; second after website-trust v2; not pushed before the 11-18 21:50 freeze ends). Members: sanctions ofac-sdn (our own, agent team r13, gate pending; no verified pearl exists for sanctions.screen.v1 and the outside candidates hatchloop.dev 42425-42429 and wsystem.dev 113945 have unknown terms, so they are not listed until judged); registry as company-due-diligence v3 (sec-edgar approved, gleif-lei); filings 40800 siliconfloor.com (verified pearl, terms allowed) and 288314 plainquant.com (verified pearl, terms silent), then sec-filings (ours); news optional 58662 newsflash.sh and 268473 reliness.co.uk (verified pearls, terms silent), then gdelt-news (ours). 58997 is out (terms prohibit). Open: an SDN entity has no SEC registration, so registry must answer 'not found' as an answer (as sec-filings' no_us_sec_filings) or the required step fails; agent team to confirm sec-edgar/gleif-lei behaviour. Answer set: 30 cases, SEC filers 20 (5 of them namesakes of an SDN entity) and SDN entities 10 (PM 11-17).",
+  "notes": "v1 draft (workflow 11-17; PM 11-17: renamed from company-sanctions-screen and led as a company due-diligence brief, where demand is strong, with the sanctions check as one step; second after website-trust v2; not pushed before the 11-18 21:50 freeze ends). Members: sanctions ofac-sdn (our own, agent team r13, gate pending; no verified pearl exists for sanctions.screen.v1 and the outside candidates hatchloop.dev 42425-42429 and wsystem.dev 113945 have unknown terms, so they are not listed until judged); registry as company-due-diligence v3 (sec-edgar approved, gleif-lei); filings 40800 siliconfloor.com (verified pearl, terms allowed) and 288314 plainquant.com (verified pearl, terms silent), then sec-filings (ours); news optional 58662 newsflash.sh and 268473 reliness.co.uk (verified pearls, terms silent), then gdelt-news (ours). 58997 is out (terms prohibit). Open: an SDN entity has no SEC registration, so registry must answer 'not found' as an answer (as sec-filings' no_us_sec_filings) or the required step fails; agent team to confirm sec-edgar/gleif-lei behaviour. Answer set: 30 cases, SEC filers 20 (5 of them namesakes of an SDN entity) and SDN entities 10 (PM 11-17). 11-17: hatchloop.dev 42429 screen_sanctions added before ofac-sdn as a provisional external member (terms allowed; it may answer with its own reason codes such as 'clear', which the necklace quotes as material and never states itself).",
   "demand": "Our own 30-day asks (search and RAG, 11-17, agent_messages, internal and measurement removed): company lookup 2, sanctions 0. Outside directories (reports/necklace-demand-2026-11-15): company and counterparty due diligence strong (Edgar Tools 269k, Companies House UK 33.4k weekly visits), sanctions and compliance screening weak to medium (DataNexus 38.1k)."
 }

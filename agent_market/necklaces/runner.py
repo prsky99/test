@@ -547,18 +547,29 @@ SOURCE_NAMES = {"sec-edgar": "SEC EDGAR", "gleif": "GLEIF", "ofac": "the OFAC SD
 UPSTREAM_ABSENT_NOTE = "Not run: an earlier step found no record to look this up with."
 
 
+UNASKED = frozenset({"deadline", "connection_empty", "not_needed"})
+
+
+def _asked(attempts) -> list:
+    """Attempts that really reached a source (PM 11-17): ledger or quota refusals, capacity, pauses, a call never
+    started (deadline) or never made (an empty value from an earlier step) asked nobody."""
+    from .refusals import not_sent
+    return [a for a in attempts if not not_sent(a.error_class) and a.error_class not in UNASKED]
+
+
 def absent(slot: dict, attempts) -> bool:
-    """True for an absence_is_answer slot whose every attempt was a member saying not_found (PM 11-17: only
-    not_found; a timeout, a 401/403, a 5xx, an empty answer or a call we did not send keeps the step failed)."""
-    tried = [a for a in attempts if a.error_class != "not_needed"]
-    return bool(slot.get("absence_is_answer")) and bool(tried) and all(a.error_class == "not_found" for a in tried)
+    """True for an absence_is_answer slot when at least one source was really asked and every source asked said
+    not_found (PM 11-17). A timeout, a 401/403, a 5xx or an empty or invalid answer among them keeps the step failed;
+    a call that was never sent is left out, and with no source asked the step fails."""
+    asked = _asked(attempts)
+    return bool(slot.get("absence_is_answer")) and bool(asked) and all(a.error_class == "not_found" for a in asked)
 
 
 def absence_answer(slot: dict, attempts, at: float | None = None) -> dict:
-    """The absence answer with the sources asked and the time (PM 11-17: 'no record found in <sources> as of
-    <date>'; never 'clear' or 'safe')."""
+    """The absence answer naming only the sources really asked, and the time (PM 11-17: 'no record found in
+    <sources> as of <date>'; never 'clear' or 'safe')."""
     names = []
-    for a in attempts:
+    for a in _asked(attempts):
         member = next((m for m in slot.get("chain") or [] if (a.resource_id is not None and m.get("resource_id") == a.resource_id)
                        or (a.resource_id is None and m.get("resource_id") is None and m.get("tool") == a.tool)), None)
         for tag in (member or {}).get("upstream") or []:
