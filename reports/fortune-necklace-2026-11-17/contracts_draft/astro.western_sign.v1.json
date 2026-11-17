@@ -1,0 +1,97 @@
+{
+  "id": "astro.western_sign.v1",
+  "role": "western (tropical) sun sign of a solar birth date and the sign's reading for today",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "birth_date": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "date": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "today": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      }
+    },
+    "required": [],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "sign": {
+        "type": "string",
+        "enum": [
+          "Aries",
+          "Taurus",
+          "Gemini",
+          "Cancer",
+          "Leo",
+          "Virgo",
+          "Libra",
+          "Scorpio",
+          "Sagittarius",
+          "Capricorn",
+          "Aquarius",
+          "Pisces"
+        ]
+      },
+      "element": {
+        "type": "string",
+        "enum": [
+          "Fire",
+          "Earth",
+          "Air",
+          "Water"
+        ]
+      },
+      "cusp": {
+        "type": "boolean"
+      },
+      "today": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "today_reading": {
+        "type": "string",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "answer and source are required, as in every contract; the structured fields are optional (an outside member may answer in text; the normalizer reads both), and our own substitute fills them all",
+    "the sun sign by tropical boundaries (a cusp day is flagged, not resolved silently)",
+    "today_reading, when given, is for the today date and says it is for entertainment; no health, money, legal or medical claim or advice, no frightening words (accident, illness, death)",
+    "read-only calculation; no account, payment or write; the birth date is used for the calculation only and never stored or logged"
+  ],
+  "test_inputs": [
+    {
+      "birth_date": "1990-03-15",
+      "date": "1990-03-15",
+      "today": "2026-11-18"
+    }
+  ],
+  "status": "draft (검색과 RAG 11-17, BRIEF 2절; necklace path frozen until 11-20)"
+}
