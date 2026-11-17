@@ -68,7 +68,8 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
            "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400, "tls-certificate": 86400,
            "sec-company-profile": 24 * 3600, "sun-times": 10 * 365 * 86400, "site-reachability": 60,
-           "dns-spf-dmarc": 86400, "package-readme": 86400, "agent-record": 2 * 86400}  # rules age from the library release; update the pin at least yearly
+           "dns-spf-dmarc": 86400, "package-readme": 86400, "agent-record": 2 * 86400,
+           "ofac-sdn": 3 * 86400}   # the daily list index; served up to three days if a refresh fails  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -118,6 +119,7 @@ class FallbackAgents:
         self.kev = None  # (monotonic fetched, wall fetched, {cve: dateAdded}, catalogVersion)
         self.weather: OrderedDict = OrderedDict()  # (lat, lon) -> dict(value, as_of, expires, last_modified, at)
         self.airports = None
+        self.ofac = None
         self.tz_grid = None
         import socket as _socket
         self.resolve = lambda host: _socket.getaddrinfo(host, 443, proto=_socket.IPPROTO_TCP)   # tests replace these
@@ -1706,6 +1708,40 @@ class FallbackAgents:
         else:
             out["answer"] = f"{domain}: the TLS certificate does not validate ({facts.get('reason') or 'unknown reason'})."
         return out, cache, False, {"TLS handshake": as_of}
+
+    def _ofac_sdn(self, args, remaining):
+        """sanctions.screen.v1 (company-sanctions-screen v1 sanctions seat, PM 11-17): informational name and alias
+        matches of an organisation against OFAC's SDN list (entities only), from a daily local index (ofac.py). OFAC
+        is never called per request. Never a legal determination and never 'clear'."""
+        from .ofac import NOTICE, SEARCH_URL, OfacIndex, screen
+        name = " ".join(str(args.get("name") or "").split())
+        if not 2 <= len(name) <= 200:
+            raise FallbackUnavailable("invalid_input", "Give an organisation name (2 to 200 characters).")
+        if self.ofac is None:
+            self.ofac = OfacIndex(self.data_dir / "ofac-sdn.json")
+        data = self.ofac.data()
+        if not data:
+            raise FallbackUnavailable("source_unavailable", "The OFAC SDN index is not built on this server yet.")
+        age = int(max(0, self.wall() - float(data.get("fetched_at") or 0)))
+        if age > MAX_AGE["ofac-sdn"]:
+            raise FallbackUnavailable("source_unavailable", "The OFAC SDN index is too old to screen against.")
+        list_date = _text(data.get("list_date"), 40) or "unknown"
+        found = screen(data["entities"], name)
+        matches = [{"name": _text(m["name"], 500), "match": m["match"], "matched_on": m["matched_on"],
+                    "matched_text": _text(m["matched_text"], 500), "score": m["score"],
+                    "list_id": f"SDN {m['sdn_entry']}", "programs": [_text(p, 80) for p in m["programs"][:10]]}
+                   for m in found]
+        if matches:
+            parts = [f"{m['name']} ({m['match']} {m['matched_on']} match, {m['list_id']}, programs "
+                     f"{', '.join(m['programs']) or 'not listed'})" for m in matches]
+            answer = (f"{len(matches)} possible OFAC SDN list match{'es' if len(matches) > 1 else ''} for '{name}': "
+                      + "; ".join(parts) + f". SDN list dated {list_date}. {NOTICE[0].upper() + NOTICE[1:]}.")
+        else:
+            answer = (f"No SDN entity name or alias closely matched '{name}' in the OFAC SDN list dated {list_date}. "
+                      f"{NOTICE[0].upper() + NOTICE[1:]}.")
+        out = {"answer": answer, "url": SEARCH_URL, "source": "OFAC Specially Designated Nationals (SDN) list",
+               "list_date": list_date, "notice": NOTICE, "matches": matches}
+        return out, {"status": "snapshot", "age_seconds": age}, False, {"OFAC SDN list": list_date}
 
     def _agent_record(self, args, remaining):
         """agent.record.v1 (mcp-server-trust-check our_record seat, agent team 11-17): what AgentValCon's own

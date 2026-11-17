@@ -133,6 +133,12 @@ SITE_TLS = {"name": "The website's own TLS certificate (read in the TLS handshak
             "license": "Public facts a server presents to every visitor; nothing is downloaded beyond the handshake",
             "notice": "Port 443 only, to a public address checked before connecting; the certificate the site serves now."}
 
+OFAC_SDN = {"name": "OFAC Sanctions List Service: SDN list (SDN.CSV and ALT.CSV exports)",
+            "url": "https://sanctionslistservice.ofac.treas.gov/",
+            "license": "U.S. Government work, public domain in the United States (U.S. Department of the Treasury, OFAC)",
+            "notice": "Entities only; a daily copy with the list date; informational name match, not a legal "
+                      "determination; verify at OFAC Sanctions List Search (https://sanctionssearch.ofac.treas.gov/)."}
+
 OUR_RECORDS = {"name": "AgentValCon collection and test records (published snapshots)",
                "url": "https://agentconcierge.biz/methodology", "license": "our own data",
                "notice": "The task-page catalog (daily), the verified MCP registry (hourly) and the role test "
@@ -399,6 +405,14 @@ SPECS = {
                        "the final address after redirects and whether it stays on HTTPS; read-only, the body is not kept.",
         "sources": [SITE_GET],
         "rate": "one GET a check (redirects followed one hop at a time); no cache",
+    },
+    "ofac-sdn": {
+        "name": "AgentValCon Sanctions List Name Match", "tool": "screen_sanctions_list", "contract": "sanctions.screen.v1",
+        "description": "Look up an organisation name in the OFAC SDN sanctions list (entities only): near name and "
+                       "alias matches with their programs and the list date, from a daily local copy; an "
+                       "informational name match, not a legal determination; read-only.",
+        "sources": [OFAC_SDN],
+        "rate": "no network calls per request; the list is refreshed once a day",
     },
     "agent-record": {
         "name": "AgentValCon Agent Record", "tool": "check_agent_record", "contract": "agent.record.v1",

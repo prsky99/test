@@ -86,3 +86,32 @@ class AirportIndexRefresh:
         self.thread = threading.Thread(target=self._work, name='airport-index-refresh', daemon=True)
         self.thread.start()
         return {'airport_index': 'started'}
+
+
+class OfacIndexRefresh(AirportIndexRefresh):
+    """The OFAC SDN index for the ofac-sdn substitute (PM 11-17), once a day in the same window as the airport index.
+    Like the airport index, it does not start before the first index exists (a first sync is run by hand)."""
+
+    def _path(self):
+        if self.path is not None:
+            return self.path
+        from .fallback_agents.ofac import default_path
+        return default_path()
+
+    def _work(self):
+        started = time.monotonic()
+        try:
+            if self._sync is not None:
+                report = self._sync()
+            else:
+                from .fallback_agents.ofac import sync
+                report = sync(self._path())
+            self.last = {'ok': True, 'seconds': round(time.monotonic() - started, 1)}
+            log.info('ofac sdn index refresh: %s in %.1f s', report, time.monotonic() - started)
+        except Exception as exc:
+            self.last = {'ok': False, 'error': type(exc).__name__}
+            log.warning('ofac sdn index refresh failed: %s', type(exc).__name__)
+
+    def run_due(self, force=False):
+        result = super().run_due(force)
+        return {'ofac_index': result['airport_index']} if result else result

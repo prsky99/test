@@ -1011,5 +1011,31 @@
    null,
    {}
   ]
+ ],
+ "ofac-sdn": [
+  [
+   {
+    "name": "Banco Nacional de Cuba"
+   },
+   "ok",
+   "snapshot",
+   {}
+  ],
+  [
+   {
+    "name": "Apple Inc."
+   },
+   "ok",
+   "snapshot",
+   {}
+  ],
+  [
+   {
+    "name": "x"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }

@@ -22,6 +22,7 @@ DAY = 86400
 # file -> (agents that read it, limit in days, how it is renewed)
 FILES = {
     "airports.json": (["airport-lookup"], 8, "jobs: python -m agent_market.fallback_agents.airports --sync, daily"),
+    "ofac-sdn.json": (["ofac-sdn"], 3, "jobs: python -m agent_market.fallback_agents.ofac --sync, daily"),
     "kev-catalog.json": (["cisa-kev"], 1, "refreshed by cisa-kev itself from the CISA feed (hourly cache)"),
     "nvd-cve.sqlite3": (["nvd-cve", "software-incident"], 2, "jobs: NVD snapshot refresh (fallback_agents.nvd_store)"),
     "tz-grid.bin": (["tz-time", "airport-lookup"], 400,

@@ -6,6 +6,7 @@ import gzip
 import hashlib
 import io
 import json
+import re
 from pathlib import Path
 
 import httpx
@@ -70,7 +71,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile", "sun-times", "site-reachability", "dns-spf-dmarc", "package-readme", "agent-record"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile", "sun-times", "site-reachability", "dns-spf-dmarc", "package-readme", "agent-record", "ofac-sdn"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2886,3 +2887,99 @@ def test_answer_set_builders_stop_at_a_provider_limit(module, status, tmp_path, 
     assert f"provider refused ({status})" in str(stop.value) and len(sent) == 1
     assert noted[0][0][2] == 429 and noted[0][1]["evidence"]["retry_after"] == "60"
     assert not list(slug.glob("x.jsonl"))
+
+
+
+# ---------------------------------------------------------------- ofac-sdn (agent team, PM 11-17)
+SDN_CSV = """36,"AEROCARIBBEAN AIRLINES",-0- ,"CUBA",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0-
+306,"BANCO NACIONAL DE CUBA",-0- ,"CUBA",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,"a.k.a. 'BNC'."
+900,"GAZPROMBANK JOINT STOCK COMPANY",-0- ,"RUSSIA-EO14024",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0-
+901,"DOE, John",individual,"SDGT",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0-
+902,"SEA STAR",vessel,"IRAN",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0-
+"""
+ALT_CSV = """306,220,"aka","NATIONAL BANK OF CUBA",-0-
+901,221,"aka","JOHNNY DOE",-0-
+"""
+
+
+def _ofac_index(tmp_path, monkeypatch, fetched_at=1.8e9):
+    from agent_market.fallback_agents import ofac
+    monkeypatch.setattr(ofac, "MIN_ENTITIES", 1)
+    entities = ofac.build_index(SDN_CSV, ALT_CSV)
+    (tmp_path / "ofac-sdn.json").write_text(json.dumps({"fetched_at": fetched_at, "list_date": "Fri, 13 Nov 2026 16:33:06 GMT",
+                                                        "entities": entities}))
+    return entities
+
+
+def test_ofac_index_keeps_entities_only_with_programs_and_aliases(tmp_path, monkeypatch):
+    from agent_market.fallback_agents import ofac
+    entities = _ofac_index(tmp_path, monkeypatch)
+    assert sorted(e["uid"] for e in entities) == [36, 306, 900]                   # no individual, no vessel
+    bnc = next(e for e in entities if e["uid"] == 306)
+    assert bnc["aliases"] == ["NATIONAL BANK OF CUBA"] and bnc["programs"] == ["CUBA"]
+    assert ofac.norm("Open Joint-Stock Company Rosneft Oil Company") == "ROSNEFT OIL"
+    assert ofac.norm("Banco Nacional de Cuba, S.A.") == "BANCO NACIONAL DE CUBA" and ofac.norm("JSC Gazprombank") == "GAZPROMBANK"
+    monkeypatch.setattr(ofac, "MIN_ENTITIES", 3000)
+    with pytest.raises(ValueError):
+        ofac.build_index(SDN_CSV, ALT_CSV)                                         # a short download is refused
+
+
+def test_ofac_screen_exact_alias_similar_and_nothing(tmp_path, monkeypatch):
+    from agent_market.fallback_agents import ofac
+    entities = _ofac_index(tmp_path, monkeypatch)
+    assert [(m["sdn_entry"], m["match"], m["matched_on"]) for m in ofac.screen(entities, "Banco Nacional de Cuba S.A.")] == [(306, "exact", "name")]
+    assert [(m["sdn_entry"], m["matched_on"]) for m in ofac.screen(entities, "National Bank of Cuba")] == [(306, "alias")]
+    assert ofac.screen(entities, "Gazprombank")[0]["sdn_entry"] == 900
+    similar = ofac.screen(entities, "Aerocaribbean Airline")
+    assert similar[0]["match"] == "similar" and similar[0]["score"] >= ofac.SIMILAR
+    assert ofac.screen(entities, "Apple Inc.") == [] and ofac.screen(entities, "John Doe") == []   # people are not screened
+
+
+def test_ofac_agent_states_list_date_and_never_says_clear(tmp_path, monkeypatch):
+    from agent_market.fallback_agents.ofac import NOTICE
+    _ofac_index(tmp_path, monkeypatch)
+    a, _ = agents(tmp_path, {})
+    hit = a.execute("ofac-sdn", {"name": "National Bank of Cuba"})["result"]
+    assert hit["matches"][0]["list_id"] == "SDN 306" and hit["notice"] == NOTICE
+    assert "13 Nov 2026" in hit["list_date"] and "not a legal determination" in hit["answer"]
+    none = a.execute("ofac-sdn", {"name": "Apple Inc."})["result"]
+    assert none["matches"] == [] and "not a legal determination" in none["answer"] and "13 Nov 2026" in none["answer"]
+    for result in (hit, none):
+        assert not re.search(r"\b(clear|cleared|not sanctioned|no sanctions)\b", result["answer"], re.I)
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("ofac-sdn", {"name": "x"})
+    assert err.value.code == "invalid_input"
+
+
+def test_ofac_agent_refuses_without_a_fresh_index(tmp_path, monkeypatch):
+    a, _ = agents(tmp_path, {})
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("ofac-sdn", {"name": "Banco Nacional de Cuba"})
+    assert err.value.code == "source_unavailable"
+    _ofac_index(tmp_path, monkeypatch, fetched_at=1.8e9 - 10 * 86400)               # ten days old
+    a, _ = agents(tmp_path, {})
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("ofac-sdn", {"name": "Banco Nacional de Cuba"})
+    assert err.value.code == "source_unavailable"
+
+
+def test_ofac_sync_reads_both_exports_once_and_writes_atomically(tmp_path, monkeypatch):
+    from agent_market.fallback_agents import ofac
+    monkeypatch.setattr(ofac, "MIN_ENTITIES", 1)
+    seen = []
+    def handler(request):
+        seen.append(str(request.url))
+        body = SDN_CSV if request.url.path.endswith("SDN.CSV") else ALT_CSV
+        return httpx.Response(200, text=body, headers={"last-modified": "Fri, 13 Nov 2026 16:33:06 GMT"})
+    clock = Clock()
+    report = ofac.sync(tmp_path / "ofac-sdn.json", http=httpx.Client(transport=httpx.MockTransport(handler)),
+                       limiters=limiters(clock=clock, sleep=clock.sleep), now=lambda: 1.8e9)
+    assert report["entities"] == 3 and seen == [ofac.SDN_URL, ofac.ALT_URL]
+    data = json.loads((tmp_path / "ofac-sdn.json").read_text())
+    assert data["list_date"].startswith("Fri, 13 Nov 2026") and not list(tmp_path.glob("*.tmp"))
+
+
+def test_ofac_index_refresh_waits_for_a_first_index(tmp_path):
+    from agent_market.fallback_schedule import OfacIndexRefresh
+    step = OfacIndexRefresh(clock=lambda: 1.8e9, path=tmp_path / "ofac-sdn.json")
+    assert step.run_due(force=True) == {"ofac_index": "no_index"}

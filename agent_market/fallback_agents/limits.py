@@ -171,6 +171,7 @@ def _table(clock, sleep) -> dict[str, HostLimiter]:
         "www.ecb.europa.eu": HostLimiter(2.0, 60, 3600.0, clock, sleep),
         "earthquake.usgs.gov": HostLimiter(1.0, 60, 3600.0, clock, sleep),
         "davidmegginson.github.io": HostLimiter(60.0, 4, 86400.0, clock, sleep),  # airport CSV: a few a day
+        "sanctionslistservice.ofac.treas.gov": HostLimiter(5.0, 6, 86400.0, clock, sleep),  # SDN + ALT once a day
         "en.wiktionary.org": HostLimiter(0.2, 40, 60.0, clock, sleep),  # same Wikimedia API limits
         "data.iana.org": HostLimiter(10.0, 24, 86400.0, clock, sleep),
         "api.gdeltproject.org": HostLimiter(5.0, 200, 86400.0, clock, sleep),  # GDELT DOC API: one every 5 s (ours)

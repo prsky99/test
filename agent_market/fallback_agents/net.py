@@ -22,6 +22,7 @@ ALLOWED_HOSTS = frozenset({"services.nvd.nist.gov", "nvd.nist.gov", "cveawg.mitr
                            "en.wikipedia.org", "export.arxiv.org", "api.worldbank.org",
                            "api.met.no", "api.scorecard.dev",
                            "www.ecb.europa.eu", "earthquake.usgs.gov", "davidmegginson.github.io",
+                           "sanctionslistservice.ofac.treas.gov",
                            "en.wiktionary.org", "data.iana.org", "www.wikidata.org",
                            "query.wikidata.org", "api.gdeltproject.org",
                            "geocoding.geo.census.gov", "registry.modelcontextprotocol.io"})
