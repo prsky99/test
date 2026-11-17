@@ -136,3 +136,24 @@ def test_user_slo_counts_write_tasks_on_the_verdict_with_the_same_denominator():
     read_bad = {'tools': 27, 'error': 'tool_unlisted'}
     conn = [passed, failed, read_ok, read_bad]
     assert user_slo.connect_bad(conn) == [failed, read_bad] and len(conn) == 4
+
+
+@pytest.mark.parametrize('task,card,needed', [
+    ('send email today 1', {'connection_available': False}, True),           # write task, not relayed
+    ('send email today 1', {'connection_available': True}, False),           # a relayed send tool: judged as before
+    ('stock quotes api 2', {'connection_available': False, 'connection_reason': 'terms_restricted'}, True),
+    ('stock quotes api 2', {'connection_available': False, 'connection_reason': 'action_tool'}, False),
+    ('stock quotes api 2', {'connection_available': True}, False),
+    ('stock quotes api 2', None, False),
+])
+def test_which_samples_are_judged_on_the_direct_notice(task, card, needed):
+    """PM 11-18 decision 4: terms-restricted listings are measured the same way as write tasks."""
+    assert user_slo.direct_needed(task, card) is needed
+
+
+def test_a_terms_restricted_card_passes_on_the_notice_without_a_task_pattern():
+    note = ("The provider's terms do not allow us to relay calls to this listing. Connect from your own client at "
+            "the direct_endpoint below; we do not relay this tool.")
+    card = {**CARD, 'connection_reason': 'terms_restricted', 'connection_note': note}
+    out = judge(Provider(tools=('get_stock_quotes',)), card=card, wanted='get_stock_quotes', task='stock quotes api 2')
+    assert out['passed'] and out['a_tool_fits'] and out['methods'] == list(D.READ_METHODS)

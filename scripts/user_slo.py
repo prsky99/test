@@ -360,12 +360,21 @@ def connect_bad(conn):
     return [c for c in conn if failed(c)]
 
 
+def direct_needed(task, card):
+    """Whether a sample is judged on the direct-connect notice (PM 11-18): a write task on a card we do not relay, or
+    any task whose first card is terms-restricted (our relay refused by the provider's terms, decision 4)."""
+    card = card or {}
+    if card.get('connection_reason') == 'terms_restricted':
+        return True
+    return bool(direct_connect.write_topic(task)) and card.get('connection_available') is not True
+
+
 def direct_verdict(task, card, wanted, text):
     """(a)-(d) for a write task: the provider's own tools/list on a new connection, budgeted, read only."""
     from agent_market.broker.discovery import check_public_url
     from agent_market.provider_budget import reserve
     agent = {'User-Agent': 'AgentValCon-connect-check/1 (+https://agentconcierge.biz)'}
-    return direct_connect.judge(task, card, wanted, text, lambda: httpx.Client(timeout=10.0, headers=agent),
+    return direct_connect.judge(task, card, wanted, text, lambda: httpx.Client(timeout=10.0, headers={**QA_HEADER, **agent}),
                                 reserve, check_public_url)
 
 
@@ -395,8 +404,8 @@ def check_recommend_and_connect(n=2):
             entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
             if direct_connect.write_topic(task):
                 entry['write_task'] = True
-                if (card or {}).get('connection_available') is not True:
-                    entry['direct'] = direct_verdict(task, card, wanted, text)
+            if direct_needed(task, card):
+                entry['direct'] = direct_verdict(task, card, wanted, text)
             conn.append(entry)
             continue
         seen = {}
@@ -419,9 +428,9 @@ def check_recommend_and_connect(n=2):
             # A write task is not dropped. On a card we do not relay it passes on the direct-connect notice, all of
             # (a)-(d) (PM 11-18); a tool our gateway does relay is judged as before (connected, listed, right action).
             entry['write_task'] = True
-            card = first_card(result[1] if result else None)
-            if (card or {}).get('connection_available') is not True:
-                entry['direct'] = direct_verdict(task, card, wanted, text)
+        card = first_card(result[1] if result else None)
+        if direct_needed(task, card):
+            entry['direct'] = direct_verdict(task, card, wanted, text)
         conn.append(entry)
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
     conn_bad = connect_bad(conn)
