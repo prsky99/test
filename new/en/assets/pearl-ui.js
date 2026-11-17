@@ -93,7 +93,21 @@
     const button=document.createElement('button');button.type='button';button.className='btn primary block';button.textContent='Inspect agent and evidence';button.addEventListener('click',()=>openAgent(item.id));
     panel.replaceChildren(badge,name,description,evidence,button);
   }
-  renderExplore = function(...args){oldExplore(...args);all('#xResults .acard').forEach(card=>{/* 11-11: the card holds its own buttons (compare, feedback), so it is not a button itself (axe nested-interactive); "View details" is the keyboard and screen-reader target, the whole card stays clickable by pointer. */const actions=document.createElement('div');actions.className='pearl-result-actions';const label=document.createElement('button');label.type='button';label.className='link-button pearl-view-details';label.textContent='Details →';label.setAttribute('aria-label','View '+(q('.t',card)?.textContent||'agent')+' details');actions.append(label);const row=q('.explore-feedback',card);if(row){row.classList.add('pearl-card-actions');row.append(label);}else card.append(actions);card.addEventListener('click',()=>previewAgent(EXPLORE_AGENT_MAP.get(card.dataset.id)));});previewAgent(args[0]?.[0]);};
+  /* PM 11-18: a verified pearl is marked on its Explore card. The levels come from one small public list (/api/pearls/public, final and verified only), read once per page. */
+  let pearlLevels=null;
+  function markPearls(){
+    const apply=levels=>all('#xResults .acard[data-id]').forEach(card=>{
+      const level=levels[card.dataset.id],meta=q('.m',card);
+      if(!level||!meta||q('.pearl-chip',card))return;
+      const chip=document.createElement('span');chip.className='badge success pearl-chip';
+      chip.textContent=level==='final'?'Final pearl':'Verified pearl';
+      chip.title='Passed our role task tests on two different days. See /methodology for how we test.';
+      meta.prepend(chip);
+    });
+    if(pearlLevels){apply(pearlLevels);return;}
+    fetch('/api/pearls/public',{credentials:'omit'}).then(r=>r.ok?r.json():{}).then(d=>{pearlLevels=d&&typeof d.levels==='object'&&d.levels?d.levels:{};apply(pearlLevels);}).catch(()=>{pearlLevels={};});
+  }
+  renderExplore = function(...args){oldExplore(...args);all('#xResults .acard').forEach(card=>{/* 11-11: the card holds its own buttons (compare, feedback), so it is not a button itself (axe nested-interactive); "View details" is the keyboard and screen-reader target, the whole card stays clickable by pointer. */const actions=document.createElement('div');actions.className='pearl-result-actions';const label=document.createElement('button');label.type='button';label.className='link-button pearl-view-details';label.textContent='Details →';label.setAttribute('aria-label','View '+(q('.t',card)?.textContent||'agent')+' details');actions.append(label);const row=q('.explore-feedback',card);if(row){row.classList.add('pearl-card-actions');row.append(label);}else card.append(actions);card.addEventListener('click',()=>previewAgent(EXPLORE_AGENT_MAP.get(card.dataset.id)));});markPearls();previewAgent(args[0]?.[0]);};
   function workflowChoices() {
     const group=q('#pearlWorkflowChoices');if(!group)return;
     const ordered=frontTemplatesCache.filter(t=>t?.id&&!String(t.name||'').startsWith('[')&&!String(t.tags||'').toLowerCase().includes('test'));

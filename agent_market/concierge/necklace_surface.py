@@ -1319,6 +1319,13 @@ def necklace_router(front=None):
     def api_list():
         return JSONResponse(listing(), headers={'Cache-Control': 'public, max-age=60'})
 
+    @router.get('/api/pearls/public', include_in_schema=False)
+    def api_pearls():
+        # PM 11-18: the verified pearls (final, verified) for the Explore card badge; one small list, no visitor data
+        from . import pearl_badge
+        return JSONResponse({'schema': 'agentcon-pearl-levels-v1', 'levels': pearl_badge.public_levels(),
+                             'method': pearl_badge.METHOD_URL}, headers={'Cache-Control': 'public, max-age=60'})
+
     @router.get('/api/feed/necklaces.json', include_in_schema=False)
     def api_feed():
         return JSONResponse(feed(), media_type='application/feed+json', headers={'Cache-Control': 'public, max-age=60'})

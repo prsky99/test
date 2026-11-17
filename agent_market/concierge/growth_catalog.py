@@ -187,6 +187,25 @@ def operator_note(agent):
     return '<p class="agent-operator">' + esc(line(found)) + '</p>' if found else ''
 
 
+def pearl_blocks(rid):
+    """(badge html, section html) of a verified pearl, or ('', '') for any other agent (PM 11-18).
+
+    Only the public pearl list is read (pearl_badge): final and verified rows, with the measured numbers of that list."""
+    from . import pearl_badge as pb
+    found = pb.rows(rid)
+    if not found:
+        return '', ''
+    badges = ''.join('<span class="badge success pearl-badge" data-level="'+esc(r['level'])+'">'+esc(pb.badge_text(r))+'</span>'
+                     for r in found)
+    items = ''.join('<div class="history-row"><span class="caption">'+esc(pb.role_name(r))+'</span><span>'
+                    '<span class="badge success">'+esc(pb.badge_text(r))+'</span> '+esc(pb.measured_line(r))+'</span></div>'
+                    for r in found)
+    section = ('<section class="card stack pearl-section" aria-labelledby="pearl-h"><h2 id="pearl-h">Verified role tasks</h2>'
+               + items + '<p class="caption">Measured by our role task tests, not a promise about today. '
+               '<a href="'+pb.METHOD_URL+'">How we test</a></p></section>')
+    return badges, section
+
+
 def agent_page(rid, snapshot=None):
     snapshot = g.SNAPSHOT.read() if snapshot is None else snapshot
     agent = (snapshot or {}).get('catalog', {}).get(rid)
@@ -207,6 +226,7 @@ def agent_page(rid, snapshot=None):
     title = agent['name']
     description = (f"{title}: {kind} {'agent' if agent['kind'] == 'a2a' else 'server' if agent['kind'] == 'mcp' else 'API'}"
                    + (f' for {category.lower()}' if category else '') + '. Recorded checks, quality grade and how to connect, from AgentValCon.')
+    pearl_badges, pearl_section = pearl_blocks(rid)
     sections = [
         '<section class="card stack" aria-labelledby="ev-h"><h2 id="ev-h">Recorded evidence</h2>'+rows
         + '<p class="caption">Snapshot captured '+esc(_date(snapshot['captured']))+'. Checks show what happened when they ran, not that the agent works now.</p></section>',
@@ -231,9 +251,11 @@ def agent_page(rid, snapshot=None):
                     '<p class="caption">Evidence card (HTML)</p><pre tabindex="0"><code>'+esc(card_html(agent))+'</code></pre>'
                     '<p><a href="/badges">About badges and cards</a></p></section>')
     sections.append(outcome_section(rid))
+    if pearl_section:
+        sections.insert(0, pearl_section)
     body = (g.heading(kind + (' · '+category if category else ''), title, agent.get('description') or description)
             + '<div class="row"><span class="badge">'+esc(kind)+'</span>'+('<span class="badge success">Free</span>' if agent.get('free') else '')
-            + ('<span class="badge">Grade '+esc(agent['eval_grade'])+'</span>' if agent.get('eval_grade') else '')+'</div>'
+            + ('<span class="badge">Grade '+esc(agent['eval_grade'])+'</span>' if agent.get('eval_grade') else '')+pearl_badges+'</div>'
             + operator_note(agent)
             + '<div class="grid two">'+''.join(sections)+'</div>' + PROVIDER_NOTE)
     structured = {'@context': 'https://schema.org', '@type': 'SoftwareApplication', 'name': title,
