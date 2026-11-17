@@ -96,7 +96,7 @@
           "resend_safe": true,
           "state": "planned",
           "input_map": {
-            "date": "{{slot.calendar.solar_date}}",
+            "birth_date": "{{slot.calendar.solar_date}}",
             "today": "{{input.today}}"
           }
         },
@@ -144,7 +144,7 @@
           "resend_safe": true,
           "state": "planned",
           "input_map": {
-            "date": "{{slot.calendar.solar_date}}",
+            "birth_date": "{{slot.calendar.solar_date}}",
             "birth_hour": "{{input.birth_hour}}",
             "today": "{{input.today}}"
           }
