@@ -541,7 +541,13 @@ def explore(store, engine, query, kind, category, verified, no_auth, limit, near
     # A place in the request ranks listings that state coverage of it before ones that do not.
     from .selection import place_fit
     placed = {id(row): place_fit(scope_terms, row) for row in picked} if scope_terms else {}
-    picked.sort(key=lambda row: (rank(row), not placed.get(id(row), True)))
+    # PM 11-18 pearl priority: within the same relevance step (and only for rows whose name or leading sentence names
+    # the task, rank 1-4), a final pearl, then a verified pearl, goes first; never across steps, never for a pearl
+    # whose provider terms prohibit our relay (pearls_public.pearl_rank).
+    from ..pearls_public import pearl_rank, NOT_A_PEARL
+    def pearl(row):
+        return pearl_rank(row.get('id')) if 1 <= rank(row) <= 4 else NOT_A_PEARL
+    picked.sort(key=lambda row: (rank(row), not placed.get(id(row), True), pearl(row)))
     for row in picked:
         # 'listing': the name or leading sentence names the task; 'mention': a later or tool-only match.
         row['match_basis'] = 'listing' if not words or rank(row) <= 4 else 'mention'

@@ -95,11 +95,18 @@ ACCOUNT_NOTE = 'Account: the description of this tool says it needs your own key
 def order_key(item):
     """Free and not failing first; then, for a task that names no place, listings serving any place before
     those serving one or two named regions (real task a05, 11-13); then recent real successes first. A stable
-    sort keeps the rest's order."""
+    sort keeps the rest's order.
+
+    PM 11-18 pearl priority: then a final pearl, then a verified pearl, before the selection's recency order; only
+    when the card's chosen tool is the tool the listing passed its role tests with, and never for a pearl whose
+    provider terms prohibit our relay (pearls_public.pearl_rank). Without the public pearl list nothing moves."""
+    from ..pearls_public import pearl_rank
     standing = item.get('task_standing') if isinstance(item, dict) else 0
     standing = standing if type(standing) is int else 0
+    chosen = (item.get('tools') or [None])[0] if isinstance(item, dict) else None
+    pearl = pearl_rank(item.get('id') if isinstance(item, dict) else None, chosen if isinstance(chosen, str) else '')
     return (bool(isinstance(item, dict) and item.get('access_note')), standing < 0,
-            bool(isinstance(item, dict) and item.get('region_limited')), standing <= 0)
+            bool(isinstance(item, dict) and item.get('region_limited')), standing <= 0, pearl)
 
 
 # The task asks to take data out of a document; a tool that makes the document does the reverse

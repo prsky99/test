@@ -145,6 +145,31 @@ def pearl_of(resource_id, source=None):
     return out
 
 
+NOT_A_PEARL = 2
+
+
+def pearl_rank(resource_id, tool=None, source=None):
+    """The ordering tier for recommendations and Explore (PM 11-18 pearl priority): 0 final, 1 verified, 2 otherwise.
+
+    With TOOL (a recommendation's chosen tool) only a pearl entry for that tool counts: the listing is a pearl for the
+    role this card exercises, not for another of its tools; an empty TOOL matches nothing. Without TOOL (None, an
+    Explore row) any final or verified entry counts; the caller limits that to rows already about the task. A pearl
+    whose provider terms prohibit our relay gets no lift (it keeps its place below relayed choices). Missing or
+    malformed list: 2 for everything."""
+    if type(resource_id) is not int:
+        return NOT_A_PEARL
+    wanted = str(tool).casefold() if tool is not None else None
+    best = NOT_A_PEARL
+    for p in load(source).get('pearls', []):
+        if (not isinstance(p, dict) or p.get('resource_id') != resource_id or p.get('level') not in ('final', 'verified')
+                or p.get('terms') == 'prohibits'):
+            continue
+        if wanted is not None and (not wanted or str(p.get('tool') or '').casefold() != wanted):
+            continue
+        best = min(best, RANK[p['level']])
+    return best
+
+
 def main(argv=None):
     """python -m agent_market.pearls_public write [EXPORTS]: rebuild the public file from the official results."""
     import sys
