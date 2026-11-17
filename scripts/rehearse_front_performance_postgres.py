@@ -83,7 +83,7 @@ def _contracts(connect):
             current = rows(store)
             assert sum(row['hits'] for row in current) == 201
             assert all(start <= row['first_seen'] <= row['last_seen'] <= time.time() for row in current)
-            assert all(row['last_path'] == '/next' and token not in row['user_agent'] for row in current)
+            assert all(row['last_path'] == '/next' and token not in (row['user_agent'] or '') for row in current)   # user agent is not stored since 11-10 (08226e3f): NULL
             assert book.hit_diagnostics()['unconfirmed'] == book.hit_diagnostics()['pending'] == 0
             results.append([(row['fingerprint'], row['hits'], row['last_path'], row['user_agent']) for row in current])
         checks['actual_sqlite_postgres_async_aggregate_and_sanitization_parity'] = results[0] == results[1]
@@ -130,7 +130,10 @@ def _contracts(connect):
             with TestClient(create_front_app(front)) as client:
                 response = client.get('/', headers={'accept': 'text/html'})
                 assert response.status_code == 200
-                assert "script-src 'nonce-" in response.headers['content-security-policy']
+                # 11-11 (8a76b4c5): public HTML is the same for every visitor, so no per-request nonce; the contract
+                # is tests/test_public_page_cache.py:81 (script-src 'self', no inline attributes).
+                csp = response.headers['content-security-policy']
+                assert 'nonce-' not in csp and "script-src 'self'" in csp and "script-src-attr 'none'" in csp
                 assert 'visitor-hit-worker' not in response.text
             assert front.book.hit_diagnostics()['closed']
             assert front.book.hit_diagnostics()['pending'] == front.book.hit_diagnostics()['unconfirmed'] == 0

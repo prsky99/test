@@ -28,6 +28,9 @@ def contracts(connect,factory):
         assert not registry.projection(store.resource(rid))['connection_readiness']['verified_callable']
         checks['failed_old_pin_preserved_and_no_fake_verification']=True
         core=store._owned_data_engine=DataAgents(http=http)
+        # PM 11-16: technology news answers from a stored bundle, refreshed in the background; a rehearsal has no hour
+        # to wait, so its store refreshes synchronously (tech_news.Store background=False, for tests and warm-up).
+        core.news.background=False
         check_sources(store,core,resources);proxy=McpProxy(store)
         for identity,spec in SPECS.items():
             result=proxy.execute(resources[identity],spec['tool'],dict(spec['example']),public=True)
