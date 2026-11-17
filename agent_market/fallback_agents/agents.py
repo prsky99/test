@@ -67,7 +67,8 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "tz-time": 400 * 86400, "airport-lookup": 8 * 86400, "wiktionary-define": 7 * 86400,
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
            "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400, "tls-certificate": 86400,
-           "sec-company-profile": 24 * 3600, "sun-times": 10 * 365 * 86400, "site-reachability": 60}  # rules age from the library release; update the pin at least yearly
+           "sec-company-profile": 24 * 3600, "sun-times": 10 * 365 * 86400, "site-reachability": 60,
+           "dns-spf-dmarc": 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -81,7 +82,8 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "wikidata-place": (86400, 7 * 86400), "wikidata-book": (86400, 7 * 86400),
        "gdelt-news": (3600, 6 * 3600), "census-geocode": (7 * 86400, 30 * 86400),
        "mcp-registry": (3600, 6 * 3600), "github-releases": (3600, 24 * 3600),
-       "package-releases": (6 * 3600, 24 * 3600), "tls-certificate": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "package-releases": (6 * 3600, 24 * 3600), "tls-certificate": (6 * 3600, 24 * 3600),
+       "dns-spf-dmarc": (3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -120,6 +122,8 @@ class FallbackAgents:
         import socket as _socket
         self.resolve = lambda host: _socket.getaddrinfo(host, 443, proto=_socket.IPPROTO_TCP)   # tests replace these
         self.connect = lambda addr, timeout: _socket.create_connection(addr, timeout=timeout)
+        from .dns_txt import txt as _txt
+        self.dns_txt = lambda name, timeout: _txt(name, timeout)   # our own resolver; tests replace it
         self.country_grid = None
 
     # ---------------------------------------------------------------- public
@@ -1702,6 +1706,44 @@ class FallbackAgents:
         else:
             out["answer"] = f"{domain}: the TLS certificate does not validate ({facts.get('reason') or 'unknown reason'})."
         return out, cache, False, {"TLS handshake": as_of}
+
+    def _dns_spf_dmarc(self, args, remaining):
+        """dns.mail_auth.v1 (website-trust-brief v2 mail_auth seat, agent team 11-17): the domain's SPF record (TXT at
+        the name that starts with v=spf1) and DMARC record (TXT at _dmarc.<domain> that starts with v=DMARC1), asked
+        of this machine's own resolver. Public DNS facts; the records are quoted as published."""
+        from .dns_txt import DnsError
+        from .net import site_host
+        raw = next((str(args[k]) for k in ("domain", "host", "hostname", "url") if args.get(k)), "")
+        domain = re.sub(r"^https?://", "", raw.strip().lower()).split("/")[0].split(":")[0].rstrip(".")
+        if not site_host(domain):
+            raise FallbackUnavailable("invalid_input", "Use a public domain name such as example.com.")
+
+        def live(rem):
+            found = {}
+            for key, name, prefix in (("spf", domain, "v=spf1"), ("dmarc", "_dmarc." + domain, "v=dmarc1")):
+                try:
+                    records = self.dns_txt(name, max(0.5, min(3.0, rem() - 0.2)))
+                except DnsError as exc:
+                    raise SourceError("The DNS resolver did not answer.") from exc
+                found[key] = [r for r in records if r.strip().lower().startswith(prefix)][:3]
+            return found, _now_iso(self.utc_now())
+        (found, as_of), cache = self._cached(("dns-spf-dmarc", domain), TTL["dns-spf-dmarc"], live, remaining)
+        spf, dmarc = found["spf"], found["dmarc"]
+        parts = [f"{domain}:"]
+        if len(spf) == 1:
+            parts.append(f"SPF {_text(spf[0], 1500)}.")
+        elif spf:
+            parts.append(f"{len(spf)} SPF records (invalid: only one is allowed): " + " | ".join(_text(s, 700) for s in spf) + ".")
+        else:
+            parts.append("no SPF record published.")
+        if dmarc:
+            policy = re.search(r"(?:^|;)\s*p\s*=\s*([a-z]+)", dmarc[0].lower())
+            parts.append(f"DMARC {_text(dmarc[0], 1500)}" + (f" (policy {policy.group(1)})." if policy else "."))
+        else:
+            parts.append("no DMARC record published at _dmarc." + domain + ".")
+        parts.append("DKIM is not checked (its selector names are not public).")
+        out = {"answer": " ".join(parts), "source": "Public DNS TXT records, read through our own resolver"}
+        return out, cache, False, {"public DNS": as_of}
 
     def _mcp_registry(self, args, remaining):
         """mcp.registry.lookup.v1 (PM 11-15 16:12): an exact registry name reads its latest version; a phrase searches.

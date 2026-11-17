@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile", "sun-times", "site-reachability"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile", "sun-times", "site-reachability", "dns-spf-dmarc"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2569,3 +2569,104 @@ def test_site_reachability_agent_reports_status_and_final_address(tmp_path):
     assert out["reachable"] is False and out["status"] == 503
     with pytest.raises(FallbackUnavailable):
         a.execute("site-reachability", {"domain": "localhost"})
+
+
+def test_gold_judge_for_mcp_registry():
+    """agent team 11-16: listed false for a made-up name; a listed server needs the same name and the frozen version
+    or a later publish."""
+    from agent_market.fallback_agents.gold_check import judge
+    absent = {"truth": {"listed": False}}
+    assert judge("mcp-registry", absent, {"listed": False, "source": "x"})["pass"]
+    assert not judge("mcp-registry", absent, {"listed": True, "name": "a/b", "source": "x"})["pass"]
+    case = {"truth": {"listed": True, "name": "io.github.a/b", "version": "1.2.0", "published_at": "2026-11-01T00:00:00Z"}}
+    hit = {"listed": True, "name": "io.github.a/b", "version": "1.2.0", "published_at": "2026-11-01T00:00:00Z", "source": "x"}
+    assert judge("mcp-registry", case, hit)["pass"]
+    assert judge("mcp-registry", case, {**hit, "version": "1.3.0", "published_at": "2026-11-17T00:00:00Z"})["pass"]
+    assert not judge("mcp-registry", case, {**hit, "version": "1.1.0", "published_at": "2026-10-01T00:00:00Z"})["pass"]
+    assert not judge("mcp-registry", case, {**hit, "name": "io.github.a/other"})["pass"]
+
+
+def test_gold_judge_for_met_weather_against_nws_hours():
+    """PM 11-16: met-weather's temperature against the NWS hour that contains its time, within 3 C."""
+    from agent_market.fallback_agents.gold_check import judge
+    case = {"truth": {"tolerance_c": 3.0, "nws_hourly": [
+        {"start": "2026-11-17T08:00:00-05:00", "end": "2026-11-17T09:00:00-05:00", "temp_c": 5.0},
+        {"start": "2026-11-17T09:00:00-05:00", "end": "2026-11-17T10:00:00-05:00", "temp_c": 6.0}]}}
+    met = {"temperature_c": 7.4, "time": "2026-11-17T14:00:00Z", "source": "Based on data from MET Norway (CC BY 4.0)"}
+    assert judge("met-weather", case, met)["pass"]                       # 14:00Z = 09:00-05:00, gap 1.4
+    assert not judge("met-weather", case, {**met, "temperature_c": 10.5})["pass"]
+    assert not judge("met-weather", case, {**met, "time": "2026-11-17T20:00:00Z"})["pass"]   # outside the frozen hours
+
+
+def test_gold_met_weather_builder_keeps_celsius_hours():
+    from scripts.gold_met_weather import POINTS, build
+    pages = {"https://api.weather.gov/points/40.7128,-74.0060": {"properties": {"forecastHourly": "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly"}},
+             "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly": {"properties": {"periods": [
+                 {"startTime": "2026-11-17T08:00:00-05:00", "endTime": "2026-11-17T09:00:00-05:00", "temperature": 41, "temperatureUnit": "F"}]}}}
+    cases = build(lambda url: pages[url], POINTS[:1])
+    saved = build(lambda url: pages[url], POINTS[:1], grids={"New York, NY": "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly"})
+    assert saved == cases                                  # the saved addresses give the same set, one call a point
+    assert cases[0]["input"] == {"city": "New York, NY", "latitude": 40.7128, "longitude": -74.006}
+    assert cases[0]["truth"]["nws_hourly"][0]["temp_c"] == 5.0 and len(POINTS) >= 30
+
+
+
+# ---------------------------------------------------------------- dns-spf-dmarc (agent team 11-17)
+def _dns_answer(ident, records, rcode=0, truncated=False):
+    import struct
+    q = b"".join(bytes([len(p)]) + p.encode() for p in "example.com".split(".")) + b"\x00" + struct.pack(">HH", 16, 1)
+    flags = 0x8180 | rcode | (0x0200 if truncated else 0)
+    out = struct.pack(">HHHHHH", ident, flags, 1, len(records), 0, 0) + q
+    for rec in records:
+        chunks = [rec[i:i + 255].encode() for i in range(0, len(rec), 255)] or [b""]
+        data = b"".join(bytes([len(c)]) + c for c in chunks)
+        out += b"\xc0\x0c" + struct.pack(">HHIH", 16, 1, 300, len(data)) + data
+    return out
+
+
+def test_dns_txt_reads_answers_joins_long_strings_and_retries_truncated_over_tcp():
+    from agent_market.fallback_agents import dns_txt
+    long_spf = "v=spf1 " + "include:_spf.example.net " * 15 + "-all"         # over 255 bytes: two strings
+    seen = []
+    def udp(packet, server, family, timeout):
+        seen.append("udp")
+        return _dns_answer(int.from_bytes(packet[:2], "big"), [], truncated=True)
+    def tcp(packet, server, family, timeout):
+        seen.append("tcp")
+        return _dns_answer(int.from_bytes(packet[:2], "big"), [long_spf, "google-site-verification=x"])
+    assert dns_txt.txt("example.com", server="192.0.2.53", udp=udp, tcp=tcp) == [long_spf, "google-site-verification=x"]
+    assert seen == ["udp", "tcp"]
+    nx = lambda packet, *a: _dns_answer(int.from_bytes(packet[:2], "big"), [], rcode=3)
+    assert dns_txt.txt("missing.example.com", server="192.0.2.53", udp=nx) == []
+    with pytest.raises(dns_txt.DnsError):
+        dns_txt.txt("x.example.com", server="192.0.2.53", udp=lambda packet, *a: _dns_answer(1 ^ int.from_bytes(packet[:2], "big"), []))
+    with pytest.raises(dns_txt.DnsError):
+        dns_txt.txt("x.example.com", server="192.0.2.53", udp=lambda packet, *a: _dns_answer(int.from_bytes(packet[:2], "big"), [], rcode=2))
+
+
+def test_mail_auth_agent_quotes_spf_and_dmarc_and_names_what_is_missing(tmp_path):
+    a, _ = agents(tmp_path, {})
+    records = {"example.org": ["v=spf1 include:_spf.google.com ~all", "google-site-verification=abc"],
+               "_dmarc.example.org": ["v=DMARC1; p=quarantine; rua=mailto:d@example.org"],
+               "bare.example.org": ["some other text"], "_dmarc.bare.example.org": []}
+    asked = []
+    a.dns_txt = lambda name, timeout: asked.append(name) or records.get(name, [])
+    env = a.execute("dns-spf-dmarc", {"domain": "https://Example.org/path", "record_type": "TXT"})
+    assert asked == ["example.org", "_dmarc.example.org"]
+    answer = env["result"]["answer"]
+    assert "v=spf1 include:_spf.google.com ~all" in answer and "policy quarantine" in answer
+    assert "DKIM is not checked" in answer and "google-site-verification" not in answer
+    env = a.execute("dns-spf-dmarc", {"domain": "bare.example.org"})
+    assert "no SPF record published" in env["result"]["answer"] and "no DMARC record published" in env["result"]["answer"]
+    a.execute("dns-spf-dmarc", {"domain": "example.org"})
+    assert asked.count("example.org") == 1                                  # cached
+    for bad in ("localhost", "10.0.0.1", "intranet", "x.local"):
+        with pytest.raises(FallbackUnavailable):
+            a.execute("dns-spf-dmarc", {"domain": bad})
+
+
+def test_mail_auth_agent_reports_two_spf_records_as_invalid(tmp_path):
+    a, _ = agents(tmp_path, {})
+    a.dns_txt = lambda name, timeout: ["v=spf1 a -all", "v=spf1 mx -all"] if not name.startswith("_dmarc") else []
+    answer = a.execute("dns-spf-dmarc", {"domain": "double.example.org"})["result"]["answer"]
+    assert "2 SPF records (invalid: only one is allowed)" in answer

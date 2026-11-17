@@ -133,6 +133,12 @@ SITE_TLS = {"name": "The website's own TLS certificate (read in the TLS handshak
             "license": "Public facts a server presents to every visitor; nothing is downloaded beyond the handshake",
             "notice": "Port 443 only, to a public address checked before connecting; the certificate the site serves now."}
 
+DNS_PUBLIC = {"name": "Public DNS TXT records (SPF and DMARC), read through our own resolver",
+              "url": "https://www.rfc-editor.org/rfc/rfc7208",
+              "license": "Public facts a domain publishes in DNS for every resolver; quoted as published",
+              "notice": "SPF at the domain and DMARC at _dmarc.<domain>; DKIM is not checked because its selector "
+                        "names are not public. One answer from one resolver, cached up to a day."}
+
 SUN_CALC = {"name": "Computed (no outside data): NOAA solar position equations", "url": "https://gml.noaa.gov/grad/solcalc/calcdetails.html",
             "license": "U.S. Government work, public domain in the United States",
             "notice": "Computed for a sea-level horizon with standard refraction; about a minute of accuracy between the "
@@ -384,6 +390,13 @@ SPECS = {
                        "the final address after redirects and whether it stays on HTTPS; read-only, the body is not kept.",
         "sources": [SITE_GET],
         "rate": "one GET a check (redirects followed one hop at a time); no cache",
+    },
+    "dns-spf-dmarc": {
+        "name": "AgentValCon Mail Authentication Check", "tool": "lookup_spf_dmarc", "contract": "dns.mail_auth.v1",
+        "description": "Read the SPF and DMARC records a domain has in public DNS, quoted as they are, with the "
+                       "DMARC policy; read-only, DKIM is not checked.",
+        "sources": [DNS_PUBLIC],
+        "rate": "two DNS questions a domain; cached up to a day",
     },
     "mcp-registry": {
         "name": "AgentValCon MCP Registry Lookup", "tool": "lookup_mcp_registry", "contract": "mcp.registry.lookup.v1",
