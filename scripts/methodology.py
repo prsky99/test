@@ -59,6 +59,8 @@ def build():
     from agent_market import provider_budget
     roles = []
     for role in sorted(R.ROLES):
+        if R.ROLES[role].get('queue'):            # listed for the contract list but not pearl-tested (PM 11-17)
+            continue
         case = V.case_for(role, day=0)
         if case and case.get('rotating'):          # never publish this week's rotating check; the first fixed case
             case = V.case_for(role, day=1)

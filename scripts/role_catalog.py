@@ -6,6 +6,8 @@ fallback. Names are contract ids (`*.v1`), the same list the workflow team uses.
 """
 import re
 
+NEVER = r'(?!)'   # a pattern that matches no tool name: the role is listed but not queued
+
 ROLES = {
     # roles that already have workflow role tasks (pattern finds members; input/checks come from the task)
     'papers.search.v1': {'tools': r'^(?:search_papers|paper_search|search_arxiv|arxiv_search|search_literature|openalex_search\w*|search_research_papers|academic_search)$'},
@@ -122,6 +124,14 @@ ROLES = {
     'http.headers.v1': {'tools': r'^(?:check_security_headers|security_headers\w*|inspect_security_headers|http_security_headers\w*|analyze_security_headers)$'},
     'email.deliverability.v1': {'tools': r'^(?:check_mx\w*|mx_lookup\w*|check_email_deliverability|check_dnsbl\w*|check_rbl\w*|disposable_email_check\w*)$'},
     'wikidata.entity.v1': {'tools': r'^(?:wikidata_search_entities|wikidata_get_entity|wikidata_get_labels|get_entity_profile)$'},
+    # Contracts our own substitutes fill (PM 11-17 22:2x: the one list must name every contract). None has a role task
+    # or default checks yet, so a pearl test would judge it on nothing: NEVER (matches no tool name) keeps them out of
+    # the pearl queue until a role task with public answers is written; then give the role a real pattern.
+    # agent.record.v1 is our own record of an agent, so it has no outside member at all.
+    'docs.readme.v1': {'tools': NEVER, 'queue': 'blocked: no role task yet (package README, npm/PyPI)'},
+    'sun.times.v1': {'tools': NEVER, 'queue': 'blocked: no role task yet (computed by our substitute)'},
+    'site.reachability.v1': {'tools': NEVER, 'queue': 'blocked: no role task yet (one HTTPS GET by our substitute)'},
+    'agent.record.v1': {'tools': NEVER, 'queue': 'never: our own record, no outside member'},
 }
 
 COMPILED = {role: re.compile(spec['tools'], re.I) for role, spec in ROLES.items()}

@@ -212,6 +212,8 @@ def test_rag_role_tasks_cover_every_role():
     """PM 11-14: by 11-16 every role is judged against an answer set or a same-time public reference."""
     from scripts import role_catalog
     for role in role_catalog.ROLES:
+        if role_catalog.ROLES[role].get('queue'):    # listed, not queued: see test_listed_roles_without_a_task_stay_out_of_the_queue
+            continue
         assert V.case_for(role, day=0) or role_catalog.live_spec(role), role
     for case in V.role_tasks_rag():
         assert case['truth_sources'] and all(t['url'].startswith('https://') and t['checked_on'] for t in case['truth_sources'])
@@ -313,3 +315,16 @@ def test_our_own_error_on_one_candidate_never_stops_the_run(tmp_path, monkeypatc
     V.run([{'id': 1, 'role': 'fx.rate', 'kind': 'new'}, {'id': 2, 'role': 'fx.rate', 'kind': 'new'}])
     assert calls == [1, 2]
     assert [v['resource_id'] for v in V.latest_versions()] == [2]      # our error stores no version
+
+
+def test_listed_roles_without_a_task_stay_out_of_the_queue():
+    """PM 11-17 22:2x: every contract is in the one role list, but a role with no role task and no checks would be
+    judged on nothing, so it matches no tool (never queued) and is left off the public methodology page."""
+    from scripts import role_catalog
+    blocked = {r for r, spec in role_catalog.ROLES.items() if spec.get('queue')}
+    assert blocked == {'docs.readme.v1', 'sun.times.v1', 'site.reachability.v1', 'agent.record.v1'}
+    for role in blocked:
+        assert not V.case_for(role, day=0) and not role_catalog.default_checks(role)
+        assert not role_catalog.COMPILED[role].match('get_sun_times') and not role_catalog.COMPILED[role].match('')
+    for name in ('get_sun_times', 'check_site_reachability', 'get_readme', 'get_package_readme', 'agent_record'):
+        assert not blocked & set(role_catalog.roles_for_tool(name)), name
