@@ -113,6 +113,15 @@ ROLES = {
     'earthquake.feed.v1': {'tools': r'^(?:get_earthquakes|earthquakes|recent_earthquakes|list_earthquakes|search_earthquakes)$',
                            'input': {'min_magnitude': 5, 'minmagnitude': 5, 'magnitude': 5},
                            'checks': [('magnitude', r'\bmag'), ('M5 or more', r'\b[5-9]\.\d\b')]},
+    # Pearl scout W3 review (검색과 RAG with the workflow team, PM 11-17): roles a necklace draft or plan uses
+    # (company-sanctions-screen, regulation-brief cases, cve-incident-brief v2, website-trust v2, entity checks);
+    # tool names narrowed from Antigravity's patterns after reading the grade A snapshot; tasks in role-tasks-rag-v1.
+    'sanctions.screen.v1': {'tools': r'^(?:screen_sanctions(?:_name)?|screen_restricted_party|check_sanctions(?!_wallet)\w*|search_sanctions\w*|sanctions_(?:screen|search|check)\w*|ofac_(?:search|screen|check)\w*)$'},
+    'court.case.v1': {'tools': r'^(?:search_case_law|search_court_cases|get_case_brief|courtlistener_(?:search_opinions|get_opinion|lookup_citation|get_citations))$'},
+    'cve.epss.v1': {'tools': r'^(?!get_epss_movers$)(?:get_epss\w*|epss_\w+|check_epss\w*|exploit_probability\w*)$'},
+    'http.headers.v1': {'tools': r'^(?:check_security_headers|security_headers\w*|inspect_security_headers|http_security_headers\w*|analyze_security_headers)$'},
+    'email.deliverability.v1': {'tools': r'^(?:check_mx\w*|mx_lookup\w*|check_email_deliverability|check_dnsbl\w*|check_rbl\w*|disposable_email_check\w*)$'},
+    'wikidata.entity.v1': {'tools': r'^(?:wikidata_search_entities|wikidata_get_entity|wikidata_get_labels|get_entity_profile)$'},
 }
 
 COMPILED = {role: re.compile(spec['tools'], re.I) for role, spec in ROLES.items()}
