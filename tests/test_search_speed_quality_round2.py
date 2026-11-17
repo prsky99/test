@@ -45,9 +45,9 @@ def test_explore_orders_task_led_listings_before_mentions_across_protocols(monke
     def group(kind, items):
         return {'query': 'q', 'terms': [], 'total': len(items), 'total_is_estimate': True, 'items': items, 'verified': False}
     real = hybrid_explore.explore.__wrapped__ if hasattr(hybrid_explore.explore, '__wrapped__') else None
-    def fake(store, engine, query, kind, category, verified, no_auth, limit):
+    def fake(store, engine, query, kind, category, verified, no_auth, limit, near=False):   # e0f312ee added near
         if kind is None:
-            return original(store, engine, query, kind, category, verified, no_auth, limit)
+            return original(store, engine, query, kind, category, verified, no_auth, limit, near)
         calls.append((kind, limit))
         if kind == 'a2a':
             return group(kind, [{'id': i, 'kind': 'a2a', 'match_basis': 'mention'} for i in range(1, 5)])

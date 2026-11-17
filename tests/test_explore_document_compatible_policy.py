@@ -33,7 +33,11 @@ def test_a_later_policy_change_ends_the_compatibility(monkeypatch):
     assert calls == ['newer']
 
 
-def test_the_b_and_c_bundle_reads_the_day15_documents():
-    """11-16 B+C: 2,995 sampled documents byte-identical between 5d3d8f6a and this code's policy."""
+def test_the_b_and_c_entry_ends_by_itself_after_the_next_policy_change():
+    """11-16 B+C declared 5d3d8f6a compatible with 8e4768d8 (2,995 sampled documents byte-identical). The entry is keyed
+    by the hash it was checked for, so a later policy change ends it without an edit (r13 11-18: 09fda8bf); a new
+    entry needs its own byte-identical check, never a copy of this one."""
+    assert reader.COMPATIBLE_POLICIES['8e4768d8c461651542fad4ee3b0313d1e3ef9cf0562fc2b580de728fac588510'] == \
+        ('5d3d8f6a1d61faac5da83354fa3ebff7a61702a5b89c83a2824d2d3327b9c54c',)
     current = reader.documents.policy_hash()
-    assert reader.accepted_policies() == (current, '5d3d8f6a1d61faac5da83354fa3ebff7a61702a5b89c83a2824d2d3327b9c54c')
+    assert reader.accepted_policies() == (current, *reader.COMPATIBLE_POLICIES.get(current, ()))

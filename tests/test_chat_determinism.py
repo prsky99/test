@@ -69,7 +69,7 @@ def test_the_cache_is_bounded(monkeypatch):
      'agent or API that can generate client code from a Swagger file. It should be reliable and reasonably cheap.',
      ['generate', 'client', 'code']),
     ('I run a newsroom tool and my current tooling keeps failing. I am looking for something that can compare '
-     'two versions of a document, ideally without a long setup.', ['compare', 'two', 'versions', 'document']),
+     'two versions of a document, ideally without a long setup.', ['compare', 'two', 'versions']),  # 5136603b: 'document' is the input, not the capability
     # Unchanged: no lead, or a lead that is the whole request.
     ('research papers about battery recycling', ['papers']),
     ('Book a flight', ['book', 'flight']),

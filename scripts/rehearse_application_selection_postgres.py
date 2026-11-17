@@ -152,7 +152,9 @@ def _contracts(connect):
             front = Front(store, llm=Mock(side_effect=AssertionError('No model call')), public_url='https://agentconcierge.biz')
             with TestClient(create_front_app(front), base_url='https://agentconcierge.biz') as client:
                 body = client.post('/chat', json={'message':'stock news'}).json()
-                require(body['data']['protocol'] is None and body['data']['recommendations'][0]['id'] == newest,
+                # d256112f (11-17): a listing that needs the provider's own key never leads a keyless /chat answer;
+                # newest is auth=1, so the default answer must leave it out.
+                require(body['data']['protocol'] is None and newest not in [r['id'] for r in body['data']['recommendations']],
                     'actual_chat_default_a2a:'+store.backend if hasattr(store,'backend') else 'actual_chat_default_a2a:sqlite')
                 body = client.post('/chat', json={'message':'mcp stock news'}).json()
                 require(body['data']['protocol'] == 'mcp' and body['data']['recommendations'][0]['id'] == mcp,

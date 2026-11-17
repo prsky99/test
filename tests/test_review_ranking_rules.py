@@ -6,7 +6,7 @@ from agent_market.concierge.selection import _regional_languages_cover, capabili
 
 
 @pytest.mark.parametrize('task,terms', [
-    ('summarize a pdf research paper', ['document', 'summarization']),          # rv2: not a paper search
+    ('summarize a pdf research paper', ['summarization']),          # rv2: not a paper search; 5136603b: the document is the input
     ('check the status of a website', ['website', 'uptime', 'monitoring']),     # rv10: not an order status
     ('is my site up or down right now', ['website', 'uptime', 'monitoring']),
     # Unchanged neighbours.
