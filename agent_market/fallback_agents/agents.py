@@ -1709,31 +1709,28 @@ class FallbackAgents:
 
     def _western_sign(self, args, remaining):
         """astro.western_sign.v1: tropical Sun sign of a Gregorian birth date (12:00 Korea time), cusp marked."""
-        from .fortune_calc import moon_today, sun_sign
+        from .fortune_calc import sun_sign
         birth = self._fortune_birth(args)
         today = self._fortune_today(args)
         s = sun_sign(birth)
-        moon = moon_today(today)
-        answer = (f"Born {birth.isoformat()}: Sun in {s['sign']} ({s['element']} sign). "
-                  f"Today ({today.isoformat()}) the Moon is in {moon['moon_sign']}.")
+        answer = f"Born {birth.isoformat()}: Sun in {s['sign']} ({s['element']} sign)."
         if s.get("cusp"):
             answer += " " + s["cusp"] + " The sign at 12:00 Korean time is given."
         return ({"answer": answer, "source": "Computed from the Sun's apparent longitude (Meeus); tropical signs",
                  "url": "https://en.wikipedia.org/wiki/Astrological_sign", "sign": s["sign"],
-                 "element": s["element"].capitalize(), "cusp": bool(s.get("cusp")), "today": today.isoformat(),
-                 "moon_sign": moon["moon_sign"]},
+                 "element": s["element"].capitalize(), "cusp": bool(s.get("cusp")), "today": today.isoformat()},
                 {"status": "computed", "age_seconds": 0}, False, {"Meeus solar position": None})
 
     def _saju_pillars(self, args, remaining):
         """saju.pillars.v1: year (Ipchun), month (jeol terms), day and optional hour pillars; today's day pillar."""
-        from .fortune_calc import day_pillar, four_pillars
+        from .fortune_calc import day_pillar, four_pillars, ten_god
         birth = self._fortune_birth(args)
         today = self._fortune_today(args)
         hour = args.get("birth_hour")
         p = four_pillars(birth, hour)
         t = day_pillar(today)
-        from ..necklaces.fortune_rules import ten_god as public_ten_god
-        name, _line, rel = public_ten_god(p["day"]["name"], t["name"])   # neutral public names (workflow 11-17)
+        god = ten_god(p["day"], t["stem_index"])   # neutral glosses (Challenge, Rival, ...; workflow 11-17)
+        name, rel = f"{god['name']} ({god['english']})", god["relation"]
         master = p["day"]["stem"]
         basis = ("Korea standard time, no true-solar-time correction; year pillar from Ipchun, month pillar from the "
                  "solar terms; the day changes at 00:00")
@@ -1757,21 +1754,33 @@ class FallbackAgents:
                 {"status": "computed", "age_seconds": 0}, False, {"Meeus solar position": None})
 
     def _fortune_daily(self, args, remaining):
-        """fortune.daily.v1: today's reading by the workflow's rule table (necklaces.fortune_rules.compose); for
-        entertainment. Today's Moon sign is computed from today when the western step did not give it."""
-        from ..necklaces.fortune_rules import check_synthesis, compose
-        from .fortune_calc import moon_today
-        today = self._fortune_today(args)
+        """fortune.daily.v1: today's reading by our fixed rule table (fallback_agents/fortune_rules.py, the only table;
+        workflow 4866eac1), checked on every answer by the gate's own necklaces.fortune_rules.check_synthesis."""
+        from ..necklaces.fortune_rules import check_synthesis
+        from .fortune_calc import STEMS, moon_today, ten_god
+        from .fortune_rules import reading
+        today = self._fortune_date(args["today"])
+        stems = {s[1]: i for i, s in enumerate(STEMS)}
+        def stem_of(text):
+            hit = next((ch for ch in str(text or "") if ch in stems), None)
+            return stems[hit] if hit else None
+        dm, ts = stem_of(args.get("day_master")), stem_of(args.get("today_day_pillar"))
+        god = None
+        if dm is not None and ts is not None:
+            s = STEMS[dm]
+            god = ten_god({"stem_element": s[2], "stem_polarity": s[3]}, ts)["name"]
+        moon = moon_today(today)
         hour = str(args.get("hour_pillar") or "").strip()
         has_hour = bool(hour) and hour.lower() not in ("none", "null")
-        facts = {"sign": args["sign"], "moon_sign": args.get("moon_sign") or moon_today(today)["moon_sign"],
-                 "day_pillar": args["day_pillar"], "today_day_pillar": args["today_day_pillar"],
-                 "hour_pillar": hour if has_hour else None, "boundary_note": args.get("boundary_note")}
-        out = compose(facts)
-        problems = check_synthesis(out, has_hour)
-        if problems:                      # the table must never produce a banned word or drop a note
+        out = reading(sign=args.get("sign"), element=args.get("element"), moon_sign=moon["moon_sign"],
+                      moon_element=moon["moon_element"], ten_god=god,
+                      today_element=STEMS[ts][2] if ts is not None else None, today=today.isoformat(),
+                      hour_pillar_given=has_hour)
+        answer = f"{out['disclaimer']} {out['headline']}. {out['reading']}"
+        out.update(answer=answer[:8000], source="AgentValCon fixed rule table (" + out["rules_version"] + "); "
+                   "today's Moon sign computed (Meeus)", url="https://en.wikipedia.org/wiki/Four_Pillars_of_Destiny")
+        if check_synthesis(out, has_hour):      # the gate's check, the same one the round runs
             raise FallbackUnavailable("invalid_output", "The reading did not pass its own checks.")
-        out["url"] = "https://en.wikipedia.org/wiki/Four_Pillars_of_Destiny"
         return out, {"status": "computed", "age_seconds": 0}, False, {"rule table": None}
 
     def _site_reachability(self, args, remaining):

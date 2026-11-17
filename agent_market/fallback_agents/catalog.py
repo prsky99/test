@@ -449,8 +449,8 @@ SPECS = {
     },
     "fortune-daily": {
         "name": "AgentValCon Daily Fortune Reading", "tool": "get_daily_fortune_reading", "contract": "fortune.daily.v1",
-        "description": "Today's reading from the Sun's zodiac, today's Moon and the saju day pillar against today's day "
-                       "pillar, by a fixed rule table; for entertainment, not advice; no network calls.",
+        "description": "Today's reading from a western zodiac and a saju day master against today's day pillar, by a "
+                       "fixed rule table; for entertainment, not advice; no network calls.",
         "sources": [ALMANAC, FORTUNE_RULES],
         "rate": "no network calls",
     },
