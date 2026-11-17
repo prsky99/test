@@ -2726,7 +2726,9 @@ def sec_lookup(index, name: str) -> int:
         if len(ciks) == 1:
             return next(iter(ciks))
         if len(ciks) > 1:
-            raise FallbackUnavailable("not_found", "Several SEC companies share this name; use the ticker or CIK.")
+            # a shared name is not an absence: a registry step with absence_is_answer (workflow 638dd300) reads
+            # not_found from every member as "no record", so an ambiguous name must not say not_found
+            raise FallbackUnavailable("invalid_input", "Several SEC companies share this name; use the ticker or CIK.")
     raise FallbackUnavailable("not_found", "No SEC company with a ticker has this name.")
 
 

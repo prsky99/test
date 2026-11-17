@@ -3014,3 +3014,17 @@ def test_ofac_index_refresh_waits_for_a_first_index(tmp_path):
     from agent_market.fallback_schedule import OfacIndexRefresh
     step = OfacIndexRefresh(clock=lambda: 1.8e9, path=tmp_path / "ofac-sdn.json")
     assert step.run_due(force=True) == {"ofac_index": "no_index"}
+
+
+def test_sec_lookup_tells_a_shared_name_from_an_absent_one():
+    """workflow 638dd300 (company-diligence-brief): only a true absence is not_found, which the registry step reads as
+    "no record" when every member says it; a name several SEC companies share is invalid_input (give the CIK)."""
+    from agent_market.fallback_agents.agents import sec_lookup
+    index = [{"acme": {1, 2}, "solo": {3}}, {}, {}]
+    assert sec_lookup(index, "solo") == 3
+    with pytest.raises(FallbackUnavailable) as shared:
+        sec_lookup(index, "acme")
+    assert shared.value.code == "invalid_input"
+    with pytest.raises(FallbackUnavailable) as absent:
+        sec_lookup(index, "nobody here")
+    assert absent.value.code == "not_found"
