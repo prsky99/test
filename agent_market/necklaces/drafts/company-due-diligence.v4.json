@@ -123,6 +123,24 @@
           }
         },
         {
+          "kind": "external",
+          "resource_id": 47189,
+          "tool": "wikipedia_get_summary",
+          "registrable_domain": "caseyjhand.com",
+          "upstream": [
+            "wikipedia"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": null,
+          "resend_safe": false,
+          "pearl": false,
+          "state": "active",
+          "input_map": {
+            "title": "{{slot.registry.title_name}}"
+          }
+        },
+        {
           "kind": "agentcon",
           "agent_id": "wikipedia-summary",
           "resource_id": null,
@@ -140,25 +158,7 @@
             "title": "{{slot.registry.search_name}}"
           },
           "absence_final": true,
-          "note": "PM 11-18: an exact-title lookup; its 'no article' ends the step (company v3 round 1: 14 no-article companies failed when 47189 timed out on the missing title). Runs second once its substitute gate gives it provisional standing."
-        },
-        {
-          "kind": "external",
-          "resource_id": 47189,
-          "tool": "wikipedia_get_summary",
-          "registrable_domain": "caseyjhand.com",
-          "upstream": [
-            "wikipedia"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": null,
-          "resend_safe": false,
-          "pearl": false,
-          "state": "active",
-          "input_map": {
-            "title": "{{slot.registry.title_name}}"
-          }
+          "note": "PM 11-18: an exact-title lookup; its 'no article' ends the step (company v3 round 1: 14 no-article companies failed when 47189 timed out on the missing title). Listed after the external members (model rule); the runtime chain runs it before 47189 once its substitute gate gives it provisional standing (watch.runtime_chain)."
         },
         {
           "kind": "agentcon",
