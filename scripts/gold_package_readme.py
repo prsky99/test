@@ -42,7 +42,8 @@ def repo_of(latest: dict) -> tuple[str, str] | None:
     return (m.group(1), m.group(2)) if m else None
 
 
-def build(packages: list[str], get_latest, get_readme, keep: int = 30) -> list[dict]:
+def build(packages: list[str], get_latest, get_readme, keep: int = 30, origin: dict | None = None) -> list[dict]:
+    """ORIGIN maps a package to the split it came from; each case records it (PM 11-17 12:0x: fill cases are named)."""
     cases = []
     for package in packages:
         latest = get_latest(package)
@@ -53,7 +54,7 @@ def build(packages: list[str], get_latest, get_readme, keep: int = 30) -> list[d
         if readme is None:
             continue
         cases.append({"case_id": f"readme:{package}", "input": {"package": package, "ecosystem": "npm"},
-                      "task_type": "substitute", "stratum": "npm",
+                      "task_type": "substitute", "stratum": "npm", "source_split": (origin or {}).get(package),
                       "truth": {"package": package, "repository_github": f"{repo[0]}/{repo[1]}",
                                 "readme_sha256": hashlib.sha256(readme.encode()).hexdigest(),
                                 "code_blocks": code_blocks(readme)[:8]}})
@@ -73,7 +74,7 @@ def main(argv=None) -> int:
     out = folder / f"{ns.split}.jsonl"
     if out.exists():
         print(f"{out} exists; a split is never rewritten"); return 2
-    packages = []
+    packages, origin = [], {}
     for split in ns.source.split(","):
         for line in (folder / f"{split}.jsonl").read_text().splitlines():
             case = json.loads(line) if line.strip() else {}
@@ -81,6 +82,7 @@ def main(argv=None) -> int:
             name = inp.get("package") or (case.get("truth") or {}).get("package")
             if (inp.get("ecosystem") in (None, "npm")) and isinstance(name, str) and name not in packages:
                 packages.append(name)
+                origin[name] = split
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     client = httpx.Client(timeout=15, follow_redirects=False, headers={"User-Agent": "AgentValCon-gold/1.0"})
 
@@ -100,7 +102,7 @@ def main(argv=None) -> int:
     def get_readme(owner, repo):
         r = fetch(f"https://raw.githubusercontent.com/{owner}/{repo}/HEAD/README.md")
         return r.text if r is not None else None
-    cases = build(packages, get_latest, get_readme)
+    cases = build(packages, get_latest, get_readme, origin=origin)
     if len(cases) < 30:
         print(f"only {len(cases)} cases from {len(packages)} packages; not written"); return 1
     src = [{"name": "GitHub repository README (raw.githubusercontent.com, default branch), each under its own license",
@@ -109,7 +111,12 @@ def main(argv=None) -> int:
     with out.open("w") as fh:
         for c in cases:
             fh.write(json.dumps({**c, "truth_sources": src}, ensure_ascii=False) + "\n")
+    by_split = {}
+    for c in cases:
+        by_split.setdefault(c["source_split"], []).append(c["case_id"])
     print(f"wrote {len(cases)} cases to {out} at {fetched} (from {ns.source})")
+    for split, ids in by_split.items():      # the round record names the cases each split filled
+        print(f"  {split}: {len(ids)} cases: {', '.join(ids)}")
     return 0
 
 

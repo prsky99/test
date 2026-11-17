@@ -2756,6 +2756,10 @@ def test_package_readme_gate_judge_and_builder():
     cases = G.build(["left-pad", "norepo"], lambda p: {"repository": "https://github.com/x/left-pad"} if p == "left-pad" else {},
                     lambda owner, repo: README)
     assert len(cases) == 1 and cases[0]["truth"]["code_blocks"] == ["const leftPad = require('left-pad')\nleftPad('foo', 5)"]
+    assert cases[0]["source_split"] is None
+    named = G.build(["left-pad"], lambda p: {"repository": "https://github.com/x/left-pad"}, lambda o, r: README,
+                    origin={"left-pad": "holdout-r1"})
+    assert named[0]["source_split"] == "holdout-r1"
     assert cases[0]["truth"]["repository_github"] == "x/left-pad"
 
 
