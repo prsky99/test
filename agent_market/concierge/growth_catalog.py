@@ -200,10 +200,11 @@ def pearl_blocks(rid):
     items = ''.join('<div class="history-row"><span class="caption">'+esc(pb.role_name(r))+'</span><span>'
                     '<span class="badge success">'+esc(pb.badge_text(r))+'</span> '+esc(pb.measured_line(r))+'</span></div>'
                     for r in found)
+    direct = '<p class="caption pearl-direct">'+esc(pb.DIRECT_NOTE)+'</p>' if any(r['direct'] for r in found) else ''
     section = ('<section class="card stack pearl-section" aria-labelledby="pearl-h"><h2 id="pearl-h">Verified role tasks</h2>'
-               + items + '<p class="caption">Measured by our role task tests, not a promise about today. '
+               + items + direct + '<p class="caption">Measured by our role task tests, not a promise about today. '
                '<a href="'+pb.METHOD_URL+'">How we test</a></p></section>')
-    return badges, section
+    return badges + ('<span class="badge pearl-direct-badge">'+esc(pb.DIRECT_NOTE)+'</span>' if direct else ''), section
 
 
 def agent_page(rid, snapshot=None):

@@ -94,7 +94,7 @@
     panel.replaceChildren(badge,name,description,evidence,button);
   }
   /* PM 11-18: a verified pearl is marked on its Explore card. The levels come from one small public list (/api/pearls/public, final and verified only), read once per page. */
-  let pearlLevels=null;
+  let pearlLevels=null,pearlDirect=[],pearlDirectNote='';
   function markPearls(){
     const apply=levels=>all('#xResults .acard[data-id]').forEach(card=>{
       const level=levels[card.dataset.id],meta=q('.m',card);
@@ -103,9 +103,10 @@
       chip.textContent=level==='final'?'Final pearl':'Verified pearl';
       chip.title='Passed our role task tests on two different days. See /methodology for how we test.';
       meta.prepend(chip);
+      if(pearlDirect.includes(card.dataset.id)){const note=document.createElement('span');note.className='caption pearl-direct';note.textContent=pearlDirectNote;chip.after(note);}
     });
     if(pearlLevels){apply(pearlLevels);return;}
-    fetch('/api/pearls/public',{credentials:'omit'}).then(r=>r.ok?r.json():{}).then(d=>{pearlLevels=d&&typeof d.levels==='object'&&d.levels?d.levels:{};apply(pearlLevels);}).catch(()=>{pearlLevels={};});
+    fetch('/api/pearls/public',{credentials:'omit'}).then(r=>r.ok?r.json():{}).then(d=>{pearlDirect=Array.isArray(d&&d.direct)?d.direct.map(String):[];pearlDirectNote=typeof(d&&d.direct_note)==='string'?d.direct_note:'';pearlLevels=d&&typeof d.levels==='object'&&d.levels?d.levels:{};apply(pearlLevels);}).catch(()=>{pearlLevels={};});
   }
   renderExplore = function(...args){oldExplore(...args);all('#xResults .acard').forEach(card=>{/* 11-11: the card holds its own buttons (compare, feedback), so it is not a button itself (axe nested-interactive); "View details" is the keyboard and screen-reader target, the whole card stays clickable by pointer. */const actions=document.createElement('div');actions.className='pearl-result-actions';const label=document.createElement('button');label.type='button';label.className='link-button pearl-view-details';label.textContent='Details →';label.setAttribute('aria-label','View '+(q('.t',card)?.textContent||'agent')+' details');actions.append(label);const row=q('.explore-feedback',card);if(row){row.classList.add('pearl-card-actions');row.append(label);}else card.append(actions);card.addEventListener('click',()=>previewAgent(EXPLORE_AGENT_MAP.get(card.dataset.id)));});markPearls();previewAgent(args[0]?.[0]);};
   function workflowChoices() {

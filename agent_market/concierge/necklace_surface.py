@@ -1324,6 +1324,7 @@ def necklace_router(front=None):
         # PM 11-18: the verified pearls (final, verified) for the Explore card badge; one small list, no visitor data
         from . import pearl_badge
         return JSONResponse({'schema': 'agentcon-pearl-levels-v1', 'levels': pearl_badge.public_levels(),
+                             'direct': pearl_badge.direct_ids(), 'direct_note': pearl_badge.DIRECT_NOTE,
                              'method': pearl_badge.METHOD_URL}, headers={'Cache-Control': 'public, max-age=60'})
 
     @router.get('/api/feed/necklaces.json', include_in_schema=False)

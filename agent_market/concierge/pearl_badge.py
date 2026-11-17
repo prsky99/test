@@ -7,7 +7,8 @@ agentcon-public-pearls-v1, replaced atomically after each pearl test round:
    "pearls": [{"resource_id": 46160, "role": "fx.rate.v1", "label": "Exchange rates", "level": "final"|"verified"|"provisional",
                "passed": 3, "of": 3, "days": 2, "last_checked": "2026-11-16", "score": 90.0, "terms": "silent"}, ...]}
 Only the measured numbers of that file are shown. A pearl badge is shown for level final and verified only (the same
-rule as the Explore filter); provisional (one day) and rows whose terms verdict is prohibits stay off the public screens. A missing or broken
+rule as the Explore filter); provisional (one day) stays off the public screens. A member whose terms verdict is prohibits
+is shown too (the test result is a fact, PM 11-18) with DIRECT_NOTE: we do not relay it, the caller connects directly. A missing or broken
 file shows nothing and never fails a page. No request reads the database: the file is read by modification time.
 """
 import json
@@ -18,6 +19,7 @@ from pathlib import Path
 SCHEMA = 'agentcon-public-pearls-v1'
 SHOWN = ('final', 'verified')
 METHOD_URL = '/methodology'
+DIRECT_NOTE = "Connect directly — we don't relay this agent (provider terms)"  # fixed wording (PM 11-18)
 MAX_BYTES = 8 * 1024 * 1024
 MAX_ROLES = 3
 _cache = {'key': None, 'value': {}}
@@ -30,8 +32,8 @@ def path():
 
 def _row(value):
     """One public row, or None when it is not a measured pearl row of a shown level."""
-    if not isinstance(value, dict) or value.get('level') not in SHOWN or value.get('terms') == 'prohibits':
-        return None  # a member whose terms prohibit our relay is not promoted (PM 11-18, the list still keeps its test result)
+    if not isinstance(value, dict) or value.get('level') not in SHOWN:
+        return None
     role = value.get('role')
     passed, of, days = value.get('passed'), value.get('of'), value.get('days')
     if not isinstance(role, str) or not role or len(role) > 80:
@@ -43,7 +45,8 @@ def _row(value):
         return None
     label = value.get('label')
     return {'role': role, 'label': label[:60] if isinstance(label, str) and label.strip() else None,
-            'level': value['level'], 'passed': passed, 'of': of, 'days': days, 'last_checked': checked}
+            'level': value['level'], 'passed': passed, 'of': of, 'days': days, 'last_checked': checked,
+            'direct': value.get('terms') == 'prohibits'}
 
 
 def load():
@@ -93,6 +96,11 @@ def public_levels():
     """{agent id (str): 'final' | 'verified'} for the Explore cards: the highest shown level of every pearl agent."""
     return {str(agent_id): ('final' if any(r['level'] == 'final' for r in found) else 'verified')
             for agent_id, found in load().items()}
+
+
+def direct_ids():
+    """Agent ids (str) whose terms prohibit our relay: the Explore card says to connect directly."""
+    return sorted(str(agent_id) for agent_id, found in load().items() if any(r['direct'] for r in found))
 
 
 def measured_line(row):
