@@ -51,7 +51,9 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "met-weather": "met-weather",               # 30 US points vs NWS, built right before the gate (PM 11-16)
         "dns-spf-dmarc": "website-trust-brief",     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)
         "package-readme": "package-risk-audit",     # split readme-r1 (scripts/gold_package_readme.py, agent team 11-17)
-        "agent-record": "mcp-server-trust-check"}   # split record-r1 (scripts/gold_agent_record.py, agent team 11-17)     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)               # 30 US points vs NWS, built right before the gate (PM 11-16)
+        "agent-record": "mcp-server-trust-check",    # split record-r1 (scripts/gold_agent_record.py, agent team 11-17)
+        "tls-certificate": "website-trust-brief",    # split tls-r1 (scripts/gold_site_checks.py --kind tls, 11-17)
+        "site-reachability": "website-trust-brief"}  # split reach-r1 (scripts/gold_site_checks.py --kind reach, 11-17)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -94,6 +96,32 @@ def judge(agent_id: str, case: dict, result: dict | None, error: str | None = No
         spf_ok = quoted(truth.get("spf") or [], "no SPF record published")
         dmarc_ok = quoted(truth.get("dmarc") or [], "no DMARC record published")
         return {"pass": spf_ok and dmarc_ok, "spf": spf_ok, "dmarc": dmarc_ok}
+    if agent_id == "tls-certificate":
+        # agent team 11-17: the same site's certificate read right before the gate by a reader sharing no code with
+        # the agent (certifi CA bundle, DER parsed by cryptography): validity, issuer organisation, expiry +-1 day.
+        from datetime import datetime as _dt
+        if bool(result.get("valid")) != bool(truth.get("valid")):
+            return {"pass": False, "got": result.get("valid"), "want": truth.get("valid")}
+        if not truth.get("valid"):
+            return {"pass": True}
+        flat = lambda text: " ".join(str(text or "").split()).lower()
+        same = flat(result.get("issuer")) == flat(truth.get("issuer")) != ""
+        try:
+            gap = abs((_dt.strptime(str(result.get("not_after")), "%Y-%m-%d")
+                       - _dt.strptime(str(truth.get("not_after")), "%Y-%m-%d")).days)
+        except ValueError:
+            gap = None
+        return {"pass": same and gap is not None and gap <= 1, "issuer": same, "gap_days": gap,
+                "got": [result.get("issuer"), result.get("not_after")], "want": [truth.get("issuer"), truth.get("not_after")]}
+    if agent_id == "site-reachability":
+        # agent team 11-17: the same site read right before the gate (httpx, redirects followed one hop at a time):
+        # reachable, the final status class (none when nothing answered) and https must agree. Timing is not judged.
+        status = result.get("status")
+        got_class = f"{int(status) // 100}xx" if isinstance(status, int) else None
+        ok = (bool(result.get("reachable")) == bool(truth.get("reachable")) and got_class == truth.get("status_class")
+              and bool(result.get("https")) == bool(truth.get("https")))
+        return {"pass": ok, "got": [result.get("reachable"), got_class, result.get("https")],
+                "want": [truth.get("reachable"), truth.get("status_class"), truth.get("https")]}
     if agent_id == "agent-record":
         # agent team 11-17: our own catalog, read from the production database right before the gate: found, the
         # agent id and the grade (none when under review); reachability changes hourly and is not judged.
@@ -458,6 +486,10 @@ def applies(agent_id: str, case: dict) -> bool:
         return "found" in (case.get("truth") or {})
     if agent_id == "package-readme":     # readme cases only (truth built by scripts/gold_package_readme.py)
         return "code_blocks" in (case.get("truth") or {})
+    if agent_id == "tls-certificate":    # tls cases only (truth built by scripts/gold_site_checks.py --kind tls)
+        return "valid" in (case.get("truth") or {})
+    if agent_id == "site-reachability":  # reach cases only (truth built by scripts/gold_site_checks.py --kind reach)
+        return "status_class" in (case.get("truth") or {})
     if agent_id == "dns-spf-dmarc":      # mail-auth cases only (truth built by scripts/gold_mail_auth.py)
         return "spf" in (case.get("truth") or {}) and "dmarc" in (case.get("truth") or {})
     if agent_id == "package-releases":   # npm only until PyPI's terms are read (11-16)
