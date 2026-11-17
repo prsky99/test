@@ -159,6 +159,18 @@ SUN_CALC = {"name": "Computed (no outside data): NOAA solar position equations",
             "notice": "Computed for a sea-level horizon with standard refraction; about a minute of accuracy between the "
                       "polar circles; terrain and elevation are not modelled. Times in UTC."}
 
+ALMANAC = {"name": "Computed (no outside data): Meeus astronomical algorithms and the Korean lunisolar calendar rules (KASI)",
+           "url": "https://astro.kasi.re.kr/",
+           "license": "Published algorithms and calendar rules (J. Meeus, Astronomical Algorithms, 1998; the KASI almanac "
+                      "rules); no data is copied or fetched",
+           "notice": "Korean lunar calendar and Korea standard time; solar terms to within about 15 minutes, so a date on "
+                     "which a term falls is marked; supported years 1912-2100. For entertainment where it reads a fortune."}
+FORTUNE_RULES = {"name": "AgentValCon fixed rule table (ten gods, five elements, sign elements)",
+                 "url": "https://en.wikipedia.org/wiki/Four_Pillars_of_Destiny",
+                 "license": "Our own wording of traditional interpretation systems; no text copied",
+                 "notice": "For entertainment; not advice. Same inputs and date give the same text; no language model "
+                           "writes it."}
+
 SITE_GET = {"name": "The requested site's public home page, one GET (HTTPS, from our server)", "url": "https://www.rfc-editor.org/rfc/rfc9110",
             "license": "Public facts a server presents to every visitor; the page body is not kept",
             "notice": "One check now from one vantage point, not monitoring; every redirect hop is checked as a public "
@@ -413,6 +425,34 @@ SPECS = {
                        "informational name match, not a legal determination; read-only.",
         "sources": [OFAC_SDN],
         "rate": "no network calls per request; the list is refreshed once a day",
+    },
+    "korean-lunar": {
+        "name": "AgentValCon Korean Lunar Calendar", "tool": "convert_korean_lunar_date", "contract": "calendar.lunar_convert.v1",
+        "description": "Convert a date between the Gregorian calendar and the Korean lunar calendar (KASI rules, Korea "
+                       "standard time), with the leap month marked; computed, no network calls.",
+        "sources": [ALMANAC],
+        "rate": "no network calls",
+    },
+    "western-sign": {
+        "name": "AgentValCon Western Zodiac", "tool": "get_western_zodiac", "contract": "astro.western_sign.v1",
+        "description": "The tropical zodiac constellation of the Sun and its element for a Gregorian birth date, "
+                       "with a cusp date marked; computed from the Sun's position, no network calls.",
+        "sources": [ALMANAC],
+        "rate": "no network calls",
+    },
+    "saju-pillars": {
+        "name": "AgentValCon Saju Four Pillars", "tool": "get_saju_pillars", "contract": "saju.pillars.v1",
+        "description": "Year, month and day pillars of a Gregorian birth date (and the hour pillar when the birth hour "
+                       "is given), the day master and today's day pillar; Korea standard time, computed, no network calls.",
+        "sources": [ALMANAC],
+        "rate": "no network calls",
+    },
+    "fortune-daily": {
+        "name": "AgentValCon Daily Fortune Reading", "tool": "get_daily_fortune_reading", "contract": "fortune.daily.v1",
+        "description": "Today's reading from a western zodiac and a saju day master against today's day pillar, by a "
+                       "fixed rule table; for entertainment, not advice; no network calls.",
+        "sources": [ALMANAC, FORTUNE_RULES],
+        "rate": "no network calls",
     },
     "agent-record": {
         "name": "AgentValCon Agent Record", "tool": "check_agent_record", "contract": "agent.record.v1",

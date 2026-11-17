@@ -56,7 +56,7 @@ DOMAINS = {'nvd-cve': ['https://services.nvd.nist.gov/'], 'cisa-kev': ['https://
            'tls-certificate': [],   # the case's own site (a handshake, reserved per site in the agent)
            'site-reachability': [],   # the case's own site (one GET, reserved per site by net.get)
            'tz-time': [], 'airport-lookup': [], 'unit-convert': [], 'public-holidays': [], 'holiday-calendar': [],
-           'sun-times': [], 'dns-spf-dmarc': [], 'ofac-sdn': [], 'agent-record': [], 'package-readme': ['https://registry.npmjs.org/']}   # DNS questions go to our own resolver, not to a provider
+           'sun-times': [], 'korean-lunar': [], 'western-sign': [], 'saju-pillars': [], 'fortune-daily': [], 'dns-spf-dmarc': [], 'ofac-sdn': [], 'agent-record': [], 'package-readme': ['https://registry.npmjs.org/']}   # DNS questions go to our own resolver, not to a provider
 # Calls per case when an agent may call a source more than once (11-15 agent team, eefdb282: GLEIF search plus one
 # direct read of the top-level entity; Wikidata at most once). Reserved as CASES x this + EXTRA_CALLS.
 CALLS_PER_CASE = {'https://api.gleif.org/': 2}

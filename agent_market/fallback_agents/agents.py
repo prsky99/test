@@ -19,7 +19,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote, urlsplit
 
@@ -69,7 +69,8 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400, "tls-certificate": 86400,
            "sec-company-profile": 24 * 3600, "sun-times": 10 * 365 * 86400, "site-reachability": 60,
            "dns-spf-dmarc": 86400, "package-readme": 86400, "agent-record": 2 * 86400,
-           "ofac-sdn": 3 * 86400}   # the daily list index; served up to three days if a refresh fails  # rules age from the library release; update the pin at least yearly
+           "ofac-sdn": 3 * 86400, "korean-lunar": 10 * 365 * 86400, "western-sign": 10 * 365 * 86400,
+           "saju-pillars": 10 * 365 * 86400, "fortune-daily": 10 * 365 * 86400}   # the daily list index; served up to three days if a refresh fails  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -1653,6 +1654,127 @@ class FallbackAgents:
         if zone and self.tz_grid is not None:
             as_of["time zone grid built"] = self.tz_grid.header.get("built")
         return result, {"status": "computed", "age_seconds": 0}, False, as_of
+
+    # ---------------------------------------------------------------- daily-fortune-brief (PM 11-17, user request)
+    # Offline (almanac.py, fortune_calc.py, fortune_rules.py). The birth date is used for the computation only: it is
+    # not cached, logged or written anywhere (the usage log never holds arguments).
+    def _fortune_today(self, args) -> date:
+        if args.get("today"):
+            return self._fortune_date(args["today"])
+        return (self.utc_now() + timedelta(hours=9)).date()     # Asia/Seoul calendar date
+
+    @staticmethod
+    def _fortune_date(text) -> date:
+        try:
+            return date.fromisoformat(str(text))
+        except ValueError as exc:
+            raise FallbackUnavailable("invalid_input", "Use a valid date (YYYY-MM-DD).") from exc
+
+    def _fortune_birth(self, args) -> date:
+        raw = args.get("birth_date") or args.get("date")
+        if not raw:
+            raise FallbackUnavailable("invalid_input", "Give a birth date (YYYY-MM-DD).")
+        day = self._fortune_date(raw)
+        from .almanac import MAX_YEAR, MIN_YEAR
+        if not MIN_YEAR <= day.year <= MAX_YEAR:
+            raise FallbackUnavailable("invalid_input", f"Supported years are {MIN_YEAR}-{MAX_YEAR}.")
+        return day
+
+    def _korean_lunar(self, args, remaining):
+        """calendar.lunar_convert.v1: Gregorian <-> Korean lunar date (calendar=lunar reads the input as lunar)."""
+        from . import almanac
+        raw = args.get("birth_date") or args.get("date")
+        if not raw or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(raw)):
+            raise FallbackUnavailable("invalid_input", "Give a date (YYYY-MM-DD).")
+        y, m, d = (int(x) for x in str(raw).split("-"))
+        try:
+            if args.get("calendar") == "lunar":
+                leap = bool(args.get("is_leap_month"))
+                solar = almanac.lunar_to_solar(y, m, d, leap)
+                lunar = {"year": y, "month": m, "day": d, "is_leap_month": leap}
+            else:
+                solar = date(y, m, d)
+                lunar = almanac.solar_to_lunar(solar)
+        except ValueError as exc:
+            raise FallbackUnavailable("invalid_input", str(exc)[:160] or "No such date.") from exc
+        lunar_text = f"{lunar['year']:04d}-{lunar['month']:02d}-{lunar['day']:02d}"
+        leap_word = " (leap month)" if lunar["is_leap_month"] else ""
+        answer = (f"Gregorian {solar.isoformat()} is {lunar_text}{leap_word} on the Korean lunar calendar "
+                  f"(KASI rules, Korea standard time).")
+        return ({"answer": answer, "source": "Computed with the Korean lunisolar calendar rules (KASI) and Meeus "
+                 "astronomical algorithms; no data fetched", "url": "https://astro.kasi.re.kr/",
+                 "solar_date": solar.isoformat(), "lunar_date": lunar_text, "is_leap_month": lunar["is_leap_month"],
+                 "calendar_basis": "korean_kasi"},
+                {"status": "computed", "age_seconds": 0}, False, {"Korean lunar calendar rules": None})
+
+    def _western_sign(self, args, remaining):
+        """astro.western_sign.v1: tropical Sun sign of a Gregorian birth date (12:00 Korea time), cusp marked."""
+        from .fortune_calc import sun_sign
+        birth = self._fortune_birth(args)
+        today = self._fortune_today(args)
+        s = sun_sign(birth)
+        answer = f"Born {birth.isoformat()}: Sun in {s['sign']} ({s['element']} sign)."
+        if s.get("cusp"):
+            answer += " " + s["cusp"] + " The sign at 12:00 Korean time is given."
+        return ({"answer": answer, "source": "Computed from the Sun's apparent longitude (Meeus); tropical signs",
+                 "url": "https://en.wikipedia.org/wiki/Astrological_sign", "sign": s["sign"],
+                 "element": s["element"].capitalize(), "cusp": bool(s.get("cusp")), "today": today.isoformat()},
+                {"status": "computed", "age_seconds": 0}, False, {"Meeus solar position": None})
+
+    def _saju_pillars(self, args, remaining):
+        """saju.pillars.v1: year (Ipchun), month (jeol terms), day and optional hour pillars; today's day pillar."""
+        from .fortune_calc import day_pillar, four_pillars, ten_god
+        birth = self._fortune_birth(args)
+        today = self._fortune_today(args)
+        hour = args.get("birth_hour")
+        p = four_pillars(birth, hour)
+        t = day_pillar(today)
+        god = ten_god(p["day"], t["stem_index"])
+        master = p["day"]["stem"]
+        basis = ("Korea standard time, no true-solar-time correction; year pillar from Ipchun, month pillar from the "
+                 "solar terms; the day changes at 00:00")
+        basis += "; hour pillar from the given birth hour" if hour is not None else "; no hour pillar (birth hour not given)"
+        if p.get("boundary_note"):
+            basis += ". " + p["boundary_note"]
+        relation = (f"Today's stem {t['stem']} is {god['name']} ({god['english']}) to the day master {master}: "
+                    f"{t['stem_element']} meets {p['day']['stem_element']} ({god['relation']}).")
+        pillars = [p["year"]["name"], p["month"]["name"], p["day"]["name"]] + ([p["hour"]["name"]] if p["hour"] else [])
+        answer = (("Four pillars (year, month, day, hour): " if p["hour"] else
+                   "Three pillars (year, month, day; no hour pillar without a birth hour): ") + ", ".join(pillars)
+                  + f". Day master {master}. Today ({today.isoformat()}) is {t['name']}. " + relation)
+        return ({"answer": answer[:8000], "source": "Computed with the sexagenary cycle and the solar terms (Meeus); "
+                 "no data fetched", "url": "https://en.wikipedia.org/wiki/Four_Pillars_of_Destiny",
+                 "year_pillar": p["year"]["name"], "month_pillar": p["month"]["name"], "day_pillar": p["day"]["name"],
+                 "hour_pillar": p["hour"]["name"] if p["hour"] else None, "day_master": master,
+                 "today": today.isoformat(), "today_day_pillar": t["name"], "today_relation": relation[:400],
+                 "basis": basis[:400]},
+                {"status": "computed", "age_seconds": 0}, False, {"Meeus solar position": None})
+
+    def _fortune_daily(self, args, remaining):
+        """fortune.daily.v1: today's reading by the fixed rule table (fortune_rules.py); for entertainment."""
+        from .fortune_calc import STEMS, moon_today, ten_god
+        from .fortune_rules import reading
+        today = self._fortune_date(args["today"])
+        stems = {s[1]: i for i, s in enumerate(STEMS)}
+        def stem_of(text):
+            hit = next((ch for ch in str(text or "") if ch in stems), None)
+            return stems[hit] if hit else None
+        dm, ts = stem_of(args.get("day_master")), stem_of(args.get("today_day_pillar"))
+        god = None
+        if dm is not None and ts is not None:
+            s = STEMS[dm]
+            god = ten_god({"stem_element": s[2], "stem_polarity": s[3]}, ts)["name"]
+        moon = moon_today(today)
+        hour = args.get("hour_pillar")
+        out = reading(sign=args.get("sign"), element=args.get("element"), moon_sign=moon["moon_sign"],
+                      moon_element=moon["moon_element"], ten_god=god,
+                      today_element=STEMS[ts][2] if ts is not None else None, today=today.isoformat(),
+                      # an absent, empty or "none" hour pillar: the reading says no hour pillar was used (workflow 11-17)
+                      hour_pillar_given=bool(str(hour or "").strip()) and str(hour).strip().lower() not in ("none", "null"))
+        answer = f"{out['disclaimer']} {out['headline']}. {out['reading']}"
+        out.update(answer=answer[:8000], source="AgentValCon fixed rule table (" + out["rules_version"] + "); "
+                   "today's Moon sign computed (Meeus)", url="https://en.wikipedia.org/wiki/Four_Pillars_of_Destiny")
+        return out, {"status": "computed", "age_seconds": 0}, False, {"rule table": None}
 
     def _site_reachability(self, args, remaining):
         """site.reachability.v1 (workflow 11-16, website-trust-brief v2): one GET through fallback_agents.reach."""
