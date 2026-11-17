@@ -1,20 +1,25 @@
 {
   "id": "sanctions.screen.v1",
-  "role": "Sanctions list name screening: whether a name appears on a published sanctions list such as OFAC SDN, with the list and its date (PM 11-17, W3; a name match is information, not a legal determination; input keys are alternatives, a member uses the ones it accepts)",
+  "role": "Sanctions list name screening of an organisation (company, bank, agency): informational name and alias matches against an official sanctions list with the list date; never a legal determination and never 'clear' (agent team and workflow 11-17; input keys are alternatives, a member uses the ones it accepts; list_date, notice and matches are optional in the contract so any screening member can answer, and the necklace and its grader require them)",
   "input_schema": {
     "type": "object",
     "properties": {
       "name": {
         "type": "string",
-        "maxLength": 300
+        "minLength": 2,
+        "maxLength": 200
+      },
+      "country": {
+        "type": "string",
+        "maxLength": 60
       },
       "entity": {
         "type": "string",
-        "maxLength": 300
+        "maxLength": 200
       },
       "query": {
         "type": "string",
-        "maxLength": 300
+        "maxLength": 200
       }
     },
     "required": [],
@@ -34,6 +39,68 @@
       },
       "source": {
         "type": "string"
+      },
+      "list_date": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "notice": {
+        "type": "string",
+        "maxLength": 300
+      },
+      "matches": {
+        "type": "array",
+        "maxItems": 10,
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "match": {
+              "type": "string",
+              "enum": [
+                "exact",
+                "similar"
+              ]
+            },
+            "matched_on": {
+              "type": "string",
+              "enum": [
+                "name",
+                "alias"
+              ]
+            },
+            "matched_text": {
+              "type": "string",
+              "maxLength": 500
+            },
+            "score": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "list_id": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "programs": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "type": "string",
+                "maxLength": 80
+              }
+            }
+          },
+          "required": [
+            "name",
+            "match",
+            "list_id"
+          ],
+          "additionalProperties": false
+        }
       }
     },
     "required": [
@@ -43,14 +110,17 @@
     "additionalProperties": false
   },
   "rules": [
-    "names a sanctions list: \\bSDN\\b|OFAC|sanction",
-    "read-only lookup; no account, payment or write"
+    "notice says: not a legal determination",
+    "list date stated",
+    "never states an organisation is clear or not sanctioned",
+    "organisation names only (no person screening); read-only; no account, payment or write"
   ],
   "test_inputs": [
     {
-      "name": "Banco Nacional de Cuba",
-      "entity": "Banco Nacional de Cuba",
-      "query": "Banco Nacional de Cuba"
+      "name": "Banco Nacional de Cuba"
+    },
+    {
+      "name": "Apple Inc."
     }
   ]
 }
