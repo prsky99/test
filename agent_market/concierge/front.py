@@ -82,6 +82,7 @@ AUDIENCE = "ai-agents-only"
 # 11-15 PM (revisit review P2): first what any agent can do with no token, then the saved-task path. search and
 # find_agents are read-only and give no visitor token, so "whats_new with your visitor_token" alone asked for something
 # a first-time caller does not have.
+from .try_now import line as try_now_line  # PM 11-17 22:xx: the call that works right now
 RETURN_VISIT = ("Coming back later: before each call to a recommended agent, run `check_agent` with its endpoint "
                 "(read-only, no token) for its latest recorded status and recent check success rate. If a call fails, "
                 "call `report` with its resource_id and ok false, or ask again with the same task, to get alternatives. "
@@ -3781,7 +3782,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             asked = params.get("protocolVersion") if isinstance(params, dict) else None
             v = front.book.by_token(_token_from(request))
             greet = await run_in_threadpool(front.concierge.greeting, v)
-            instructions = (f"{NOTICE}\n\n{greet.text}\n\nCall `search` for a read-only lookup, or `chat` to save your task. A chat reply gives you a "
+            instructions = (f"{NOTICE}\n\n{try_now_line()}\n\n{greet.text}\n\nCall `search` for a read-only lookup, or `chat` to save your task. A chat reply gives you a "
                             "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.\n\n"+RETURN_VISIT)
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
@@ -3801,7 +3802,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             asked = params.get("protocolVersion") if isinstance(params, dict) else None
             v = front.book.by_token(_token_from(request))
             greet = await run_in_threadpool(front.concierge.greeting, v)
-            instructions = (f"{NOTICE}\n\n{greet.text}\n\nCall `search` for a read-only lookup, or `chat` to save your task. A chat reply gives you a "
+            instructions = (f"{NOTICE}\n\n{try_now_line()}\n\n{greet.text}\n\nCall `search` for a read-only lookup, or `chat` to save your task. A chat reply gives you a "
                             "visitor token — pass it as `visitor_token` (or the X-Visitor-Token header) so I remember you next time.\n\n"+RETURN_VISIT)
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
