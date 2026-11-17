@@ -2946,9 +2946,11 @@ def test_ofac_agent_states_list_date_and_never_says_clear(tmp_path, monkeypatch)
     assert none["matches"] == [] and "not a legal determination" in none["answer"] and "13 Nov 2026" in none["answer"]
     for result in (hit, none):
         assert not re.search(r"\b(clear|cleared|not sanctioned|no sanctions)\b", result["answer"], re.I)
-    with pytest.raises(FallbackUnavailable) as err:
-        a.execute("ofac-sdn", {"name": "x"})
-    assert err.value.code == "invalid_input"
+    assert a.execute("ofac-sdn", {"entity": "National Bank of Cuba"})["result"]["matches"][0]["list_id"] == "SDN 306"
+    for bad in ({"name": "x"}, {}):
+        with pytest.raises(FallbackUnavailable) as err:
+            a.execute("ofac-sdn", bad)
+        assert err.value.code == "invalid_input"
 
 
 def test_ofac_agent_refuses_without_a_fresh_index(tmp_path, monkeypatch):

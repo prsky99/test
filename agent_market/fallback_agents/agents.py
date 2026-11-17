@@ -1714,7 +1714,7 @@ class FallbackAgents:
         matches of an organisation against OFAC's SDN list (entities only), from a daily local index (ofac.py). OFAC
         is never called per request. Never a legal determination and never 'clear'."""
         from .ofac import NOTICE, SEARCH_URL, OfacIndex, screen
-        name = " ".join(str(args.get("name") or "").split())
+        name = " ".join(str(next((args[k] for k in ("name", "entity", "query") if args.get(k)), "")).split())
         if not 2 <= len(name) <= 200:
             raise FallbackUnavailable("invalid_input", "Give an organisation name (2 to 200 characters).")
         if self.ofac is None:
