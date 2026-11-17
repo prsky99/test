@@ -30,6 +30,7 @@ import calendar
 import io
 import json
 import sys
+import re
 import time
 from pathlib import Path
 
@@ -66,15 +67,43 @@ def yesterday(now=None):
     return time.strftime('%Y-%m-%d', time.gmtime(now - 86_400))
 
 
-def build_sql(day):
+OWN_NETWORKS_FILE = 'gateway-data/ops/own-networks.txt'   # git-ignored: this Mac's public addresses, one per line
+_IP = re.compile(r'[0-9a-fA-F:.]{3,45}')
+# PM 11-17: requests from our own machine are not demand. Loopback and private ranges (this Mac reaching the origin
+# directly: 11-16 had 4,399 rate-limit 429s from 127.0.x.x with client class 'other', so the 'internal' class alone
+# missed them), the 'internal' client class, and any public address listed in OWN_NETWORKS_FILE are left out.
+_LOCAL = ("ip NOT LIKE '127.%' AND ip NOT LIKE '10.%' AND ip NOT LIKE '192.168.%' AND ip <> '::1' "
+          "AND ip NOT LIKE 'fc%' AND ip NOT LIKE 'fd%' AND ip !~ '^172[.](1[6-9]|2[0-9]|3[01])[.]'")
+
+
+def own_networks(path=None):
+    """Public addresses of our own machines from the git-ignored file; anything that is not a plain address is
+    ignored, so nothing but an address ever reaches the SQL text."""
+    if path is None:
+        from agent_market.ad_coin.v2.paid_bookings import data_path
+        path = data_path(OWN_NETWORKS_FILE)
+    try:
+        lines = Path(path).read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return []
+    return sorted({line.strip() for line in lines if _IP.fullmatch(line.strip())})
+
+
+def _not_ours(own):
+    listed = (" AND ip NOT IN (" + ",".join("'" + a + "'" for a in own) + ")") if own else ""
+    return " AND coalesce(user_agent,'') <> 'internal' AND " + _LOCAL + listed
+
+
+def build_sql(day, own=()):
     day_ms, start, end = day_bounds(day)
+    ours = _not_ours(list(own))
     return (
         "SELECT 'imp', placement, COALESCE(sum(served),0) FROM ad_coin_v2.adc2_sponsored_impressions "
         f"WHERE day_ms = {day_ms} GROUP BY placement ORDER BY placement;\n"
         "SELECT 'r429', count(*), count(DISTINCT ip) FROM security_events WHERE event_type = 'rate_limit_429' "
-        f"AND at >= {start} AND at < {end} AND coalesce(user_agent,'') <> 'internal';\n"
+        f"AND at >= {start} AND at < {end}" + ours + ";\n"
         "SELECT 'feed429', count(*) FROM security_events WHERE event_type = 'rate_limit_429' "
-        f"AND path LIKE '/api/feed/%' AND at >= {start} AND at < {end} AND coalesce(user_agent,'') <> 'internal'")
+        f"AND path LIKE '/api/feed/%' AND at >= {start} AND at < {end}" + ours)
 
 
 def parse(lines):
@@ -98,12 +127,12 @@ def parse(lines):
     return found
 
 
-def query(day, runner=None):
+def query(day, runner=None, own=None):
     """Run the read-only statements once. Returns (parsed rows, None) or (None, reason)."""
     if runner is None:
         from scripts.prod_ro_sql import run as runner
     out, err = io.StringIO(), io.StringIO()
-    code = runner(build_sql(day), out=out, err=err)
+    code = runner(build_sql(day, own_networks() if own is None else own), out=out, err=err)
     if code != 0:
         return None, f'prod_ro_sql exit {code}: {err.getvalue().strip()[:200]}'
     try:
