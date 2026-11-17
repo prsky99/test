@@ -232,6 +232,9 @@ REQUIRED_OUTPUT = {
     'sec.filings.v1': ('items', 'form', 'date'), 'translate.text.v1': ('translation',),
     'unit.convert.v1': ('value',), 'package.health.v1': ('name', 'version'), 'package.risk.v1': ('name',),
     'web.grounding.v1': ('answer', 'sources'),
+    # Pearl scout W1 review (검색과 RAG 11-17): four accurate TLS answers and one DNS answer stayed at 80 only because
+    # these roles had no required output (completeness 0 'unconfirmed').
+    'tls.certificate.v1': ('issuer', 'expires'), 'dns.mail_auth.v1': ('mail_auth',),
 }
 FIELD_KEYS = {
     'from': r'^(?:from|base|source_?currency|base_?code)$', 'to': r'^(?:to|target|symbols?|quote_?currency|target_?code)$',
@@ -245,6 +248,8 @@ FIELD_KEYS = {
     'ip': r'^ip(?:_?address)?$|^query$', 'code': r'iata|icao|^code$', 'name': r'name', 'definition': r'definition|meaning',
     'stars': r'star', 'form': r'^form|filing_?type', 'translation': r'translat|^text$|^result$', 'version': r'version',
     'answer': r'answer|^text$|content', 'sources': r'sources|citations|references|links',
+    'issuer': r'issuer|issued_?by', 'expires': r'expir|not_?after|valid_?(?:to|until)|days_?(?:left|remaining)',
+    'mail_auth': r'^(?:mx|txt|spf|dmarc|dkim|checks|records?)$',
 }
 ERROR_KEY = re.compile(r'^(?:error|errors|err|exception|fault)$', re.I)
 COUNT_ARGS = re.compile(r'^(?:limit|max_results|num_results|count|top_k|per_page|n)$', re.I)
@@ -607,7 +612,7 @@ def accuracy(case, text, structured, live=None, live_value=None, role_tasks=None
     """(points of 25, source, detail). Only an answer set or a same-time public reference can give points."""
     if case:
         expect = case.get('expect') or {}
-        static_keys = [k for k in expect if k not in ('dynamic', 'published_within_days')]
+        static_keys = [k for k in expect if k not in ('dynamic', 'published_within_days', 'upcoming_within_days')]
         passed, reasons = role_tasks.score(case, text, structured) if role_tasks else (False, ['no scorer'])
         if expect.get('kev_date_added') and expect['kev_date_added'] not in (text or ''):
             passed, reasons = False, reasons + [f"KEV date {expect['kev_date_added']} missing"]
@@ -622,13 +627,19 @@ def accuracy(case, text, structured, live=None, live_value=None, role_tasks=None
         dynamic_ok = all(ok for _, _, ok in checks) if checks else None
         if checks and any(ok is None for _, _, ok in checks):
             return 0, f"answer set {case['case_id']} (live reference unavailable)", reasons
-        if not static_keys and not checks and not expect.get('published_within_days'):
+        if not static_keys and not checks and not expect.get('published_within_days') and not expect.get('upcoming_within_days'):
             return 0, f"answer set {case['case_id']} (live-only expectation not checkable)", reasons
         dated = None
         if expect.get('published_within_days'):
             dated = published_within(text, structured, expect['published_within_days'])
             if not dated:
                 reasons = reasons + [f"no item published within {expect['published_within_days']} days"]
+        elif expect.get('upcoming_within_days'):
+            # Pearl scout W1 review (11-17): an event search is about dates ahead; a 'published' check failed every
+            # San Francisco concert list (8 members, 'no item published within 60 days').
+            dated = upcoming_within(text, structured, expect['upcoming_within_days'])
+            if not dated:
+                reasons = reasons + [f"no dated item in the next {expect['upcoming_within_days']} days"]
         facts = (role_tasks.fact_checks(case) if role_tasks and hasattr(role_tasks, 'fact_checks') else 1) + len(checks) + \
             (1 if expect.get('kev_date_added') else 0) + (1 if dated is not None else 0)
         if not facts:
@@ -660,6 +671,17 @@ def published_within(text, structured, days, now=None):
         if 'published' in kinds and dt.timedelta(days=-1) <= now_dt - when <= dt.timedelta(days=days):
             return True
     return False
+
+
+def upcoming_within(text, structured, days, now=None):
+    """True when the answer names a dated item from yesterday up to DAYS ahead (any date label or date-like key):
+    an event listing is about what is coming, not what was published."""
+    now = now or time.time()
+    found = [(kinds, when) for kinds, when in labelled_dates(text, now)]
+    if structured is not None:
+        _keyed_dates(structured, now, found)
+    now_dt = dt.datetime.fromtimestamp(now)
+    return any(dt.timedelta(days=-1) <= when - now_dt <= dt.timedelta(days=days) for _, when in found)
 
 
 def latency_points(ms):

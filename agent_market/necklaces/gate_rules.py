@@ -36,7 +36,7 @@ REPORT_SCORE = 85
 # judge of a deployed release compares the verify snapshot with its own version (PM 16:29, "production = git"; before
 # this the judge read scripts/report_v2.py under AGENTCON_PROJECT_ROOT, the working tree). scripts/report_v2 takes
 # it from here. Raising it is a change paired with a jobs deploy, and the snapshot is regenerated with it.
-EVALUATOR_VERSION = 'dq-2026-11-16a'   # 11-16a: role tasks match a decimal truth given to more places (1f69bf05) and skip an input that reaches no tool parameter (4328afb3). 11-15e: FX reference moved to frankfurter.dev, weather temp_max/min read
+EVALUATOR_VERSION = 'dq-2026-11-17a'   # 11-17a: TLS and DNS answers have required output and the events task checks dates ahead (pearl scout W1 review). 11-16a: role tasks match a decimal truth given to more places (1f69bf05) and skip an input that reaches no tool parameter (4328afb3). 11-15e: FX reference moved to frankfurter.dev, weather temp_max/min read
 
 
 def _retest_rules() -> dict:

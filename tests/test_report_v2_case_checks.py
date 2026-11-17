@@ -47,7 +47,7 @@ def test_contract_shaped_answers_are_judged_as_text():
 
 
 def test_the_evaluator_version_moved():
-    assert V.EVALUATOR_VERSION == 'dq-2026-11-16a'
+    assert V.EVALUATOR_VERSION == 'dq-2026-11-17a'
 
 
 def test_no_record_case_is_judged_on_its_answer_set_alone():
