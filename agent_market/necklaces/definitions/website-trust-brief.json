@@ -1,9 +1,9 @@
 {
   "slug": "website-trust-brief",
-  "version": 1,
+  "version": 2,
   "status": "candidate",
   "name": "Website trust brief",
-  "summary": "How long a website's domain has been registered (registration date and registrar from RDAP) and whether AI crawlers may read its home page under its robots.txt, in one answer.",
+  "summary": "A trust brief on one domain: when it was registered, its SPF and DMARC mail records, its TLS certificate, and (optional) whether AI crawlers may read it.",
   "input_schema": {
     "type": "object",
     "properties": {
@@ -19,17 +19,18 @@
   },
   "budget_ms": {
     "total": 5000,
-    "slot": 5000
+    "slot": 3500
   },
   "synthesis": {
     "kind": "merge-v1",
     "rules": [
-      "registration comes from RDAP; crawler access from the site's robots.txt as checked today",
-      "a run counts only when at least two verified pearls answered (the domain lookup and the readiness check)",
+      "every step reads only the domain; all steps run together",
+      "registration comes from RDAP; mail protection from the domain's public DNS TXT records; the certificate from a TLS handshake; reachability from one GET of the home page, all as checked today",
+      "a missing SPF or DMARC record is an answer (not protected), never a failure",
       "every statement keeps its source link"
     ]
   },
-  "answer_set": "website-trust-brief-v1",
+  "answer_set": "website-trust-brief-v2",
   "slots": [
     {
       "slot": "registration",
@@ -76,8 +77,8 @@
       ]
     },
     {
-      "slot": "crawlers",
-      "contract": "website.ai_readiness.v1",
+      "slot": "mail_auth",
+      "contract": "dns.mail_auth.v1",
       "required": true,
       "fanout": 1,
       "chain": [
@@ -87,18 +88,70 @@
           "destructive_hint": false,
           "idempotent_hint": true,
           "resend_safe": true,
-          "resource_id": 132732,
-          "tool": "check_store_ai_readiness",
-          "registrable_domain": "xfix.ai",
+          "resource_id": 39800,
+          "tool": "dns_records",
+          "registrable_domain": "oti-labs.com",
           "upstream": [
-            "site-robots"
+            "dns"
           ],
           "state": "active",
-          "pearl": true,
+          "pearl": false,
           "input_map": {
-            "store_url": "https://{{input.domain}}"
+            "domain": "{{input.domain}}"
           }
         },
+        {
+          "kind": "agentcon",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "agent_id": "dns-spf-dmarc",
+          "resource_id": null,
+          "tool": "check_spf_dmarc",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "dns-over-https"
+          ],
+          "state": "planned",
+          "input_map": {
+            "domain": "{{input.domain}}"
+          }
+        }
+      ]
+    },
+    {
+      "slot": "tls",
+      "contract": "tls.certificate.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "agentcon",
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "agent_id": "tls-certificate",
+          "resource_id": null,
+          "tool": "check_tls_certificate",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "tls"
+          ],
+          "state": "planned",
+          "input_map": {
+            "domain": "{{input.domain}}"
+          }
+        }
+      ]
+    },
+    {
+      "slot": "crawlers",
+      "contract": "website.ai_readiness.v1",
+      "required": false,
+      "fanout": 1,
+      "chain": [
         {
           "kind": "external",
           "read_only_hint": true,
@@ -138,7 +191,7 @@
       ]
     }
   ],
-  "notes": "v1 candidate (100-necklace plan 7-2, workflow 11-15). Leads are verified pearls 52559 (domain.lookup, RDAP) and 132732 (website.ai_readiness, xfix.ai); both passed the relay check at 11:41-11:46. 132732 answered in 12.6 s through the relay, so the crawlers slot gets the whole 5 s budget and may need a longer one after the tuning round. Fallbacks rdap-domain and site-readiness are planned until ops approves them. The task is graded whole (retest.grade_site_task): the RDAP registration date and a crawler verdict that agrees with robots.txt read when the case is graded. 11-15 (agent team terms check): 132732's terms prohibit a competing audit product, so it never runs and our own site-readiness leads the crawlers slot once ops approves it as a substitute.",
+  "notes": "v1 candidate (100-necklace plan 7-2, workflow 11-15). Leads are verified pearls 52559 (domain.lookup, RDAP) and 132732 (website.ai_readiness, xfix.ai); both passed the relay check at 11:41-11:46. 132732 answered in 12.6 s through the relay, so the crawlers slot gets the whole 5 s budget and may need a longer one after the tuning round. Fallbacks rdap-domain and site-readiness are planned until ops approves them. The task is graded whole (retest.grade_site_task): the RDAP registration date and a crawler verdict that agrees with robots.txt read when the case is graded. 11-15 (agent team terms check): 132732's terms prohibit a competing audit product, so it never runs and our own site-readiness leads the crawlers slot once ops approves it as a substitute. v2 draft, workflow 11-16 (PM 17:5x item 3: domain and website check, our queries DNS and mail auth 7 clients, uptime 10; reports/necklace-3slot-designs-2026-11-15 section 1). Required: registration, mail_auth, tls, reachability (four roles, one stage, in parallel). crawlers becomes optional (132732's terms prohibit our use, 267572 is provisional). mail_auth lead 39800 (oti-labs.com, 80 on 11-16, one report: provisional, terms check pending); dns-spf-dmarc, tls-certificate and site-reachability are the agent team's substitutes (site-reachability and dns-spf-dmarc have no code yet). The v1 task grader (retest.grade_site_task) reads registration and crawlers; v2 needs a grader for the four required steps before the gate. Not in definitions/ before the topic and company verdicts. Candidate (pearl window 11-16 20:12, terms not judged yet, NOT in the chain): tls step, tls.certificate.v1 114379 (80) — prohibits (158b2b0b), not to be used. v2 (PM 11-17, first after topic: 25 outside visitors asked us for SPF/DKIM checks in 30 days): required steps registration, mail_auth and tls (a certificate read also shows the site answers on 443; the reachability step of the 11-16 draft is out because site.reachability.v1 is not on the dev branch); crawlers optional, 132732 out (terms prohibit). Answer set website-trust-brief-v2 (gold_domains_v2: holdout-r3, holdout-r4).",
   "min_pearls_answered": 2,
   "probe_input": {
     "domain": "python.org"

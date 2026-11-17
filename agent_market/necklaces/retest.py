@@ -660,17 +660,103 @@ def grade_crawlers(case, slot_out, now: float | None = None, reference: str | No
     return said_blocked or said_allowed
 
 
+# ---- website-trust-brief v2 (PM 11-17): SPF/DMARC frozen in the case (gold_domains_v2), the certificate read
+# when the case is graded (ten-minute cache, shared ledger as reference_checks); a certificate read also shows the
+# site answers on 443, so v2 has no separate reachability step (site.reachability.v1 is not on the dev branch)
+_TLS_REFERENCE: dict = {}
+NO_RECORD = {"spf": re.compile(r"no\W+(published\W+)?spf|spf\W+(record\W+)?(is\W+)?(missing|not\W+(found|published|set))"),
+             "dmarc": re.compile(r"no\W+(published\W+)?dmarc|dmarc\W+(record\W+)?(is\W+)?(missing|not\W+(found|published|set))")}
+
+
+def grade_mail_auth(case, slot_out) -> bool:
+    """The SPF and DMARC records frozen right before the round (an independent resolver): each quoted (whitespace and
+    case loose, first two records), or its absence stated (as the dns-spf-dmarc gate judges, agent team 11-17)."""
+    if not slot_out:
+        return False
+    text = " ".join(_text(slot_out).split())
+    for key in ("spf", "dmarc"):
+        records = case["truth"].get(key) or []
+        if records:
+            if not all(" ".join(r.split()).lower() in text for r in records[:2]):
+                return False
+        elif not NO_RECORD[key].search(text):
+            return False
+    return True
+
+
+def _cert_facts(domain: str):
+    """(not_after ISO day, issuer organisation) of the domain's certificate as a normal client sees it; None."""
+    import socket
+    import ssl
+    from datetime import datetime
+    from ..provider_budget import note, reserve
+    url = f"https://{domain}/"
+    ok, _why = reserve(url, "reference_checks")
+    if not ok:
+        return None
+    try:
+        from ..broker.discovery import check_public_url
+        check_public_url(url)
+        with socket.create_connection((domain, 443), timeout=10) as raw:
+            with ssl.create_default_context().wrap_socket(raw, server_hostname=domain) as tls:
+                cert = tls.getpeercert()
+        note(url, "reference_checks", 200, evidence="provider_http")
+    except Exception:                                     # noqa: BLE001 - unreadable: the case is not graded
+        return None
+    issuer = dict(x[0] for x in cert.get("issuer") or [] if x)
+    day = datetime.strptime(cert["notAfter"], "%b %d %H:%M:%S %Y %Z").date().isoformat()
+    return day, issuer.get("organizationName") or ""
+
+
+def tls_reference(domain: str, now: float | None = None, get=_cert_facts):
+    now = time.time() if now is None else now
+    key = (domain, int(now // REFERENCE_SECONDS))
+    if key not in _TLS_REFERENCE:
+        if len(_TLS_REFERENCE) > 500:
+            _TLS_REFERENCE.clear()
+        _TLS_REFERENCE[key] = get(domain)
+    return _TLS_REFERENCE[key]
+
+
+def grade_tls(case, slot_out, now: float | None = None, reference=None) -> bool:
+    """The certificate's expiry day (one day of slack) or its issuer organisation, as a client sees it now."""
+    from datetime import date, timedelta
+    if not slot_out:
+        return False
+    facts = reference or tls_reference(case["truth"]["domain"], now)
+    if not facts:
+        return False
+    day, issuer = facts
+    text = _text(slot_out)
+    expiry = date.fromisoformat(day)
+    if any(str(expiry + timedelta(days=d)) in text for d in (-1, 0, 1)):
+        return True
+    words = [w for w in re.findall(r"[a-z0-9]+", issuer.lower()) if len(w) > 2 and w not in ("inc", "llc", "ltd")]
+    return bool(words) and words[0] in text
+
+
 def grade_site_task(case, output) -> bool:
-    """website-trust-brief as one task, for the necklace and every single member alike: the registration date and a
-    crawler verdict. A domain lookup says nothing about crawlers; a readiness check gives no registration date."""
+    """website-trust-brief as one task, for the necklace and every single member alike.
+    v1 case: the registration date and a crawler verdict (a domain lookup says nothing about crawlers; a readiness
+    check gives no registration date). v2 case (truth carries spf and dmarc, gold_domains_v2): the registration date,
+    SPF and DMARC, and the certificate; crawlers are an optional step and not graded."""
     output = output or {}
-    registration_part = output.get("registration") if "registration" in output else output
-    crawlers_part = output.get("crawlers") if "crawlers" in output else output
-    return grade_registration(case, registration_part) and grade_crawlers(case, crawlers_part)
+
+    def part(name):
+        return output.get(name) if name in output else output
+    if "spf" in (case.get("truth") or {}):
+        return (grade_registration(case, part("registration")) and grade_mail_auth(case, part("mail_auth"))
+                and grade_tls(case, part("tls")))
+    return grade_registration(case, part("registration")) and grade_crawlers(case, part("crawlers"))
 
 
 def site_excluded(case, now: float | None = None) -> str | None:
-    return None if robots_reference(case["truth"]["domain"], now) is not None else "reference_unavailable"
+    domain = case["truth"]["domain"]
+    if "spf" in (case.get("truth") or {}):            # v2: the live references the grader needs
+        if tls_reference(domain, now) is None:
+            return "reference_unavailable"
+        return None
+    return None if robots_reference(domain, now) is not None else "reference_unavailable"
 
 
 # ---------------------------------------------------------------- holidays-at-address (workflow 11-15)
@@ -701,6 +787,8 @@ def grade_holidays_task(case, output) -> bool:
 GRADERS["holidays"] = grade_holidays
 GRADERS["registration"] = grade_registration
 GRADERS["crawlers"] = grade_crawlers
+GRADERS["mail_auth"] = grade_mail_auth
+GRADERS["tls"] = grade_tls
 TASK_EXCLUDE["website-trust-brief"] = site_excluded
 
 TASK_GRADERS = {"company-due-diligence": grade_company_task, "quakes-near-address": grade_quakes_task,
@@ -722,7 +810,7 @@ def grade_topic_task(case, output) -> bool:
 SINGLE_TASK_GRADERS = {"topic-evidence-brief": grade_topic_task}
 CONTRAST["holidays-at-address"] = "holidays"
 CONTRAST["book-author-brief"] = "author"
-CONTRAST["website-trust-brief"] = "crawlers"
+CONTRAST["website-trust-brief"] = "mail_auth"     # v2 (PM 11-17): the seat our asks show demand for; v1 had "crawlers"
 
 
 def grade(defn: dict, case: dict, output: dict) -> dict:
