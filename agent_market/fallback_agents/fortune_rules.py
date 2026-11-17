@@ -75,7 +75,9 @@ def reading(*, sign: str | None, element: str | None, moon_sign: str, moon_eleme
         parts.append(f"Colour of the day: {COLOURS[today_element]} ({today_element}, today's stem element).")
     if hour_pillar_given is False:
         # the gate's NO_HOUR reads "no hour pillar"; PM 11-17 asks for "hour pillar not given"
-        parts.append("No hour pillar is used: hour pillar not given (no birth hour), so the reading uses three pillars.")
+        # no "(no birth hour)": an outside saju member is never sent the birth hour (PM, workflow fb003f35), so the
+        # hour pillar can be missing although the user gave one
+        parts.append("No hour pillar is used: hour pillar not given, so the reading uses three pillars.")
     parts.append("Dates follow the Korean lunar calendar (KASI rules) and Korea standard time.")
     text = " ".join(parts)
     headline = f"{today}: " + (", ".join(head) if head else "a quiet day")
