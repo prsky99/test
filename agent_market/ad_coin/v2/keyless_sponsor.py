@@ -9,10 +9,11 @@ Three calls, with a review in between:
    (approved at once when its checks pass, held for a person otherwise), a Sponsored-only campaign with the agent
    offer, and a review request. The read key is returned once and never stored, not even as a hash: whoever presents
    it derives the same principal id, which is compared in constant time with the applicant recorded in the audit log.
-2. status(): in review, rejected (with the reason) or approved. Once the review passed, the first read approves the
-   campaign's 2-atom marker budget for the buyer (the order itself is the buyer's approval: it names the day or the
-   budget) and quotes it with the shared payment engine: PaidBookings.quote for one day, PaidPlans for a budget. Later
-   reads return the same open quote; a new one is made only after the previous one expired unpaid.
+2. status(): in review, rejected (with the reason) or approved. Once the review passed, the first read starts the
+   campaign's platform-covered 2-atom display budget through start_display_budget (an in-process system principal,
+   no fresh human challenge, nothing answered on the buyer's behalf) and quotes it with the shared payment engine:
+   PaidBookings.quote for one day, PaidPlans for a budget. Later and concurrent reads return the same open quote (one
+   advisory lock per order); a new one is made only after the previous one expired unpaid.
 3. pay(): the transaction hash goes to the existing submit path (exact amount, Base USDC, sanctions, KRW record).
 
 No contact data, no account, no balance, no custody: the server only receives USDC at its one address and holds no
@@ -26,7 +27,7 @@ import os
 import secrets
 import threading
 import time
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from .contracts import ContractError
 from .identity import Kind, Principal
@@ -35,6 +36,9 @@ from .security_guards import AuditLogger
 
 ORDER_EVENT = "keyless_offer_submitted"
 CAMPAIGN_EVENT = "keyless_campaign_created"
+BUDGET_EVENT = "keyless_budget_started"
+SYSTEM_PRINCIPAL = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/keyless-display-budget"))
+SYSTEM_OWNER = str(uuid5(NAMESPACE_URL, "https://agentconcierge.biz/ad-coin/keyless-display-budget/owner"))
 LIMIT_ENV = "AD_COIN_KEYLESS_ORDERS_PER_IP_DAY"
 DEFAULT_LIMIT_PER_IP_DAY = 5
 PRINCIPAL_LABEL, OWNER_LABEL = "adc2-keyless-principal:", "adc2-keyless-owner:"
@@ -330,41 +334,90 @@ class KeylessSponsor:
         if campaign["state"] == "eligible":
             if not write:
                 return {**base, "state": "approved", "quote": None, "quote_error": "retry_without_early_data"}
-            self._approve_and_start(principal, campaign_id, approved=campaign["approval_status"] == "approved")
-        quote = self._open_quote(order_id, campaign_id, order)
-        if quote is None and write:
             try:
-                quote = self._new_quote(order_id, campaign_id, order)
+                self.start_display_budget(campaign_id, order_id)
             except ContractError as exc:
                 return {**base, "state": "approved", "quote": None, "quote_error": exc.code}
-        if quote is None:
-            return {**base, "state": "approved", "quote": None, "quote_error": "retry_without_early_data"}
+        if not write:
+            quote = self._open_quote(order_id, campaign_id, order)
+            if quote is None:
+                return {**base, "state": "approved", "quote": None, "quote_error": "retry_without_early_data"}
+            return {**base, "state": "approved", "quote": quote, "note": PAY_NOTE}
+        try:
+            quote = self._quote_once(order_id, campaign_id, order)
+        except ContractError as exc:
+            return {**base, "state": "approved", "quote": None, "quote_error": exc.code}
         return {**base, "state": "approved", "quote": quote, "note": PAY_NOTE}
 
-    def _approve_and_start(self, principal, campaign_id, *, approved=False):
-        """The buyer's order names the day or the budget, so it is their approval of the campaign's 2-atom marker
-        budget (covered by the platform); the same approval and activation path a signed-in advertiser uses."""
-        from .commercial import etag
-        from .contracts import canonical_bytes
+    def _quote_once(self, order_id, campaign_id, order):
+        """The order's open quote, or a new one: one transaction holds the order's advisory lock while it re-reads the
+        open quotes and quotes, so concurrent reads of one approved order leave exactly one open quote."""
         with self.store.atomic():
-            view = self.commercial._campaign_view(self.store.one("campaign_get", (campaign_id,)))
-        params = {"advertiser_id": view["advertiser_id"], "campaign_id": campaign_id}
-        if approved:     # approved earlier, activation did not finish: activate only
-            self._write("activateCampaign", principal, {"revision_hash": view["revision_hash"]}, params=params,
-                        if_match=etag(view))
-            return
-        intended = self.commercial.contract.parse(
-            "approveCampaign", canonical_bytes({"revision_hash": view["revision_hash"],
-                                                "fresh_action_id": str(uuid4()), "fresh_action_proof": "p" * 43}),
-            path_parameters=params, if_match=etag(view))
-        challenge = self._write("createHumanChallenge", principal, {
-            "action": "approve_campaign", "target_id": campaign_id, "target_revision_hash": view["revision_hash"],
-            "request_digest": intended.semantic_digest})
-        approved = self._write("approveCampaign", principal, {
-            "revision_hash": view["revision_hash"], "fresh_action_id": challenge["fresh_action_id"],
-            "fresh_action_proof": challenge["proof_challenge"]}, params=params, if_match=etag(view))
-        self._write("activateCampaign", principal, {"revision_hash": approved["revision_hash"]}, params=params,
-                    if_match=etag(approved))
+            self.store.lock("keyless_quote:" + campaign_id)
+            quote = self._open_quote(order_id, campaign_id, order)
+            return quote if quote is not None else self._new_quote(order_id, campaign_id, order)
+
+    # ---- the platform display budget --------------------------------------------------------------------------
+    def system_principal(self):
+        """The in-process principal that starts keyless display budgets: a fixed id, no session, no token, no
+        capability; it exists only to name the actor in the audit log (modelled on auto_review.principal)."""
+        self.access.provision_principal(SYSTEM_PRINCIPAL, Kind.HUMAN, owner_id=SYSTEM_OWNER, capabilities=frozenset())
+        return SYSTEM_PRINCIPAL
+
+    def start_display_budget(self, campaign_id, order_id):
+        """Approves and activates a keyless order's display-only campaign, and nothing else.
+
+        A keyless buyer has no person to answer a fresh human challenge, and the server must not answer one for
+        them. This path needs none: it starts only a campaign that this order created (its keyless_campaign_created
+        record) whose budget is the 2-atom display marker the platform covers (Commercial._cover_sponsored_marker),
+        after its review passed. It funds the marker and opens the budget window exactly as activation does, writes
+        no approval or fresh-action row (a display-only campaign is never offered for rewarded views, which need
+        one), and logs keyless_budget_started once. Paid placements still need a confirmed USDC payment."""
+        from .commercial import SPONSORED_MARKER_ATOMS
+        from .ledger import MODEL_ASSET, identifier
+        campaign_id, order_id = identifier(campaign_id), identifier(order_id)
+        system = self.system_principal()
+        commercial, store = self.commercial, self.store
+        with store.atomic():
+            store.lock("2:campaign:" + campaign_id, "keyless_budget:" + campaign_id)
+            if self._order(order_id) is None or self._campaign_id(order_id) != campaign_id:
+                raise ContractError("not_a_keyless_campaign", 409)
+            campaign = commercial._campaign(campaign_id, True)
+            if campaign["advertiser_id"] != order_id:
+                raise ContractError("not_a_keyless_campaign", 409)
+            revision = store.one("revision_get", (campaign["current_revision_id"],))
+            if any(int(revision[k]) != SPONSORED_MARKER_ATOMS for k in ("total_atoms", "daily_atoms", "gross_atoms")):
+                raise ContractError("not_a_display_marker_budget", 409)
+            if (campaign["state"], campaign["approval_status"]) == ("active", "approved"):
+                return False                                   # started already (a concurrent read did it)
+            now_ms = int(commercial.clock_ms())
+            review = store.one("review_latest", (campaign["current_revision_id"],))
+            advertiser = store.one("advertiser_get", (campaign["advertiser_id"],))
+            if (campaign["state"] != "eligible" or campaign["approval_status"] != "unapproved" or campaign["funded"]
+                    or not review or review["state"] != "eligible" or revision["ends_ms"] <= now_ms
+                    or advertiser is None or advertiser["status"] != "active"):
+                raise ContractError("campaign_not_startable", 409)
+            if not store.one("commercial_control_locked")["model_activation_enabled"]:
+                raise ContractError("model_activation_disabled", 503)
+            source = commercial.ledger.account(advertiser["available_account"])
+            target = commercial.ledger.account(campaign["account_id"])
+            if (source["owner_id"], source["purpose"], source["asset_id"]) != (advertiser["id"], "advertiser_available", MODEL_ASSET) \
+                    or (target["owner_id"], target["purpose"], target["asset_id"]) != (advertiser["id"], "campaign_available", MODEL_ASSET):
+                raise ContractError("campaign_funding_account_mismatch", 503)
+            commercial._cover_sponsored_marker(advertiser, campaign, revision)
+            commercial.ledger.post("campaign_funding:" + campaign_id + ":" + MODEL_ASSET,
+                                   [(advertiser["available_account"], str(-int(revision["total_atoms"]))),
+                                    (campaign["account_id"], str(revision["total_atoms"]))], kind="campaign_funding")
+            window_id = commercial.budgets.create_window(campaign["account_id"], "total", revision["starts_ms"],
+                                                         revision["ends_ms"], str(revision["total_atoms"]))
+            commercial._update(campaign, state="active", approval_status="approved", funded=1,
+                               total_window_id=window_id, dispatch_epoch=campaign["dispatch_epoch"] + 1)
+            commercial.outbox.enqueue("report-plan:" + campaign_id, {"environment": "model",
+                                                                     "event": "report_plan_requested",
+                                                                     "campaign_id": campaign_id}, available_ms=0)
+            AuditLogger.log(store, BUDGET_EVENT, "succeeded", actor_principal_id=system, target_id=campaign_id,
+                            details={"order_id": order_id, "budget_atoms": str(revision["total_atoms"])})
+        return True
 
     def _open_quote(self, order_id, campaign_id, order):
         """The order's current quote: open, being confirmed or settled. An expired unpaid one does not count."""

@@ -271,3 +271,126 @@ def test_an_idempotency_key_is_refused_so_no_layer_keeps_the_read_key(shop):
                         headers={'Idempotency-Key': 'retry-0000000001'})
     assert refused.status_code == 422 and refused.json()['error']['code'] == 'idempotency_key_not_supported'
     assert 'read_key' not in refused.text
+
+
+def count(store, sql):
+    return len(rows(store, sql))
+
+
+def budget_events(store):
+    return rows(store, "SELECT actor_principal_id,target_id,details_json FROM adc2_audit_log "
+                       "WHERE event_type='" + keyless.BUDGET_EVENT + "'")
+
+
+def test_the_display_budget_starts_without_any_human_challenge_and_once(shop):
+    created = order(shop).json()
+    order_id, key = created['order_id'], created['read_key']
+    review(shop, order_id)
+    for _ in range(3):
+        assert status(shop, order_id, key).json()['quote']['state'] == 'quoted'
+    assert count(shop.store, 'SELECT id FROM adc2_fresh_actions') == 0          # no challenge made or answered
+    assert count(shop.store, 'SELECT id FROM adc2_approvals') == 0
+    started = budget_events(shop.store)
+    campaign_id = shop.sponsor._campaign_id(order_id)
+    assert len(started) == 1 and started[0]['target_id'] == campaign_id
+    assert started[0]['actor_principal_id'] == keyless.SYSTEM_PRINCIPAL
+    assert json.loads(started[0]['details_json']) == {'order_id': order_id, 'budget_atoms': '2'}
+    assert shop.sponsor.start_display_budget(campaign_id, order_id) is False   # already started: nothing more
+    assert len(budget_events(shop.store)) == 1
+
+
+def test_the_display_budget_path_refuses_other_campaigns(shop):
+    from agent_market.ad_coin.v2 import advertiser_applications as applications
+    from agent_market.ad_coin.v2.access import HUMAN_CAPABILITIES
+    from agent_market.ad_coin.v2.commercial import date_text
+    from agent_market.ad_coin.v2.contracts import MODEL_ASSET, ContractError
+    from agent_market.ad_coin.v2.identity import Kind
+    first, second = order(shop).json(), order(shop, name='Other Research Agent').json()
+    for created in (first, second):
+        review(shop, created['order_id'])
+    first_campaign = shop.sponsor._campaign_id(first['order_id'])
+    with pytest.raises(ContractError) as other_order:                 # another order's campaign
+        shop.sponsor.start_display_budget(first_campaign, second['order_id'])
+    assert other_order.value.code == 'not_a_keyless_campaign'
+    # an ordinary signed-in advertiser's 2-atom campaign is never started by this path
+    sponsor = shop.sponsor
+    pid, owner = sponsor._ids('site-person-' + 'z' * 40)
+    sponsor.access.provision_principal(pid, Kind.HUMAN, owner_id=owner, capabilities=HUMAN_CAPABILITIES)
+    person = sponsor._principal(pid, owner)
+    advertiser = applications.apply(sponsor.access, person, display_name='Plain Advertiser',
+                                    website_url='https://plain.example/', check_url=lambda u: None)['application_id']
+    now = int(time.time() * 1000)
+    made = sponsor._write('createCampaign', person, {
+        'name': 'Plain Advertiser', 'asset_id': MODEL_ASSET, 'total_budget_atoms': '2', 'daily_budget_atoms': '2',
+        'gross_p1_atoms': '2', 'budget_timezone': 'UTC', 'starts_at': date_text(now),
+        'ends_at': date_text(now + 5 * DAY_MS), 'task_categories': ['research'], 'regions': ['US'],
+        'creative_text': GOOD['text'], 'min_exposure_ms': 15000, 'split_policy_id': 'default_v5',
+        'renderer_profile': 'platform_text_v1'}, params={'advertiser_id': advertiser})
+    for order_id in (advertiser, first['order_id']):
+        with pytest.raises(ContractError) as not_keyless:
+            sponsor.start_display_budget(made['id'], order_id)
+        assert not_keyless.value.code == 'not_a_keyless_campaign'
+    assert budget_events(shop.store) == []
+
+
+def test_the_display_budget_path_refuses_any_budget_but_the_marker(shop, monkeypatch):
+    from agent_market.ad_coin.v2.contracts import ContractError
+    monkeypatch.setattr(keyless, 'MARKER_ATOMS', '3')                  # a keyless campaign with a 3-atom budget
+    created = order(shop).json()
+    review(shop, created['order_id'])
+    campaign_id = shop.sponsor._campaign_id(created['order_id'])
+    with pytest.raises(ContractError) as error:
+        shop.sponsor.start_display_budget(campaign_id, created['order_id'])
+    assert error.value.code == 'not_a_display_marker_budget'
+    answer = status(shop, created['order_id'], created['read_key']).json()
+    assert answer['quote'] is None and answer['quote_error'] == 'not_a_display_marker_budget'
+    assert rows(shop.store, 'SELECT state,approval_status FROM adc2_campaigns')[0] == {
+        'state': 'eligible', 'approval_status': 'unapproved'}
+    assert budget_events(shop.store) == []
+
+
+@pytest.mark.parametrize('extra', [{}, {'day': None, 'budget_usdc': '10'}])
+def test_concurrent_reads_leave_exactly_one_open_quote(shop, extra):
+    from concurrent.futures import ThreadPoolExecutor
+    created = order(shop, **extra).json()
+    order_id, key = created['order_id'], created['read_key']
+    review(shop, order_id)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        answers = list(pool.map(lambda _: shop.sponsor.status(order_id, key), range(4)))
+    assert len({answer['quote']['quote_id'] for answer in answers}) == 1, answers
+    table = 'adc2_paid_plans' if extra else 'adc2_paid_bookings'
+    assert count(shop.store, 'SELECT id FROM ' + table) == 1
+    assert len(budget_events(shop.store)) == 1
+
+
+def test_a_cookieless_agent_post_passes_the_frontend_security_layers(shop, tmp_path, monkeypatch):
+    """A local copy of the public frontend app (every middleware and pre-route check of create_front_app) with the
+    keyless routes placed where the live v2 router sits: an outside agent's POST with no cookie, Origin or Referer."""
+    from agent_market.concierge.front import Front, clear_front_caches, create_front_app
+    from agent_market.gateway.store import Store
+    from agent_market.ad_coin.v2.keyless_sponsor_http import router_for
+    monkeypatch.setenv(paid.ENABLED_ENV, '1')
+    app_store = Store(str(tmp_path / 'front.db'))
+    clear_front_caches()
+    front = Front(app_store)
+    app = create_front_app(front, manage_book_lifecycle=False)
+    app.router.routes[0:0] = router_for(shop.sponsor).routes          # ahead of any catch-all route
+    client = TestClient(app)
+    agent = {'User-Agent': 'python-httpx/0.27 (autonomous agent)', 'Content-Type': 'application/json'}
+    try:
+        created = client.post('/api/ad-coin/v2/sponsor', content=json.dumps({**GOOD, 'day': tomorrow()}), headers=agent)
+        assert created.status_code == 201, (created.status_code, created.text)
+        body = created.json()
+        assert 'set-cookie' not in created.headers and body['state'] == 'in_review'
+        read = client.get(body['status_url'], headers={**agent, 'X-Read-Key': body['read_key']})
+        assert read.status_code == 200 and read.json()['state'] == 'in_review'
+        wrong = client.post(body['status_url'] + '/payment', content=json.dumps({'tx_hash': '0x' + '1' * 64}),
+                            headers={**agent, 'X-Read-Key': 'w' * 43})
+        assert wrong.status_code == 404 and wrong.json()['error']['code'] == 'unknown_order'
+        early = client.post('/api/ad-coin/v2/sponsor', content=json.dumps({**GOOD, 'day': tomorrow()}),
+                            headers={**agent, 'Early-Data': '1'})
+        assert early.status_code == 425
+    finally:
+        client.close()
+        front.book.close()
+        app_store._db.close()
