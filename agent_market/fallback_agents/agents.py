@@ -727,22 +727,11 @@ class FallbackAgents:
                        key=lambda p: p.get("index", 99))
         asked = title_words(title)
         usable = [p for p in pages if "disambiguation" not in (p.get("pageprops") or {}) and p.get("extract")]
-        # the same title up to case and punctuation first ("DEXCOM" -> "Dexcom", never "Dexcom CGM"); then a title
-        # whose extra words are all legal forms ("CBRE" -> "CBRE Group", "SCHOLASTIC" -> "Scholastic Corporation",
-        # PM 11-16 B); any other extra word ("Nope (band)", "X Records", a place) is another subject: not_found
+        # only the same title up to case and punctuation ("DEXCOM" -> "Dexcom", never "Dexcom CGM"); a title with
+        # more words ("Nope (band)", "X Records") is another subject (PM 11-16), so it stays not_found
         for page in usable:
             if title_words(str(page.get("title") or "")) == asked:
                 return page
-        for page in usable:
-            found = title_words(str(page.get("title") or ""))
-            extra = found[:]
-            for word in asked:
-                if word not in extra:
-                    break
-                extra.remove(word)
-            else:
-                if extra and found[:len(asked)] == asked and all(w in LEGAL_FORM_WORDS for w in extra):
-                    return page
         return None
 
     def _arxiv_search(self, args, remaining):
@@ -2275,11 +2264,6 @@ STREET_TYPES = {"avenue": "ave", "ave": "ave", "av": "ave", "street": "st", "st"
 
 
 ZIP = re.compile(r"\b(\d{5})(?:-\d{4})?\b")
-
-
-# Words a company's article title may add to its common name ("CBRE Group", "Scholastic Corporation"); nothing else.
-LEGAL_FORM_WORDS = frozenset("group corporation corp company co inc incorporated holdings holding plc ltd limited llc "
-                             "lp sa ag nv se".split())
 
 
 def title_words(title: str) -> list[str]:
