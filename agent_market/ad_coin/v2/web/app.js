@@ -380,7 +380,7 @@
     p.textContent='Times your Sponsored placement was shown in the last '+report.days+' days: Explore '+report.totals.explore+', Chat '+report.totals.chat+(agents?', agent answers '+agents:'')+'. These are showings only; we never count people.';
     const list=document.createElement('ul');list.className='stack';
     for (const row of report.rows) {const li=document.createElement('li');const name=document.createElement('strong');
-      name.textContent=row.day+' · '+({chat:'Chat',mcp:'Agent answers (MCP)',a2a:'Agent answers (A2A)'}[row.placement]||'Explore');
+      name.textContent=row.day+' · '+({chat:'Chat',mcp:'Agent answers',a2a:'Agent answers'}[row.placement]||'Explore');
       li.append(name,document.createTextNode(': shown '+row.served+' times. '+(row.campaign||'Campaign')+', '+row.task_category+', '+row.region+'.'));list.append(li);}
     card.append(list);return card;
   }
