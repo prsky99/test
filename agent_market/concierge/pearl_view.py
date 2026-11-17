@@ -265,6 +265,11 @@ def bundled(value):
 # 15 min went EXPIRED and the visitor waited for the origin (user_slo 18:04: 3/3 EXPIRED, 1.06-2.25 s). Within a day
 # the edge now answers UPDATING at once. Old copies name old assets, which earlier releases and panels-cache keep.
 PUBLIC_PAGE_CACHE = 'public, max-age=300, stale-while-revalidate=86400'
+# PM 11-18 06:40: the public page shells (live, notice) are the same bytes for everyone, and the hourly full check (every two
+# hours, same pages) met an expired copy at the edge 24 of 46 times (EXPIRED/REVALIDATED, 1.0-5.0 s) because the edge kept them
+# only the 300 s of Cache-Control. Cloudflare-CDN-Cache-Control gives the edge six hours (plus the stale day), as the growth
+# pages have had since 11-14; browsers keep five minutes. Old copies name old assets, which earlier releases keep (R07).
+PUBLIC_PAGE_EDGE = 'public, max-age=21600, stale-while-revalidate=86400'
 # 11-13 PM 20:5x: the notice pages are the same bytes for every visitor too, but were no-store (DYNAMIC: every visit
 # went LAX -> tunnel -> this Mac; disclosures 6.68 s at 18:31). They get the live pages' cache unless the request
 # carries a cookie or credentials. They stay noindex as before (reports/page-body-time-2026-11-13).
@@ -556,6 +561,8 @@ def page_response(value, *, public=False, page=None, noindex=None):
     headers = {'Content-Security-Policy': policy,
                'Cache-Control': PUBLIC_PAGE_CACHE if public else 'no-store',
                'X-Content-Type-Options': 'nosniff'}
+    if public:
+        headers['Cloudflare-CDN-Cache-Control'] = PUBLIC_PAGE_EDGE
     if (not public) if noindex is None else noindex:
         headers['X-Robots-Tag'] = 'noindex,noarchive'
     return HTMLResponse(value, headers=headers)

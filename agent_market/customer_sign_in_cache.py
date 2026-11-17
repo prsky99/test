@@ -26,7 +26,7 @@ STYLE_BLOCK = re.compile(r'<style(?: nonce="[^"]*")?>(.*?)</style>', re.S)
 NONCE_ATTR = re.compile(r' nonce="[^"]*"')
 INLINE_SCRIPT = re.compile(r'<script>(.*?)</script>', re.S)
 BROWSER_CACHE = 'public, max-age=300'
-EDGE_CACHE = 'public, max-age=3600, stale-while-revalidate=86400'
+EDGE_CACHE = 'public, max-age=21600, stale-while-revalidate=86400'  # PM 11-18 06:40: was 3600; the two-hourly check met it expired
 _css = collections.OrderedDict()
 _lock = threading.Lock()
 
