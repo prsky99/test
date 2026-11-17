@@ -199,7 +199,8 @@ def tokens_counted_section(m: dict) -> str:
         return "- 토크나이저로 센 값: 이 회차의 답 원문(results/selftest)이 없어 세지 못했습니다."
     return (f"- 토크나이저로 센 값(내부, 공개 금지; {tc['counted_by']}, {tc['cases']}건): 목걸이 답 중앙값 "
             f"{tc['necklace_answer']['median']}, 멤버 답 합계 중앙값 {tc['member_answers']['median']}. 원문이 "
-            f"{KEEP_RAW}자에서 잘린 멤버 답 {tc['member_answers_cut_estimated']}개는 글자÷4로 셌습니다. "
+            f"{KEEP_RAW}자에서 잘린 멤버 답 {tc['member_answers_cut_estimated']}개와 호출 한도·429로 못 센 글 "
+            f"{tc.get('texts_estimated_after_rate_limit_or_cap') or 0}개는 글자÷4로 셌습니다. "
             "목걸이 없이 같은 과제를 실제로 한 기록과 비교한 값은 아직 없습니다.")
 
 
@@ -308,7 +309,9 @@ def measured_tokens(root: Path, slug: str, rounds: list, counter=count_tokens) -
     counts = counter(flat)
     tokenizer = counts is not None
     if counts is None:
-        counts = [math.ceil(len(t) / 4) for t in flat]
+        counts = [None] * len(flat)
+    estimated_items = sum(c is None for c in counts)      # 429, call cap or no tokenizer: characters / 4 (PM 11-17)
+    counts = [math.ceil(len(t) / 4) if c is None else c for c, t in zip(counts, flat)]
     n_neck = counts[:len(neck)]
     rest, i, per_case = counts[len(neck):], 0, []
     for texts, est in members:
@@ -317,7 +320,7 @@ def measured_tokens(root: Path, slug: str, rounds: list, counter=count_tokens) -
     return {"cases": len(neck), "counted_by": "Anthropic count_tokens" if tokenizer else "characters / 4 (estimate)",
             "necklace_answer": {"median": statistics.median(n_neck), "p95": pct(n_neck, .95)},
             "member_answers": {"median": statistics.median(per_case), "p95": pct(per_case, .95)},
-            "member_answers_cut_estimated": cut,
+            "member_answers_cut_estimated": cut, "texts_estimated_after_rate_limit_or_cap": estimated_items if tokenizer else None,
             "note": "internal only; comparing with a real run without the necklace is not measured yet"}
 
 

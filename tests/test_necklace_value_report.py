@@ -85,3 +85,16 @@ def test_tokens_counted_by_a_tokenizer_where_the_text_is_whole_and_estimated_whe
     assert len(seen) == 60                                    # 30 answers + 30 whole member texts, the cut ones not sent
     fallback = nvr.measured_tokens(root, "s", [("r5", "20261118")], counter=lambda texts: None)
     assert fallback["counted_by"].startswith("characters / 4")
+
+
+def test_texts_the_tokenizer_could_not_count_are_estimated_and_counted(tmp_path):
+    root = tmp_path / "root"
+    write_day(root, "20261118", lines("r5"))
+    folder = root / "results" / "s"
+    folder.mkdir(parents=True)
+    rows = [{"case_id": f"c{i}", "output": {"a": "x" * 40}, "attempts": {"a": [{"raw": "y" * 100, "chars_out": 100}]}}
+            for i in range(30)]
+    (folder / "selftest-20261118.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+    half = lambda texts: [5] * 10 + [None] * (len(texts) - 10)          # a 429 after ten texts
+    counted = nvr.measured_tokens(root, "s", [("r5", "20261118")], counter=half)
+    assert counted["texts_estimated_after_rate_limit_or_cap"] == 50
