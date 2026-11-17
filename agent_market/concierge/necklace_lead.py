@@ -76,7 +76,9 @@ def arguments(entry, task):
     blank = {k: '<' + re.sub(r'[^\w-]', '_', k)[:40] + '>' for k in keys}
     known = _from_task(entry.get('slug'), task[:2000])
     out = {k: known[k] if _safe(known.get(k)) else v for k, v in blank.items()}
-    return fill(task, {'name': entry.get('slug'), 'inputSchema': schema}, out)
+    # 11-17: the free-text search fill of a Run here line (run_here_fill 'query' kind) is not certain enough for a
+    # necklace input; only its own wording above and the certain kinds fill one
+    return fill(task, {'name': entry.get('slug'), 'inputSchema': schema}, out, free_text=False)
 
 
 def lead(task, kind='mcp', base='https://agentconcierge.biz', snapshot=None, now=None):

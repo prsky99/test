@@ -147,3 +147,10 @@ def test_the_card_call_line_is_one_post_with_the_filled_arguments():
                         '"params":{"name":"academic_search","arguments":{"query":"<query>"}}}')
     provider = FastConcierge._brief({**item, 'usage_endpoint': 'https://provider.example/mcp'}, first=False).splitlines()
     assert provider[2] == 'Call: initialize → tools/list → tools/call'    # not our gateway: the provider's own steps
+
+
+def test_a_necklace_input_never_takes_the_free_text_fill():
+    task = 'find an MCP weather forecast API'
+    assert fill(task, tool('topic'), placeholders('topic')) == {'topic': 'weather forecast'}
+    assert fill(task, tool('topic'), placeholders('topic'), free_text=False) == placeholders('topic')
+    assert fill('weather in Tokyo', tool('city'), placeholders('city'), free_text=False) == {'city': 'Tokyo'}

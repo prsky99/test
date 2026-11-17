@@ -180,15 +180,16 @@ def values(task):
     return {k: v for k, v in found.items() if v}
 
 
-def fill(task, tool, arguments):
+def fill(task, tool, arguments, free_text=True):
     """ARGUMENTS with the placeholders whose value the task makes certain filled in; a new dict, the rest unchanged.
-    Returns the same arguments (equal dict) when nothing is certain."""
+    Returns the same arguments (equal dict) when nothing is certain. FREE_TEXT=False leaves free-text search arguments
+    (the 'query' kind) as placeholders: a necklace's inputs take only certain values (necklace_lead, PM 11-16 08:5x)."""
     if not isinstance(arguments, dict) or not any(isinstance(v, str) and PLACEHOLDER.match(v) for v in arguments.values()):
         return arguments
     if personal(task):
         return arguments
     found = values(task)
-    if any(_KIND_OF.get(str(name).lower()) == 'query' for name in arguments):
+    if free_text and any(_KIND_OF.get(str(name).lower()) == 'query' for name in arguments):
         # a value whose form is certain (a CVE id, a DOI, a URL, ...) is the search itself; else the task's terms
         query = next((found[kind] for kind in ('cve', 'doi', 'url', 'domain', 'ip', 'symbol') if kind in found), None) \
             or _query(task, tool)
