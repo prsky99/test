@@ -680,8 +680,27 @@ def _forms(name: str) -> set[str]:
     return {_SAME_FORM.get(w, w) for w in words if w in LEGAL_FORMS}
 
 
+def _unwrap_content(raw):
+    """An MCP content block list whose text is itself JSON (a result list or object) becomes that JSON, so each
+    search result is its own entry (C01, PM 11-17: the 11-16 company round kept five companies' articles because the
+    whole list was one text block)."""
+    if isinstance(raw, list) and raw and all(isinstance(e, dict) and e.get("type") == "text" for e in raw):
+        found = []
+        for e in raw:
+            try:
+                value = json.loads(e.get("text") or "")
+            except (ValueError, TypeError):
+                return raw
+            if not isinstance(value, (list, dict)):
+                return raw
+            found.extend(value if isinstance(value, list) else [value])
+        return found
+    return raw
+
+
 def _entries(raw) -> list[tuple[str, str]]:
     """(title, text) per entry of an answer: each dict of a result list, or the whole answer as one entry."""
+    raw = _unwrap_content(raw)
     if isinstance(raw, list):
         return [(str(e.get("title") or ""), json.dumps(e, ensure_ascii=False, default=str) if isinstance(e, dict) else str(e))
                 for e in raw]
@@ -697,10 +716,11 @@ def norm_encyclopedia(raw, values):
         return norm_generic(raw, values)
     if is_error(raw):
         return None
-    kept = [text for title, text in _entries(raw) if is_about(text, title or text[:200], values)]
+    unwrapped = _unwrap_content(raw)
+    kept = [text for title, text in _entries(unwrapped) if is_about(text, title or text[:200], values)]
     if not kept:
         return {IDENTITY_MISMATCH: True}
-    out = norm_generic(kept if isinstance(raw, list) else raw, values)
+    out = norm_generic(kept if isinstance(unwrapped, list) else raw, values)
     return dict(out, identity="matched") if out else {IDENTITY_MISMATCH: True}
 
 
