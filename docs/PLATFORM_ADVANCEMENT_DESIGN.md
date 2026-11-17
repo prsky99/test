@@ -650,6 +650,8 @@ flowchart LR
 
 `resources.url`과 수집·헬스·스키마 피닝에 필요한 원본 주소는 내부 저장소에서 유지한다. 이를 게이트웨이 주소로 덮어쓰면 수집 중복 판별, endpoint hash, 제공자 인증과 실제 호출이 깨지거나 자기 자신을 호출하는 루프가 생길 수 있다. 공개 응답은 별도 DTO로 만든다.
 
+- 예외(2026-11-18, PM 결정 (가), 사용자 위임 11-16): 우리가 중계하지 않는 카드(connection_available false: 쓰기 도구, 제공자 인증 필요, 11-19부터 약관 제한)에는 제공자의 공개 MCP 주소를 `direct_endpoint`로 준다. 그 호출은 어차피 우리를 거치지 않아, 주소를 숨기면 "직접 연결" 안내를 쓸 수 없기 때문이다. https, 공인 호스트, 자격 증명이 없는 주소만 준다. 중계하는 카드는 계속 게이트웨이 주소만 준다(`concierge/connections.direct_endpoint`).
+
 **목표 v2 계약:** 공개 식별자는 안정적인 `agent_ref`, 연결 계약은 `connection_profile`, 내부 바인딩은 `upstream_binding_id`로 구분한다. R-03의 영속 registry는 구현됐으며 기존 resource ID를 대체해 없애지 않고 stable agent ref와 함께 유지한다. stateful v2 scope는 후속이다. 논리 매핑은 `agent_ref + capability_version + policy_version → approved upstream binding`이며 공개 ref만으로 실행 권한이 생기지 않는다. 기존 숫자 resource ID의 호환 입력이 필요하면 서버에서 같은 정책으로 변환한다. opaque ID도 권한 검사·호출 한도·목록 수집 방어를 대신하지 않는다.
 
 목표 v2 공개 DTO에는 agent ref, 이름, 관련성·품질 요약, 최근 검증 시각, 공개 리포트 링크, 지원되는 게이트웨이 연결 profile만 둔다. 현재 기준선은 숫자 `id`, `kind`, 관리형 `url`/`usage_endpoint`, `connection_available`을 사용하며 demo에는 `simulated`를 명시한다. 원본 endpoint, provider credential, 내부 host/path, private Agent Card, raw auth_info, 원본 input/output wire와 관리자 진단은 제외한다. 향후 v2에서 `url` 같은 기존 필드를 유지하더라도 게이트웨이 연결임을 schema version·`connection_mode=gateway`로 명시하고 실사용 가능성을 검증한다. 이 추가 version/mode 필드는 현재 DTO에 이미 존재한다고 가정하지 않는다.
