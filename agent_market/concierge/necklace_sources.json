@@ -21,5 +21,6 @@
       ]
     },
     "_note": "Agent team 11-16 (PM decision): the met-weather step is checked against US NWS forecasts on 30 US points only; other regions are checked for form and freshness. MET Norway terms require the attribution and licence links. Gate 11-19~20; add a sources sentence when the members are known."
-  }
+  },
+  "website-trust-brief": "What each step uses (as of 2026-11-18, version 2): registration date and registrar come from RDAP (a third-party RDAP agent, or our own RDAP lookup when it fails; ours is under verification); mail authentication reads the domain's published SPF and DMARC records from DNS (a third-party agent, or our own DNS lookup); the TLS step reads the certificate the site presents (our own agent); the AI crawler check is optional. DKIM is not checked: a DKIM record can only be looked up with the sender's selector, which a domain does not publish."
 }

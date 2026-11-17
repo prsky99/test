@@ -97,3 +97,18 @@ def test_every_phrase_list_names_a_defined_necklace():
     from pathlib import Path
     defined = {json.loads(p.read_text())['slug'] for p in Path('agent_market/necklaces/definitions').glob('*.json')}
     assert set(necklace_lead.phrases()) <= defined
+
+
+@pytest.mark.parametrize('task', ['check SPF and DMARC for example.com', 'is the DMARC record of example.com set up?',
+                                  'email authentication of example.com', 'SPF/DKIM check for example.com'])
+def test_mail_authentication_tasks_lead_with_the_website_trust_brief(open_necklaces, task):
+    # workflow team 11-17: website-trust-brief v2 leads with SPF and DMARC; the domain comes from the task when certain
+    line = necklace_lead.lead(task)
+    assert line.startswith('Run now: Website trust brief') and '{"domain":"example.com"}' in line
+
+
+def test_a_dkim_only_task_gets_no_trust_line(open_necklaces):
+    # DKIM is not checked by the necklace (it needs the sender's selector), so a DKIM-only task is not offered it;
+    # SPF next to DKIM is (the answer says DKIM is not checked); 'SPF' alone is left out (sunscreen SPF 50)
+    assert necklace_lead.lead('look up the DKIM key of example.com') is None
+    assert necklace_lead.lead('best SPF 50 sunscreen') is None

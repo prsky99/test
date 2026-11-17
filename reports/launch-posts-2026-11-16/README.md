@@ -272,3 +272,57 @@ Measured: [측정 뒤 기입]. Some steps are still under verification and say s
 | Reddit r/mcp·r/AI_Agents 규칙 원문 확인 | PM이 사용자가 보는 방식(데스크톱 앱, 읽기만)으로 확인 | 이 세션 도구는 reddit.com을 읽지 못함(우회하지 않음) |
 | 모든 채널의 게시 실행 | **사용자 확인 뒤** | 외부 게시는 사용자 확인 사항 |
 | 빈칸 채우기(멤버·측정 줄·실제 호출) | 성장·유통 | 11-18 12:50 판정과 공개 주소 측정 뒤, PM에 보냄 |
+
+## 7. website-trust-brief v2 공개 (11-18 17:10·21:10 회차 통과 시 21:50, 워크플로우 11-17 전달)
+
+### 7.1 문구 기준 (워크플로우 팀 전달, 그대로 지킴)
+- 앞에 내세울 것은 메일 인증 확인이다. 근거: 우리 30일 질의 가운데 외부 방문자 25명이 SPF·DKIM 확인을 물었다.
+- 실제로 확인하는 것만 쓴다. 영어 기준 문장: "Check a domain's SPF and DMARC records, its registration and its TLS certificate in one call."
+- **DKIM은 쓰지 않는다.** "SPF, DKIM and DMARC" 금지. DKIM 레코드는 보내는 쪽의 selector를 알아야 찾을 수 있기 때문이다. 결과에도 "SPF and DMARC are checked; DKIM is not, because a DKIM record can only be looked up with the sender's selector, which a domain does not publish."가 들어간다.
+- AI 크롤러 허용 여부는 선택 자리라 답에 나오지 않을 수 있다. 글에서 약속하지 않는다.
+- 숫자(토큰 절약·속도·정확도)는 회차 원자료로 잰 값만 쓴다. 응답 시간은 "원서버 경로 시간"이라고 밝힌다. 공개 주소 기준 시간은 공개 뒤 따로 잰다.
+- 멤버(워크플로우 11-17 기준, 공개 때 판정 스냅샷으로 다시 확인)
+  - 진주는 아직 없다.
+  - 임시 멤버는 화면과 글에 그렇게 밝힌다.
+
+| 자리 | 외부 멤버 | 자체 멤버 |
+|---|---|---|
+| registration | 52559 | rdap-domain(임시) |
+| mail_auth | 39800 | dns-spf-dmarc |
+| tls | — | tls-certificate |
+
+### 7.2 이번 커밋으로 화면·답에 들어가는 것 (공개 상태일 때만)
+- 추천 답 맨 앞 줄(necklace_leads.json):
+  - 기존 문구("is this website safe" 등)에 메일 인증 문구를 더했다: "spf record", "dmarc record", "spf and dmarc", "check spf", "check dmarc", "email authentication", "spf/dkim" 등
+  - DKIM만 묻는 과제("look up the DKIM key")에는 붙이지 않는다.
+  - "spf"만 쓴 과제(선크림 SPF)에도 붙이지 않는다.
+  - 도메인은 과제에서 확실할 때만 채운다.
+- 원천 문장(necklace_sources.json): 단계별로 무엇을 읽는지와 "DKIM is not checked"를 적었다. 판정 스냅샷의 멤버가 다르면 공개 전에 고친다.
+
+### 7.3 공통 사실 (빈칸은 판정·측정 뒤)
+- `{NECKLACE}` Website trust brief / `{SLUG}` website-trust-brief / `{TOOL}` necklace_website_trust_brief / `{SKILL}` necklace-website-trust-brief
+- One line: "Check a domain's SPF and DMARC records, its registration and its TLS certificate in one call."
+- `{INPUT}`: `{"domain": "<domain>"}` (게시 당일 실제로 돌린 입력)
+- `{ANSWER}`·시간·측정 줄: [판정·측정 뒤 기입]
+- 한계: "SPF and DMARC are checked, DKIM is not (it needs the sender's selector); registration comes from RDAP; some steps are led by an agent still under verification, and the page shows which. Free for now."
+
+### 7.4 채널 초안 (영어, 게시는 사용자 확인 뒤)
+**Reddit r/mcp** (규칙 확인은 PM이 사용자 방식으로)
+```
+Title: Free MCP tool: check a domain's SPF and DMARC, registration and TLS certificate in one call
+
+I'm the maker. AgentValCon tests MCP servers and A2A agents with real read-only calls and joins the ones
+that work into "necklaces": one tool call instead of finding and merging several servers yourself.
+
+Website trust brief checks a domain's published SPF and DMARC records, when and where it was registered
+(RDAP) and the TLS certificate it presents. DKIM is not checked: a DKIM record can only be found with the
+sender's selector, which a domain does not publish.
+No key: tool `necklace_website_trust_brief` on https://agentconcierge.biz/mcp
+Input: {"domain": "<domain>"}
+Answer (first lines, today's real run): [측정 뒤 기입]
+Measured: [회차 원자료 측정 줄 그대로. 시간은 "origin path time"]
+
+Limits: some steps are led by an agent still under verification (the page shows which); free for now.
+Missing a necklace you need? https://agentconcierge.biz/necklaces/request
+```
+- Product Hunt(사용자 계정)·HN·dev.to(사용자가 직접 씀) 처리는 6.3과 같다.
