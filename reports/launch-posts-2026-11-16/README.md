@@ -234,3 +234,32 @@ Measured: [측정 뒤 기입]. Some steps are still under verification and say s
 | Product Hunt | 업보트 요청·경품 조건·대량 DM 금지, 계정 1인 1개 | 계정은 사용자, 문구는 위 초안 |
 | (모든 채널 공통, 우리 규칙) | 숫자는 실제로 잰 값만. "Measured"는 실행해 잰 값에만. 같은 실행 기록에서 계산한 값은 그렇게 밝힘. 추정·재지 않은 정확도는 쓰지 않음. 토큰은 "(text length ÷ 4)"와 함께 | 목걸이 페이지의 측정 줄을 바꾸지 않고 옮김 |
 | Lobsters | 가입 70일 안 자기 홍보 불가 | 제외 |
+
+## 6. topic v2 공개 (11-18 12:50 판정 통과 시, PM 11-17 지시)
+
+5절은 11-17 1회차 기준 문구다. 11-18에는 v2 판정 스냅샷이 정하는 것을 그대로 옮기고, 그 전에는 적지 않는다.
+
+### 6.1 판정 뒤 바로 옮길 것 (지금은 빈칸)
+| 자리 | 채우는 곳 | 지금 |
+|---|---|---|
+| 단계별 멤버와 표시(Verified pearl / Under verification / AgentValCon agent, under verification) | 공개 시점 목걸이 페이지 그대로 | [판정 뒤 기입] |
+| 임시 멤버 수와 자체 멤버 수 | 판정 스냅샷 standing·own_substitute | [판정 뒤 기입] |
+| 원천 문장("What each step uses …") | necklace_sources.json의 topic 문장. v2에서 papers 자리 순서가 바뀌었으므로(PM 11-16 18:31: arxiv-search부터) 판정 스냅샷 멤버와 문장이 맞는지 다시 확인 | [판정 뒤 확인] |
+| 측정 줄("Measured in our test runs on N cases …") | 목걸이 페이지에 줄이 생기면 그대로 | [측정 뒤 기입] |
+| 실제 호출 한 번(입력·답 첫 줄·걸린 시간) | 게시 당일, 공개 주소·새 연결로 한 번 | [측정 뒤 기입] |
+
+밝힐 것(모든 채널 공통):
+- 임시 멤버: 단계마다 "Under verification"을 그대로 보이고, 게시 글에도 "some steps are led by an agent still under verification (the page shows which)"를 넣는다.
+- 자체 멤버: AgentValCon이 만든 에이전트가 맡은 단계는 "our own agent"라고 밝힌다(페이지의 OWN_PROVISIONAL_NOTE 문구 그대로).
+- 숫자: 판정 결과와 공개 주소에서 잰 값만 쓴다. 추정과 재지 않은 정확도는 쓰지 않는다. 토큰은 "(text length ÷ 4)"와 함께만 쓴다.
+
+### 6.2 추천 답 맨 앞 목걸이 실행 줄(3안)
+- 코드: growth/necklace-open-1118(개발 브랜치 끝 위 9개)
+  - c0dc9f45 호출부: Chat·find_agents·A2A
+  - 목걸이 문구 7개(11-16)
+  - 2안 뒤따름 수정 1개
+- 켜지는 조건: 목걸이가 공개 상태(necklace_surface.live, 판정 스냅샷이 offered)일 때만 켜진다. 그 전에는 답이 바뀌지 않는다(시험 test_nothing_changes_while_no_necklace_is_open).
+- 범위: necklace_leads.json의 문구에 맞는 과제만 해당한다(논문·문헌 주제).
+- 입력: 과제에서 확실할 때만 채운다(_TOPIC 문구: "papers about X" 등). 2안의 자유 검색 채움은 목걸이 입력에 쓰지 않는다(fill free_text=False, 11-17). 그래서 "find an MCP weather forecast API"에 topic을 "weather forecast"로 넣지 않는다.
+- 목걸이 경로 파일(agent_market/necklaces/*)은 바꾸지 않았다. front·추천 쪽(concierge)만 바꿨다.
+- 배포: 11-18 낮 묶음(12:50 판정 뒤). 판정 실패면 코드는 나가도 켜지지 않는다(live가 아니므로).
