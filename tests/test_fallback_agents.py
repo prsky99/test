@@ -2834,7 +2834,9 @@ def test_answer_set_builders_fill_from_spares_and_stop_at_thirty(monkeypatch):
     cases = M.build([f"bad{i}.example" if i == 0 else f"d{i}.example" for i in range(40)], get)
     assert len(cases) == 30 and cases[0]["input"]["domain"] == "d1.example"
     assert len([n for n in asked if not n.startswith("_dmarc.")]) == 31          # one failed domain, then 30
-    assert not {"lodash", "express", "left-pad"} & set(R.SPARES) and len(R.SPARES) == len(set(R.SPARES))
+    search = {"objects": [{"package": {"name": n}} for n in ("tslib", "lodash", "typescript", "react", "tslib")]}
+    assert R.spares_from(search, R.DEV_SEEN | {"react"}) == ["tslib", "typescript"]           # ranked, once each
+    assert R.SPARE_PARAMS["popularity"] == 1.0 and R.SPARE_PARAMS["quality"] == 0.0           # popularity only
 
 
 

@@ -20,7 +20,7 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 import httpx
 
@@ -29,11 +29,18 @@ sys.path.insert(0, str(ROOT))
 SLUG = "package-risk-audit"
 # Packages read while package-readme was built (unit tests and the 11-17 real check): never in an answer set.
 DEV_SEEN = {"left-pad", "lodash", "express"}
-# Spares when the package-risk-audit splits hold too few npm packages with a GitHub README (they hold 29 in all):
-# widely used npm packages, fixed before any gate run, in this order.
-SPARES = ["react", "axios", "chalk", "commander", "debug", "dotenv", "uuid", "moment", "dayjs", "yargs", "semver",
-          "minimist", "glob", "rimraf", "mkdirp", "ws", "cors", "body-parser", "jsonwebtoken", "bcrypt", "mongoose",
-          "redux", "vue", "rxjs", "zod", "prettier", "eslint", "jest", "mocha", "typescript"]
+# Spares when the package-risk-audit splits hold too few npm packages with a GitHub README (they hold 29 in all).
+# PM 11-17: never chosen by hand. One call to the npm registry's public search, ranked by popularity only, read at
+# build time; the spares are its results in order, without packages seen in development or already in the splits.
+SPARE_SEARCH = "https://registry.npmjs.org/-/v1/search"
+SPARE_PARAMS = {"text": "keywords:javascript", "size": 100, "popularity": 1.0, "quality": 0.0, "maintenance": 0.0}
+SPARE_RULE = ("npm registry public search (keywords:javascript), weights popularity 1.0 / quality 0 / maintenance 0, "
+              "the first 100 results in their order, without packages seen in development or already in a split")
+
+
+def spares_from(search: dict, exclude: set) -> list[str]:
+    names = [((o or {}).get("package") or {}).get("name") for o in (search or {}).get("objects") or []]
+    return list(dict.fromkeys(n for n in names if isinstance(n, str) and n not in exclude))   # ranked, once each
 GITHUB = re.compile(r"github\.com[/:]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?(?:[/#?].*)?$")
 
 
@@ -82,21 +89,6 @@ def main(argv=None) -> int:
     out = folder / f"{ns.split}.jsonl"
     if out.exists():
         print(f"{out} exists; a split is never rewritten"); return 2
-    packages, origin = [], {}
-    for split in ns.source.split(","):
-        for line in (folder / f"{split}.jsonl").read_text().splitlines():
-            case = json.loads(line) if line.strip() else {}
-            inp = case.get("input") or {}
-            name = inp.get("package") or (case.get("truth") or {}).get("package")
-            if (inp.get("ecosystem") in (None, "npm")) and isinstance(name, str) and name not in packages \
-                    and name not in DEV_SEEN:
-                packages.append(name)
-                origin[name] = split
-    if not ns.no_spares:
-        for name in SPARES:
-            if name not in packages and name not in DEV_SEEN:
-                packages.append(name)
-                origin[name] = "spare"
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     client = httpx.Client(timeout=15, follow_redirects=False, headers={"User-Agent": "AgentValCon-gold/1.0"})
 
@@ -109,6 +101,26 @@ def main(argv=None) -> int:
         time.sleep(1.0)
         return r if r.status_code == 200 else None
 
+    packages, origin = [], {}
+    for split in ns.source.split(","):
+        for line in (folder / f"{split}.jsonl").read_text().splitlines():
+            case = json.loads(line) if line.strip() else {}
+            inp = case.get("input") or {}
+            name = inp.get("package") or (case.get("truth") or {}).get("package")
+            if (inp.get("ecosystem") in (None, "npm")) and isinstance(name, str) and name not in packages \
+                    and name not in DEV_SEEN:
+                packages.append(name)
+                origin[name] = split
+    spare_note = None
+    if not ns.no_spares:
+        r = fetch(SPARE_SEARCH + "?" + urlencode(SPARE_PARAMS))
+        if r is None:
+            print("the npm search for spares did not answer; not written"); return 1
+        for name in spares_from(r.json(), DEV_SEEN | set(packages)):
+            packages.append(name)
+            origin[name] = "spare"
+        spare_note = {"rule": SPARE_RULE, "url": SPARE_SEARCH + "?" + urlencode(SPARE_PARAMS),
+                      "fetched_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
     def get_latest(package):
         r = fetch("https://registry.npmjs.org/" + quote(package, safe="@") + "/latest")
         return r.json() if r is not None else None
@@ -128,6 +140,18 @@ def main(argv=None) -> int:
     by_split = {}
     for c in cases:
         by_split.setdefault(c["source_split"], []).append(c["case_id"])
+    manifest = folder / "manifest.json"
+    try:
+        data = json.loads(manifest.read_text())
+    except (OSError, ValueError):
+        data = {}
+    data.setdefault("files", {})[ns.split] = {
+        "cases": len(cases), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), "from": ns.source.split(","),
+        "for": "package-readme substitute gate (docs.readme.v1)", "spares": spare_note,
+        "spare_cases": [c["case_id"] for c in cases if c.get("source_split") == "spare"]}
+    tmp = manifest.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1))
+    tmp.replace(manifest)
     print(f"wrote {len(cases)} cases to {out} at {fetched} (from {ns.source})")
     for split, ids in by_split.items():      # the round record names the cases each split filled
         print(f"  {split}: {len(ids)} cases: {', '.join(ids)}")
