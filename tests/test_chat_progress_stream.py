@@ -46,3 +46,13 @@ def test_steps_are_silent_without_a_listener():
     assert run() == 'done' and seen[0]['step'] == 'search' and seen[0]['label'] == 'Searching active agents'
     chat_progress.step('prepare')
     assert len(seen) == 1  # the listener ends with its request
+
+
+def test_every_step_fast_chat_reports_has_a_label():
+    """11-17 142c6652 added admit/offer/no_match (and fd5cb26d place/trait) without labels: visitors saw "Working"
+    and the stream test failed in the night run (PM 11-18). Any new step needs its public label in the same change."""
+    import re
+    from pathlib import Path
+    source = Path(chat_progress.__file__).with_name('fast_chat.py').read_text()
+    used = set(re.findall(r"\bstep\('([a-z_]+)'\)", source))
+    assert used and used <= set(chat_progress.LABELS), sorted(used - set(chat_progress.LABELS))

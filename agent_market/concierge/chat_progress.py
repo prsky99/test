@@ -18,6 +18,12 @@ LABELS = {
     'relay': 'Looking for an agent our gateway can run',
     'workflows': 'Checking published workflows',
     'prepare': 'Preparing recommendations',
+    # Steps fast_chat reports since 11-17 (142c6652, fd5cb26d) that had no label, so visitors saw "Working".
+    'place': 'Searching again without the place names',
+    'trait': 'Searching again without the extra conditions',
+    'admit': 'Checking each match against your conditions',
+    'offer': 'Ordering the recommendations',
+    'no_match': 'No active agent matched; preparing what to try next',
 }
 _sink = contextvars.ContextVar('chat_progress_sink', default=None)
 
