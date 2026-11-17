@@ -60,14 +60,40 @@ def test_r6_set_takes_the_first_30_topics_with_a_non_empty_g_and_records_the_rul
     assert all("per-page=50" in u for u in calls if "openalex" in u) and all("rows=50" in u for u in calls if "crossref" in u)
 
 
-def test_r5_set_reuses_its_topics_and_wikipedia_facts_and_resumes_after_a_budget_stop(tmp_path):
+def r5_root(tmp_path, n=30):
     folder = tmp_path / "gold" / "topic-evidence-brief"
     folder.mkdir(parents=True)
     (folder / "manifest.json").write_text(json.dumps({"files": {}}))
     r5 = [{"case_id": f"topic:T{i}", "stratum": "stem", "input": {"topic": f"T{i}"},
-           "truth": {"wiki": {"title": f"T{i}"}, "papers": [], "paper_phrase": f"t{i}"}} for i in range(3)]
+           "truth": {"wiki": {"title": f"T{i}"}, "papers": [], "paper_phrase": f"t{i}"}} for i in range(n)]
     (folder / "holdout-r5.jsonl").write_text("".join(json.dumps(c) + "\n" for c in r5))
-    calls, budget = [], {"left": 3}
+    return folder
+
+
+def test_r5_set_keeps_30_cases_filling_empty_g_topics_from_its_fixed_list_and_never_shares_a_topic_with_r6(tmp_path):
+    from agent_market.necklaces.gold_topics_r6 import TOPICS as R6
+    from agent_market.necklaces.gold_topics_r7 import TOPICS as FILL
+    folder = r5_root(tmp_path)
+    empty = {"t2", "t5", "t9", R6[0][1], R6[3][1]}
+    calls = []
+    every = [t for t, _, _ in R6] + [t for t, _, _ in FILL]
+    get = fake_get(calls, lambda p: [f"10.1/{p}"], lambda p: [] if p in empty else [f"10.1/{p}"], every)
+    r5 = two.step(tmp_path, "holdout-r5-2i", get)
+    r6 = two.step(tmp_path, "holdout-r6-2i", get)
+    assert r5["written"]["cases"] == 30 and r6["written"]["cases"] == 30
+    files = json.loads((folder / "manifest.json").read_text())["files"]
+    assert files["holdout-r5-2i"]["filled_topics"] == [t for t, _, _ in FILL[:3]]     # the first three in order
+    assert files["holdout-r6-2i"]["filled_topics"] == []                               # R6 has 42, two dropped
+    ids = {s: {json.loads(x)["case_id"] for x in (folder / f"{s}.jsonl").read_text().splitlines()}
+           for s in ("holdout-r5-2i", "holdout-r6-2i")}
+    assert not ids["holdout-r5-2i"] & ids["holdout-r6-2i"]
+    assert not {t for t, _, _ in FILL[:two.FILL_AT]} & {t for t, _, _ in FILL[two.FILL_AT:]}
+    assert not {t for t, _, _ in R6} & {t for t, _, _ in FILL}
+
+
+def test_a_budget_stop_resumes_without_asking_anything_twice_and_writes_nothing_short(tmp_path):
+    r5_root(tmp_path)
+    calls, budget = [], {"left": 5}
 
     def get(url):
         if budget["left"] == 0:
@@ -76,10 +102,10 @@ def test_r5_set_reuses_its_topics_and_wikipedia_facts_and_resumes_after_a_budget
         return fake_get(calls, lambda p: [f"10.1/{p}"], lambda p: [f"10.1/{p}"])(url)
     first = two.step(tmp_path, "holdout-r5-2i", get)
     assert first["stopped"] == "system_share" and "written" not in first
-    budget["left"] = 10
+    budget["left"] = 100
     second = two.step(tmp_path, "holdout-r5-2i", get)
-    assert second["written"] == {"cases": 3, "dropped": 0}
-    assert not any("wikipedia" in u for u in calls) and len(calls) == 6      # nothing asked twice
+    assert second["written"] == {"cases": 30, "dropped": 0}
+    assert not any("wikipedia" in u for u in calls) and len(calls) == 60       # 30 topics x 2, nothing twice
 
 
 def member_answer_case(rule):
