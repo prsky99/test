@@ -309,9 +309,29 @@ def _notes(entry):
     return _SOURCES['value'].get((entry or {}).get('slug'), {}) if isinstance(entry, dict) else {}
 
 
-def sources_note(entry):
-    """The 'what each step uses' sentence for a necklace, or None."""
-    return _notes(entry).get('sources')
+MEMBER_TOKEN = re.compile(r'\{member:([0-9]{1,9})@([a-z][a-z0-9_.]*\.v[0-9]{1,3})\}')
+VERIFIED_MEMBER = 'a verified third-party agent'
+UNVERIFIED_MEMBER = 'a third-party agent under verification'
+
+
+def _member_words(match, snapshot=None):
+    """PM 11-17: a member's standing in the sentence is read from the verify snapshot when the page is drawn, never
+    fixed in necklace_sources.json; anything but verified_pearl for that agent and role reads 'under verification'."""
+    try:
+        from .check_route import load
+        agent = ((snapshot or load()).get('agents') or {}).get(match[1]) or {}
+        verified = any(isinstance(r, dict) and r.get('role') == match[2] and r.get('verified_pearl') is True
+                       for r in agent.get('roles') or [])
+    except Exception:
+        verified = False
+    return VERIFIED_MEMBER if verified else UNVERIFIED_MEMBER
+
+
+def sources_note(entry, snapshot=None):
+    """The 'what each step uses' sentence for a necklace, or None. {member:<id>@<role>} tokens are filled from the
+    verify snapshot (exports/pearls/verify-snapshot.json) at the time the page is drawn."""
+    text = _notes(entry).get('sources')
+    return MEMBER_TOKEN.sub(lambda m: _member_words(m, snapshot), text) if text else text
 
 
 def accuracy_scope(entry):

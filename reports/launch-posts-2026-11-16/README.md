@@ -300,7 +300,10 @@ Measured: [측정 뒤 기입]. Some steps are still under verification and say s
   - DKIM만 묻는 과제("look up the DKIM key")에는 붙이지 않는다.
   - "spf"만 쓴 과제(선크림 SPF)에도 붙이지 않는다.
   - 도메인은 과제에서 확실할 때만 채운다.
-- 원천 문장(necklace_sources.json): 단계별로 무엇을 읽는지("a verified third-party agent", 자체 멤버는 "under verification")와 "DKIM is not checked"를 적었다. 워크플로우 11-17 확인을 받았다. 판정 스냅샷의 멤버가 다르면 공개 전에 고친다.
+- 원천 문장(necklace_sources.json): 단계별로 무엇을 읽는지와 "DKIM is not checked"를 적었다. 워크플로우 11-17 확인을 받았다.
+  - 외부 멤버의 상태는 문장에 고정하지 않는다(PM 11-17). `{member:52559@domain.lookup.v1}`·`{member:39800@dns.mail_auth.v1}` 자리를 화면을 그릴 때 verify-snapshot에서 읽는다. 그 역할이 verified_pearl이면 "a verified third-party agent", 아니면 "a third-party agent under verification"이 된다.
+  - 11-17 11:45 스냅샷 기준으로는 둘 다 verified_pearl이다. 39800은 W1 수정과 00:30 평가기 변경(dq-2026-11-17a) 뒤 다시 채점되면 바뀔 수 있고, 그러면 문장도 저절로 따라간다.
+  - 판정 스냅샷의 멤버가 다르면 공개 전에 고친다.
 
 ### 7.3 공통 사실 (빈칸은 판정·측정 뒤)
 - `{NECKLACE}` Website trust brief / `{SLUG}` website-trust-brief / `{TOOL}` necklace_website_trust_brief / `{SKILL}` necklace-website-trust-brief
