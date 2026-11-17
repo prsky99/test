@@ -81,7 +81,7 @@ def test_the_watch_tells_a_refusal_from_a_failure(tmp_path, monkeypatch):
 def test_a_run_without_a_result_goes_to_the_board():
     lines = []
     nt.no_result({'day': '2026-11-16', 'error': 'timeout', 'seconds': 3000}, handoff=lambda k, t: lines.append((k, t)))
-    assert lines == [('night_tests_run', '밤 전체 시험 2026-11-16: 50분 시간 초과, 3000초 — 그날 밤 전체 시험 결과가 없습니다')]
+    assert lines == [('night_tests_run', f'밤 전체 시험 2026-11-16: {nt.TIMEOUT_S // 60}분 시간 초과, 3000초 — 그날 밤 전체 시험 결과가 없습니다')]
 
 
 def test_it_runs_the_working_tree_also_from_the_pinned_code_folder(tmp_path):
@@ -95,3 +95,13 @@ def test_it_runs_the_working_tree_also_from_the_pinned_code_folder(tmp_path):
     (pinned / 'gateway-data').symlink_to(repo / 'gateway-data')
     assert nt.repo_root(repo) == repo
     assert nt.repo_root(pinned) == repo.resolve()
+
+
+def test_the_limit_is_90_minutes_and_the_slowest_table_is_read():
+    """PM 11-17 night: 50 min timed out three nights running; --durations=30 shows what takes the time."""
+    assert nt.TIMEOUT_S == 90 * 60 and nt.INTERRUPT_GRACE_S == 120
+    lines = ['.....', '============================= slowest 30 durations =============================',
+             '12.31s call     tests/test_a.py::test_x', '3.02s setup    tests/test_b.py::test_y', '',
+             '(28 durations < 0.005s hidden.  Use -vv to show these durations.)', '=== 5 passed in 20s ===']
+    assert nt.slowest_tests(lines) == ['12.31s call     tests/test_a.py::test_x', '3.02s setup    tests/test_b.py::test_y']
+    assert nt.slowest_tests(['=== 1 passed ===']) == []

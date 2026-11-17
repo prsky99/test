@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -45,7 +46,8 @@ ROOT = repo_root()
 OUT = ROOT / 'logs/ops/night-tests'
 LOG = ROOT / 'logs/ops/night-tests.jsonl'
 STATE = ROOT / 'logs/ops/night-tests-state.json'
-TIMEOUT_S = 50 * 60
+TIMEOUT_S = 90 * 60     # PM 11-17 night: 50 min timed out three nights running (11-15..11-17), no result at all
+INTERRUPT_GRACE_S = 120 # after the limit pytest gets SIGINT and this long to write the partial JUnit XML
 STALE_DAYS = 2
 # Team names as commit messages write them (status board names on the right).
 TEAM_WORDS = (('운영·SRE', '운영·SRE'), ('ops 11-', '운영·SRE'), ('검색과 RAG', '검색과 RAG'), ('search team', '검색과 RAG'),
@@ -141,8 +143,25 @@ def no_result(line: dict, handoff=None) -> None:
     import ops_auto
     handoff = handoff or ops_auto.board_handoff
     ops_auto.TEAM['night_tests_run'] = '운영·SRE'
-    why = '50분 시간 초과' if line.get('error') == 'timeout' else f"결과 파일 없음({line.get('error') or '이유 없음'})"
+    why = f'{TIMEOUT_S // 60}분 시간 초과' if line.get('error') == 'timeout' else f"결과 파일 없음({line.get('error') or '이유 없음'})"
     handoff('night_tests_run', f"밤 전체 시험 {line['day']}: {why}, {line['seconds']}초 — 그날 밤 전체 시험 결과가 없습니다")
+
+
+def slowest_tests(lines: list[str]) -> list[str]:
+    """The lines of pytest's '--durations=30' table ("12.34s call tests/x.py::test_y"), slowest first."""
+    out, inside = [], False
+    for line in lines:
+        if 'slowest' in line and 'durations' in line:
+            inside = True
+            continue
+        if inside:
+            if not line.strip() or line.startswith('='):
+                if out:
+                    break
+                continue
+            if line.split()[0].endswith('s'):
+                out.append(line.strip()[:200])
+    return out[:30]
 
 
 def run(now=None) -> int:
@@ -154,14 +173,26 @@ def run(now=None) -> int:
     dirty = len(subprocess.run(['git', 'status', '--porcelain'], cwd=ROOT, capture_output=True, text=True).stdout.splitlines())
     head = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip()
     cmd = ['nice', '-n', '15', str(ROOT / '.venv-tests/bin/python'), '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
-           f'--junitxml={xml}', 'tests']
+           '--durations=30', f'--junitxml={xml}', 'tests']
     started = time.time()
     before = machine()
+    partial = False
+    proc = subprocess.Popen(cmd, cwd=ROOT, env=clean_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        done = subprocess.run(cmd, cwd=ROOT, env=clean_environment(), capture_output=True, text=True, timeout=TIMEOUT_S)
-        tail = (done.stdout or '').strip().splitlines()[-1:] or ['']
+        stdout, _ = proc.communicate(timeout=TIMEOUT_S)
     except subprocess.TimeoutExpired:
-        tail = ['timeout']
+        # PM 11-17: on the limit, interrupt like Ctrl-C so pytest still writes the JUnit XML and the durations of what
+        # ran; the record is marked partial. A pytest that does not stop within the grace period is killed.
+        partial = True
+        proc.send_signal(signal.SIGINT)
+        try:
+            stdout, _ = proc.communicate(timeout=INTERRUPT_GRACE_S)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            stdout, _ = proc.communicate()
+    lines = (stdout or '').strip().splitlines()
+    tail = ['timeout'] if partial and not xml.is_file() else (lines[-1:] or [''])
+    slowest = slowest_tests(lines)
     seconds = round(time.time() - started)
     after = machine()
     if not xml.is_file():
@@ -174,13 +205,15 @@ def run(now=None) -> int:
     state = json.loads(STATE.read_text()) if STATE.is_file() else {}
     teams_before = state.get('teams') or []
     state = update_state(failing, day, state)
-    record = {'at': time.strftime('%Y-%m-%d %H:%M'), 'day': day, 'ok': True, 'head': head, 'dirty_files': dirty,
-              'tests': total, 'failed': len(failing), 'failing': failing, 'seconds': seconds, 'summary': tail[0][:200],
+    record = {'at': time.strftime('%Y-%m-%d %H:%M'), 'day': day, 'ok': not partial, 'partial': partial, 'head': head,
+              'dirty_files': dirty, 'tests': total, 'failed': len(failing), 'failing': failing, 'seconds': seconds,
+              'summary': tail[0][:200], 'slowest': slowest,
               'teams_before': teams_before, 'machine_before': before, 'machine_after': after}
     result = report(record, state)
     sys.path.insert(0, str(ROOT / 'scripts'))
     import ops_auto
-    ops_auto.board_close('night_tests_run', f"해결(밤 시험 {day} 결과 있음)")
+    if not partial:          # a partial run is a result, not the fix: the 'no night result' item stays open
+        ops_auto.board_close('night_tests_run', f"해결(밤 시험 {day} 결과 있음)")
     state['teams'] = result['teams']
     STATE.write_text(json.dumps(state, ensure_ascii=False, indent=1))
     with LOG.open('a') as out:
