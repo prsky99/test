@@ -1,0 +1,259 @@
+{
+  "slug": "company-sanctions-screen",
+  "version": 1,
+  "status": "candidate",
+  "name": "Company sanctions screen",
+  "summary": "A screening brief on one organisation: name matches against the OFAC SDN list with the list date, its official registration, its latest SEC filings and recent news. Name-based information, not a legal determination; confirm in OFAC's Sanctions List Search.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 2,
+        "maxLength": 200
+      },
+      "country": {
+        "type": "string",
+        "pattern": "^[A-Z]{2}$"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "additionalProperties": false
+  },
+  "budget_ms": {
+    "total": 5000,
+    "slot": 4500
+  },
+  "slots": [
+    {
+      "slot": "sanctions",
+      "contract": "sanctions.screen.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "agentcon",
+          "agent_id": "ofac-sdn",
+          "resource_id": null,
+          "tool": "screen_sanctions_list",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "ofac"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "name": "{{input.name}}"
+          }
+        }
+      ]
+    },
+    {
+      "slot": "registry",
+      "contract": "company.registry.v1",
+      "required": true,
+      "fanout": 1,
+      "chain": [
+        {
+          "kind": "agentcon",
+          "agent_id": "sec-edgar",
+          "resource_id": null,
+          "tool": "find_sec_company",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "sec-edgar"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "name": "{{input.name}}",
+            "country": "{{input.country}}"
+          },
+          "coverage": {
+            "country": [
+              "US"
+            ]
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "gleif-lei",
+          "resource_id": null,
+          "tool": "find_lei_record",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "gleif"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "name": "{{input.name}}",
+            "country": "{{input.country}}"
+          }
+        }
+      ]
+    },
+    {
+      "slot": "filings",
+      "contract": "sec.filings.v1",
+      "required": true,
+      "fanout": 1,
+      "depends_on": [
+        "registry"
+      ],
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 40800,
+          "tool": "get_filings",
+          "registrable_domain": "siliconfloor.com",
+          "upstream": [
+            "sec-edgar"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "symbol": "{{slot.registry.ticker}}"
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 288314,
+          "tool": "company_filings",
+          "registrable_domain": "plainquant.com",
+          "upstream": [
+            "sec-edgar"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "symbol": "{{slot.registry.ticker}}"
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "sec-filings",
+          "resource_id": null,
+          "tool": "list_sec_filings",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "sec-edgar"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "cik": "{{slot.registry.cik}}",
+            "ticker": "{{slot.registry.ticker}}",
+            "company": "{{slot.registry.legal_name}}"
+          },
+          "coverage": {
+            "country": [
+              "US"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "slot": "news",
+      "contract": "news.search.v1",
+      "required": false,
+      "fanout": 1,
+      "depends_on": [
+        "registry"
+      ],
+      "chain": [
+        {
+          "kind": "external",
+          "resource_id": 58662,
+          "tool": "search_articles",
+          "registrable_domain": "newsflash.sh",
+          "upstream": [
+            "unknown"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "q": "{{slot.registry.search_name}}",
+            "limit": 5
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 268473,
+          "tool": "news_search",
+          "registrable_domain": "reliness.co.uk",
+          "upstream": [
+            "unknown"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "pearl": true,
+          "input_map": {
+            "query": "{{slot.registry.search_name}}",
+            "limit": 5
+          }
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "gdelt-news",
+          "resource_id": null,
+          "tool": "search_news_gdelt",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "gdelt"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "query": "{{slot.registry.search_name}}"
+          }
+        }
+      ]
+    }
+  ],
+  "synthesis": {
+    "kind": "merge-v1",
+    "rules": [
+      "sanctions: name and alias matches with the SDN list id and the list date; 'no name match found in the SDN list as of <date>' when none, never 'clear' or 'not sanctioned'",
+      "every answer carries the notice: name-based information lookup, not a legal determination; confirm in OFAC's official Sanctions List Search",
+      "a similar-name match is shown with the registration facts (country, CIK) next to it so a reader can tell a namesake apart",
+      "organisations only; a person's name is not screened"
+    ]
+  },
+  "answer_set": "company-sanctions-screen-v1",
+  "notes": "v1 draft (workflow 11-17, PM: second after website-trust v2; not pushed before the 11-18 21:50 freeze ends). Members: sanctions ofac-sdn (our own, agent team r13, gate pending; no verified pearl exists for sanctions.screen.v1 and the outside candidates hatchloop.dev 42425-42429 and wsystem.dev 113945 have unknown terms, so they are not listed until judged); registry as company-due-diligence v3 (sec-edgar approved, gleif-lei); filings 40800 siliconfloor.com (verified pearl, terms allowed) and 288314 plainquant.com (verified pearl, terms silent), then sec-filings (ours); news optional 58662 newsflash.sh and 268473 reliness.co.uk (verified pearls, terms silent), then gdelt-news (ours). 58997 is out (terms prohibit). Open: an SDN entity has no SEC registration, so registry must answer 'not found' as an answer (as sec-filings' no_us_sec_filings) or the required step fails; agent team to confirm sec-edgar/gleif-lei behaviour.",
+  "demand": "Our own 30-day asks (search and RAG, 11-17, agent_messages, internal and measurement removed): company lookup 2, sanctions 0. Outside directories (reports/necklace-demand-2026-11-15): company and counterparty due diligence strong (Edgar Tools 269k, Companies House UK 33.4k weekly visits), sanctions and compliance screening weak to medium (DataNexus 38.1k)."
+}
