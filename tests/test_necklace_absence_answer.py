@@ -62,3 +62,8 @@ def test_a_source_never_asked_is_left_out_and_with_none_asked_the_step_fails():
     out = runner.Runner(caller_from({1: "screened", 10: Fail("capacity"), 11: Fail("budget_domain_daily_total")})).run(
         d, {"q": "x"})
     assert not out["ok"] and out["failed_slot"] == "registry"
+
+
+def test_the_sec_source_name_says_its_scope():
+    from agent_market.necklaces.runner import SOURCE_NAMES
+    assert SOURCE_NAMES["sec-edgar"] == "SEC EDGAR (companies with a ticker)"    # agent team 11-17: its index scope

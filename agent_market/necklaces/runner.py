@@ -542,7 +542,7 @@ NOT_FOUND_NOTE = "No encyclopedia article found for this company."
 # PM 11-17 (company-diligence-brief, agent team's proposal): a slot marked absence_is_answer answers "no record" when
 # every member it called said not_found; a later step that needs its values is then not run, which is not a failure
 # the sources named in an absence answer (a member's upstream tag -> the source's public name)
-SOURCE_NAMES = {"sec-edgar": "SEC EDGAR", "gleif": "GLEIF", "ofac": "the OFAC SDN list", "wikipedia": "Wikipedia",
+SOURCE_NAMES = {"sec-edgar": "SEC EDGAR (companies with a ticker)", "gleif": "GLEIF", "ofac": "the OFAC SDN list", "wikipedia": "Wikipedia",
                 "rdap": "RDAP"}
 UPSTREAM_ABSENT_NOTE = "Not run: an earlier step found no record to look this up with."
 
