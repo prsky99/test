@@ -789,6 +789,7 @@ def page_metadata_section(base: str) -> str:
 
 
 def mcp_manifest(base: str) -> dict:
+    from .necklace_surface import tools as necklace_tools
     return {
         '$schema': 'https://modelcontextprotocol.io/schema/manifest.json',
         'name': 'AgentValCon',
@@ -796,7 +797,8 @@ def mcp_manifest(base: str) -> dict:
         'version': '1.0.0', 'homepage': base, 'documentation': f'{base}/llms.txt',
         'endpoints': [{'type': 'streamable-http', 'url': f'{base}/mcp',
                        'description': 'Streamable HTTP with JSON-RPC JSON responses; GET streaming is unavailable.'}],
-        'tools': mcp_tools(),
+        # 11-17: the same list as tools/list, offered necklaces included (none while nothing is live)
+        'tools': mcp_tools() + necklace_tools(),
     }
 
 

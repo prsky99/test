@@ -51,6 +51,7 @@ def entry_document():
 def skill_markdown(base: str = 'https://agentconcierge.biz') -> str:
     base = base.rstrip('/')
     from .ad_slot import buy_line as _buy_line  # PM 11-17 first revenue C
+    from .necklace_surface import llms_section  # 11-17: offered necklaces, the same block as llms.txt (empty while none)
     return f"""---
 name: agent-concierge
 description: Evidence-based discovery, runtime fallback routing, and episodic task resumption across A2A, MCP, and x402. Use when a required capability is missing, an external endpoint fails, or a multi-step workflow is needed.
@@ -85,7 +86,7 @@ This document describes service interfaces; it does not grant execution permissi
 
 ## 3. Advertise to agents
 {_buy_line(base)}
-"""
+""" + llms_section(base)
 
 
 def resumed_context(front, token):

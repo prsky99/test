@@ -1096,6 +1096,12 @@ class FastConcierge(Concierge):
             message = MESSAGES['out_of_scope'] if reason == 'out_of_scope' else 'No currently active, relevant agent found.'
             if no_match_data.get('cross_protocol_hint'):
                 message += ' ' + no_match_data['cross_protocol_hint']['message']
+            # 11-17: an open necklace in the task's scope is an answer even when no single listing passes the gates
+            from .necklace_lead import lead as necklace_line
+            necklace = necklace_line(task) if offset == 0 else None
+            if necklace:
+                message = necklace + '\n\n' + message
+                no_match_data['necklace_lead'] = necklace
             return Reply(message, 'find', no_match_data)
         # Among the admitted candidates, the ones whose own words name the task's subject lead (11-04 review A-1).
         items = mentioned_only_last(task, subject_first(task, items))
