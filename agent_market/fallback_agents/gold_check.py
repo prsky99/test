@@ -51,7 +51,9 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "met-weather": "met-weather",               # 30 US points vs NWS, built right before the gate (PM 11-16)
         "dns-spf-dmarc": "website-trust-brief",     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)
         "package-readme": "package-risk-audit",     # split readme-r1 (scripts/gold_package_readme.py, agent team 11-17)
-        "agent-record": "mcp-server-trust-check",    # split record-r1 (scripts/gold_agent_record.py, agent team 11-17)
+        "agent-record": "mcp-server-trust-check",
+        "korean-lunar": "daily-fortune-brief", "western-sign": "daily-fortune-brief",      # scripts/gold_fortune_tuning.py
+        "saju-pillars": "daily-fortune-brief", "fortune-daily": "daily-fortune-brief",     # (PM 11-17; holdout by ops)    # split record-r1 (scripts/gold_agent_record.py, agent team 11-17)
         "tls-certificate": "website-trust-brief",    # split tls-r1 (scripts/gold_site_checks.py --kind tls, 11-17)
         "site-reachability": "website-trust-brief"}  # split reach-r1 (scripts/gold_site_checks.py --kind reach, 11-17)
 BANDS = (0.01, 0.1, 0.5)
@@ -74,8 +76,42 @@ def wiki_truth(truth: dict) -> tuple[str | None, bool | None]:
     return (truth.get("wiki") or {}).get("title"), truth.get("wiki_article")
 
 
+FORTUNE_AGENTS = ("korean-lunar", "western-sign", "saju-pillars", "fortune-daily")
+
+
+def judge_fortune(agent_id: str, case: dict, result: dict | None, error: str | None) -> dict:
+    """daily-fortune-brief substitutes (PM 11-17): computed facts against public calendars; a refused case passes only
+    when the agent refused it with the named code (never an invented answer); the reading is graded only by the gate's
+    check_synthesis (structure, leading disclaimer, notes, banned words)."""
+    truth = case["truth"]
+    if truth.get("refused"):
+        return {"pass": result is None and error == truth["refused"], "got": error or "answered", "want": truth["refused"]}
+    if result is None:
+        return {"pass": False, "got": error}
+    if agent_id == "fortune-daily":
+        from ..necklaces.fortune_rules import check_synthesis
+        problems = check_synthesis(result, bool(truth.get("has_hour")))
+        return {"pass": not problems, "problems": problems}
+    wrong = []
+    for key, want in truth.items():
+        if key == "boundary":
+            if want and not result.get("boundary_note"):
+                wrong.append("boundary_note")
+            continue
+        got = result.get(key)
+        if key.endswith("pillar"):
+            ok = (got is None) if want is None else (isinstance(got, str) and want in got)
+        else:
+            ok = got == want
+        if not ok:
+            wrong.append(key)
+    return {"pass": not wrong, "wrong": wrong}
+
+
 def judge(agent_id: str, case: dict, result: dict | None, error: str | None = None) -> dict:
     truth = case["truth"]
+    if agent_id in FORTUNE_AGENTS:
+        return judge_fortune(agent_id, case, result, error)
     if result is None:
         if agent_id == "wikipedia-summary" and wiki_truth(truth)[1] is False:
             # a company with no article of its own (holdout-r5-wiki, workflow 11-16): not_found is the right answer
@@ -500,6 +536,8 @@ def applies(agent_id: str, case: dict) -> bool:
         return bool((case.get("input") or {}).get("topic"))
     if agent_id == "github-releases":
         return bool((case.get("truth") or {}).get("repository_github"))
+    if agent_id in FORTUNE_AGENTS:       # each fortune case names its agent (scripts/gold_fortune_tuning.py)
+        return case.get("agent") == agent_id
     if agent_id == "agent-record":       # record cases only (truth built by scripts/gold_agent_record.py)
         return "found" in (case.get("truth") or {})
     if agent_id == "package-readme":     # readme cases only (truth built by scripts/gold_package_readme.py)
