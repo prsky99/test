@@ -188,8 +188,14 @@ def neighbor_focus(store, engine, task, protocol=None):
             if word not in NEIGHBOR_STOP and word not in FILLER and word not in own:
                 counts[word] = counts.get(word, 0) + 1
     ranked = sorted(counts.items(), key=lambda pair: (-pair[1], pair[0]))[:12]
-    picked = [word for word, count in ranked if count >= NEIGHBOR_SHARE * len(texts)
-              and catalog_share(store, word) <= NEIGHBOR_CATALOG_SHARE][:NEIGHBOR_WORDS]
+    # PM 11-17 12:2x ("customer support bulk" neighbor_focus 1.0 s): each catalog_share is two counts over the whole
+    # index, so stop once NEIGHBOR_WORDS are picked instead of counting every shared word (the same words result).
+    picked = []
+    for word, count in ranked:
+        if len(picked) >= NEIGHBOR_WORDS:
+            break
+        if count >= NEIGHBOR_SHARE * len(texts) and catalog_share(store, word) <= NEIGHBOR_CATALOG_SHARE:
+            picked.append(word)
     return ' '.join(picked) or None
 
 
@@ -911,6 +917,23 @@ class FastConcierge(Concierge):
                                                        limit=SEMANTIC_SHORTLIST, exclude=excluded))
                 from .gateway_exposure import order_key
                 items = sorted(items, key=lambda item: order_key(item) if isinstance(item, dict) else (True, True, True))[:3]
+        if not items and offset == 0 and not clock and time.monotonic() - started < TRAIT_RETRY_BEFORE:
+            # PM 11-17 12:2x (user_slo "customer support bulk": 6.68 s and 5.54 s, server 5.6 and 4.5 s): a trait
+            # the request adds to its capability left nothing, and the request then went through the neighbor
+            # words (1.0 s) and their search (1.4 s) before the search without the trait (PM 11-14 decision (c))
+            # could run. Search without those words first; the answer still says plainly which words are not
+            # confirmed, and the original conditions still admit every listing.
+            relaxed, dropped = without_traits(task)
+            if dropped:
+                step('trait')
+                found = semantic_first(getattr(self.rec, 'rag_engine', None), relaxed,
+                                       self.rec.search(retrieval_text(relaxed), kind=protocol,
+                                                       limit=SEMANTIC_SHORTLIST, exclude=excluded))
+                from .gateway_exposure import order_key
+                found = sorted(found, key=lambda item: order_key(item) if isinstance(item, dict) else (True, True, True))
+                found = self._condition_admit(task, found)[:3]
+                if found:
+                    items = [{**item, 'unverified': dropped} for item in found]
         focus = None
         summarizer = getattr(self, 'query_summarizer', None)
         if not items and callable(summarizer):
