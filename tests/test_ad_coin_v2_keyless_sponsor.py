@@ -427,3 +427,38 @@ def test_a_taken_down_order_shows_its_refund_and_never_quotes_or_restarts(shop):
     assert error.value.code == 'order_taken_down'
     assert len(budget_events(shop.store)) == 1
     assert status(shop, order_id, 'w' * 43).status_code == 404               # still needs the read key
+
+
+def test_a_taken_down_plan_order_lists_its_refund_due_placements(shop):
+    from agent_market.ad_coin.v2 import auto_review
+    created = order(shop, day=None, budget_usdc='10').json()
+    order_id, key = created['order_id'], created['read_key']
+    review(shop, order_id)
+    quote = status(shop, order_id, key).json()['quote']
+    assert quote['kind'] == 'plan'
+    paid_now = shop.post('/api/ad-coin/v2/sponsor/' + order_id + '/payment',
+                         json={'tx_hash': shop.rpc.send(int(quote['amount_units']))}, headers={'X-Read-Key': key})
+    assert paid_now.json()['quote']['state'] == 'confirmed', paid_now.text
+    done = auto_review.takedown(shop.commercial, auto_review.principal(shop.commercial.access), order_id,
+                                reason='misleading offer')
+    assert done['refunds_due'] == 2
+    for _ in range(2):
+        body = status(shop, order_id, key).json()
+        assert body['state'] == 'taken_down' and 'quote' not in body
+        [refund] = body['refunds']
+        assert (refund['kind'], refund['id'], refund['amount_usdc']) == ('plan', quote['quote_id'], quote['amount_usdc'])
+        assert len(refund['placements']) == 2 and {p['state'] for p in refund['placements']} == {'refund_due'}
+    assert count(shop.store, 'SELECT id FROM adc2_paid_plans') == 1                   # no new quote
+    pay = shop.post('/api/ad-coin/v2/sponsor/' + order_id + '/payment', json={'tx_hash': shop.rpc.send(10_000_001)},
+                    headers={'X-Read-Key': key})
+    assert pay.status_code == 409 and pay.json()['error']['code'] == 'order_taken_down'
+
+
+def test_the_ops_waf_probe_is_refused_and_writes_nothing(shop):
+    """After deploy the ops team sends exactly this request (no cookie) to see the route through the edge."""
+    tables = ('adc2_principals', 'adc2_advertisers', 'adc2_campaigns', 'adc2_audit_log')
+    before = {t: count(shop.store, 'SELECT * FROM ' + t) for t in tables}
+    probe = shop.post('/api/ad-coin/v2/sponsor', json={'waf_probe': 1})
+    assert probe.status_code == 422 and probe.json()['error']['code'] == 'unknown_field'
+    assert {t: count(shop.store, 'SELECT * FROM ' + t) for t in tables} == before
+    assert shop.sponsor.limiter._counts == {}                                       # the address was not counted

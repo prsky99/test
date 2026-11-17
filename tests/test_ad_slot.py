@@ -215,3 +215,44 @@ def test_agent_documents_say_how_to_buy_a_placement(client):  # noqa: F811
     entry = client.get('/.well-known/agent-entry.json').json()['advertise']
     assert entry['book'] == '/advertise' and entry['disclosure'] == ad_slot.STATEMENT and 'no prepaid balance' in entry['price']
     assert '## 3. Advertise to agents' in client.get('/skill.md').text
+
+
+KEYLESS = ('POST /api/ad-coin/v2/sponsor', 'GET /api/ad-coin/v2/sponsor/{order_id}', 'X-Read-Key',
+           'POST /api/ad-coin/v2/sponsor/{order_id}/payment', 'cannot be recovered', 'reviewed before any payment',
+           'no prepaid balance, no stored funds', '/advertise')
+
+
+def test_agent_documents_show_the_keyless_way_to_buy(client):  # noqa: F811
+    """PM 11-17 (B): an agent with no account buys in three calls; every agent document says so, /advertise stays."""
+    for name, text in (('buy_line', ad_slot.buy_line()), ('llms.txt', client.get('/llms.txt').text),
+                       ('skill.md', client.get('/skill.md').text)):
+        assert all(step in text for step in KEYLESS), name
+    entry = client.get('/.well-known/agent-entry.json').json()['advertise']
+    keyless = entry['keyless']
+    assert (keyless['method'], keyless['path'], keyless['account']) == ('POST', '/api/ad-coin/v2/sponsor', 'none')
+    assert 'X-Read-Key' in keyless['headers'] and len(keyless['steps']) == 3 and entry['book'] == '/advertise'
+    assert 'no stored funds' in keyless['payment'] and keyless['review'] == 'before any payment'
+    card = client.get('/.well-known/agent-card.json').json()
+    skill = [s for s in card['skills'] if s['id'] == 'advertise']
+    assert len(skill) == 1 and skill[0]['examples'] == ['how do I buy a sponsored placement']
+
+
+def test_an_a2a_advertise_message_answers_how_to_buy_and_runs_nothing_else(client, monkeypatch):  # noqa: F811
+    from agent_market.concierge import necklace_surface
+    from agent_market.concierge.front import Front
+
+    def never(*a, **k):
+        raise AssertionError('an advertise question must not reach a recommendation or a necklace run')
+    monkeypatch.setattr(Front, 'chat', never)
+    monkeypatch.setattr(Front, 'identify', never)                # no visitor is created or written
+    monkeypatch.setattr(necklace_surface, 'a2a_answer', never)
+    for text in ('How do I buy a sponsored placement?', 'advertise', '  ADVERTISE with you'):
+        body = {'jsonrpc': '2.0', 'id': 1, 'method': 'message/send',
+                'params': {'message': {'role': 'user', 'messageId': 'm1', 'parts': [{'kind': 'text', 'text': text}]}}}
+        parts = client.post('/a2a', json=body).json()['result']['parts']
+        assert parts[0]['text'].startswith('Advertise to agents:') and 'POST /api/ad-coin/v2/sponsor' in parts[0]['text']
+        data = parts[1]['data']
+        assert data['intent'] == 'advertise' and data['keyless']['path'] == '/api/ad-coin/v2/sponsor'
+        assert 'sponsored' not in data
+    for other in ('advertisement agencies with an API', 'find an agent that can advertise', 'research sources'):
+        assert ad_slot.a2a_advertise(other) is None

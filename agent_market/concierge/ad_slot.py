@@ -95,13 +95,25 @@ def context(surface, tool, structured=None, headers=None, task=None):
 PRICE_LINE = '5 USDC on Base per placement per day, or a custom plan sized to your budget; paid once per booking from your own wallet (no prepaid balance, no stored funds)'
 
 
+KEYLESS_STEPS = (
+    'POST /api/ad-coin/v2/sponsor with {name, text, url, category, region, day | budget_usdc}: returns order_id, '
+    'status_url and read_key (shown once; it cannot be recovered)',
+    'GET /api/ad-coin/v2/sponsor/{order_id} with header X-Read-Key: in_review until the ad passes review, then the quote '
+    '(exact USDC amount, pay_to, chain 8453, expiry)',
+    'POST /api/ad-coin/v2/sponsor/{order_id}/payment with {tx_hash} and header X-Read-Key, after sending exactly that '
+    'amount in USDC on Base',
+)
+
+
 def buy_line(base='https://agentconcierge.biz'):
     """How to buy a placement, in the words every agent-facing document uses (PM 11-17, first revenue C)."""
     base = base.rstrip('/')
     return ('Advertise to agents: one offer labelled "Sponsored" follows the results of MCP and A2A answers (necklace runs, '
             'find_agents, best_for_role, A2A recommendations), matched by site category and region, in a separate `sponsored` '
             'field; it never changes results, tests or ranking. Price: ' + PRICE_LINE + '. Book: ' + base + '/advertise. '
-            'Every placement: ' + base + '/ads/library.')
+            'Agents can buy without an account in three calls: (1) ' + KEYLESS_STEPS[0] + '; (2) ' + KEYLESS_STEPS[1]
+            + '; (3) ' + KEYLESS_STEPS[2] + '. The ad is reviewed before any payment; one order is paid once in USDC on '
+            'Base; no prepaid balance, no stored funds. Every placement: ' + base + '/ads/library.')
 
 
 def buy_entry():
@@ -109,7 +121,23 @@ def buy_entry():
     return {'placement': 'One labelled Sponsored offer after MCP and A2A answers, in a separate `sponsored` field.',
             'surfaces': ['necklace runs', 'find_agents', 'best_for_role', 'A2A recommendations'],
             'matched_on': ['site category', 'region'], 'price': PRICE_LINE, 'book': '/advertise',
+            'keyless': {'method': 'POST', 'path': '/api/ad-coin/v2/sponsor',
+                        'body': ['name', 'text', 'url', 'category', 'region', 'day | budget_usdc'],
+                        'headers': {'X-Read-Key': 'the read_key from the first call (shown once, cannot be recovered)'},
+                        'steps': list(KEYLESS_STEPS),
+                        'account': 'none', 'review': 'before any payment',
+                        'payment': 'USDC on Base, once per order; no prepaid balance, no stored funds'},
             'library': '/ads/library', 'library_json': '/ads/library.json', 'disclosure': STATEMENT}
+
+
+ADVERTISE_ASK = re.compile(r'\s*(?:how do i buy a sponsored placement|advertise)\b', re.I)
+
+
+def a2a_advertise(text, base='https://agentconcierge.biz'):
+    """(text, data) for an A2A message that asks how to advertise (skill `advertise`), else None. Writes nothing."""
+    if not isinstance(text, str) or not ADVERTISE_ASK.match(text):
+        return None
+    return buy_line(base), {'intent': 'advertise', **buy_entry()}
 
 
 # Necklace answers (PM 11-17, first revenue A): the site category an offer is matched on, per necklace. A necklace that is

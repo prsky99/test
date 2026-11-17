@@ -830,6 +830,9 @@ def agent_card(base: str) -> dict:
             {"id": "stay_in_touch", "name": "Message me when something better appears",
              "description": "Request task-scoped updates with explicit operator authorization, using a verified browser notification, verified private inbox, or explicit manual polling. Marketing permission is separate and advertising delivery is disabled. See /api/task-updates.",
              "tags": ["notifications", "webhook"], "examples": ["Get updates for this task", "stop"]},
+            {"id": "advertise", "name": "Buy a sponsored placement",
+             "description": "Answers with the three keyless calls that buy one labelled Sponsored placement (review first, USDC on Base per order).",
+             "tags": ["advertising", "sponsored", "usdc"], "examples": ["how do I buy a sponsored placement"]},
         ],
     }
     from .necklace_surface import skills as necklace_skills  # 11-14: offered necklaces, none while nothing is live
@@ -3596,8 +3599,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
         ctx = msg.get("contextId") if isinstance(msg.get("contextId"), str) else None
         if 'contextId' in msg and (ctx is None or not ctx or len(ctx)>200):
             return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Provide a non-empty contextId of at most 200 characters."}}
-        from . import necklace_surface
-        necklace_reply = await run_in_threadpool(necklace_surface.a2a_answer, front,
+        from . import ad_slot as _ad, necklace_surface  # PM 11-17: skill `advertise` answers how to buy, writes nothing
+        necklace_reply = _ad.a2a_advertise("\n".join(texts), front.base(request)) or await run_in_threadpool(necklace_surface.a2a_answer, front,
                                                  "\n".join(texts).replace("\x00", "")[:MAX_MESSAGE], front.base(request),
                                                  meta=necklace_surface.request_meta(front, request))
         if necklace_reply is not None:  # 11-14: "run necklace <slug> {...}" (A2A skill necklace-<slug>)
