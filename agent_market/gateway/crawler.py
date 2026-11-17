@@ -192,7 +192,10 @@ def parse_a2a_item(item: dict) -> dict | None:
 
 
 def collect_x402() -> bool:
-    return os.environ.get("COLLECT_X402", "0") == "1"
+    # PM 11-16 decision (user delegation), applied 11-18: the x402 Bazaar list (metadata only) is collected again by
+    # default; COLLECT_X402=0 still turns it off. Evaluation reads only the unpaid 402 answer (grade capped at B,
+    # evaluation POLICY_VERSION v2) and automatic discovery never opts a caller into x402 (protocols.search_protocols).
+    return os.environ.get("COLLECT_X402", "1") == "1"
 
 
 class Crawler:
@@ -226,8 +229,7 @@ class Crawler:
         self.incremental_mcp_max_pages = incremental_mcp_max_pages
         self.incremental_a2a_max_pages = incremental_a2a_max_pages
         if sources is None:
-            # x402 수집은 실제 결제 시험이 가능할 때까지 멈춘다(사용자 결정 11-10, COLLECT_X402=0이 기본).
-            # 11-11까지 이 값을 읽는 코드가 없어 x402-bazaar를 계속 훑었다.
+            # x402 수집: 11-10 사용자 결정으로 멈췄다가, 11-16 PM 결정(사용자 위임)으로 재개한다(11-18부터 기본값 1).
             sources = ("x402-bazaar", "mcp-registry", "a2a-registry") if collect_x402() else ("mcp-registry", "a2a-registry")
         self.sources = sources
         self.retry_delay = 2.0

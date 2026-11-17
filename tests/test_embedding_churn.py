@@ -262,8 +262,10 @@ def test_the_detail_api_marks_a_test_network_listing(tmp_path):
     assert 'price_note' not in get_safe_agent_detail(store, main_id)['agent']
 
 
-def test_a_paused_x402_listing_is_not_embedded_again():
-    """11-10 decision: x402 collection is paused; its re-queued listings keep the vectors they have."""
+def test_a_paused_x402_listing_is_not_embedded_again(monkeypatch):
+    """With x402 collection switched off (COLLECT_X402=0; on by default since 11-18, PM 11-16 decision), its
+    re-queued listings keep the vectors they have."""
+    monkeypatch.setenv('COLLECT_X402', '0')
     from agent_market.gateway.rag import RagEngine
     engine = RagEngine(embed_model='synthetic', embed_revision='fixture-v1')
     descriptor = engine.model_descriptor()
@@ -291,12 +293,13 @@ def test_a_url_in_a_task_is_input_not_a_capability():
     assert 'anthropic' not in text and 'web page' in text
 
 
-def test_the_crawler_skips_x402_unless_collection_is_switched_on(monkeypatch, tmp_path):
-    """11-10 decision: x402 is not collected until paid tests are possible (COLLECT_X402=0 by default)."""
+def test_the_crawler_skips_x402_only_when_collection_is_switched_off(monkeypatch, tmp_path):
+    """11-10 the user paused x402 collection; 11-16 the PM resumed it (metadata only, unpaid 402 evaluation capped
+    at B), on by default since 11-18. COLLECT_X402=0 still switches it off."""
     from agent_market.gateway.crawler import Crawler
     store = Store(str(tmp_path / 'crawl.sqlite3'))
     monkeypatch.delenv('COLLECT_X402', raising=False)
-    assert 'x402-bazaar' not in Crawler(store).sources
-    monkeypatch.setenv('COLLECT_X402', '1')
     assert 'x402-bazaar' in Crawler(store).sources
+    monkeypatch.setenv('COLLECT_X402', '0')
+    assert 'x402-bazaar' not in Crawler(store).sources
     assert Crawler(store, sources=('x402-bazaar',)).sources == ('x402-bazaar',)
