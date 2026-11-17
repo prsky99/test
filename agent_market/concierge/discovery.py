@@ -40,9 +40,42 @@ def ranking_text(resource):
     return str(resource.get("name", "")) + " " + str(resource.get("description", "")) + " " + tool_text
 
 
+# 11-18 (public find_agents, "convert 250 Swiss franc to Japanese yen at today rate": no result): the currency names
+# became required capability words ("swiss", "franc"), which a general converter ("Convert currencies and fetch FX
+# rates") never lists. A request naming two currencies, or one with a conversion word, asks for a currency
+# conversion; the names stay search words. Ambiguous words count only with their country ("Brazilian real", "Korean
+# won"); weights ("150 pounds to kilograms") and crypto ("bitcoin to dollars") are left as they are.
+CURRENCY_NAME = re.compile(r"""\b(?:francs?|yen|euros?|dollars?|pounds?|sterling|pesos?|rupees?|yuan|renminbi
+  |kronor|kronur|krona|kroner|krone|zlotys?|zloty|rubles?|roubles?|liras?|lira|shekels?|dirhams?|baht|ringgit|rupiah
+  |forints?|koruna|hryvnias?|nairas?|dinars?|riyals?|reais|brazilian\s+real|south\s+african\s+rands?
+  |(?:south\s+)?korean\s+won|vietnamese\s+dong)\b""", re.I | re.X)
+CURRENCY_CODE = re.compile(r'\b(?:USD|EUR|JPY|GBP|CHF|CNY|KRW|INR|CAD|AUD|SEK|NOK|DKK|PLN|BRL|MXN|ZAR|TRY|RUB|HKD|SGD'
+                           r'|NZD|THB|IDR|MYR|PHP|CZK|HUF|ILS|AED|SAR|NGN)\b')
+CONVERSION_WORD = re.compile(r'\b(?:convert\w*|conversion|exchange|fx|forex)\b', re.I)
+NOT_MONEY = re.compile(r"""\b(?:kilo\w*|kgs?|grams?|ounces?|oz|lbs?|stones?|weigh\w*|bitcoins?|btc|eth\w*|crypto\w*
+  |tokens?|coins?|usdc|usdt|stablecoins?)\b""", re.I | re.X)
+
+
+def currency_conversion(text):
+    """True when TEXT asks to convert or compare money between currencies and its own capability words would be
+    currency names or codes ("convert", "swiss", "franc"). A request that already names the capability ("EUR to USD
+    exchange rate" -> exchange, rate; "convert currency from EUR to JPY") keeps its words."""
+    named = len(CURRENCY_NAME.findall(text)) + len(CURRENCY_CODE.findall(text))
+    if not (named >= 2 or named == 1 and CONVERSION_WORD.search(text)) or NOT_MONEY.search(text):
+        return False
+    from .selection import capability_terms
+    return any(CURRENCY_NAME.fullmatch(word) or CURRENCY_CODE.fullmatch(word.upper())
+               for word in capability_terms(text))
+
+
 def normalize_task(task):
     from .chat_task_spec import canonical_text
     text = interpret(canonical_text(task)).positive
+    if currency_conversion(text):
+        # "pounds" is also a weight (selection.UNIT_NAMES would make it a unit conversion); the closing words widen the
+        # word search to the forms converters use ("Convert currencies and fetch FX rates") without becoming required.
+        money = re.sub(r'\bpounds?\b', 'sterling', text, flags=re.I)
+        return 'currency conversion for ' + money + ' (convert currencies, exchange rates)'
     if re.search(r'\bsql\b',text,re.I)and re.search(r'\b(?:run|execut)\w*\b',text,re.I):
         return 'sql query for '+text
     if re.search(r'\bsummari[sz]\w*\b',text,re.I)and re.search(r'\bmeeting\s+(?:notes|minutes|transcripts?)\b',text,re.I):
