@@ -68,3 +68,9 @@ def test_shipped_v2_definition_is_valid_with_three_required_steps_and_mail_auth_
     assert [s["slot"] for s in defn["slots"] if s.get("required", True)] == ["registration", "mail_auth", "tls"]
     assert all(m.get("resource_id") != 132732 for s in defn["slots"] for m in s["chain"])
     assert retest.CONTRAST["website-trust-brief"] == "mail_auth"
+
+
+def test_mail_auth_answer_says_dkim_is_not_checked():
+    from agent_market.necklaces import runner
+    out = runner.merge("dns.mail_auth.v1", [({"kind": "external", "resource_id": 39800}, {"answer": "v=spf1 -all"})])
+    assert "DKIM is not" in out["note"] and out["material"] == runner.MATERIAL_NOTICE
