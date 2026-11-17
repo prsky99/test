@@ -91,6 +91,7 @@ class AirportIndexRefresh:
 class OfacIndexRefresh(AirportIndexRefresh):
     """The OFAC SDN index for the ofac-sdn substitute (PM 11-17), once a day in the same window as the airport index.
     Like the airport index, it does not start before the first index exists (a first sync is run by hand)."""
+    BUDGET = 'fallback_watch'
 
     def _path(self):
         if self.path is not None:
@@ -100,12 +101,16 @@ class OfacIndexRefresh(AirportIndexRefresh):
 
     def _work(self):
         started = time.monotonic()
+        from .fallback_agents.net import budget
         try:
-            if self._sync is not None:
-                report = self._sync()
-            else:
-                from .fallback_agents.ofac import sync
-                report = sync(self._path())
+            # ops 11-17: each CSV download is reserved in the shared ledger (share fallback_watch); a refusal or any
+            # failure keeps yesterday's index and is logged, never raised (the agent stops at MAX_AGE, 3 days)
+            with budget(self.BUDGET):
+                if self._sync is not None:
+                    report = self._sync()
+                else:
+                    from .fallback_agents.ofac import sync
+                    report = sync(self._path())
             self.last = {'ok': True, 'seconds': round(time.monotonic() - started, 1)}
             log.info('ofac sdn index refresh: %s in %.1f s', report, time.monotonic() - started)
         except Exception as exc:

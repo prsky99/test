@@ -67,3 +67,22 @@ def test_ofac_host_is_capped_by_its_limiter_inside_the_ledger_total():
     host = limiters()["sanctionslistservice.ofac.treas.gov"]
     assert host.count == 6 and host.window == 86400.0
     assert domain_total(domain("https://sanctionslistservice.ofac.treas.gov/x")) >= 6
+
+
+def test_ofac_refresh_reserves_in_the_ledger_and_fails_quietly(tmp_path):
+    """ops 11-17: the daily sync runs under the ledger share fallback_watch (net.get reserves each download); a
+    refusal or an error is recorded in .last and logged, never raised, and the old index file is left as it was."""
+    from agent_market.fallback_agents import net
+    from agent_market.fallback_agents.limits import SourceBusy
+    seen = []
+    ok = OfacIndexRefresh(sync=lambda: seen.append(net._BUDGET_SYSTEM.get()) or {"entities": 1})
+    ok._work()
+    assert seen == ["fallback_watch"] and ok.last["ok"] is True and net._BUDGET_SYSTEM.get() is None
+    index = tmp_path / "ofac-sdn.json"
+    index.write_text("old")
+
+    def refused():
+        raise SourceBusy("Shared test budget refused the call (share).")
+    failing = OfacIndexRefresh(sync=refused, path=index)
+    failing._work()
+    assert failing.last == {"ok": False, "error": "SourceBusy"} and index.read_text() == "old"
