@@ -94,3 +94,56 @@ def test_filling_adds_no_noticeable_time():
             fill(task, tool('city', 'from', 'to'), placeholders('city', 'from', 'to'))
     per_task = (time.perf_counter() - started) / (50 * len(tasks))
     assert per_task < 0.001                                      # well under a millisecond per task
+
+
+# PM 11-17 10:3x (plan 2): free-text search arguments take the task's search terms
+ACADEMIC = {'name': 'academic_search', 'description': 'Queries OpenAlex and arXiv for peer-reviewed papers and preprints',
+            'inputSchema': {'required': ['query'], 'properties': {'query': {'type': 'string'}}}}
+
+
+@pytest.mark.parametrize('task,expected', [
+    ('Find recent arXiv papers about retrieval augmented generation', 'retrieval augmented generation'),  # the tool says arxiv/papers
+    ('search news about tesla earnings', 'news tesla earnings'),
+    ('details of CVE-2024-3094 please', 'CVE-2024-3094'),          # a certain value is the search itself
+    ('summarize https://example.org/post/1', 'https://example.org/post/1'),
+])
+def test_a_search_argument_takes_the_task(task, expected):
+    assert fill(task, ACADEMIC, {'query': '<query>'}) == {'query': expected}
+
+
+@pytest.mark.parametrize('task', [
+    'find papers by Andrew Ng on deep learning',                 # two capitalised words: maybe a person
+    'look up the person named Kim in our files',                 # a name cue
+    'research Dr. Smith and his lab',
+    'email john@example.com the arxiv results',                  # contact details
+    'call 010-1234-5678 about the order',
+    'news about +1 415 555 0100 spam calls',
+    'weather at 221 Baker Street London',                        # a street address
+    '강남대로 123 맛집 찾기',                         # a Korean road address
+    'what is the weather',                                       # one generic word is not a search
+])
+def test_a_personal_or_empty_task_leaves_the_search_blank(task):
+    assert fill(task, ACADEMIC, {'query': '<query>'}) == {'query': '<query>'}
+
+
+def test_a_personal_task_fills_nothing_else_either():
+    assert fill('weather in Seoul for John Smith', tool('city'), placeholders('city')) == placeholders('city')
+    assert fill('weather in New York', tool('city'), placeholders('city')) == {'city': 'New York'}   # a city is not a name
+
+
+def test_the_card_call_line_is_one_post_with_the_filled_arguments():
+    from agent_market.concierge.fast_chat import FastConcierge
+    item = {'id': 413095, 'kind': 'mcp', 'name': 'arXiv search', 'url': 'https://provider.example/mcp',
+            'usage_endpoint': 'https://agentconcierge.biz/api/gateway/mcp/413095', 'tools_schema': [ACADEMIC],
+            'active_checked_at': 1763337554}
+    step = run_here(413095, ACADEMIC, task='Find recent arXiv papers about retrieval augmented generation')
+    lines = FastConcierge._brief(item, first=True, step=step).splitlines()
+    assert lines[1] == 'Run here: call {"resource_id":413095,"tool":"academic_search","arguments":{"query":"retrieval augmented generation"}}'
+    assert lines[2] == 'Endpoint: https://agentconcierge.biz/api/gateway/mcp/413095'   # user_slo reads this line
+    assert lines[3] == ('Call: one POST to the Endpoint, no session: {"jsonrpc":"2.0","id":1,"method":"tools/call",'
+                        '"params":{"name":"academic_search","arguments":{"query":"retrieval augmented generation"}}}')
+    later = FastConcierge._brief(item, first=False).splitlines()
+    assert later[2] == ('Call: one POST to the Endpoint, no session: {"jsonrpc":"2.0","id":1,"method":"tools/call",'
+                        '"params":{"name":"academic_search","arguments":{"query":"<query>"}}}')
+    provider = FastConcierge._brief({**item, 'usage_endpoint': 'https://provider.example/mcp'}, first=False).splitlines()
+    assert provider[2] == 'Call: initialize → tools/list → tools/call'    # not our gateway: the provider's own steps

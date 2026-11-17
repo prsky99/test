@@ -9,6 +9,8 @@ placeholders ('<name>' strings that connections.example_arguments wrote) and onl
 Anything else stays a placeholder: no guessed values, no model, no database, no network (PM: no added latency).
 Enum, default and number examples are left as they are. Placeholders are filled all or none (search-and-RAG team 08:4x: one
 call should give a result), each value at most 200 characters on one line, never an e-mail address.
+PM 11-17 10:3x (plan 2): a free-text search argument (query, q, keywords, ...) takes the task's search terms, and
+nothing is filled when the task holds an e-mail address, a phone number, a street address or a person's name.
 """
 import re
 
@@ -81,8 +83,50 @@ KINDS = {
     'coin_id': ('coin_id', 'ids', 'coin'),
     'from_currency': ('from', 'from_currency', 'base', 'base_currency', 'source_currency', 'source'),
     'to_currency': ('to', 'to_currency', 'target', 'target_currency', 'quote', 'quote_currency', 'symbols'),
+    # PM 11-17 10:3x (plan 2): a free-text search argument takes the task's search terms (see _query)
+    'query': ('query', 'q', 'search', 'search_query', 'keyword', 'keywords', 'search_term', 'search_terms', 'term',
+              'topic'),
 }
 _KIND_OF = {name: kind for kind, names in KINDS.items() for name in names}
+
+
+# PM 11-17 10:3x: nothing from a task that names a person or carries contact details goes into a call line.
+_EMAIL = re.compile(r'[^\s@]+@[^\s@]+\.[a-z]{2,}', re.I)
+_PHONE = re.compile(r'(?<![\w.-])(?:\+\d{1,3}[\s.-]?)?(?:\(?\d{2,4}\)?[\s.-]?){2,3}\d{3,4}(?![\w.-])')
+_STREET = re.compile(r'\b\d{1,5}\s+(?:[A-Za-z]+\s+){1,3}(?:street|st|avenue|ave|road|rd|boulevard|blvd|lane|ln|drive|dr|'
+                     r'way|court|ct|place|pl|terrace|highway|hwy)\b\.?|(?:\ub85c|\uae38)\s*\d{1,5}(?:-\d{1,5})?', re.I)
+_NAME_CUE = re.compile(r'\b(?i:my name is|named|called|mr|mrs|ms|miss|dr|prof)\.?\s+[A-Z][a-z]+')
+_NAME_PAIR = re.compile(r'\b[A-Z][a-z]+\s+[A-Z][a-z]+\b')
+
+
+def personal(task):
+    """True when the task holds an e-mail address, a phone number, a street address or what may be a person's name
+    (a cue such as 'named' or 'Dr.', or two capitalised words that are not a listed city and do not open the task)."""
+    if not isinstance(task, str):
+        return False
+    task = task[:2000]
+    if _EMAIL.search(task) or _STREET.search(task) or _NAME_CUE.search(task):
+        return True
+    if any(len(re.sub(r'\D', '', m.group(0))) >= 9 for m in _PHONE.finditer(task)):
+        return True
+    return any(m.start() > 0 and re.sub(r'\s+', ' ', m.group(0).lower()) not in CITIES for m in _NAME_PAIR.finditer(task))
+
+
+def _query(task, tool):
+    """The task's search terms for a free-text search argument, without the words the tool's own name and description
+    already say (an arXiv search needs the topic, not 'arxiv papers'); None when nothing is left or the task is personal."""
+    if personal(task):
+        return None
+    from .selection import search_terms
+    words = search_terms(task)
+    own = set()
+    if isinstance(tool, dict):
+        own = set(re.findall(r'[a-z][a-z0-9]*', (str(tool.get('name') or '').replace('_', ' ') + ' '
+                                                   + str(tool.get('description') or '')).lower()))
+    kept = [word for word in words if word not in own] or words
+    value = ' '.join(kept)[:160].strip()
+    # one generic word ('owner') is not a search a caller asked for
+    return value if len(kept) >= 2 and len(value) >= 3 else None
 
 
 def _one(values):
@@ -141,7 +185,15 @@ def fill(task, tool, arguments):
     Returns the same arguments (equal dict) when nothing is certain."""
     if not isinstance(arguments, dict) or not any(isinstance(v, str) and PLACEHOLDER.match(v) for v in arguments.values()):
         return arguments
+    if personal(task):
+        return arguments
     found = values(task)
+    if any(_KIND_OF.get(str(name).lower()) == 'query' for name in arguments):
+        # a value whose form is certain (a CVE id, a DOI, a URL, ...) is the search itself; else the task's terms
+        query = next((found[kind] for kind in ('cve', 'doi', 'url', 'domain', 'ip', 'symbol') if kind in found), None) \
+            or _query(task, tool)
+        if query:
+            found['query'] = query
     if not found:
         return arguments
     out = dict(arguments)

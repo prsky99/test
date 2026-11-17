@@ -806,6 +806,21 @@ class FastConcierge(Concierge):
             gateway = gateway_agent_url(item.get('id'), 'mcp')
             if gateway:
                 lines.append('MCP config: ' + json.dumps(mcp_config(name, gateway), separators=(',', ':')))
+        if kind == 'mcp' and item.get('tool_unlisted') is not True and '/api/gateway/mcp/' in str(item.get('usage_endpoint') or ''):
+            # PM 11-17 10:3x (plan 2): our gateway answers each JSON-RPC request on its own (connections.gateway_mcp_steps),
+            # so the call is one POST with the arguments already filled where the task made them certain.
+            from .connections import example_arguments
+            tool = (item.get('tools_schema') or [None])[0]
+            if isinstance(tool, dict) and isinstance(tool.get('name'), str) and tool['name']:
+                arguments = (step['arguments'].get('arguments') if first and step and isinstance(step.get('arguments'), dict)
+                             else None)
+                if not isinstance(arguments, dict):
+                    arguments = example_arguments(tool)
+                body = json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call',
+                                   'params': {'name': tool['name'], 'arguments': arguments}}, separators=(',', ':'))
+                one = 'one POST to the Endpoint, no session: ' + body
+                index = lines.index('Call: ' + call)
+                lines[index] = 'Call: ' + (one if len(one) <= 500 else 'one POST tools/call to the Endpoint, no session')
         summary=next((part.strip() for part in re.split(r'(?<=[.!?])\s+|;',str(item.get('description') or '')) if part.strip() and not DISPLAY_RESTRICTED.search(part)), '')
         if summary:lines.append('Capability: '+summary[:220])
         from .task_conditions import explanation
