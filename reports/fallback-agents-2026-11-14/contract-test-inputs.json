@@ -965,5 +965,34 @@
    null,
    {}
   ]
+ ],
+ "package-readme": [
+  [
+   {
+    "package": "lodash",
+    "ecosystem": "npm"
+   },
+   "ok",
+   "live",
+   {}
+  ],
+  [
+   {
+    "package": "lodash",
+    "ecosystem": "PyPI"
+   },
+   "source_unavailable",
+   null,
+   {}
+  ],
+  [
+   {
+    "package": "../x",
+    "ecosystem": "npm"
+   },
+   "invalid_input",
+   null,
+   {}
+  ]
  ]
 }

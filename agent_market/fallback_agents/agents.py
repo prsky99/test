@@ -68,7 +68,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "github-repo": 24 * 3600, "rdap-domain": 7 * 86400, "unit-convert": 10 * 365 * 86400,
            "wikidata-place": 7 * 86400, "wikidata-book": 7 * 86400, "gdelt-news": 6 * 3600, "census-geocode": 30 * 86400, "mcp-registry": 86400, "github-releases": 86400, "package-releases": 86400, "tls-certificate": 86400,
            "sec-company-profile": 24 * 3600, "sun-times": 10 * 365 * 86400, "site-reachability": 60,
-           "dns-spf-dmarc": 86400}  # rules age from the library release; update the pin at least yearly
+           "dns-spf-dmarc": 86400, "package-readme": 86400}  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -83,7 +83,7 @@ TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "githu
        "gdelt-news": (3600, 6 * 3600), "census-geocode": (7 * 86400, 30 * 86400),
        "mcp-registry": (3600, 6 * 3600), "github-releases": (3600, 24 * 3600),
        "package-releases": (6 * 3600, 24 * 3600), "tls-certificate": (6 * 3600, 24 * 3600),
-       "dns-spf-dmarc": (3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
+       "dns-spf-dmarc": (3600, 24 * 3600), "package-readme": (6 * 3600, 24 * 3600)}  # (serve from cache without asking, longest a cached copy may serve)
 KEV_TTL, KEV_MAX_STALE = 3600, 24 * 3600
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PACKAGE = re.compile(r"(?:@[a-z0-9][a-z0-9._~-]*/)?[A-Za-z0-9][A-Za-z0-9._~-]*")
@@ -1707,6 +1707,53 @@ class FallbackAgents:
             out["answer"] = f"{domain}: the TLS certificate does not validate ({facts.get('reason') or 'unknown reason'})."
         return out, cache, False, {"TLS handshake": as_of}
 
+    def _package_readme(self, args, remaining):
+        """docs.readme.v1 (package-risk-audit v2 usage seat, agent team 11-17): how to use an npm package now, from the
+        README the npm registry holds for it (the latest release's README): the install command, the first code
+        example that is not a shell line, the documentation link and the section headings. npm only, like
+        package-releases, until PyPI's terms are read. The README text itself is not returned beyond the example."""
+        package, ecosystem = str(args.get("package") or ""), args.get("ecosystem")
+        version = str(args.get("version") or "")
+        if not PACKAGE.fullmatch(package) or len(package) > 214 or (version and not re.fullmatch(r"[A-Za-z0-9.+_!~-]{1,64}", version)):
+            raise FallbackUnavailable("invalid_input", "Use a valid package name and exact version.")
+        if ecosystem != "npm":
+            raise FallbackUnavailable("source_unavailable", "PyPI READMEs are not offered yet; use npm.")
+        from urllib.parse import quote as _quote
+
+        def live(rem):
+            raw = self._get_json("https://registry.npmjs.org/" + _quote(package, safe="@"), rem, limit=24 * 1024 * 1024)
+            latest = ((raw.get("dist-tags") or {}).get("latest")) or ""
+            info = (raw.get("versions") or {}).get(latest) or {}
+            readme = raw.get("readme") if isinstance(raw.get("readme"), str) else ""
+            home = info.get("homepage") or raw.get("homepage")
+            return {"latest": _text(latest, 64), "readme": readme[:200000], "versions": sorted(raw.get("versions") or {})[-500:],
+                    "homepage": home if isinstance(home, str) and home.startswith("https://") else "",
+                    "repository": repository_url(raw.get("repository") or info.get("repository"))}, _now_iso(self.utc_now())
+        (data, as_of), cache = self._cached(("package-readme", package.lower()), TTL["package-readme"], live, remaining)
+        if version and version not in data["versions"] and version != data["latest"]:
+            raise FallbackUnavailable("not_found", "The npm registry has no such version of this package.")
+        readme = data["readme"]
+        if not readme.strip() or readme.strip().upper() == "ERROR: NO README DATA FOUND!":
+            raise FallbackUnavailable("not_found", "The npm registry holds no README for this package.")
+        example = readme_example(readme)
+        sections = [_text(h, 200) for h in re.findall(r"(?m)^#{2,3}\s+(.+?)\s*#*$", readme)][:10]
+        install = f"npm install {package}" + (f"@{version}" if version else "")
+        out = {"package": package, "version": version or data["latest"], "install": install,
+               "readme_url": "https://www.npmjs.com/package/" + package,
+               "url": "https://www.npmjs.com/package/" + package,
+               "source": "npm public registry (README of the latest release)"}
+        if data["homepage"]:
+            out["docs_url"] = data["homepage"]
+        if example:
+            out["example"] = example
+        if sections:
+            out["sections"] = sections
+        note = "" if not version or version == data["latest"] else f" The README is the one of the latest release {data['latest']}, not of {version}."
+        out["answer"] = (f"{package}: install with `{install}`."
+                         + (f" First example from its README:\n{example}" if example else " Its README has no code example.")
+                         + (f"\nDocumentation: {data['homepage']}" if data["homepage"] else "") + note)
+        return out, cache, False, {"npm public registry": as_of}
+
     def _dns_spf_dmarc(self, args, remaining):
         """dns.mail_auth.v1 (website-trust-brief v2 mail_auth seat, agent team 11-17): the domain's SPF record (TXT at
         the name that starts with v=spf1) and DMARC record (TXT at _dmarc.<domain> that starts with v=DMARC1), asked
@@ -2329,6 +2376,25 @@ def repository_url(value, hosted_only: bool = False):
     if not hosted_only and value.startswith("https://"):
         return value
     return None
+
+
+def readme_examples(readme: str) -> list[str]:
+    """Fenced code blocks of a README that are code, not a shell or install line (docs.readme.v1), in order."""
+    out = []
+    for lang, body in re.findall(r"(?ms)^[ \t]*```[ \t]*([A-Za-z0-9_+-]*)[^\n]*\n(.*?)^[ \t]*```", readme or ""):
+        lang, body = lang.lower(), body.strip("\n")
+        if not body.strip() or lang in ("sh", "bash", "shell", "console", "zsh", "powershell", "cmd", "text", "txt"):
+            continue
+        if re.fullmatch(r"(?s)\s*(?:\$\s*)?(?:npm|yarn|pnpm|bun|npx)\s[^\n]*\s*", body):
+            continue
+        out.append(body[:2000])   # newlines kept: it is code
+    return out
+
+
+def readme_example(readme: str) -> str:
+    """The first of readme_examples, or ''."""
+    found = readme_examples(readme)
+    return found[0] if found else ""
 
 
 _SUFFIX = {"incorporated": "inc", "corporation": "corp", "company": "co", "limited": "ltd", "the": "",

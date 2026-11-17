@@ -1,0 +1,98 @@
+{
+  "id": "docs.readme.v1",
+  "role": "How to use one package version now, from its README: the install command, the first code example and the documentation link (workflow 11-16 for package-check; Context7 is not used, its terms limit output to internal use)",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "package": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 214
+      },
+      "ecosystem": {
+        "type": "string",
+        "enum": [
+          "npm",
+          "PyPI"
+        ]
+      },
+      "version": {
+        "type": "string",
+        "maxLength": 64
+      }
+    },
+    "required": [
+      "package",
+      "ecosystem"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "source": {
+        "type": "string"
+      },
+      "package": {
+        "type": "string",
+        "maxLength": 214
+      },
+      "version": {
+        "type": "string",
+        "maxLength": 64
+      },
+      "install": {
+        "type": "string",
+        "maxLength": 300
+      },
+      "example": {
+        "type": "string",
+        "maxLength": 2000
+      },
+      "docs_url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "readme_url": {
+        "type": "string",
+        "pattern": "^https://",
+        "maxLength": 2000
+      },
+      "sections": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "maxItems": 10
+      }
+    },
+    "required": [
+      "answer",
+      "source"
+    ],
+    "additionalProperties": false
+  },
+  "rules": [
+    "package echoed: express",
+    "install or usage: npm (?:i|install)|yarn add|pnpm add|pip install|require\\(|import ",
+    "no README is a normal answer: the answer says so",
+    "read-only lookup; no code is run; no account, payment or write"
+  ],
+  "test_inputs": [
+    {
+      "package": "express",
+      "ecosystem": "npm"
+    }
+  ]
+}

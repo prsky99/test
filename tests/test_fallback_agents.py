@@ -70,7 +70,7 @@ def agents(tmp_path, routes, calls=None, clock=None, snapshot=None):
 
 # ------------------------------------------------------------------ catalog and contracts
 def test_tools_are_read_only_and_use_the_slot_contracts():
-    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile", "sun-times", "site-reachability", "dns-spf-dmarc"}
+    assert set(SPECS) == {"nvd-cve", "cve-org", "cisa-kev", "github-advisory", "package-registry", "depsdev-package", "gleif-lei", "sec-edgar", "wikipedia-summary", "arxiv-search", "worldbank-indicator", "met-weather", "public-holidays", "holiday-calendar", "sec-filings", "software-incident", "scorecard", "site-readiness", "wiki-grounding", "ecb-fx", "usgs-quakes", "tz-time", "airport-lookup", "wiktionary-define", "github-repo", "rdap-domain", "unit-convert", "wikidata-place", "wikidata-book", "gdelt-news", "census-geocode", "mcp-registry", "github-releases", "package-releases", "tls-certificate", "sec-company-profile", "sun-times", "site-reachability", "dns-spf-dmarc", "package-readme"}
     for agent_id, spec in SPECS.items():
         tool = tool_spec(agent_id)
         c = contract(spec["contract"])
@@ -2692,3 +2692,68 @@ def test_mail_auth_gate_judge_and_answer_set_builder():
     assert cases == [{"case_id": "mail:example.org", "input": {"domain": "example.org"}, "task_type": "substitute",
                       "stratum": "mail_auth", "truth": {"domain": "example.org", "spf": ["v=spf1 -all"],
                                                         "dmarc": ["v=DMARC1; p=none"]}}]
+
+
+
+# ---------------------------------------------------------------- package-readme (agent team 11-17)
+README = """# left-pad
+
+## Install
+
+```bash
+npm install left-pad
+```
+
+## Usage
+
+```js
+const leftPad = require('left-pad')
+leftPad('foo', 5)
+```
+
+### API
+"""
+
+
+def test_package_readme_gives_install_first_example_docs_and_sections(tmp_path):
+    a, _ = agents(tmp_path, {"https://registry.npmjs.org/left-pad": httpx.Response(200, json={
+        "dist-tags": {"latest": "1.3.0"}, "versions": {"1.2.0": {}, "1.3.0": {"homepage": "https://github.com/x/left-pad#readme"}},
+        "readme": README, "repository": {"url": "git+https://github.com/x/left-pad.git"}})})
+    env = a.execute("package-readme", {"package": "left-pad", "ecosystem": "npm"})
+    r = env["result"]
+    assert r["install"] == "npm install left-pad" and r["version"] == "1.3.0"
+    assert r["example"] == "const leftPad = require('left-pad')\nleftPad('foo', 5)"
+    assert r["docs_url"] == "https://github.com/x/left-pad#readme" and r["readme_url"] == "https://www.npmjs.com/package/left-pad"
+    assert r["sections"] == ["Install", "Usage", "API"] and "First example" in r["answer"]
+    old = a.execute("package-readme", {"package": "left-pad", "ecosystem": "npm", "version": "1.2.0"})["result"]
+    assert old["install"] == "npm install left-pad@1.2.0" and "latest release 1.3.0" in old["answer"]
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("package-readme", {"package": "left-pad", "ecosystem": "npm", "version": "9.9.9"})
+    assert err.value.code == "not_found"
+    with pytest.raises(FallbackUnavailable) as err:
+        a.execute("package-readme", {"package": "left-pad", "ecosystem": "PyPI"})
+    assert err.value.code == "source_unavailable"
+
+
+def test_readme_example_skips_shell_and_install_blocks():
+    from agent_market.fallback_agents.agents import readme_example
+    assert readme_example("```\nnpm i x\n```\n```ts\nimport x from 'x'\n```") == "import x from 'x'"
+    assert readme_example("```sh\n$ x --help\n```") == "" and readme_example("no code") == ""
+
+
+
+def test_package_readme_gate_judge_and_builder():
+    from agent_market.fallback_agents.gold_check import judge, applies
+    from scripts import gold_package_readme as G
+    case = {"truth": {"package": "left-pad", "code_blocks": ["const leftPad = require('left-pad')\nleftPad('foo', 5)"]}}
+    good = {"install": "npm install left-pad", "example": "const leftPad = require('left-pad')\n  leftPad('foo', 5)"}
+    assert judge("package-readme", case, good)["pass"] and applies("package-readme", case)
+    assert not judge("package-readme", case, {**good, "example": "something else"})["pass"]
+    assert not judge("package-readme", case, {**good, "install": "npm install other"})["pass"]
+    assert judge("package-readme", {"truth": {"package": "x", "code_blocks": []}}, {"install": "npm install x"})["pass"]
+    assert G.repo_of({"repository": {"url": "git+https://github.com/lodash/lodash.git"}}) == ("lodash", "lodash")
+    assert G.repo_of({"repository": "github:foo/bar"}) is None and G.repo_of({}) is None
+    cases = G.build(["left-pad", "norepo"], lambda p: {"repository": "https://github.com/x/left-pad"} if p == "left-pad" else {},
+                    lambda owner, repo: README)
+    assert len(cases) == 1 and cases[0]["truth"]["code_blocks"] == ["const leftPad = require('left-pad')\nleftPad('foo', 5)"]
+    assert cases[0]["truth"]["repository_github"] == "x/left-pad"

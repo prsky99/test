@@ -49,7 +49,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "gdelt-news": "topic-evidence-brief",       # news seat (workflow 36fe030f): judged on the answer itself
         "mcp-registry": "mcp-server-trust-check",   # registry seat (agent team 11-16, scripts/gold_mcp_registry.py)
         "met-weather": "met-weather",               # 30 US points vs NWS, built right before the gate (PM 11-16)
-        "dns-spf-dmarc": "website-trust-brief"}     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)               # 30 US points vs NWS, built right before the gate (PM 11-16)
+        "dns-spf-dmarc": "website-trust-brief",     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)
+        "package-readme": "package-risk-audit"}     # split readme-r1 (scripts/gold_package_readme.py, agent team 11-17)     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)               # 30 US points vs NWS, built right before the gate (PM 11-16)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -92,6 +93,16 @@ def judge(agent_id: str, case: dict, result: dict | None, error: str | None = No
         spf_ok = quoted(truth.get("spf") or [], "no SPF record published")
         dmarc_ok = quoted(truth.get("dmarc") or [], "no DMARC record published")
         return {"pass": spf_ok and dmarc_ok, "spf": spf_ok, "dmarc": dmarc_ok}
+    if agent_id == "package-readme":
+        # agent team 11-17: the first example must be one of the code blocks of the package's GitHub README (an
+        # independent copy of the README, read right before the gate), or both have none; install names the package.
+        norm = lambda text: " ".join(str(text or "").split())
+        blocks = [norm(b) for b in truth.get("code_blocks") or []]
+        example = norm(result.get("example"))
+        found = (not blocks and not example) or (bool(example) and any(example == b or example in b or b in example
+                                                                         for b in blocks if b))
+        install = str(result.get("install") or "").startswith("npm install " + str(truth.get("package")))
+        return {"pass": found and install, "example_in_readme": found, "install": install}
     if agent_id == "mcp-registry":
         # agent team 11-16: listed false is the right answer for a made-up name; a listed server must carry the same
         # registry name and the frozen latest version, or a version published after it (the set is frozen before
@@ -429,6 +440,8 @@ def applies(agent_id: str, case: dict) -> bool:
         return bool((case.get("input") or {}).get("topic"))
     if agent_id == "github-releases":
         return bool((case.get("truth") or {}).get("repository_github"))
+    if agent_id == "package-readme":     # readme cases only (truth built by scripts/gold_package_readme.py)
+        return "code_blocks" in (case.get("truth") or {})
     if agent_id == "dns-spf-dmarc":      # mail-auth cases only (truth built by scripts/gold_mail_auth.py)
         return "spf" in (case.get("truth") or {}) and "dmarc" in (case.get("truth") or {})
     if agent_id == "package-releases":   # npm only until PyPI's terms are read (11-16)

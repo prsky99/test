@@ -133,6 +133,10 @@ SITE_TLS = {"name": "The website's own TLS certificate (read in the TLS handshak
             "license": "Public facts a server presents to every visitor; nothing is downloaded beyond the handshake",
             "notice": "Port 443 only, to a public address checked before connecting; the certificate the site serves now."}
 
+NPM_README = {**NPM, "name": "npm public registry (package README)",
+              "license": "npm Open-Source Terms (https://docs.npmjs.com/policies/open-source-terms); each README "
+                         "stays under its own package's license, quoted only for the first code example"}
+
 DNS_PUBLIC = {"name": "Public DNS TXT records (SPF and DMARC), read through our own resolver",
               "url": "https://www.rfc-editor.org/rfc/rfc7208",
               "license": "Public facts a domain publishes in DNS for every resolver; quoted as published",
@@ -390,6 +394,13 @@ SPECS = {
                        "the final address after redirects and whether it stays on HTTPS; read-only, the body is not kept.",
         "sources": [SITE_GET],
         "rate": "one GET a check (redirects followed one hop at a time); no cache",
+    },
+    "package-readme": {
+        "name": "AgentValCon Package README Guide", "tool": "get_package_readme", "contract": "docs.readme.v1",
+        "description": "How to use an npm package now, from the README its registry entry holds: how to install it, "
+                       "the first code example, the documentation link and the section headings; read-only.",
+        "sources": [NPM_README],
+        "rate": "one npm registry read a package; cached 6 hours",
     },
     "dns-spf-dmarc": {
         "name": "AgentValCon Mail Authentication Check", "tool": "lookup_spf_dmarc", "contract": "dns.mail_auth.v1",
