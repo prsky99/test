@@ -450,27 +450,28 @@ class KeylessSponsor:
                             details={"order_id": order_id, "budget_atoms": str(revision["total_atoms"])})
         return True
 
-    def _open_quote(self, order_id, campaign_id, order):
-        """The order's current quote: open, being confirmed or settled. An expired unpaid one does not count."""
-        now_ms = self.bookings._now(None)
-
-        def live(item):
-            return item["state"] != "expired" and not (item["state"] == "quoted" and int(item["expires_ms"]) <= now_ms)
-
+    def _quotes(self, order_id, campaign_id, order):
+        """Every quote of the order's campaign as (view, kind), oldest first: bookings for a day order, plans for a
+        budget order."""
         if order.get("budget_usdc") is not None:
             if not self.plans.ready():
-                return None
-            for item in self.plans.list(order_id)["items"]:
-                if item["campaign_id"] == campaign_id and live(item):
-                    return self._quote_view(item, kind="plan")
-            return None
+                return []
+            return [(item, "plan") for item in self.plans.list(order_id)["items"] if item["campaign_id"] == campaign_id]
         from .paid_bookings import _view
         with self.store.atomic():
             rows = [dict(r) for r in self.store.all("paid_bookings_by_advertiser", (order_id,))]
-        for row in rows:
-            if row["campaign_id"] == campaign_id and row["note"] != "plan" and live(row):
-                return self._quote_view(_view(row), kind="booking")
-        return None
+        return [(_view(row), "booking") for row in rows if row["campaign_id"] == campaign_id and row["note"] != "plan"]
+
+    def _expired(self, item):
+        now_ms = self.bookings._now(None)
+        return item["state"] == "expired" or (item["state"] == "quoted" and int(item["expires_ms"]) <= now_ms)
+
+    def _open_quote(self, order_id, campaign_id, order):
+        """The order's current quote: being paid, confirmed, in review or settled first, else the open one. An expired
+        unpaid one does not count. A paid one comes first so a later fresh quote never hides money that arrived."""
+        live = [(item, kind) for item, kind in self._quotes(order_id, campaign_id, order) if not self._expired(item)]
+        live.sort(key=lambda pair: pair[0]["state"] == "quoted")
+        return self._quote_view(live[0][0], kind=live[0][1]) if live else None
 
     def _new_quote(self, order_id, campaign_id, order):
         if order.get("budget_usdc") is not None:
@@ -498,17 +499,48 @@ class KeylessSponsor:
         return view
 
     # ---- 3. payment -------------------------------------------------------------------------------------------
+    def _received_units(self, tx_hash, pay_to, token):
+        """USDC units the transaction sent to our address, read once from the chain; None when it cannot be read."""
+        from ...chain import normalize, transfers_in
+        from .paid_bookings import _TX
+        if type(tx_hash) is not str or not _TX.match(tx_hash):
+            return None
+        try:
+            receipt = self.bookings.rpc.receipt(tx_hash.lower())
+        except Exception:
+            return None
+        if not receipt or int(receipt.get("status", "0x0"), 16) != 1:
+            return None
+        return sum(amount for _f, to, amount in transfers_in(receipt, token) if to == normalize(pay_to)) or None
+
     def pay(self, order_id, read_key, tx_hash):
+        """The payment goes to the quote whose exact amount it paid. 11-17 audit F-B3: money that arrived after its
+        quote expired is matched to that expired quote of this order and takes the existing late-payment path
+        (state review, an operator decides; nothing is confirmed or refunded automatically), even when a newer quote
+        is open. A transaction that matches no quote of the order is handled as before (refused, nothing attached)."""
         order_id, _ = self.authenticate(order_id, read_key)
         if self._taken_down(order_id):
             raise ContractError("order_taken_down", 409)
         order = self._order(order_id)
         campaign_id = self._campaign_id(order_id)
+        quotes = self._quotes(order_id, campaign_id, order) if campaign_id else []
         quote = self._open_quote(order_id, campaign_id, order) if campaign_id else None
-        if quote is None:
-            raise ContractError("no_open_quote", 409)
-        if quote["kind"] == "plan":
-            done = self.plans.submit(order_id, quote["quote_id"], tx_hash)
+        target = None
+        if quotes:
+            first = quotes[0][0]
+            received = self._received_units(tx_hash, first["pay_to"], first["token"])
+            if received is not None and not (quote and quote["state"] == "quoted"
+                                             and int(quote["amount_units"]) == received):
+                late = [(item, kind) for item, kind in quotes if self._expired(item) and not item["tx_hash"]
+                        and int(item["amount_units"]) == received]
+                if late:
+                    target = {"quote_id": late[-1][0]["id"], "kind": late[-1][1]}
+        if target is None:
+            if quote is None:
+                raise ContractError("no_open_quote", 409)
+            target = quote
+        if target["kind"] == "plan":
+            done = self.plans.submit(order_id, target["quote_id"], tx_hash)
         else:
-            done = self.bookings.submit(order_id, quote["quote_id"], tx_hash)
-        return {"order_id": order_id, "quote": self._quote_view(done, kind=quote["kind"])}
+            done = self.bookings.submit(order_id, target["quote_id"], tx_hash)
+        return {"order_id": order_id, "quote": self._quote_view(done, kind=target["kind"])}

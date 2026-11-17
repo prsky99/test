@@ -388,20 +388,41 @@ def test_b3_status_shows_the_agent_offer_state_before_the_buyer_pays(shop):  # n
     assert answer.get('offer_state') in ('approved', 'pending')
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='F-B3: a USDC transfer that lands after expires_at cannot be posted: pay() looks '
-                   'only at a live quote (no_open_quote), so the late-payment review that PaidBookings.submit gives a '
-                   'person never runs for a keyless order and the money is attached to nothing')
-def test_b4_a_late_payment_is_kept_for_review(shop):  # noqa: F811
-    created = order(shop).json()
+@pytest.mark.parametrize('extra', [{}, {'day': None, 'budget_usdc': '10'}])
+def test_b4_money_that_arrives_after_expiry_is_never_lost(shop, extra):  # noqa: F811
+    """11-17 audit F-B3: a transfer of an expired quote's exact amount is attached to that quote of this order and goes
+    to the existing late-payment review (an operator decides; nothing confirmed or refunded automatically), even after
+    a status read made a fresh quote with another amount. A transfer that matches nothing is still refused."""
+    created = order(shop, **extra).json()
     order_id, key = created['order_id'], created['read_key']
     review(shop, order_id)
-    quote = status(shop, order_id, key).json()['quote']
-    tx = shop.rpc.send(int(quote['amount_units']))
+    first = status(shop, order_id, key).json()['quote']
+    tx = shop.rpc.send(int(first['amount_units']))
     later = time.time() + paid.QUOTE_TTL_MS / 1000 + 60
     shop.sponsor.bookings._clock = lambda: later
-    sent = shop.post('/api/ad-coin/v2/sponsor/' + order_id + '/payment', json={'tx_hash': tx},
-                     headers={'X-Read-Key': key})
-    assert sent.status_code == 200 and sent.json()['quote']['state'] == 'review', sent.text
+    fresh = status(shop, order_id, key).json()['quote']                     # the buyer reads again: a new quote
+    assert fresh['quote_id'] != first['quote_id'] and fresh['amount_units'] != first['amount_units']
+    stray = shop.post('/api/ad-coin/v2/sponsor/' + order_id + '/payment', json={'tx_hash': shop.rpc.send(4_000_000)},
+                      headers={'X-Read-Key': key})
+    assert stray.status_code == 409 and stray.json()['error']['code'] == 'amount_mismatch'   # matches nothing
+    sent = shop.post('/api/ad-coin/v2/sponsor/' + order_id + '/payment', json={'tx_hash': tx}, headers={'X-Read-Key': key})
+    assert sent.status_code == 200, sent.text
+    held = sent.json()['quote']
+    assert (held['quote_id'], held['state'], held['tx_hash']) == (first['quote_id'], 'review', tx)
+    shown = status(shop, order_id, key).json()['quote']                     # the status read shows the money
+    assert (shown['quote_id'], shown['state']) == (first['quote_id'], 'review')
+    table = 'adc2_paid_plans' if extra else 'adc2_paid_bookings'
+    where = '' if extra else " WHERE note IS DISTINCT FROM 'plan'"
+    assert sorted(r['state'] for r in rows(shop.store, 'SELECT state FROM ' + table + where)) in (
+        ['quoted', 'review'], ['expired', 'review'])                         # no third quote hides it
+    from agent_market.ad_coin.v2 import auto_review
+    operator = auto_review.principal(shop.commercial.access)
+    if extra:
+        queue = shop.sponsor.plans.operator_queue(shop.commercial.access, operator)['items']
+    else:
+        queue = shop.sponsor.bookings.operator_queue(shop.commercial.access, operator)['items']
+    [item] = [i for i in queue if i['id'] == first['quote_id']]
+    assert item['note'] == 'late_payment' and item['tx_hash'] == tx        # the operator sees it and decides
 
 
 @pytest.mark.xfail(strict=True, raises=AssertionError, reason='F-B4: /advertise says your own report shows how often the placement was shown; '
