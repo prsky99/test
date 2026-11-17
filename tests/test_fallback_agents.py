@@ -2670,3 +2670,25 @@ def test_mail_auth_agent_reports_two_spf_records_as_invalid(tmp_path):
     a.dns_txt = lambda name, timeout: ["v=spf1 a -all", "v=spf1 mx -all"] if not name.startswith("_dmarc") else []
     answer = a.execute("dns-spf-dmarc", {"domain": "double.example.org"})["result"]["answer"]
     assert "2 SPF records (invalid: only one is allowed)" in answer
+
+
+
+def test_mail_auth_gate_judge_and_answer_set_builder():
+    from agent_market.fallback_agents.gold_check import judge, applies
+    from scripts import gold_mail_auth as G
+    case = {"truth": {"domain": "example.org", "spf": ["v=spf1 include:_spf.google.com ~all"],
+                      "dmarc": ["v=DMARC1; p=reject"]}}
+    good = {"answer": "example.org: SPF v=spf1 include:_spf.google.com  ~all. DMARC v=DMARC1; p=reject (policy reject)."}
+    assert judge("dns-spf-dmarc", case, good)["pass"] is True and applies("dns-spf-dmarc", case)
+    assert judge("dns-spf-dmarc", case, {"answer": "example.org: no SPF record published. DMARC v=DMARC1; p=reject"})["pass"] is False
+    none = {"truth": {"domain": "x.org", "spf": [], "dmarc": []}}
+    assert judge("dns-spf-dmarc", none, {"answer": "x.org: no SPF record published. no DMARC record published at _dmarc.x.org."})["pass"]
+    assert not applies("dns-spf-dmarc", {"truth": {"registered": "2010-01-01"}})
+    doh = {"Status": 0, "Answer": [{"type": 16, "data": '"v=spf1 include:a.example " "-all"'},
+                                   {"type": 16, "data": '"google-site-verification=x"'}, {"type": 5, "data": "alias."}]}
+    assert G.records(doh) == ["v=spf1 include:a.example -all", "google-site-verification=x"]
+    answers = {"example.org": ["v=spf1 -all", "other"], "_dmarc.example.org": ["v=DMARC1; p=none"], "gone.org": None}
+    cases = G.build(["example.org", "gone.org"], lambda name: answers.get(name, []))
+    assert cases == [{"case_id": "mail:example.org", "input": {"domain": "example.org"}, "task_type": "substitute",
+                      "stratum": "mail_auth", "truth": {"domain": "example.org", "spf": ["v=spf1 -all"],
+                                                        "dmarc": ["v=DMARC1; p=none"]}}]

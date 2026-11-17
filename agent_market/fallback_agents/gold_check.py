@@ -48,7 +48,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "github-releases": "package-risk-audit",    # split holdout-v2-activity (gold_repos.py, workflow 9da8aa94)
         "gdelt-news": "topic-evidence-brief",       # news seat (workflow 36fe030f): judged on the answer itself
         "mcp-registry": "mcp-server-trust-check",   # registry seat (agent team 11-16, scripts/gold_mcp_registry.py)
-        "met-weather": "met-weather"}               # 30 US points vs NWS, built right before the gate (PM 11-16)
+        "met-weather": "met-weather",               # 30 US points vs NWS, built right before the gate (PM 11-16)
+        "dns-spf-dmarc": "website-trust-brief"}     # split mail-auth-r1 (scripts/gold_mail_auth.py, agent team 11-17)               # 30 US points vs NWS, built right before the gate (PM 11-16)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -80,6 +81,17 @@ def judge(agent_id: str, case: dict, result: dict | None, error: str | None = No
         gap = abs(float(result["temperature_c"]) - float(hour["temp_c"]))
         return {"pass": gap <= float(truth.get("tolerance_c", 3.0)) and "MET Norway" in str(result.get("source")),
                 "got": result.get("temperature_c"), "want": hour["temp_c"], "gap_c": round(gap, 2)}
+    if agent_id == "dns-spf-dmarc":
+        # agent team 11-17: the SPF and DMARC records an independent resolver (Cloudflare DoH) returned right before
+        # the gate must be quoted in the answer, or their absence stated. Whitespace is compared loosely.
+        answer = " ".join(str(result.get("answer") or "").split())
+        def quoted(records, absent):
+            if not records:
+                return absent in answer
+            return all(" ".join(r.split()) in answer for r in records[:2])
+        spf_ok = quoted(truth.get("spf") or [], "no SPF record published")
+        dmarc_ok = quoted(truth.get("dmarc") or [], "no DMARC record published")
+        return {"pass": spf_ok and dmarc_ok, "spf": spf_ok, "dmarc": dmarc_ok}
     if agent_id == "mcp-registry":
         # agent team 11-16: listed false is the right answer for a made-up name; a listed server must carry the same
         # registry name and the frozen latest version, or a version published after it (the set is frozen before
@@ -417,6 +429,8 @@ def applies(agent_id: str, case: dict) -> bool:
         return bool((case.get("input") or {}).get("topic"))
     if agent_id == "github-releases":
         return bool((case.get("truth") or {}).get("repository_github"))
+    if agent_id == "dns-spf-dmarc":      # mail-auth cases only (truth built by scripts/gold_mail_auth.py)
+        return "spf" in (case.get("truth") or {}) and "dmarc" in (case.get("truth") or {})
     if agent_id == "package-releases":   # npm only until PyPI's terms are read (11-16)
         return (case.get("input") or {}).get("ecosystem") == "npm"
     if agent_id == "census-geocode":                     # US addresses only (its coverage)
