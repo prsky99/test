@@ -84,3 +84,16 @@ def test_reach_judge():
     assert judge("site-reachability", down, {"reachable": False, "https": True, "answer": "unreachable"})["pass"]
     assert not judge("site-reachability", down, {"reachable": False, "status": 403, "https": True})["pass"]
     assert judge("site-reachability", case, None)["pass"] is False
+
+
+def test_v2_round_domains_are_never_gate_cases(tmp_path, monkeypatch):
+    """Workflow 11-17: the v2 lists (code constant, spares included) and any round file on disk are left out."""
+    import sys
+    import types
+    fake = types.ModuleType("agent_market.necklaces.gold_domains_v2")
+    fake.LISTS = {"holdout-r3": [("government", "USA.gov"), ("spare", "nsf.gov")]}
+    monkeypatch.setitem(sys.modules, "agent_market.necklaces.gold_domains_v2", fake)
+    (tmp_path / "holdout-r4.jsonl").write_text('{"input": {"domain": "Round.example"}}\n')
+    held, used = G.excluded_domains(tmp_path, ["holdout-r3", "holdout-r4"])
+    assert held == {"usa.gov", "nsf.gov", "round.example"} and used == "LISTS[holdout-r3], holdout-r4.jsonl"
+    assert G.excluded_domains(tmp_path, ["holdout-r9"]) == (set(), "none found")

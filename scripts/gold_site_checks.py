@@ -102,6 +102,28 @@ def read_reach(domain: str, get, is_public) -> dict:
                 "https": True, "redirects": hops, "final_url": url}
 
 
+def excluded_domains(folder: Path, splits) -> tuple[set, str]:
+    """Domains of the website-trust-brief v2 round splits, never a gate case (workflow 11-17). Read from the code
+    constant agent_market.necklaces.gold_domains_v2.LISTS (spares included; the round files are written only 30
+    minutes before each round, after this gate), and from any round file already on disk. The v1 splits used here were
+    built disjoint from the v2 lists, so this is a safety net."""
+    names = [s.strip() for s in splits if s.strip()]
+    held, used = set(), []
+    try:
+        from agent_market.necklaces.gold_domains_v2 import LISTS
+    except ImportError:
+        LISTS = {}
+    for split in names:
+        if split in LISTS:
+            held |= {str(d).strip().lower() for _, d in LISTS[split]}
+            used.append(f"LISTS[{split}]")
+        path = folder / f"{split}.jsonl"
+        if path.exists():
+            held |= {json.loads(l)["input"]["domain"].strip().lower() for l in path.read_text().splitlines() if l.strip()}
+            used.append(path.name)
+    return held, ", ".join(used) or "none found"
+
+
 def build(domains: list[str], read, keep: int = 30) -> list[dict]:
     """Cases for the first KEEP domains READ answered for (READ -> None skips a domain: spares fill in order)."""
     cases = []
@@ -125,16 +147,20 @@ def main(argv=None) -> int:
     p.add_argument("--kind", choices=sorted(KINDS), required=True)
     p.add_argument("--from", dest="source", default="holdout-r2,holdout-r1")
     p.add_argument("--split", required=True)
+    p.add_argument("--exclude", default="holdout-r3,holdout-r4",
+                   help="v2 round splits whose domains are never used (workflow 11-17)")
     ns = p.parse_args(argv)
     folder = ROOT / "gateway-data/necklaces/gold" / SLUG
     out = folder / f"{ns.split}.jsonl"
     if out.exists():
         print(f"{out} exists; a split is never rewritten"); return 2
+    held, held_from = excluded_domains(folder, ns.exclude.split(","))
+    print(f"excluding {len(held)} v2 round domains ({held_from})")
     domains, origin = [], {}
     for split in ns.source.split(","):     # later splits are spares when a site cannot be read
         for line in (folder / f"{split}.jsonl").read_text().splitlines():
             domain = json.loads(line)["input"]["domain"].strip().lower() if line.strip() else None
-            if domain and domain not in origin:
+            if domain and domain not in origin and domain not in held:
                 domains.append(domain)
                 origin[domain] = split
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -192,7 +218,7 @@ def main(argv=None) -> int:
         data = {}
     data.setdefault("files", {})[ns.split] = {
         "cases": len(cases), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), "from": ns.source.split(","),
-        "for": f"{KINDS[ns.kind]} substitute gate", "built_at": fetched,
+        "for": f"{KINDS[ns.kind]} substitute gate", "built_at": fetched, "excluded_from": held_from,
         "skipped": [d for d in domains if d not in {c["input"]["domain"] for c in cases}][:40]}
     tmp = manifest.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1))
