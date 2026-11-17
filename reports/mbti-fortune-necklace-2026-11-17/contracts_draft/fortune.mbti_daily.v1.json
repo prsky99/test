@@ -1,0 +1,165 @@
+{
+  "id": "fortune.mbti_daily.v1",
+  "role": "Today's 16-type personality fortune: the Western sign and the saju day master against today's day pillar, blended with the four-letter type by fixed rules (same inputs and date give the same text); for entertainment",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "type": {
+        "type": "string",
+        "pattern": "^[EI][SN][TF][JP]$"
+      },
+      "sign": {
+        "type": "string",
+        "maxLength": 20
+      },
+      "element": {
+        "type": "string",
+        "maxLength": 10
+      },
+      "day_master": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "today_day_pillar": {
+        "type": "string",
+        "maxLength": 40
+      },
+      "today": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "sample_birth_date": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      }
+    },
+    "required": [
+      "type",
+      "today"
+    ],
+    "additionalProperties": false
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "disclaimer": {
+        "type": "string",
+        "const": "For entertainment; not advice."
+      },
+      "answer": {
+        "type": "string",
+        "maxLength": 8000
+      },
+      "source": {
+        "type": "string",
+        "maxLength": 500
+      },
+      "headline": {
+        "type": "string",
+        "maxLength": 200
+      },
+      "axes": {
+        "type": "object",
+        "properties": {
+          "energy": {
+            "type": "object",
+            "properties": {
+              "letter": {
+                "type": "string",
+                "maxLength": 1
+              },
+              "line": {
+                "type": "string",
+                "maxLength": 400
+              }
+            },
+            "required": [
+              "letter",
+              "line"
+            ]
+          },
+          "information": {
+            "type": "object",
+            "properties": {
+              "letter": {
+                "type": "string",
+                "maxLength": 1
+              },
+              "line": {
+                "type": "string",
+                "maxLength": 400
+              }
+            },
+            "required": [
+              "letter",
+              "line"
+            ]
+          },
+          "decisions": {
+            "type": "object",
+            "properties": {
+              "letter": {
+                "type": "string",
+                "maxLength": 1
+              },
+              "line": {
+                "type": "string",
+                "maxLength": 400
+              }
+            },
+            "required": [
+              "letter",
+              "line"
+            ]
+          },
+          "structure": {
+            "type": "object",
+            "properties": {
+              "letter": {
+                "type": "string",
+                "maxLength": 1
+              },
+              "line": {
+                "type": "string",
+                "maxLength": 400
+              }
+            },
+            "required": [
+              "letter",
+              "line"
+            ]
+          }
+        },
+        "required": [
+          "energy",
+          "information",
+          "decisions",
+          "structure"
+        ]
+      },
+      "temperament_line": {
+        "type": "string",
+        "maxLength": 400
+      },
+      "notes": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "maxItems": 10
+      },
+      "rules_version": {
+        "type": "string",
+        "maxLength": 40
+      }
+    },
+    "required": [
+      "answer",
+      "disclaimer",
+      "source",
+      "axes"
+    ],
+    "additionalProperties": false
+  }
+}
