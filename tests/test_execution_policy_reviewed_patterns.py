@@ -10,6 +10,7 @@ REVIEWED = {  # pattern -> (an accepted value, a refused value)
     r'^[A-Za-z]{2}$': ('US', 'USA'),
     r'^[A-Za-z0-9.-]{1,13}$': ('BRK.B', 'AAPL;DROP'),
     r'^[\w.+#\- ]{1,40}$': ('C++', 'rust/../etc'),
+    r'^[a-z]{2}$': ('en', 'EN'),
 }
 
 
@@ -22,8 +23,8 @@ def setup_function():
     ep._checked_validator.cache_clear()
 
 
-def test_the_reviewed_list_is_exactly_these_three():
-    assert ep.REVIEWED_BOUNDED_PATTERNS == {p: limit for p, limit in zip(REVIEWED, (2, 13, 40))}
+def test_the_reviewed_list_is_exactly_these_four():
+    assert ep.REVIEWED_BOUNDED_PATTERNS == {p: limit for p, limit in zip(REVIEWED, (2, 13, 40, 2))}
 
 
 @pytest.mark.parametrize('pattern', REVIEWED)
@@ -59,3 +60,14 @@ def test_a_larger_declared_max_length_or_another_pattern_stays_unsupported():
 
 def test_a_reviewed_pattern_within_its_declared_max_length_is_supported():
     assert ep.safe_registered_tool(spec({'type': 'string', 'pattern': r'^[\w.+#\- ]{1,40}$', 'maxLength': 20}))
+
+
+def test_an_optional_language_code_in_an_any_of_is_supported():
+    # 39577 search_papers (error sweep 11-17): {"anyOf": [{"type": "string", "pattern": "^[a-z]{2}$"}, {"type": "null"}]}
+    tool = spec({'anyOf': [{'type': 'string', 'pattern': r'^[a-z]{2}$'}, {'type': 'null'}], 'default': None},
+                required=())
+    assert ep.safe_registered_tool(tool)
+    ep.validate_arguments(tool, {'value': 'de'})
+    ep.validate_arguments(tool, {'value': None})
+    with pytest.raises(ep.ExecutionDenied):
+        ep.validate_arguments(tool, {'value': 'deu'})

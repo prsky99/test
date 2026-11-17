@@ -134,6 +134,7 @@ REVIEWED_BOUNDED_PATTERNS = {
     r'^[A-Za-z]{2}$': 2,                 # country code (38613 get_public_holidays)
     r'^[A-Za-z0-9.-]{1,13}$': 13,        # stock ticker (58997 list_filings)
     r'^[\w.+#\- ]{1,40}$': 40,           # language or license name (136184 search_repos)
+    r'^[a-z]{2}$': 2,                    # ISO 639-1 language code (39577 search_papers, error sweep 11-17)
 }
 
 
