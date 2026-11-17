@@ -329,6 +329,11 @@ class DataAgents:
             titles = row.get('title', []) if type(row) is dict else []
             title = str(titles[0]).casefold() if type(titles) is list and titles else ''
             return bool(words) and all(re.search(r'(?<![0-9a-z])' + re.escape(w), title) for w in words)
+        if words and not any(in_title(r) for r in rows):
+            # PM 11-17: a broad topic's most-cited matches are other fields' famous papers ("Mini-mental state" for
+            # solid-state battery). Never answer with them: an empty, partial answer that says so (one call, as before).
+            return {'query': args['query'], 'items': [], 'partial': True,
+                    'note': 'No highly cited paper with the topic words in its title was found.'}
         rows = [r for r in rows if in_title(r)] + [r for r in rows if not in_title(r)]
         items, seen = [], set()
         for row in rows[:40]:

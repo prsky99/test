@@ -430,3 +430,14 @@ def test_research_papers_asks_most_cited_first_and_puts_title_matches_ahead(engi
     params = seen[0].url.params
     assert params['sort'] == 'is-referenced-by-count' and params['order'] == 'desc' and params['rows'] == '40'
     assert [i['doi'] for i in out['data']['items']] == ['10.1000/b', '10.1000/a'] and out['data']['partial'] is False
+
+
+
+def test_research_papers_never_answers_with_papers_that_miss_the_topic(engine):
+    """PM 11-17: no title holds the topic words among the most-cited matches -> no papers, partial, a note."""
+    core, calls, state = engine
+    core.http = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json={'message': {'items': [
+        {'DOI': '10.1000/x', 'title': ['Mini-mental state'], 'is-referenced-by-count': 90000}]}})))
+    out = core.execute('research-papers', {'query': 'solid-state battery', 'limit': 3})
+    assert out['data'] == {'query': 'solid-state battery', 'items': [], 'partial': True,
+                           'note': 'No highly cited paper with the topic words in its title was found.'}

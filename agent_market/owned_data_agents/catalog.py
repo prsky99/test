@@ -49,9 +49,13 @@ SPECS = {
         'source_name': 'Crossref', 'source_url': 'https://www.crossref.org/documentation/retrieve-metadata/rest-api/',
         'ttl': 300, 'max_stale': 3600,
         'input': obj({'query': {**QUERY, 'maxLength': 500}, 'limit': LIMIT}),
-        'data': obj({'query': text(500), 'items': array(obj({'title': text(), 'url': text(2000),
+        # 'note' (optional, PM 11-17): says when no highly cited paper carries the topic words in its title
+        'data': {**obj({'query': text(500), 'items': array(obj({'title': text(), 'url': text(2000),
             'doi': text(250), 'publisher': text(), 'publication_date': text(40)})),
             'partial': {'type': 'boolean'}}),
+            'properties': {'query': text(500), 'items': array(obj({'title': text(), 'url': text(2000),
+                'doi': text(250), 'publisher': text(), 'publication_date': text(40)})),
+                'partial': {'type': 'boolean'}, 'note': text(300)}},
         'example': {'query': 'artificial intelligence', 'limit': 3}},
     'country-profile': {
         'name': 'Country Profile', 'tool': 'get_country_profile',
