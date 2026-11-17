@@ -92,6 +92,51 @@ def context(surface, tool, structured=None, headers=None, task=None):
             'counted': _header(headers, 'early-data') != '1' and not qa}
 
 
+PRICE_LINE = '5 USDC on Base per placement per day, or a custom plan sized to your budget; paid once per booking from your own wallet (no prepaid balance, no stored funds)'
+
+
+def buy_line(base='https://agentconcierge.biz'):
+    """How to buy a placement, in the words every agent-facing document uses (PM 11-17, first revenue C)."""
+    base = base.rstrip('/')
+    return ('Advertise to agents: one offer labelled "Sponsored" follows the results of MCP and A2A answers (necklace runs, '
+            'find_agents, best_for_role, A2A recommendations), matched by site category and region, in a separate `sponsored` '
+            'field; it never changes results, tests or ranking. Price: ' + PRICE_LINE + '. Book: ' + base + '/advertise. '
+            'Every placement: ' + base + '/ads/library.')
+
+
+def buy_entry():
+    """The agent-entry document's advertising section (relative paths, like its other entries)."""
+    return {'placement': 'One labelled Sponsored offer after MCP and A2A answers, in a separate `sponsored` field.',
+            'surfaces': ['necklace runs', 'find_agents', 'best_for_role', 'A2A recommendations'],
+            'matched_on': ['site category', 'region'], 'price': PRICE_LINE, 'book': '/advertise',
+            'library': '/ads/library', 'library_json': '/ads/library.json', 'disclosure': STATEMENT}
+
+
+# Necklace answers (PM 11-17, first revenue A): the site category an offer is matched on, per necklace. A necklace that is
+# not listed gets no ad (no category, so the provider returns nothing). Sensitive categories stay out by the ad side's rule.
+NECKLACE_CATEGORY = {
+    'topic-evidence-brief': 'web_search',
+    'company-due-diligence': 'commerce_marketing',
+    'cve-incident-brief': 'security',
+    'website-trust-brief': 'security',
+    'package-risk-audit': 'dev_tools',
+    'book-author-brief': 'education_culture',
+    'holidays-at-address': 'travel_maps_weather',
+    'quakes-near-address': 'travel_maps_weather',
+    'quakes-near-airport': 'travel_maps_weather',
+}
+
+
+def necklace_context(surface, slug, headers=None, task=''):
+    """Context for a finished necklace answer (MCP or A2A only; REST answers carry no ad). The task text (the necklace
+    input) goes only to the sensitive-topic rule, as for the other tools."""
+    category = NECKLACE_CATEGORY.get(slug) if isinstance(slug, str) else None
+    ctx = context(surface, 'necklace', {'category': category} if category else None, headers,
+                  task=task if isinstance(task, str) else '')
+    ctx['necklace'] = slug if isinstance(slug, str) else None
+    return ctx
+
+
 def _clean(value, limit=MAX_FIELD):
     if isinstance(value, str):
         return _CONTROL.sub(' ', value).strip()[:limit]

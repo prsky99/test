@@ -158,3 +158,60 @@ def test_an_advertiser_cannot_change_or_drop_the_disclosure(client):  # noqa: F8
     assert item['sponsored'] is True and item['disclosure'] == ad_slot.disclosure()
     assert set(item['disclosure']['affects'].values()) == {False}
     assert 'sponsored' not in [k for rec in r['structuredContent'].get('recommendations', []) for k in rec]
+
+
+# ---- necklace answers (PM 11-17, first revenue A) -------------------------------------------------------------------
+from tests.test_necklace_surface import mcp_site, snapshot  # noqa: F401,E402 - fixtures
+
+
+def test_a_finished_necklace_answer_gets_the_slot_after_it_in_mcp_and_a2a(mcp_site, client, provider, monkeypatch):  # noqa: F811
+    from agent_market.concierge import necklace_surface as ns
+    monkeypatch.setitem(ad_slot.NECKLACE_CATEGORY, 'trip-brief', 'travel_maps_weather')
+    monkeypatch.setattr(ns, 'RUN', lambda front, entry, arguments, source, meta: {'ok': True, 'output': {'brief': 'sunny'}})
+    ran = call(client, 'necklace_trip_brief', {'city': 'Paris'})
+    assert ran['isError'] is False and ran['structuredContent']['output'] == {'brief': 'sunny'}
+    item = ran['structuredContent']['sponsored'][0]
+    assert item['sponsored'] is True and item['disclosure']['affects'] == ad_slot.AFFECTS
+    assert ran['content'][0]['text'].startswith('Ran necklace trip-brief.') and 'Sponsored' in ran['content'][-1]['text']
+    ctx = provider[-1]
+    assert (ctx['surface'], ctx['category'], ctx['necklace']) == ('mcp', 'travel_maps_weather', 'trip-brief')
+    assert 'Paris' in ctx['task']                       # the input reaches only the sensitive-topic rule
+    r = client.post('/a2a', json={'jsonrpc': '2.0', 'id': 1, 'method': 'message/send', 'params': {
+        'message': {'role': 'user', 'messageId': 'm1', 'parts': [{'kind': 'text', 'text': 'run necklace trip-brief {"city": "Paris"}'}]}}}).json()['result']
+    text, data = r['parts'][0]['text'], r['parts'][1]['data']
+    assert text.startswith('Ran necklace trip-brief.') and 'Sponsored' in text.split('\n\n')[-1]
+    assert data['ok'] is True and data['sponsored'][0]['disclosure']['statement'] == ad_slot.STATEMENT
+    assert provider[-1]['surface'] == 'a2a' and provider[-1]['category'] == 'travel_maps_weather'
+
+
+def test_a_failed_or_refused_necklace_run_carries_no_offer(mcp_site, client, provider, monkeypatch):  # noqa: F811
+    from agent_market.concierge import necklace_surface as ns
+    monkeypatch.setitem(ad_slot.NECKLACE_CATEGORY, 'trip-brief', 'travel_maps_weather')
+    monkeypatch.setattr(ns, 'RUN', lambda front, entry, arguments, source, meta: {'ok': False, 'error_code': 'invalid_input'})
+    before = len(provider)
+    ran = call(client, 'necklace_trip_brief', {'city': ''})
+    assert ran['isError'] is True and 'sponsored' not in ran['structuredContent']
+    r = client.post('/a2a', json={'jsonrpc': '2.0', 'id': 1, 'method': 'message/send', 'params': {
+        'message': {'role': 'user', 'messageId': 'm1', 'parts': [{'kind': 'text', 'text': 'run necklace trip-brief {"city": ""}'}]}}}).json()['result']
+    assert 'sponsored' not in r['parts'][1]['data'] and len(provider) == before
+
+
+def test_a_necklace_without_a_category_is_matched_on_nothing():
+    ctx = ad_slot.necklace_context('mcp', 'unknown-necklace', None, 'x')
+    assert ctx['category'] is None and ctx['categories'] == [] and ctx['necklace'] == 'unknown-necklace'
+    assert ad_slot.necklace_context('rest', None)['necklace'] is None
+    listed = set(ad_slot.NECKLACE_CATEGORY.values())
+    from agent_market.broker.categories import CATEGORIES
+    assert listed <= set(CATEGORIES)                    # every mapped category is a real site category
+
+
+def test_agent_documents_say_how_to_buy_a_placement(client):  # noqa: F811
+    """PM 11-17 first revenue C: every agent visit ends at these documents, so each says what is sold and where."""
+    line = ad_slot.buy_line('https://agentconcierge.biz')
+    assert 'USDC on Base per placement per day' in line and '/advertise' in line and 'never changes results' in line
+    llms = client.get('/llms.txt').text
+    assert 'Advertise to agents:' in llms and '/ads/library' in llms
+    assert 'Advertising delivery is disabled' not in llms and 'No marketing messages are sent.' in llms
+    entry = client.get('/.well-known/agent-entry.json').json()['advertise']
+    assert entry['book'] == '/advertise' and entry['disclosure'] == ad_slot.STATEMENT and 'no prepaid balance' in entry['price']
+    assert '## 3. Advertise to agents' in client.get('/skill.md').text
