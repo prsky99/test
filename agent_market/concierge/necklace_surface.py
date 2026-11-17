@@ -1222,6 +1222,17 @@ NOTICE_SENTENCE = ('Your input is sent to the agents listed in necklace_details;
                    'them before you rely on them.')
 
 
+DETAIL_PROPERTY = {'type': 'string', 'enum': ['full', 'brief'], 'default': 'full',
+                   'description': 'full (default) or brief: the same facts, values and links in fewer tokens.'}
+
+
+def with_detail(schema):
+    """The necklace's input schema plus the optional response option detail (PM 11-17); the definition is unchanged."""
+    schema = dict(schema or {'type': 'object'})
+    schema['properties'] = dict(schema.get('properties') or {}, detail=DETAIL_PROPERTY)
+    return schema
+
+
 def tools(snapshot=None, now=None):
     """MCP tools for offered necklaces, plus necklace_details when there is at least one (none while nothing is live)."""
     rows = available(snapshot, now)
@@ -1243,7 +1254,7 @@ def tools(snapshot=None, now=None):
                                        if example_input(e) else '')
                                     + (' ' + FREE_NOW.replace('on this page', 'on its page') if free_now(e) else '')
                                     + ' ' + NOTICE_SENTENCE),
-                    'inputSchema': e.get('input_schema') or {'type': 'object'},
+                    'inputSchema': with_detail(e.get('input_schema')),
                     'annotations': {'readOnlyHint': False, 'destructiveHint': False, 'idempotentHint': False,
                                     'openWorldHint': True}})
     out.append({'name': 'necklace_details', 'title': 'Necklace details',

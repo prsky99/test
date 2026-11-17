@@ -106,6 +106,7 @@ def definition_for(entry: dict, definitions_dir: Path | None = None) -> dict:
 
 
 OUR_CAPACITY = "our_capacity"
+DETAILS = ("full", "brief")            # response detail (PM 11-17): full is the default, brief is necklaces/brief.py
 # Our side was full: the edge's in-flight limit (CAPACITY_EXCEEDED, after 3be2317c only when the origin could not take
 # it either), the runner's process-wide cap (capacity) or the relay cap of our own tests (our_capacity).
 # PM 11-16: every refusal of ours (refusals.is_ours: caps, quota, ledger, pace), not only the capacity codes
@@ -187,6 +188,10 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
         if values is None:
             raise Refused("invalid_input")
         notice = values.pop("necklace_notice", None)
+        # PM 11-17: a response option, not a necklace input (the definition and its digest stay as they are)
+        detail = values.pop("detail", None) or "full"
+        if detail not in DETAILS:
+            raise Refused("invalid_input")
         if source == "web" and notice != NOTICE:
             raise Refused("consent_required")
         if source == "web":
@@ -255,7 +260,11 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
     error_code = None if result["ok"] else "slot_failed:" + str(result["failed_slot"])
     if not result["ok"] and capacity_failure(result):
         error_code = OUR_CAPACITY           # our side was full; not the members' failure (PM 11-15 11:22)
-    return {"ok": result["ok"], "output": public_output(result["output"]),
+    output = public_output(result["output"])         # our own members named "AgentValCon agent" (growth 11-18)
+    if detail == "brief" and isinstance(output, dict):
+        from .brief import brief
+        output = brief(output)                      # the same facts and links, fewer tokens (PM 11-17)
+    return {"ok": result["ok"], "output": output, "detail": detail,
             "stages": {name: s["stage"] for name, s in result["slots"].items()},
             "statuses": {name: s["status"] for name, s in result["slots"].items()},
             "cached": bool(result.get("cached")),
