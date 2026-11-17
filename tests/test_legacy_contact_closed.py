@@ -30,3 +30,29 @@ def test_subscribe_and_verify_contact_answer_closed_and_register_nothing(w):
 def test_the_tool_descriptions_say_it_is_closed():
     tools = {t['name']: t for t in mcp_tools()}
     assert tools['verify_contact']['description'].startswith('This legacy contact check is closed. Use POST /api/task-updates')
+
+
+def test_the_closed_answer_points_to_task_updates(w):
+    """PM 11-17: 24 REST callers asked for contact updates in 30 days; the refusal names where to opt in."""
+    world, c, courier = w
+    token = chat(c, 'hi')['visitor']['token']
+    ver = _call(c, 'verify_contact', {'code': '123456', 'visitor_token': token})
+    assert ver['structuredContent']['task_updates'] == {'method': 'POST', 'path': '/api/task-updates', 'docs': '/llms.txt'}
+
+
+def test_report_reads_the_same_on_mcp_and_the_agent_api():
+    """PM 11-17: the public report wording must not differ between the two surfaces."""
+    from agent_market.agent_access.contracts import tools
+    mcp = {t['name']: t['description'] for t in mcp_tools()}['report']
+    api = {t['name']: t['description'] for t in tools()}['report']
+    assert mcp.startswith(api)
+
+
+def test_the_web_chat_shows_the_closed_answer():
+    """The web chat only shows replies listed in its notices set; anything else becomes the generic prompt."""
+    from pathlib import Path
+    from agent_market.concierge import front
+    root = Path(__file__).resolve().parents[1]
+    for text in (front.HTML, (root / 'new/en/assets/operating.js').read_text()):
+        notices = text[text.index('const notices = new Set(['):]
+        assert f'"{CLOSED}"' in notices[:notices.index(']);')]

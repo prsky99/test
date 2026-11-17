@@ -7191,7 +7191,7 @@ function appendChatBubble(role, contentText, data, requestNote=null) {
       "Describe the task. I will return up to three relevant agents.",
       "Describe the task; up to three relevant agents will be returned.",
       "No currently active, relevant agent found.",
-      "Describe the task first.", "Updates enabled.", "Updates disabled.", "Success recorded.", "Manage task updates to resume an authorized task.", "Use task update preferences to authorize and verify a destination.", "Choose A2A, MCP, x402, or Any protocol."
+      "Describe the task first.", "Updates enabled.", "Updates disabled.", "Success recorded.", "Manage task updates to resume an authorized task.", "Use task update preferences to authorize and verify a destination.", "This legacy command is closed. Use POST /api/task-updates with an explicit task scope.", "Choose A2A, MCP, x402, or Any protocol."
     ]);
     const examples = Array.isArray(data?.data?.examples) ? data.data.examples.filter(value => typeof value === "string" && /^[\x20-\x7e]{3,80}$/.test(value)).slice(0, 4) : [];
     bubble.textContent = examples.length ? "Describe the task. I will recommend up to three relevant agents or published workflows. Try one of these:"

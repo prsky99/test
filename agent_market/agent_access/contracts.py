@@ -23,7 +23,7 @@ def tools():
             'idempotency_key':{'type':'string','pattern':'^[A-Za-z0-9_.:-]{1,128}$'},
             'operation_id':{'type':'string','pattern':'^axo_[0-9a-f]{32}$'}},('action',))),
         ('resume','Revalidate the previous task. This never executes a provider.',obj({})),
-        ('report','Record caller feedback and suggest alternatives without executing a retry.',obj({
+        ('report','Tell us whether a call worked; on a failure, get up to three currently verified alternatives and eligible published workflows (no retry is executed).',obj({
             'resource_id':REF,'ok':{'type':'boolean'},'task':TASK,
             'error_type':{'enum':['timeout','http_5xx','auth_error','schema_mismatch','rate_limit']},
             'protocol':{'enum':['auto','any','a2a','mcp','x402']}},('resource_id','ok'))),

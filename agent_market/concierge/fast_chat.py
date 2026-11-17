@@ -1327,7 +1327,7 @@ class FastConcierge(Concierge):
             if guidance:
                 reply=Reply(MESSAGES[guidance],'clarify',{'status':guidance,'recommendations':[]})
             else:
-                reply=Reply('This legacy command is closed. Use POST /api/task-updates with an explicit task scope.','contact',{'status':'permission_required'}) if contact_request else self._fast_route(v,text,data)
+                reply=Reply('This legacy command is closed. Use POST /api/task-updates with an explicit task scope.','contact',{'status':'permission_required','task_updates':{'method':'POST','path':'/api/task-updates','docs':'/llms.txt'}}) if contact_request else self._fast_route(v,text,data)
             if action_request(structured_task or text):reply.data['action_review_required']=True
         snapshot=[]
         for item in reply.data.get('recommendations',[])[:3]:
