@@ -333,3 +333,15 @@ fallbacks, which are still under verification, as is our TLS step (the page show
 Missing a necklace you need? https://agentconcierge.biz/necklaces/request
 ```
 - Product Hunt(사용자 계정)·HN·dev.to(사용자가 직접 씀) 처리는 6.3과 같다.
+
+### 7.5 공개 직후 바로 할 일 (PM 11-17 저녁: topic 관문 연기로 첫 공개 후보는 website-trust-brief)
+판정이 통과하고 상태가 live가 된 뒤에만 한다. 순서대로 한다.
+
+| 순서 | 할 일 | 확인 방법 | 누가 |
+|---|---|---|---|
+| 1 | 에이전트용 안내가 목걸이를 내보내는지 본다: llms.txt, `/.well-known/mcp.json` tools, MCP tools/list, A2A 카드 skill, skill.md, find 결과 없음 줄 | 원서버(슬롯 포트)에서 한 번씩 읽기. mcp.json·skill.md·결과 없음 줄은 8f20c2d5가 운영에 있어야 나온다(11-18 낮 묶음) | 성장·유통 |
+| 2 | 공개 주소에서 실제 1회 실행: `necklace_website_trust_brief` `{"domain": "<도메인>"}` | 답 첫 줄·멤버 문구(verified/under verification)·"DKIM is not checked" 확인, 응답 시간 기록 | 성장·유통 |
+| 3 | 7.3의 빈칸(`{INPUT}`·`{ANSWER}`·측정 줄)을 2와 회차 원자료로 채운다 | 잰 값만. 시간은 "origin path time"과 공개 주소 시간을 나눠 적는다 | 성장·유통 → PM |
+| 4 | 등록처: A2A 카드를 다시 읽는 곳(a2a-registry.org, AgentPeering, LocalMark 제출 뒤)은 skill이 자동 반영된다. 공식 MCP Registry 재게시는 설명에 목걸이를 넣어야 할 때만 1.2.0으로 한다(1.1.0이 이미 최신) | 다음 날 각 목록에서 읽기로 확인 | PM(재게시·제출), 성장·유통(확인) |
+| 5 | 하위 등록처(Glama·mcpservers.org·API Tracker·mcptry·PulseMCP) 새 이름 반영 확인. 안 됐으면 갱신 요청 | 읽기로 확인 | 성장·유통 확인, 요청은 PM, Glama 수동 수정은 사용자(가입) |
+| 6 | 커뮤니티 게시 초안(7.4 r/mcp)을 채워 PM에 보낸다 | 게시 실행은 사용자 확인 뒤. HN·dev.to·Product Hunt는 사용자가 직접 | 성장·유통 초안, 실행 사용자 |
