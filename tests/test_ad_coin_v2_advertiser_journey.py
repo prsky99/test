@@ -90,7 +90,7 @@ def test_a1_advertise_links_reach_the_workspace_the_terms_and_the_library(person
     assert {'/ad-coin/v2#advertising', '/ad-coin/v2/advertise', '/ads/library'} <= links
     workspace = person.get('/ad-coin/v2')
     assert workspace.status_code == 200 and 'data-view="advertising"' in workspace.text
-    assert 'href="/customer/sign-in"' in workspace.text                    # the site sign-in, then back here
+    assert 'href="/customer/sign-in?next=/ad-coin/v2"' in workspace.text    # the site sign-in, then back here
     details = person.get('/ad-coin/v2/advertise')
     assert details.status_code == 200 and '@@' not in details.text
     for link in re.findall(r'href="(/ad-coin/[^"#]*)', details.text):
@@ -98,12 +98,27 @@ def test_a1_advertise_links_reach_the_workspace_the_terms_and_the_library(person
     assert person.get('/ads/library').status_code == 200 and person.get('/ads/library.json').status_code == 200
 
 
-@pytest.mark.xfail(strict=True, raises=AssertionError, reason='F-A1: /customer/sign-in only returns to /customer/* pages '
-                   '(customer_navigation.destination), so a person who opened the advertiser workspace and signs in '
-                   'lands on /customer/workspaces, which has no link back to /ad-coin/v2#advertising')
-def test_a1b_sign_in_returns_to_the_advertiser_workspace():
-    from agent_market.customer_navigation import destination
+def test_a1b_sign_in_returns_to_the_advertiser_workspace_and_nowhere_else():
+    """11-17 audit F-A1: sign-in returned only to /customer/* pages, so a person who signed in from the advertiser
+    workspace landed on /customer/workspaces with no link back. Exactly /ad-coin/v2 is now allowed; nothing near it
+    is (no open redirect)."""
+    from agent_market.customer_navigation import DEFAULT, destination, sign_in_location
     assert destination('/ad-coin/v2') == '/ad-coin/v2'
+    for value in ('https://evil.example/ad-coin/v2', '//evil.example/ad-coin/v2', '///evil.example/ad-coin/v2',
+                  '/\\evil.example', '\\evil.example/ad-coin/v2', '/ad-coin/v2%2F%2Fevil.example', '%2F%2Fevil.example',
+                  '/ad-coin/v2%5C', '/%2Fevil.example', '/ad-coin/v2/', '/ad-coin/v2/../../evil', '/ad-coin/v2?next=//x',
+                  '/ad-coin/v2#advertising', '/ad-coin/v2#account', '/ad-coin/v2;x', '/ad-coin/v2 ', ' /ad-coin/v2',
+                  '/ad-coin/v2/admin', '/ad-coin/v2/advertise', '/ad-coin', '/AD-COIN/V2', 'ad-coin/v2',
+                  'javascript:alert(1)', '/ad-coin/v2\t', '', None, 7):
+        assert destination(value) == DEFAULT, value
+    assert destination('/customer/plan') == '/customer/plan'                          # the old pages still work
+
+    class Url:
+        path, query = '/ad-coin/v2', ''
+
+    class Request:
+        url = Url()
+    assert sign_in_location(Request()) == '/customer/sign-in?next=%2Fad-coin%2Fv2'
 
 
 def test_a2_numbers_on_the_pages_are_the_ones_the_code_uses(person):

@@ -83,4 +83,4 @@ def test_v2_workspace_links_straight_to_the_sign_in_page():
     root = Path(__file__).resolve().parents[1] / 'agent_market/ad_coin/v2/web'
     for name in ('index.html', 'app.js', 'advertise.html', 'admin.html', 'admin.js'):
         assert '/new/en/sign-in.html' not in (root / name).read_text(), name
-    assert 'id="sign-in" class="btn primary" href="/customer/sign-in"' in (root / 'index.html').read_text()
+    assert 'id="sign-in" class="btn primary" href="/customer/sign-in?next=/ad-coin/v2"' in (root / 'index.html').read_text()

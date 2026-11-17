@@ -5,6 +5,10 @@ from urllib.parse import parse_qsl, urlencode, urlsplit
 DEFAULT = '/customer/workspaces'
 _PAGE = re.compile(r'/customer/(?:workspaces|workflows|organizations|plan|support|provider-connections|provider-claims|organizations/ws_[a-f0-9]{32}/(?:flows|build|connections))')
 
+# Pages outside /customer/ a sign-in may return to, matched exactly (11-17 AD Coin audit F-A1: the advertiser
+# workspace links to sign-in, and without this the person landed on /customer/workspaces with no way back).
+_EXACT = frozenset({'/ad-coin/v2'})
+
 
 def destination(value):
     """Accept known read-only pages, one workspace selector and known sections."""
@@ -16,7 +20,11 @@ def destination(value):
         parsed = urlsplit(value)
     except ValueError:
         return DEFAULT
-    if parsed.scheme or parsed.netloc or not _PAGE.fullmatch(parsed.path):
+    if parsed.scheme or parsed.netloc:
+        return DEFAULT
+    if parsed.path in _EXACT:        # exactly this path: no query, no fragment, nothing after it
+        return parsed.path if not parsed.query and not parsed.fragment and value == parsed.path else DEFAULT
+    if not _PAGE.fullmatch(parsed.path):
         return DEFAULT
     query = parse_qsl(parsed.query, keep_blank_values=True)
     # Provider claims (docs/PROVIDER_SELF_CLAIM.md): the agent page's "Are you the provider?" entry returns to the
