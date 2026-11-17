@@ -695,13 +695,139 @@ def norm_book(raw, values):
     return out
 
 
+# ---------------------------------------------------------------- daily-fortune-brief (PM 11-17, user request)
+# Our substitutes give flat fields; outside saju members give pillars as lists (35054 pillars[{key, value}], 405618
+# pillars[{name, chinese}]) and no today's pillar, so the saju normalizer computes today's day pillar offline from the
+# date alone (a fact, no call). The birth date is only read here, never logged.
+ISO_DAY = re.compile(r"\b(\d{4}-\d{2}-\d{2})\b")
+SIGNS_ELEMENT = {"aries": "Fire", "taurus": "Earth", "gemini": "Air", "cancer": "Water", "leo": "Fire", "virgo": "Earth",
+                 "libra": "Air", "scorpio": "Water", "sagittarius": "Fire", "capricorn": "Earth", "aquarius": "Air",
+                 "pisces": "Water"}
+SIGN_TEXT = re.compile(r"\b(" + "|".join(SIGNS_ELEMENT) + r")\b", re.I)
+STEM_NAMES = [("Gap", "甲"), ("Eul", "乙"), ("Byeong", "丙"), ("Jeong", "丁"), ("Mu", "戊"), ("Gi", "己"), ("Gyeong", "庚"),
+              ("Sin", "辛"), ("Im", "壬"), ("Gye", "癸")]
+BRANCH_NAMES = [("ja", "子"), ("chuk", "丑"), ("in", "寅"), ("myo", "卯"), ("jin", "辰"), ("sa", "巳"), ("o", "午"), ("mi", "未"),
+                ("sin", "申"), ("yu", "酉"), ("sul", "戌"), ("hae", "亥")]
+PILLAR_HANJA = re.compile(r"[甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]")
+PILLAR_KEYS = ("year", "month", "day", "hour")
+
+
+def pillar_name(hanja: str) -> str:
+    """"甲子" -> "Gap-ja 甲子" (the form our substitutes and the contract use)."""
+    s = next(i for i, (_, h) in enumerate(STEM_NAMES) if h == hanja[0])
+    b = next(i for i, (_, h) in enumerate(BRANCH_NAMES) if h == hanja[1])
+    return f"{STEM_NAMES[s][0]}-{BRANCH_NAMES[b][0]} {hanja}"
+
+
+def day_pillar_of(day: str) -> str | None:
+    """The sexagenary day pillar of a YYYY-MM-DD date (2000-01-01 is Mu-o 戊午); offline."""
+    from datetime import date as _date
+    try:
+        jdn = _date.fromisoformat(day[:10]).toordinal() + 1721425
+    except (TypeError, ValueError):
+        return None
+    k = (jdn + 49) % 60
+    return pillar_name(STEM_NAMES[k % 10][1] + BRANCH_NAMES[k % 12][1])
+
+
+def _kst_today() -> str:
+    from datetime import datetime, timedelta, timezone
+    return datetime.now(timezone(timedelta(hours=9))).date().isoformat()
+
+
+def norm_lunar(raw, values):
+    """calendar.lunar_convert.v1: solar_date (staged for the next steps), lunar_date, is_leap_month, calendar_basis."""
+    if is_error(raw) or not isinstance(raw, (dict, list)):
+        return None
+    out = {}
+    for node, _ in _walk(raw):
+        if not isinstance(node, dict):
+            continue
+        for key in ("solar_date", "lunar_date"):
+            day = ISO_DAY.search(str(node.get(key) or ""))
+            if day and key not in out:
+                out[key] = day.group(1)
+        if isinstance(node.get("is_leap_month"), bool) and "is_leap_month" not in out:
+            out["is_leap_month"] = node["is_leap_month"]
+        if node.get("calendar_basis") in ("korean_kasi", "chinese") and "calendar_basis" not in out:
+            out["calendar_basis"] = node["calendar_basis"]
+    return out if out.get("solar_date") else None
+
+
+def norm_western(raw, values):
+    """astro.western_sign.v1: sign and element (staged); an answer that only writes the sign in text (167374) is read
+    by the twelve names, and the element follows the sign."""
+    if is_error(raw):
+        return None
+    sign = None
+    for node, _ in _walk(raw):
+        if isinstance(node, dict):
+            for key in ("sign", "sun_sign", "sunSign", "zodiac_sign"):
+                if isinstance(node.get(key), str) and node[key].strip().lower() in SIGNS_ELEMENT:
+                    sign = sign or node[key].strip().title()
+    if sign is None:
+        found = SIGN_TEXT.search(_text(raw))
+        sign = found.group(1).title() if found else None
+    if sign is None:
+        return None
+    out = {"sign": sign, "element": SIGNS_ELEMENT[sign.lower()]}
+    for node, _ in _walk(raw):
+        if isinstance(node, dict) and isinstance(node.get("cusp"), str) and "cusp" not in out:
+            out["cusp"] = node["cusp"][:300]
+    return out
+
+
+def norm_saju(raw, values):
+    """saju.pillars.v1: year/month/day/hour pillars as "Gap-ja 甲子", day_master, today and today's day pillar (staged).
+    Today's pillar is computed offline when the member does not give it (outside members never do)."""
+    if is_error(raw) or not isinstance(raw, (dict, list)):
+        return None
+    out = {}
+    for node, path in _walk(raw):
+        if not isinstance(node, dict):
+            continue
+        for key in PILLAR_KEYS:
+            got = PILLAR_HANJA.search(str(node.get(key + "_pillar") or ""))
+            if got and key + "_pillar" not in out:
+                out[key + "_pillar"] = pillar_name(got.group(0))
+        label = str(node.get("key") or node.get("name") or "").strip().lower()
+        if label in PILLAR_KEYS:                                   # 35054 {key, value}; 405618 {name, chinese, ...}
+            got = PILLAR_HANJA.search(" ".join(str(node.get(k) or "") for k in ("value", "chinese", "characters")))
+            if got and label + "_pillar" not in out:
+                out[label + "_pillar"] = pillar_name(got.group(0))
+        for key in ("day_master", "dayMaster"):
+            if isinstance(node.get(key), (str, dict)) and "day_master" not in out:
+                text = node[key] if isinstance(node[key], str) else _text(node[key])
+                stem = re.search(r"[甲乙丙丁戊己庚辛壬癸]", text)
+                if stem:
+                    out["day_master"] = next(f"{r} {h}" for r, h in STEM_NAMES if h == stem.group(0))
+        today_pillar = PILLAR_HANJA.search(str(node.get("today_day_pillar") or ""))
+        if today_pillar and "today_day_pillar" not in out:
+            out["today_day_pillar"] = pillar_name(today_pillar.group(0))
+        day = ISO_DAY.search(str(node.get("today") or ""))
+        if day and "today" not in out:
+            out["today"] = day.group(1)
+    if not out.get("day_pillar"):
+        return None
+    if "day_master" not in out:
+        out["day_master"] = next(f"{r} {h}" for r, h in STEM_NAMES if h == out["day_pillar"].split()[-1][0])
+    out.setdefault("today", str((values or {}).get("today") or "")[:10] or _kst_today())
+    out.setdefault("today_day_pillar", day_pillar_of(out["today"]))
+    for node, _ in _walk(raw):
+        if isinstance(node, dict) and isinstance(node.get("boundary_note"), str) and "boundary_note" not in out:
+            out["boundary_note"] = node["boundary_note"][:400]
+    return out
+
+
 NORMALIZERS = {"package.advisories.v1": norm_advisories, "cve.record.v1": norm_record,
                "cve.exploited.v1": norm_exploited, "company.registry.v1": norm_registry,
                "geocode.address.v1": norm_location, "airport.lookup.v1": norm_location,
                "ip.lookup.v1": norm_location, "earthquake.feed.v1": norm_quakes, "book.search.v1": norm_book, "sec.filings.v1": norm_filings,
                "package.releases.v1": norm_package_releases,
                "encyclopedia.summary.v1": norm_encyclopedia,
-               "company.profile.v1": norm_encyclopedia}     # same fields as the encyclopedia contract, same identity check
+               "company.profile.v1": norm_encyclopedia,    # same fields as the encyclopedia contract, same identity check
+               "calendar.lunar_convert.v1": norm_lunar, "astro.western_sign.v1": norm_western,
+               "saju.pillars.v1": norm_saju}
 
 
 # What a later stage can read ({{slot.<slot>.<field>}}): the scalar fields of each normalizer's answer (Runner.run
@@ -713,7 +839,11 @@ STAGED_FIELDS = {norm_advisories: set(), norm_record: {"cve_id", "cvss_score"}, 
                  norm_location: {"lat", "lon", "point", "place", "country_code", "timezone"},
                  norm_quakes: {"count"}, norm_book: {"author", "year", "title", "text"},
                  norm_filings: {"text"},
-                 norm_package_releases: {"latest_version", "latest_date", "repository_github", "text"}}
+                 norm_package_releases: {"latest_version", "latest_date", "repository_github", "text"},
+                 norm_lunar: {"solar_date", "lunar_date", "calendar_basis"},
+                 norm_western: {"sign", "element", "cusp"},
+                 norm_saju: {"year_pillar", "month_pillar", "day_pillar", "hour_pillar", "day_master", "today",
+                             "today_day_pillar", "boundary_note"}}
 
 
 def staged_fields(contract: str) -> set:
