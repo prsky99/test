@@ -40,12 +40,23 @@ def _edits(word):
     return set(deletes) | set(swaps) | set(replaces) | set(inserts)
 
 
+# Currency names the listing vocabulary may lack; a request naming them is not misspelled (11-18 search team).
+CURRENCY_WORDS = frozenset('''franc francs krona kronor krone kroner rand rands dirham dirhams shekel shekels ringgit
+    ruble rubles rouble roubles baht forint forints koruna zloty zlotys lev leva leu lei hryvnia lari tenge dinar dinars
+    dong rupiah rupee rupees peso pesos real reais yen yuan renminbi euro euros pound pounds dollar dollars'''.split())
+
+
 @lru_cache(maxsize=4096)
 def corrected_word(word):
-    """The listing word one edit from WORD, or None when WORD is known or nothing common is close."""
+    """The listing word one edit from WORD, or None when WORD is known or nothing common is close.
+
+    11-18 (public find_agents, "convert 250 Swiss francs to Japanese yen"): "francs" was not in the vocabulary and
+    became "france", so the request found nothing. The plural of a known word, and a currency name, are not typos."""
     words = vocabulary()
     lower = word.lower()
-    if not words or lower in words or word.isupper():
+    if not words or lower in words or word.isupper() or lower in CURRENCY_WORDS:
+        return None
+    if lower.endswith('s') and (lower[:-1] in words or lower.endswith('es') and lower[:-2] in words):
         return None
     near = sorted(((words[w], w) for w in _edits(lower) if words.get(w, 0) >= MIN_REPLACEMENT), reverse=True)
     # "wether" is weather or whether: a correction must be clearly the likelier word.

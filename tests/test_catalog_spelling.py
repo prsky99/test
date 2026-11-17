@@ -32,6 +32,8 @@ def test_one_letter_typos_become_listing_words(typed, expected):
     'compose a short jingle',              # the first letter is never changed
     'wether report',                        # weather or whether: ambiguous, left as typed
     'look up MSFT quotes',                  # acronyms and short words
+    'convert 250 Swiss francs to Japanese yen at today rate',   # 11-18: francs became france, nothing was found
+    'how many kronor is 40 zlotys',         # currency names the listings may not use
 ])
 def test_names_real_words_and_ambiguous_typos_are_kept(text):
     assert spelling.respell(text) == text
