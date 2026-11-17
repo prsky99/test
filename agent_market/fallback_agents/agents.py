@@ -1719,19 +1719,41 @@ class FallbackAgents:
         name = str(args.get("name") or "").strip() or None
         if not url and not name:
             raise FallbackUnavailable("invalid_input", "Give the agent's https URL or its name.")
+        from ..agent_record_index import Index, url_key
+        from ..concierge.agent_check import normalize, variants
         try:
-            rid, matched = RECORDS.find(url, name)
+            keys = [url_key(v) for v in variants(normalize(url)[0])] if url else []
         except CheckError as exc:
             raise FallbackUnavailable("invalid_input", str(exc)) from exc
-        source = "AgentValCon collection and test records (published snapshots)"
+        # PM 11-17 11:5x (a): the daily catalog index first (every row, by key); the published snapshots when the
+        # index is missing. An index older than 48 hours still answers and says when it was built.
+        index = Index()
+        built = index.built_at()
+        hit = index.find(keys, name) if built else None
+        if hit:
+            rid, matched = hit["id"], hit["matched_by"]
+        else:
+            rid, matched = RECORDS.find(url, name)
+        source = ("AgentValCon catalog index (built daily) and test records" if built
+                  else "AgentValCon collection and test records (published snapshots)")
+        stale = ""
+        if built and self.wall() - built > 48 * 3600:
+            stale = (" Our index was built at " + _dt.fromtimestamp(built, _tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                     + " and is older than 48 hours.")
         if rid is None:
             what = url or name
             return ({"found": False, "source": source,
-                     "answer": f"{what} is not in AgentValCon's published records (listed agents, verified MCP servers "
-                               "and tested agents). Nothing was called to answer this."},
+                     "answer": f"{what} is not in AgentValCon's records" + (" (catalog index)" if built else
+                               " (listed agents, verified MCP servers and tested agents)") + ". Nothing was called to answer this." + stale},
                     {"status": "fresh_cache", "age_seconds": 0}, False, {source: _now_iso(self.utc_now())})
         entry = RECORDS.entry(rid)
         cat, reg, ver = entry.get("catalog") or {}, entry.get("registry") or {}, entry.get("verify") or {}
+        if hit:   # the index row is the catalog's own current view; the snapshots add registry and test facts
+            cat = {"name": hit.get("name"), "kind": hit.get("kind"), "eval_grade": hit.get("grade"),
+                   "health_status": hit.get("status"), "last_check_at": hit.get("last_check_at")}
+            if hit.get("reviewing"):
+                cat["eval_grade"] = None
+                reg, ver = {}, {}
         meta = ((reg.get("_meta") or {}).get("biz.agentconcierge/verification") or {})
         out = {"found": True, "agent_id": rid, "source": source, "url": f"https://agentconcierge.biz/agent/{rid}"}
         name_out = cat.get("name") or (reg.get("server") or {}).get("name") or ver.get("name")
@@ -1756,6 +1778,8 @@ class FallbackAgents:
             out["role_test"] = {"role": _text(best.get("role"), 80), "score": round(float(best["score"]), 1),
                                 "tested_at": _text(best["tested_at"], 40)}
         parts = [f"{out.get('name', rid)} (AgentValCon agent {rid}, matched by {matched})"]
+        if hit and hit.get("reviewing"):
+            parts.append("under review by AgentValCon")
         if out.get("grade"):
             parts.append(f"quality grade {out['grade']}")
         parts.append(f"reachability {out['status']}" + (f", last checked {out['last_checked_at']}" if out.get("last_checked_at") else ""))
@@ -1764,7 +1788,7 @@ class FallbackAgents:
         if out.get("role_test"):
             rt = out["role_test"]
             parts.append(f"best role test {rt['role']} {rt['score']}/100 on {rt['tested_at']}")
-        out["answer"] = "; ".join(parts) + ". From our published records; nothing was called."
+        out["answer"] = "; ".join(parts) + ". From our records; nothing was called." + stale
         return out, {"status": "fresh_cache", "age_seconds": 0}, False, {source: _now_iso(self.utc_now())}
 
     def _package_readme(self, args, remaining):

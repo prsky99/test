@@ -2777,6 +2777,7 @@ def test_agent_record_answers_from_our_published_snapshots(tmp_path, monkeypatch
                                       {"role": "geo.v1", "score": 40, "tested_at": "2027-01-13T09:12:00+0900"}]}}}
     for env, value in (("AGENT_RECORD_CATALOG", cat), ("AGENT_RECORD_REGISTRY", reg), ("AGENT_RECORD_VERIFY", ver)):
         path = tmp_path / (env + ".json"); path.write_text(json.dumps(value)); monkeypatch.setenv(env, str(path))
+    monkeypatch.setenv("AGENT_RECORD_INDEX", str(tmp_path / "no-index.sqlite3"))   # snapshots only here
     monkeypatch.setattr(our_records, "RECORDS", our_records.Records())
     a, _ = agents(tmp_path, {})
     r = a.execute("agent-record", {"url": "https://wx.example.com/mcp/"})["result"]
@@ -2787,8 +2788,36 @@ def test_agent_record_answers_from_our_published_snapshots(tmp_path, monkeypatch
     assert r["found"] and r["agent_id"] == 9 and r["status"] == "unknown" and "list_files" in r["answer"]
     assert r["last_checked_at"] == "2027-01-15T08:00:00Z" and "role_test" not in r
     r = a.execute("agent-record", {"url": "https://nobody.example.com/mcp"})["result"]
-    assert r["found"] is False and "not in AgentValCon's published records" in r["answer"]
+    assert r["found"] is False and "not in AgentValCon's records" in r["answer"]
     for bad in ({}, {"url": "https://127.0.0.1/mcp"}):
         with pytest.raises(FallbackUnavailable) as err:
             a.execute("agent-record", bad)
         assert err.value.code == "invalid_input"
+
+
+def test_agent_record_reads_the_daily_catalog_index_first(tmp_path, monkeypatch):
+    """PM 11-17 11:5x (a): every catalog row in a daily SQLite index; reviewing rows show no grade; old index says so."""
+    from agent_market import agent_record_index as I
+    from agent_market.fallback_agents import our_records
+    rows = [{"id": 5, "name": "Files", "kind": "mcp", "url": "https://files.example.com/mcp/", "eval_grade": "B",
+             "eval_security": "ok", "health_status": "degraded", "last_check_at": 1.8e9, "active": 1,
+             "details": json.dumps({"registry_name": "io.github.example/files", "contact": "x@example.com"})},
+            {"id": 6, "name": "Held", "kind": "a2a", "url": "https://held.example.com/a2a", "eval_grade": "A",
+             "eval_security": "quarantine", "health_status": "healthy", "last_check_at": 1.8e9, "active": 1, "details": None}]
+    built = I.build(rows, tmp_path / "index.sqlite3", 1.8e9 - 3 * 86400)                # three days old
+    assert built == {"records": 2, "url_keys": 2, "reviewing": 1, "path": str(tmp_path / "index.sqlite3")}
+    assert b"x@example.com" not in (tmp_path / "index.sqlite3").read_bytes()          # only public fields kept
+    monkeypatch.setenv("AGENT_RECORD_INDEX", str(tmp_path / "index.sqlite3"))
+    for env in ("AGENT_RECORD_CATALOG", "AGENT_RECORD_REGISTRY", "AGENT_RECORD_VERIFY"):
+        monkeypatch.setenv(env, str(tmp_path / "missing.json"))
+    monkeypatch.setattr(our_records, "RECORDS", our_records.Records())
+    a, _ = agents(tmp_path, {})
+    r = a.execute("agent-record", {"name": "IO.GITHUB.EXAMPLE/FILES"})["result"]
+    assert r["found"] and r["agent_id"] == 5 and r["grade"] == "B" and r["status"] == "degraded"
+    assert "catalog index" in r["source"] and "older than 48 hours" in r["answer"]     # agents() clock is far later
+    r = a.execute("agent-record", {"url": "https://files.example.com/mcp"})["result"]
+    assert r["agent_id"] == 5 and "matched by url" in r["answer"]
+    r = a.execute("agent-record", {"url": "https://held.example.com/a2a"})["result"]
+    assert r["agent_id"] == 6 and "grade" not in r and "under review" in r["answer"]
+    r = a.execute("agent-record", {"name": "nobody"})["result"]
+    assert r["found"] is False and "catalog index" in r["answer"]
