@@ -72,6 +72,23 @@
         "type": "string",
         "pattern": "^https://",
         "maxLength": 2000
+      },
+      "moon_sign": {
+        "type": "string",
+        "enum": [
+          "Aries",
+          "Taurus",
+          "Gemini",
+          "Cancer",
+          "Leo",
+          "Virgo",
+          "Libra",
+          "Scorpio",
+          "Sagittarius",
+          "Capricorn",
+          "Aquarius",
+          "Pisces"
+        ]
       }
     },
     "required": [
@@ -84,7 +101,8 @@
     "answer and source are required, as in every contract; the structured fields are optional (an outside member may answer in text; the normalizer reads both), and our own substitute fills them all",
     "the sun sign by tropical boundaries (a cusp day is flagged, not resolved silently)",
     "today_reading, when given, is for the today date and says it is for entertainment; no health, money, legal or medical claim or advice, no frightening words (accident, illness, death)",
-    "read-only calculation; no account, payment or write; the birth date is used for the calculation only and never stored or logged"
+    "read-only calculation; no account, payment or write; the birth date is used for the calculation only and never stored or logged",
+    "moon_sign, when given, is the Moon's tropical sign at 12:00 Korean time on the today date"
   ],
   "test_inputs": [
     {

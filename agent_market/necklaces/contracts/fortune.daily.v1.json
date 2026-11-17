@@ -6,31 +6,65 @@
     "properties": {
       "sign": {
         "type": "string",
-        "maxLength": 20
+        "enum": [
+          "Aries",
+          "Taurus",
+          "Gemini",
+          "Cancer",
+          "Leo",
+          "Virgo",
+          "Libra",
+          "Scorpio",
+          "Sagittarius",
+          "Capricorn",
+          "Aquarius",
+          "Pisces"
+        ]
       },
-      "element": {
+      "moon_sign": {
         "type": "string",
-        "maxLength": 10
+        "enum": [
+          "Aries",
+          "Taurus",
+          "Gemini",
+          "Cancer",
+          "Leo",
+          "Virgo",
+          "Libra",
+          "Scorpio",
+          "Sagittarius",
+          "Capricorn",
+          "Aquarius",
+          "Pisces"
+        ]
       },
-      "day_master": {
+      "day_pillar": {
         "type": "string",
+        "pattern": "^[A-Z][a-z]+-[a-z]+ [甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]$",
         "maxLength": 40
       },
       "today_day_pillar": {
         "type": "string",
+        "pattern": "^[A-Z][a-z]+-[a-z]+ [甲乙丙丁戊己庚辛壬癸][子丑寅卯辰巳午未申酉戌亥]$",
         "maxLength": 40
-      },
-      "today": {
-        "type": "string",
-        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
       },
       "hour_pillar": {
         "type": "string",
         "maxLength": 40
+      },
+      "boundary_note": {
+        "type": "string",
+        "maxLength": 300
+      },
+      "today": {
+        "type": "string",
+        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
       }
     },
     "required": [
-      "today"
+      "sign",
+      "day_pillar",
+      "today_day_pillar"
     ],
     "additionalProperties": false
   },
@@ -41,25 +75,45 @@
         "type": "string",
         "const": "For entertainment; not advice."
       },
-      "headline": {
+      "answer": {
         "type": "string",
-        "maxLength": 200
-      },
-      "reading": {
-        "type": "string",
-        "maxLength": 3000
-      },
-      "rules_version": {
-        "type": "string",
-        "maxLength": 40
+        "maxLength": 8000
       },
       "source": {
         "type": "string",
         "maxLength": 500
       },
-      "answer": {
+      "summary": {
         "type": "string",
-        "maxLength": 8000
+        "maxLength": 1000
+      },
+      "western_line": {
+        "type": "string",
+        "maxLength": 1000
+      },
+      "saju_line": {
+        "type": "string",
+        "maxLength": 1000
+      },
+      "ten_god": {
+        "type": "string",
+        "maxLength": 80
+      },
+      "moon_relation": {
+        "type": "string",
+        "enum": [
+          "in_tune",
+          "supportive",
+          "contrasting"
+        ]
+      },
+      "notes": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "maxItems": 6
       },
       "url": {
         "type": "string",
@@ -80,13 +134,13 @@
     "the disclaimer \"For entertainment; not advice.\" leads every answer",
     "no health, investment or money, legal or medical claim or advice; no frightening words (accident, illness, death)",
     "read-only calculation; no account, payment or write; the birth date is used for the calculation only and never stored or logged",
-    "hour_pillar is the saju step's hour pillar; empty or absent means the birth hour was not given, and the reading then says no hour pillar was used"
+    "the reading is necklaces.fortune_rules.compose (workflow 11-17): inputs sign, moon_sign (computed from today when absent), day_pillar, today_day_pillar, hour_pillar (empty or absent: the hour pillar is left out, and a note says so), boundary_note; output keys disclaimer, answer, source, summary, western_line, saju_line, ten_god, moon_relation, notes; check_synthesis(output, has_hour) is [] for every answer"
   ],
   "test_inputs": [
     {
       "sign": "Pisces",
-      "element": "Water",
-      "day_master": "Gi 己",
+      "moon_sign": "Cancer",
+      "day_pillar": "Gi-myo 己卯",
       "today_day_pillar": "Gap-ja 甲子",
       "today": "2026-11-18"
     }

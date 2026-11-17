@@ -28,12 +28,12 @@ ELEMENTS = ["wood", "fire", "earth", "metal", "water"]          # each produces 
 SIGNS = [("Aries", "fire"), ("Taurus", "earth"), ("Gemini", "air"), ("Cancer", "water"), ("Leo", "fire"),
          ("Virgo", "earth"), ("Libra", "air"), ("Scorpio", "water"), ("Sagittarius", "fire"),
          ("Capricorn", "earth"), ("Aquarius", "air"), ("Pisces", "water")]
-TEN_GODS = {  # (relation of the other element to the day master, same polarity) -> name
-    ("same", True): ("Bigyeon 比肩", "Companion"), ("same", False): ("Geopjae 劫財", "Rob Wealth"),
-    ("output", True): ("Siksin 食神", "Eating God"), ("output", False): ("Sanggwan 傷官", "Hurting Officer"),
-    ("wealth", True): ("Pyeonjae 偏財", "Indirect Wealth"), ("wealth", False): ("Jeongjae 正財", "Direct Wealth"),
-    ("officer", True): ("Pyeongwan 偏官", "Seven Killings"), ("officer", False): ("Jeonggwan 正官", "Direct Officer"),
-    ("resource", True): ("Pyeonin 偏印", "Indirect Resource"), ("resource", False): ("Jeongin 正印", "Direct Resource"),
+TEN_GODS = {  # (relation to the day master, same polarity) -> name; neutral glosses as in necklaces.fortune_rules (workflow 11-17)
+    ("same", True): ("Bigyeon 比肩", "Peer"), ("same", False): ("Geopjae 劫財", "Rival"),
+    ("output", True): ("Siksin 食神", "Expression"), ("output", False): ("Sanggwan 傷官", "Bold voice"),
+    ("wealth", True): ("Pyeonjae 偏財", "Opportunity"), ("wealth", False): ("Jeongjae 正財", "Steady effort"),
+    ("officer", True): ("Pyeongwan 偏官", "Challenge"), ("officer", False): ("Jeonggwan 正官", "Order"),
+    ("resource", True): ("Pyeonin 偏印", "Insight"), ("resource", False): ("Jeongin 正印", "Support"),
 }
 KST = timezone(timedelta(hours=9))
 
