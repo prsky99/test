@@ -139,11 +139,14 @@ def case_arguments(tool, case_input):
     names = list(tool.get('required') or []) + [n for n in tool['params'] if n not in (tool.get('required') or [])]
     for name in names:
         spec = tool['params'].get(name, {})
+        flat = lambda x: re.sub(r'[^a-z0-9]', '', str(x).lower())
+        # Pearl scout W1 review (11-17): an option the task itself names ('type': 'TXT' for a mail-auth check) is part
+        # of the question; only options the task does not name are left to the provider's default.
+        named = any(flat(k) == flat(name) for k in case_input)
         if usage._PII_PARAM.search(name) or (name not in (tool.get('required') or []) and OPTION_NAME.search(name)
-                                              and not re.search(CASE_KEYS['limit'], name)):
+                                              and not re.search(CASE_KEYS['limit'], name) and not named):
             continue
         used = [k for k, _ in args.values()]
-        flat = lambda x: re.sub(r'[^a-z0-9]', '', str(x).lower())
         exact = next((k for k in case_input if k not in used and flat(k) == flat(name)), None)
         if exact is not None:
             args[name] = (exact, case_input[exact])
