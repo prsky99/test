@@ -649,6 +649,78 @@
       "source": "https://casco.com/terms",
       "checked_at": "2026-11-16",
       "basis": "subscription agreement for an account-based paid product (billing on file, customer account); free automated reuse of results not granted"
+    },
+    "42786": {
+      "status": "allowed",
+      "source": "https://cybermaxtools.com/terms",
+      "checked_at": "2026-11-17",
+      "basis": "Terms of service (effective 2026-10-09), Ownership: \"Free extensions and tools may be used for personal and commercial purposes; you may not resell or copy them as your own product.\" Our use relays results, it does not resell the tool. Re-check before any paid necklace (PM 11-17: no resale of the tool; per-run billing after the paid-conversion threshold could be read as resale)."
+    },
+    "55398": {
+      "status": "allowed",
+      "source": "https://cybermaxtools.com/terms",
+      "checked_at": "2026-11-17",
+      "basis": "Same operator as 42786 (CyberMax); its Terms of service cover APIs and data tools: free tools may be used for personal and commercial purposes, no resale of the tool itself. Re-check before any paid necklace (PM 11-17: no resale of the tool; per-run billing after the paid-conversion threshold could be read as resale)."
+    },
+    "35513": {
+      "status": "allowed",
+      "source": "https://opencaselaw.ch/",
+      "checked_at": "2026-11-17",
+      "basis": "Home page: \"Open data (CC0), machine-readable\"; no terms page linked from the home page. Swiss court decisions and laws under CC0."
+    },
+    "33037": {
+      "status": "prohibits",
+      "source": "https://mcp.com.ai/terms",
+      "checked_at": "2026-11-17",
+      "basis": "Terms 6 Software Licenses: \"If no license is provided, you should assume the software is proprietary and may not be copied, modified, redistributed, or used commercially without written permission.\" No license is given for the MCP API (W4 proposed allowed; corrected: ambiguous -> prohibits)."
+    },
+    "42838": {
+      "status": "silent",
+      "source": "https://domainage.mike-tusa.workers.dev/",
+      "checked_at": "2026-11-17",
+      "basis": "Home page read 11-17 (readable links, no terms/legal/tos/license link); W4 found /terms 404. No terms page = silent (PM rule)."
+    },
+    "242867": {
+      "status": "silent",
+      "source": "https://orbstudio.org/",
+      "checked_at": "2026-11-17",
+      "basis": "Home page read 11-17 (readable links, no terms/legal/tos/license link); W4 found /terms 404. No terms page = silent (PM rule)."
+    },
+    "100204": {
+      "status": "silent",
+      "source": "https://profitpather.com/",
+      "checked_at": "2026-11-17",
+      "basis": "Home page read 11-17 (readable links, no terms/legal/tos/license link); W4 found /terms 404. No terms page = silent (PM rule)."
+    },
+    "58562": {
+      "status": "silent",
+      "source": "https://wwhois.ru/whois",
+      "checked_at": "2026-11-17",
+      "basis": "Home page read 11-17 (readable links, no terms/legal/tos/license link); W4 found /terms 404. No terms page = silent (PM rule)."
+    },
+    "365534": {
+      "status": "silent",
+      "source": "https://raydn.us/",
+      "checked_at": "2026-11-17",
+      "basis": "Home page read 11-17 (readable links, no terms/legal/tos/license link); W4 found /terms 404. No terms page = silent (PM rule)."
+    },
+    "46788": {
+      "status": "silent",
+      "source": "https://hackerbob.ai/",
+      "checked_at": "2026-11-17",
+      "basis": "Home page read 11-17 (readable links, no terms/legal/tos/license link); W4 found /terms 404. No terms page = silent (PM rule)."
+    },
+    "39939": {
+      "status": "silent",
+      "source": "https://www.peptul.com/",
+      "checked_at": "2026-11-17",
+      "basis": "Home page read 11-17 (readable links, no terms/legal/tos/license link); W4 found /terms 404. No terms page = silent (PM rule)."
+    },
+    "33719": {
+      "status": "silent",
+      "source": "https://pocketdrives.ai/",
+      "checked_at": "2026-11-17",
+      "basis": "Home page read 11-17 (readable links, no terms/legal/tos/license link); W4 found /terms 404. No terms page = silent (PM rule)."
     }
   },
   "changes": [
@@ -1594,6 +1666,102 @@
       "source": "https://casco.com/terms",
       "at": "2026-11-16",
       "by": "agent team"
+    },
+    {
+      "member": "42786",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://cybermaxtools.com/terms",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "55398",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://cybermaxtools.com/terms",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "35513",
+      "from": "unknown",
+      "to": "allowed",
+      "source": "https://opencaselaw.ch/",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "33037",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://mcp.com.ai/terms",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "42838",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://domainage.mike-tusa.workers.dev/",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "242867",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://orbstudio.org/",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "100204",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://profitpather.com/",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "58562",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://wwhois.ru/whois",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "365534",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://raydn.us/",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "46788",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://hackerbob.ai/",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "39939",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://www.peptul.com/",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
+    },
+    {
+      "member": "33719",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://pocketdrives.ai/",
+      "at": "2026-11-17",
+      "by": "agent team (W4 Antigravity proposal, checked at source 11-17, one read per domain)"
     }
   ]
 }
