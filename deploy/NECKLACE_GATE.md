@@ -178,7 +178,19 @@
 | 제공자 도메인 상한 | 등록 도메인당 분당 10회, 하루 300회(AgentValCon 자체 대체는 세지 않음) | 그 멤버를 `provider_cap`으로 건너뛰고 사슬의 다음 멤버로 감 |
 
 - **한계: 계수는 frontend 프로세스마다 따로 한다.** 프로세스 사이에 공유하지 않는다. 지금은 frontend 활성 칸이 하나라 위 값이 그대로 전체 상한이다(PM 확인 11-15). 활성 칸이나 작업자 프로세스를 늘리면 실제 상한은 그 수만큼 곱해진다. 그때는 값을 프로세스 수로 나누거나 공유 계수(예: Redis)로 옮긴다.
-- 공동 호출 장부(`deploy/PROVIDER_BUDGET.md`)는 우리가 시작하는 시험용이다. 공개 사용자 실행은 이 장부를 쓰지 않고 위 도메인 상한을 따른다.
+- 공동 호출 장부(`deploy/PROVIDER_BUDGET.md`)는 우리가 시작하는 시험이 주로 쓴다. 공개 사용자 실행도 이 장부를 지난다. `service.run_for_surface`가 `runner.live_quota_caller`로 멤버 호출을 감싸서, 제공자가 밝힌 하루 한도(밝히지 않았으면 기본값)의 80%까지만 쓴다. 넘으면 그 멤버를 건너뛰고 다음 멤버로 간다(11-17 PM 결정: 남의 서버를 지키는 동작이라 코드에 맞춰 문서를 고침). 위 도메인 상한도 함께 적용된다.
+
+## 7-2. 공개 실행이 동시에 몇 건 도는가 (운영·SRE, 2026-11-17 코드 확인)
+- **멤버 호출 경로:** 목걸이 실행의 멤버 호출은 frontend 프로세스에서 바로 나간다(`runner.engine_caller` → `workflows._call_registered` → `proxy.execute`). 엣지 4칸과 Origin 관리 게이트웨이 4칸을 지나지 않는다. 목걸이 실행에는 `dispatch_scope`가 없어서 `edge_gateway/native.execute`가 `None`을 돌려주기 때문이다.
+- **프로세스 전체 상한:** 동시에 나가 있는 멤버 호출은 32개(`runner.MAX_INFLIGHT`)다. 넘는 호출은 보내지 않고 `capacity`로 남긴다.
+- **한 실행의 호출 수(topic-evidence-brief):** 처음에 5개를 보낸다(web 1, papers 2, background 1, news 1은 선택 자리). 늦은 자리에 다음 멤버를 함께 보내면(hedge, fanout 1인 자리마다 한 번) 최대 8개다. 그래서 동시에 약 4~6건이 돈다.
+- **분당 제한:** 클라이언트당 6회, 목걸이당 30회, 전체 60회(`necklaces/limits.py`). 제공자 도메인당 분당 10회·하루 300회. 주소 제한은 `front.limit` 분당 60회다.
+- **지속 처리량:** 주 멤버가 모두 살아 있으면 도메인 상한 때문에 분당 약 10건이다. 그 뒤로는 대체 멤버가 받고, 마지막에는 목걸이당 분당 30회 제한에 닿는다.
+- **제한을 넘었을 때의 답(31504a72):**
+  - 실행 제한: HTTP 200, `ok: false`, `error_code: rate_limited`, `Retry-After` 헤더와 `retry_after_s`.
+  - 주소 제한: HTTP 429, `Retry-After` 헤더와 `retry_after_s`.
+- **기록:** 거절은 `gateway-data/necklaces/refusals/<날짜>.jsonl`에, 보내지 못한 멤버 호출 수는 실행 기록의 `capacity_attempts`에 남는다.
+- **다시 볼 때(PM 11-17):** `capacity`나 `rate_limited`가 하루 1건 생기거나, 동시 실행 4건이 보이면 `MAX_INFLIGHT`를 다시 정한다.
 
 ## 8. PM 결정 (11-14, 사용자 지시 "운영 SRE 결정 4건 확인해서 진행")
 1. 공개 기준은 95%가 우선이다. 워크플로우 팀 trial도 95%로 맞춘다.

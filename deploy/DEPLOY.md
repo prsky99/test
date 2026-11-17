@@ -36,7 +36,6 @@
 | `biz.agentconcierge.opensearch-sync` | 예 | 상시(KeepAlive) | 작업본 | OpenSearch 동기화 |
 | `biz.agentconcierge.opsauto.edgewarm` | 아니오(저장소에만) | 매일 06:50 | 작업본 | 엣지 데우기 |
 | `biz.agentconcierge.opsauto.housead` | 예 | 매일 09:10 | 작업본 | 자사 광고 매일 예약(원장 쓰기) |
-| `biz.agentconcierge.opsauto.board` | 확인 안 함(11-16 표 추가) | 현황판이 바뀔 때(WatchPaths) | 작업본 | 현황판 사본 `logs/ops/status-board-history/`(`ops_auto.py board-snapshot`) |
 | `biz.agentconcierge.opsauto.netpath` | 예 | 60초마다 | 작업본 | 1분 경로 측정(net_path) |
 | `biz.agentconcierge.opsauto.ofac` | 아니오(저장소에만) | 매일 06:20 | 작업본 | OFAC 제재 주소 갱신(R06) |
 | `biz.agentconcierge.opsauto.paidreconcile` | 아니오(저장소에만) | 매일 09:20 | 작업본 | USDC 결제 매일 대조(`deploy/ops/payment-reconcile-daily.sh`: 어제와, 최근 7일 중 결과가 없거나 체인을 읽지 못한 날. `scripts.ad_coin_paid_reconcile --due`, 11-16) |
@@ -47,7 +46,8 @@
 | `biz.agentconcierge.postgres18` | 예 | 상시(KeepAlive) | Homebrew 실행 파일(작업 폴더만 저장소) | 운영 PostgreSQL 18 |
 
 - '실행 코드'가 작업본인 운영 작업은 R05 순서대로 커밋 폴더로 옮깁니다(광고 원장·백업 먼저).
-- 저장소에만 있고 설치되지 않은 것: `opsauto.ofac`·`opsauto.watchstale`(11-15 새로, 사용자 설치 대기), `opsauto.edgewarm`·`opsauto.paidreconcile`(설치 여부를 담당 팀이 확인할 것).
+- 저장소에만 있고 설치되지 않은 것(11-15 기준): `opsauto.ofac`·`opsauto.watchstale`·`opsauto.paidreconcile`(11-17 전환 대상, 설치는 PM), `opsauto.edgewarm`(설치 여부를 담당 팀이 확인할 것).
+- 현황판 사본(`logs/ops/status-board-history/`)은 10분 감시(`ops_auto.py watch`)가 함께 남긴다. 따로 쓰던 `opsauto.board` plist는 설치하지 않고 지운다(11-17).
 
 ## 현재 운영(맥) — 세부 규칙 (날짜순)
 
@@ -156,7 +156,7 @@
   - 키마다 `gateway-data/services/venvs/<키>`에 한 번만 복제한다(`.complete` 표시). 릴리스의 `.venv`는 그 폴더를 가리키는 심볼릭 링크다.
 - 키 폴더는 만든 뒤 바꾸지 않는다. 의존성이 바뀌면 새 키, 새 폴더가 생긴다. 그래서 이전 버전과 되돌릴 버전은 자기 환경을 그대로 쓴다.
   - 공유 환경 안에서 `pip install`을 하지 않는다. 의존성을 바꾸려면 작업본 `.venv`를 바꾸고 다시 패키징한다.
-- 활성 릴리스를 `cp -cR`로 복사해 만드는 오버레이도 링크가 그대로 복사되므로 같은 환경을 쓴다.
+- (옛 `--from-tree` 방식) 활성 릴리스를 `cp -cR`로 복사해 만드는 오버레이도 링크가 그대로 복사되므로 같은 환경을 쓴다. 지금은 오버레이로 릴리스를 만들지 않는다.
 - 키를 읽지 못하면(배포판 목록이 없는 등) 예전처럼 `.venv`를 복제한다.
 - 정리: 릴리스 정리(`prune-releases`, 배포 뒤 자동 정리)가 끝나면, 어떤 릴리스도 가리키지 않는 키 폴더를 함께 지운다. 결과는 `unused_environments`에 나온다.
 - 시험: `tests/test_service_deploy_shared_env.py`. 실제 확인: `venv-share-frontend-20261110-r1`(게이트 passed), 성장 팀 `growth-md-frontend-20261110-r7`(같은 키, 패키지 목록이 운영 버전과 같음).
@@ -176,7 +176,7 @@ frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉�
 - 지금은 각 역할(frontend·admin)의 **운영 중인 버전을 반대 칸에 그대로 다시 띄우고 전환**한다. 패키징하지 않는다.
   - 같은 버전을 다시 띄우는 것이라 기준 버전 검사는 건너뛴다(`force_base`).
   - 이전 칸은 30분 뒤 회수된다.
-- 코드를 바꾸려면 restart가 아니라 운영 중인 버전 위에 겹쳐 패키징하고(`package --base`), 게이트를 통과시킨 뒤 `deploy`한다.
+- 코드를 바꾸려면 restart가 아니라 운영 중인 버전의 커밋 위에 커밋을 얹어 패키징하고(`package <버전> --commit <커밋> --base <활성 릴리스>`), 게이트를 통과시킨 뒤 `deploy`한다.
 - 시험: `tests/test_service_deploy_shared_env.py::test_restart_redeploys_the_active_release_and_never_packages_the_working_tree`
 
 ## 새 frontend 칸 미리 데우기 (2026-11-10)
@@ -223,7 +223,7 @@ frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉�
   - 칸이 비었거나 `(비어 있음)`이면 `deploy_lock_not_taken`으로 거부한다. 먼저 `- <팀> <시각> <역할> <버전>` 한 줄을 적는다.
   - 자기 팀 줄만 있으면 그대로 진행한다(base 확인 → 게이트 → 배포).
 - 현황판 파일이 없는 곳(시험, 다른 머신)에서는 검사하지 않는다.
-- 끝나면 자기 줄을 지우고 `(비어 있음)`으로 되돌린다. 현황판은 바뀔 때마다 `logs/ops/status-board-history/`에 사본이 남는다(`ops_auto.py board-snapshot`).
+- 끝나면 자기 줄을 지우고 `(비어 있음)`으로 되돌린다. 현황판은 바뀌면 10분 감시가 돌 때 `logs/ops/status-board-history/`에 사본을 남긴다(`ops_auto.py` `board_snapshot`).
 - 오래된 잠금(11-11 PM 결정): 잠금 줄에는 `pid=<세션 PID>`(Claude 세션의 Bash에서는 `$PPID`)와 `MM-DD HH:MM` 시각을 적는다. 예: `- 운영·SRE 11-11 11:50 pid=45463 frontend warm-frontend-20261111-r1`
   - 다른 팀 줄의 PID가 없거나 60분이 지났으면 `deploy_lock_stale`로 알린다. `--take-stale-lock`을 붙이면 그 줄을 내 줄(`넘겨받음(오래된 잠금): <원래 줄> [pid_gone|older_than_60m]`)로 바꾸고, `logs/ops/deploy-lock-takeovers.md`에 기록한 뒤 진행한다.
   - 살아 있는 잠금은 넘겨받을 수 없다. 오늘(11-11)은 세션이 끝난 뒤 잠금이 4시간 반 남은 일이 있었다.
@@ -246,7 +246,7 @@ macOS의 bash 3.2는 사용자 터미널의 UTF-8 로케일(ko_KR.UTF-8)에서 `
 
 ## 옛 방식 (보관) — 2026-09 무료 서버안, 지금은 쓰지 않음
 
-> **폐기 후보 (2026-11-16, 소스와 맞지 않음; 폐기·보관 이동은 PM이 11-17 topic 판정과 r11 뒤 결정)**
+> **폐기 후보 (2026-11-16 표시, 11-17 재확인)**: 이 절부터 끝까지는 소스와 맞지 않는 옛 기록이다. 따라 하지 않는다. 폐기·보관 이동은 PM이 11-17 topic 판정과 r11 뒤 결정한다.
 
 ### 무료 서버 + 무료 도메인에 게이트웨이 올리기
 

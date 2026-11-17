@@ -103,7 +103,7 @@ Use the explicit workflow maintenance CLI in [operations hardening](../docs/WORK
 6. **바로 확인한다.**
    - 홈(`/`), `/llms.txt`, `/api/explore?q=…`, `/mcp`가 200인지 본다.
    - frontend·jobs 로그에서 `schema_invariants_mismatch`, `schema_profile_mismatch`, ERROR가 새로 생기지 않았는지 본다.
-   - 문제가 보이면 1의 복구 SQL을 바로 실행한다. 복구 SQL은 복구 목적이라 리허설 없이 실행할 수 있게 미리 승인받아 둔다.
+   - 문제가 보이면 1의 복구 SQL을 바로 실행한다. 복구 SQL은 복구 목적이라 리허설 없이 실행할 수 있게 3단계에서 PM이 함께 확인해 둔다(데이터를 지우는 복구만 사용자 승인).
 
 - 백업 복원 연습: `.venv/bin/python -m scripts.db_change_rehearsal drill --backup <스냅샷 폴더> [--data full]`. `--backup`은 필수이고, 결과는 `logs/ops/db-rehearsal/drill-*.json`에 남는다. 운영 DB에는 연결하지 않는다.
 - 시험: `tests/test_db_change_rehearsal.py`
