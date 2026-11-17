@@ -119,5 +119,30 @@
       "source"
     ],
     "additionalProperties": false
-  }
+  },
+  "rules": [
+    "answer and source are required, as in every contract; the structured fields are optional and our own substitute fills them all",
+    "the sample birth date follows sample_rule exactly (the gate recomputes it); the answer says it is a sample, not the real birthday",
+    "the type is the four upper-case letters (-A/-T ignored); the axes are our own mapping for fun, not affiliated with The Myers-Briggs Company",
+    "a range outside 1912-2100 is refused (invalid_input), never redrawn",
+    "read-only calculation; no account, payment or write; the type and age are never stored or logged"
+  ],
+  "test_inputs": [
+    {
+      "mbti": "INTJ",
+      "age": 30,
+      "today": "2026-11-18"
+    },
+    {
+      "mbti": "enfp-t",
+      "age": 0,
+      "today": "2026-11-18"
+    },
+    {
+      "mbti": "ISTJ",
+      "age": 110,
+      "today": "2026-11-18"
+    }
+  ],
+  "status": "draft (workflow 11-17, BRIEF reports/mbti-fortune-necklace-2026-11-17; necklace path frozen until 11-20)"
 }

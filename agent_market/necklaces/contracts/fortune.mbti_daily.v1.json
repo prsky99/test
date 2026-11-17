@@ -161,5 +161,28 @@
       "axes"
     ],
     "additionalProperties": false
-  }
+  },
+  "rules": [
+    "answer, disclaimer, source and axes are required; each axis gives the input type's letter and one line",
+    "the answer starts with 'For entertainment; not advice.' and says the birth date is a sample, names the trademark holder and that the type blend is our own mapping for fun",
+    "fixed rule table: the same inputs and date give the same text; no model writes it",
+    "no health, money, legal or medical statements or advice and no frightening words (necklaces/fortune_rules.BANNED)",
+    "no hour pillar (three pillars); dates follow the Korean lunar calendar (KASI rules) and Korea standard time"
+  ],
+  "test_inputs": [
+    {
+      "type": "INTJ",
+      "sign": "Leo",
+      "element": "Fire",
+      "day_master": "Gap 甲",
+      "today_day_pillar": "Gyeong-o 庚午",
+      "today": "2026-11-18",
+      "sample_birth_date": "1996-08-01"
+    },
+    {
+      "type": "ESFP",
+      "today": "2026-11-18"
+    }
+  ],
+  "status": "draft (workflow 11-17, BRIEF reports/mbti-fortune-necklace-2026-11-17; necklace path frozen until 11-20)"
 }
