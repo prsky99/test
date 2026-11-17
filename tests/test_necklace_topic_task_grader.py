@@ -28,8 +28,12 @@ def test_the_task_rule_is_the_necklace_rule():
         assert retest.grade_topic_task(CASE_FIXED, out) is (retest.grade(defn, CASE_FIXED, out)["ok"] is True)
 
 
-def test_single_members_stay_the_papers_step():
+def test_single_members_are_measured_on_the_whole_task():
+    """ba76e341 (PM 11-17): topic v2's papers step has no external member, so its singles are every step's lead and
+    our substitutes (test_necklace_topic_singles); before, this test expected papers members only and failed with an
+    empty list at the dev tip (night full pytest 11-18)."""
     defn = copy.deepcopy(model.load("agent_market/necklaces/definitions/topic-evidence-brief.json"))
     members = retest.single_members(defn, retest.CONTRAST["topic-evidence-brief"], {})
-    assert members and all(slot == "papers" for slot, _ in members)
+    assert members
+    assert "topic-evidence-brief" in retest.SINGLE_TASK_GRADERS        # each single is graded on the whole task
     assert "topic-evidence-brief" not in retest.TASK_GRADERS          # the case verdict keeps grade() per slot
