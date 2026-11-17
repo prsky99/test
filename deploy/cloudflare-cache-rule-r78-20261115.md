@@ -55,3 +55,14 @@
 - 넣지 않은 것: `/customer/assets/sign-in.<해시>.css`는 확장자 기본 캐시로 이미 남는다(`immutable`, 확인 때 MISS 뒤 보관). 옛 주소 이동(`/new/en/sign-in.html` 등)의 엣지 리디렉션 규칙은 이번에 만들지 않았다.
 - 확인(15:45, 공개 주소·새 연결, 한국에서 측정): 첫 요청 MISS 3.26초, 두 번째 HIT 0.80초(age 5). `Cookie`가 있는 요청은 DYNAMIC. `?next=`가 붙은 주소는 주소별로 따로 남는다(첫 요청 MISS, 200). 응답에 Set-Cookie 없음.
 - 이 변경만 되돌리려면 2절의 "지금 식(892자)"을 넣는다.
+
+## 6. 네 번째 변경 (2026-11-17 17시, PM 실행): 옛 로그인 주소
+- 근거: r11부터 `/new/en/sign-in.html`은 308 대신 `/customer/sign-in`과 같은 페이지를 바로 낸다(원서버 `Cache-Control: public, max-age=300`, app 17~25ms). 그런데 엣지 규칙에 경로가 없어 `cf-cache-status: DYNAMIC`이었다(전수 점검 11-17 14:24에 1.09초, 성장·유통 조사).
+- 바꾼 것: `Public insights (11-13)`의 경로 집합에 `"/new/en/sign-in.html"` 하나를 `"/customer/sign-in"` 바로 뒤에 더했다. 식은 912자에서 935자가 됐다. 규칙 수(4개)·동작·순서는 그대로다. 크롬 로그인(이 맥의 크롬)으로 대시보드에서 저장했다.
+- 바꾸기 전 식(912자, 되돌릴 때 이 식을 넣는다):
+```
+(http.host eq "agentconcierge.biz" and http.request.method in {"GET" "HEAD"} and (http.request.uri.path in {"/api/insights" "/api/feed/verified.json" "/advertise" "/methodology" "/methodology.json" "/methodology/changelog" "/api/necklaces" "/api/feed/necklaces.json" "/api/verify" "/api/roles" "/.well-known/glama.json" "/.well-known/skill.md" "/.well-known/agent-entry.json" "/skill.md" "/status.json" "/api/pearl/status" "/api/pearl/access" "/ads/library" "/ads/library.json" "/api/agent/v1/openapi.json" "/security.txt" "/claude-plugins/marketplace.json" "/registry" "/customer/sign-in"} or starts_with(http.request.uri.path, "/api/agents/") or starts_with(http.request.uri.path, "/api/roles/") or starts_with(http.request.uri.path, "/necklaces/") or starts_with(http.request.uri.path, "/registry/verified/v0.1/")) and http.cookie eq "" and not any(lower(http.request.headers.names[*])[*] eq "authorization"))
+```
+- 참고: 이 문서 2절 이후에 `/registry`, `/necklaces/`, `/registry/verified/v0.1/`이 더해져 있었다(이 문서에 기록 없음). 위 식이 11-17 17시의 실제 값이다.
+- 넣지 않은 것: `/agents/category/`는 이미 `Growth pages HTML (11-11)`이 잡는다(쿠키 없음, Accept에 text/html일 때). Accept 머리글 없이 요청하면 DYNAMIC으로 보인다.
+- 확인(공개 주소, 한국에서 측정, `Accept: text/html`, 2회): MISS 0.67초 → HIT 0.46초(age 3). Set-Cookie 없음.
