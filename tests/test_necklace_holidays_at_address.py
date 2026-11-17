@@ -26,8 +26,13 @@ def test_definition_reads_the_point_for_holiday_calendar():
     defn = model.load("agent_market/necklaces/definitions/holidays-at-address.json")
     assert model.validate(defn) == [] and runner.slot_reference_problems(defn) == []
     holidays = next(s for s in defn["slots"] if s["slot"] == "holidays")
-    assert [m.get("agent_id") for m in holidays["chain"]] == ["holiday-calendar"]
-    assert holidays["chain"][0]["input_map"] == {"country": "{{slot.location.point}}", "year": "{{input.year}}"}
+    # 11-16 (PM 16:03, 9266a3f2): a provisional outside member leads the step with the country code; our
+    # holiday-calendar substitute stays last and reads the point.
+    ours = [m for m in holidays["chain"] if m.get("agent_id") == "holiday-calendar"]
+    assert len(ours) == 1 and holidays["chain"][-1] is ours[0]
+    assert ours[0]["input_map"] == {"country": "{{slot.location.point}}", "year": "{{input.year}}"}
+    assert all(m["input_map"].get("countryCode") == "{{slot.location.country_code}}"
+               for m in holidays["chain"] if m.get("kind") == "external")
 
 
 def test_builder_keeps_fetched_countries_and_stops_at_the_share(tmp_path):
@@ -47,7 +52,8 @@ def test_builder_keeps_fetched_countries_and_stops_at_the_share(tmp_path):
     out = gold_holidays.build(tmp_path, get)
     assert out["cases"] == 2 and out["countries"] == 3 and "system_share" in out["stopped"]   # Guam left out
     assert not any(u.endswith("/GU") for u in calls)
-    kept = {p.stem for p in (tmp_path / "gold" / "raw" / "nager-2026").glob("*.json")}
+    # 36b92e0d: the official US calendar (5 U.S.C. 6103, computed, no call) is kept beside them as official-US
+    kept = {p.stem for p in (tmp_path / "gold" / "raw" / "nager-2026").glob("*.json") if not p.stem.startswith("official-")}
     assert len(kept) == 2
     again = gold_holidays.build(tmp_path, lambda url: json.dumps([{"date": "2026-07-14", "global": True}]))
     assert again["cases"] == 3 and again["stopped"] is None                 # the kept two are not asked again
