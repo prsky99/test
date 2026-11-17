@@ -51,7 +51,7 @@
           "resource_id": null,
           "state": "planned",
           "agent_id": "mbti-profile",
-          "tool": "draw_sample_profile",
+          "tool": "get_personality_sample_profile",
           "upstream": [
             "sample-rule"
           ],
@@ -173,7 +173,7 @@
           "resource_id": null,
           "state": "planned",
           "agent_id": "mbti-fortune",
-          "tool": "get_mbti_daily_reading",
+          "tool": "get_personality_daily_reading",
           "upstream": [
             "rule-table"
           ],
@@ -206,7 +206,7 @@
     "mbti": "INTJ",
     "age": 30
   },
-  "notes": "Draft (workflow 11-17, BRIEF reports/mbti-fortune-necklace-2026-11-17). Five roles, our offline substitutes in every step (mbti-profile and mbti-fortune are new, agent team; korean-lunar, western-sign and saju-pillars are shared with daily-fortune-brief, unchanged). Outside members: none yet (search and RAG's survey due 11-18 18:00). Grading: necklaces/mbti_gate.grade_mbti_task (sample in the age range and by the contract's rule, KASI facts of the sample date, the four axes, the notices, a second run equal). Lands after the 11-20 v4 verdict.",
+  "notes": "Draft (workflow 11-17, BRIEF reports/mbti-fortune-necklace-2026-11-17). Five roles, our offline substitutes in every step (mbti-profile and mbti-fortune are new, agent team agent-team/mbti e692d846; korean-lunar, western-sign and saju-pillars are shared with daily-fortune-brief, unchanged). Outside members: none yet (search and RAG's survey due 11-18 18:00). Grading: necklaces/mbti_gate.grade_mbti_task (sample in the age range and by the contract's rule, KASI facts of the sample date, the four axes, the notices, a second run equal). Lands after the 11-20 v4 verdict.",
   "trademark_notice": "MBTI is a trademark of The Myers-Briggs Company; not affiliated.",
   "sample_notice": "The birth date is a sample drawn from your age, not your real birthday."
 }
