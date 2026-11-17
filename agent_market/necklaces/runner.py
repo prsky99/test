@@ -58,7 +58,7 @@ class SlotResult:
     answers: list = field(default_factory=list)       # (member, canonical) pairs that passed
     attempts: list = field(default_factory=list)
     abandoned: int = 0
-    skipped: str | None = None          # input_absent (optional step not asked for) or upstream_failed
+    skipped: str | None = None          # input_absent, upstream_failed or upstream_absent (PM 11-17)
     not_found: bool = False             # PM 11-16: every member that answered was about another company
 
     @property
@@ -539,6 +539,17 @@ def norm_filings(raw, values):
 # When no member has an article about the company the step answers "No encyclopedia article found" (not_found).
 IDENTITY_MISMATCH = "identity_mismatch"
 NOT_FOUND_NOTE = "No encyclopedia article found for this company."
+# PM 11-17 (company-diligence-brief, agent team's proposal): a slot marked absence_is_answer answers "no record" when
+# every member it called said not_found; a later step that needs its values is then not run, which is not a failure
+ABSENT_NOTE = "No record found by any member of this step (each said it has no record for this input)."
+UPSTREAM_ABSENT_NOTE = "Not run: an earlier step found no record to look this up with."
+
+
+def absent(slot: dict, attempts) -> bool:
+    """True for an absence_is_answer slot whose every sent member said not_found (at least one asked)."""
+    from .refusals import not_sent
+    sent = [a for a in attempts if not not_sent(a.error_class) and a.error_class != "not_needed"]
+    return bool(slot.get("absence_is_answer")) and bool(sent) and all(a.error_class == "not_found" for a in sent)
 # PM 11-16 (company round 1, before the 11-17 06:00 topic gate): a member that says it has no article ("not_found",
 # e.g. our wikipedia-summary) is evidence too, and an attempt our side refused (our ledger budget or quota, our
 # capacity, our relay pace, a provider asking for a pause) says nothing about the article, so it does not break the
@@ -1082,7 +1093,9 @@ class Runner:
                         ups = [states[name] for name in st["after"]]
                         if all(self._settled(up, now) and up.get("started", True) for up in ups):
                             if not all(up["result"].answers for up in ups):
-                                st["result"].skipped = "upstream_failed"
+                                missing = [up for up in ups if not up["result"].answers]
+                                st["result"].skipped = ("upstream_absent" if all(
+                                    absent(up["slot"], up["result"].attempts) for up in missing) else "upstream_failed")
                             else:
                                 staged = dict(values)
                                 for up in ups:
@@ -1127,10 +1140,15 @@ class Runner:
             still_running = sum(1 for st in states.values() for f in st.get("abandoned_futures", []) if not f.done())
             pool.shutdown(wait=False, cancel_futures=True)
         results = {name: st["result"] for name, st in states.items()}
+        absent_slots = set()
         for r in results.values():     # PM 11-16: no member had an article about the company -> "not found"
             if not r.answers and not r.skipped and no_article(states[r.slot]["slot"]["contract"], r.attempts):
                 r.not_found = True
-        failed = [s.slot for s in results.values() if s.required and not s.answers and not s.not_found]
+            elif not r.answers and not r.skipped and absent(states[r.slot]["slot"], r.attempts):
+                r.not_found = True                      # PM 11-17: "no record" is this step's answer
+                absent_slots.add(r.slot)
+        failed = [s.slot for s in results.values() if s.required and not s.answers and not s.not_found
+                  and s.skipped != "upstream_absent"]
         # PM 11-15, changed 16:03 (user instruction d4670360): a run counts only when enough steps were answered by
         # a counted member, a verified pearl or a provisional member (necklaces.members); per run, not per definition
         from .members import counted
@@ -1139,7 +1157,9 @@ class Runner:
         if need and not failed and pearls_answered < need:
             failed.append("pearls_answered")
         output = {name: (merge(states[name]["slot"]["contract"], r.answers) if r.answers else
-                         {"not_found": True, "note": NOT_FOUND_NOTE} if r.not_found else {"missing": True})
+                         {"not_found": True, "note": ABSENT_NOTE if name in absent_slots else NOT_FOUND_NOTE}
+                         if r.not_found else {"skipped": True, "note": UPSTREAM_ABSENT_NOTE}
+                         if r.skipped == "upstream_absent" else {"missing": True})
                   for name, r in results.items()}
         return {
             "slug": defn["slug"], "version": defn["version"], "digest": model.digest(defn),
