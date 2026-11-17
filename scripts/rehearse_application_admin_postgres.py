@@ -102,8 +102,12 @@ def _contracts(connect):
             snapshot='{}'
             digest=hashlib.sha256(snapshot.encode()).hexdigest()
             with store.tx() as db:
-                for identity,outcome in (('wr_'+'1'*32,'known'),('wr_'+'2'*32,'unknown')):
-                    values=(identity,999,digest,snapshot,'fixture','admin','failed',1,1,'{}',outcome)
+                # e0764bfe (PM 11-14): an unknown outcome keeps its body for UNKNOWN_DAYS (30), then the body is compacted
+                # too; its metadata is never pruned. So: an old known run and an old unknown run are compacted, a
+                # recent unknown run (finished a day before 'now') keeps its body.
+                for identity,outcome,finished in (('wr_'+'1'*32,'known',1),('wr_'+'2'*32,'unknown',1),
+                                                  ('wr_'+'3'*32,'unknown',2000000000-86400)):
+                    values=(identity,999,digest,snapshot,'fixture','admin','failed',finished,finished,'{}',outcome)
                     sql='INSERT INTO workflow_runs(id,workflow_id,digest,snapshot,actor,source,status,created,finished,result,execution_outcome) VALUES(?,?,?,?,?,?,?,?,?,?,?)'
                     if store is native:store._execute(sql.replace('?','%s'),values)
                     else:db.execute(sql,values)
@@ -111,7 +115,7 @@ def _contracts(connect):
                     if store is native:store._execute(sql.replace('?','%s'),(identity,'synthetic-retained-event'))
                     else:db.execute(sql,(identity,'synthetic-retained-event'))
             result=Maintenance(runtime).run(apply=True,now=2000000000)
-            if result['bodies_compacted']!=1:raise AssertionError('maintenance signed body fixture')
+            if result['bodies_compacted']!=2:raise AssertionError('maintenance signed body fixture')
             metadata=Maintenance(runtime).run(apply=True,now=2000000000)
             if metadata['metadata_pruned']!=1:raise AssertionError('maintenance signed metadata prune')
             from agent_market.workflow_comparison import Comparison
