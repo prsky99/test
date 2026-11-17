@@ -1,8 +1,18 @@
 import json
 import time
 
+import pytest
+
 from agent_market.necklaces import judge, model, watch
 from tests.test_necklaces_model import base, ext, own
+
+
+@pytest.fixture(autouse=True)
+def _upgrades_in_tmp(tmp_path, monkeypatch):
+    """11-18 04:19: the night full pytest ran NecklaceWatch here with a 2026-11-20 clock and the upgrade lines went to
+    the real logs/ops/necklace-watch/upgrades.jsonl (the path is not under the task's root). Every test here writes
+    them under tmp_path."""
+    monkeypatch.setattr(watch, "UPGRADES", tmp_path / "upgrades.jsonl")
 
 NOW = 1_800_000_000.0
 
