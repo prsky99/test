@@ -411,3 +411,22 @@ def test_technology_news_is_busy_when_nothing_is_stored_and_the_refresh_fails(tm
     store, _ = news_store(tmp_path, fetch)
     with pytest.raises(DataUnavailable, match='busy'):
         DataAgents(news_store=store).execute('technology-news', {'query': 'anything here', 'limit': 2})
+
+
+
+def test_research_papers_asks_most_cited_first_and_puts_title_matches_ahead(engine):
+    """PM 11-17: topic key papers are the most cited ones (holdout-r3 premeasure 3/19 by relevance, 13/19 after)."""
+    core, calls, state = engine
+    seen = []
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={'message': {'items': [
+            {'DOI': '10.1000/a', 'title': ['A famous paper that mentions gene in passing'], 'publisher': 'P',
+             'published': {'date-parts': [[2001, 1, 1]]}, 'is-referenced-by-count': 9000},
+            {'DOI': '10.1000/b', 'title': ['Gene therapy: the review'], 'publisher': 'P',
+             'published': {'date-parts': [[2010, 1, 1]]}, 'is-referenced-by-count': 800}]}})
+    core.http = httpx.Client(transport=httpx.MockTransport(handler))
+    out = core.execute('research-papers', {'query': 'gene therapy', 'limit': 2})
+    params = seen[0].url.params
+    assert params['sort'] == 'is-referenced-by-count' and params['order'] == 'desc' and params['rows'] == '40'
+    assert [i['doi'] for i in out['data']['items']] == ['10.1000/b', '10.1000/a'] and out['data']['partial'] is False

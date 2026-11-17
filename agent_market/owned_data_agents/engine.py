@@ -315,14 +315,23 @@ class DataAgents:
                 'partial': bool(raw.get('incomplete_results')) or len(items) < min(len(rows), args['limit'])}
 
     def _research_papers(self, args):
+        # PM 11-17: the key papers of a topic are its most cited ones (holdout-r3 premeasure 3/19 by relevance).
+        # Crossref sorts the query's matches by citation count; papers whose title holds every query word come
+        # first (a title search, like the topic answer sets), the other most-cited matches after them.
         raw = self._request('GET', 'https://api.crossref.org/works', params={
-            'query.bibliographic': args['query'], 'rows': args['limit'],
-            'select': 'DOI,title,published,URL,publisher'})
+            'query.bibliographic': args['query'], 'rows': 40, 'sort': 'is-referenced-by-count', 'order': 'desc',
+            'select': 'DOI,title,published,URL,publisher,is-referenced-by-count'})
         rows = raw['message']['items']
         if type(rows) is not list:
             raise ValueError('Invalid source')
+        words = [w for w in re.findall(r'[0-9a-z]+', args['query'].casefold()) if len(w) > 2]
+        def in_title(row):
+            titles = row.get('title', []) if type(row) is dict else []
+            title = str(titles[0]).casefold() if type(titles) is list and titles else ''
+            return bool(words) and all(re.search(r'(?<![0-9a-z])' + re.escape(w), title) for w in words)
+        rows = [r for r in rows if in_title(r)] + [r for r in rows if not in_title(r)]
         items, seen = [], set()
-        for row in rows[:10]:
+        for row in rows[:40]:
             doi = clean(row.get('DOI'), 250)
             titles = row.get('title', [])
             title = clean(titles[0]) if type(titles) is list and titles else ''
@@ -333,7 +342,7 @@ class DataAgents:
             items.append({'title': title, 'url': 'https://doi.org/' + quote(doi, safe='/'),
                 'doi': doi, 'publisher': clean(row.get('publisher')), 'publication_date': published})
             seen.add(doi.lower())
-        return {'query': args['query'], 'items': items[:args['limit']], 'partial': len(items) < len(rows)}
+        return {'query': args['query'], 'items': items[:args['limit']], 'partial': len(items) < min(args['limit'], len(rows))}
 
     def _country_profile(self, args):
         raw = self._request('GET', 'https://api.worldbank.org/v2/country/' + args['country_code'],

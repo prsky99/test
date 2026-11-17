@@ -114,7 +114,8 @@ def test_research_and_news_digest_is_unchanged():
     ``scripts.approve_model_contracts --only`` for the technology-news resource after the frontend deploy (moved once
     more the same night when the GDELT 429 began passing Retry-After to the ledger)."""
     from agent_market import owned_capability_adapter
-    assert owned_capability_adapter.IMPLEMENTATION == 'bb8a6e25f870459548e7638eb9baf25d4631348db3fce3a8bc5f958238f8631e'
+    # 11-17 (PM): research-papers asks Crossref most cited first and puts title matches ahead (topic papers seat)
+    assert owned_capability_adapter.IMPLEMENTATION == '60196ba5ae0fd262a0e52ef9db9f36e0899345fcc829990b16cd3bec65199bec'
 
 
 def test_documentation_objectives_use_the_docs_agent_and_research_keeps_papers():
