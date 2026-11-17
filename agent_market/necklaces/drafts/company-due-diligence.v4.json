@@ -196,9 +196,9 @@
       "chain": [
         {
           "kind": "external",
-          "resource_id": 40800,
-          "tool": "get_filings",
-          "registrable_domain": "siliconfloor.com",
+          "resource_id": 288314,
+          "tool": "company_filings",
+          "registrable_domain": "plainquant.com",
           "upstream": [
             "sec-edgar"
           ],
@@ -214,9 +214,9 @@
         },
         {
           "kind": "external",
-          "resource_id": 288314,
-          "tool": "company_filings",
-          "registrable_domain": "plainquant.com",
+          "resource_id": 40800,
+          "tool": "get_filings",
+          "registrable_domain": "siliconfloor.com",
           "upstream": [
             "sec-edgar"
           ],
