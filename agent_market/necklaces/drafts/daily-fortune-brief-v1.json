@@ -1,0 +1,67 @@
+{
+  "slug": "daily-fortune-brief",
+  "version": 1,
+  "status": "candidate",
+  "name": "Daily fortune brief",
+  "summary": "For entertainment; not advice. From a birth date (solar or Korean lunar), the Korean lunar date, the Western Sun sign with today's Moon, the Four Pillars (saju) with today's day pillar, and one reproducible daily reading that combines them.",
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "birth_date": {"type": "string", "pattern": "^(19[0-9]{2}|20[0-9]{2}|2100)-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"},
+      "calendar": {"type": "string", "enum": ["solar", "lunar"], "default": "solar"},
+      "is_leap_month": {"type": "boolean", "default": false},
+      "birth_hour": {"type": "integer", "minimum": 0, "maximum": 23},
+      "today": {"type": "string", "pattern": "^20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"}
+    },
+    "required": ["birth_date"],
+    "additionalProperties": false
+  },
+  "input_help": "birth_date as YYYY-MM-DD; calendar lunar for a Korean lunar date (is_leap_month true for a leap month); birth_hour 0-23 in Korean standard time adds the hour pillar; today defaults to today's date in Asia/Seoul.",
+  "budget_ms": {"total": 5000, "slot": 1500},
+  "slots": [
+    {"slot": "calendar", "contract": "calendar.lunar_convert.v1", "required": true, "fanout": 1,
+     "chain": [
+       {"kind": "agentcon", "agent_id": "fortune-calendar", "resource_id": null, "tool": "convert_korean_lunar_date", "registrable_domain": "agentconcierge.biz", "upstream": ["kasi-rules"], "read_only_hint": true, "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "planned",
+        "input_map": {"date": "{{input.birth_date}}", "calendar": "{{input.calendar}}", "is_leap_month": "{{input.is_leap_month}}"}},
+       {"kind": "external", "resource_id": 57935, "tool": "convert_chinese_lunar_date", "registrable_domain": "totallytarot.net", "upstream": ["chinese-lunar"], "read_only_hint": true, "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "pending_test", "calendar_basis": "chinese",
+        "input_map": {"date": "{{input.birth_date}}"}}
+     ]},
+    {"slot": "western", "contract": "astro.western_sign.v1", "required": true, "fanout": 1, "depends_on": ["calendar"],
+     "chain": [
+       {"kind": "agentcon", "agent_id": "fortune-western", "resource_id": null, "tool": "sun_sign_and_today_moon", "registrable_domain": "agentconcierge.biz", "upstream": ["meeus-ephemeris"], "read_only_hint": true, "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "planned",
+        "input_map": {"date": "{{slot.calendar.solar_date}}", "today": "{{input.today}}"}},
+       {"kind": "external", "resource_id": 36467, "tool": "asternym_zodiac", "registrable_domain": "asternym.com", "upstream": ["sun-longitude"], "read_only_hint": true, "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "pending_test",
+        "input_map": {"date": "{{slot.calendar.solar_date}}"}},
+       {"kind": "external", "resource_id": 167374, "tool": "calculate_birth_date_profile", "registrable_domain": "unifiedreading.com", "upstream": ["sun-sign"], "read_only_hint": true, "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "pending_test",
+        "input_map": {"date": "{{slot.calendar.solar_date}}"}}
+     ]},
+    {"slot": "saju", "contract": "saju.pillars.v1", "required": true, "fanout": 1, "depends_on": ["calendar"],
+     "chain": [
+       {"kind": "agentcon", "agent_id": "fortune-saju", "resource_id": null, "tool": "four_pillars_and_today", "registrable_domain": "agentconcierge.biz", "upstream": ["kasi-rules"], "read_only_hint": true, "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "planned",
+        "input_map": {"date": "{{slot.calendar.solar_date}}", "birth_hour": "{{input.birth_hour}}", "today": "{{input.today}}"}},
+       {"kind": "external", "resource_id": 35054, "tool": "calculate_bazi", "registrable_domain": "wenbu.app", "upstream": ["bazi"], "read_only_hint": true, "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "pending_test",
+        "input_map": {"date": "{{slot.calendar.solar_date}}"}},
+       {"kind": "external", "resource_id": 405618, "tool": "get_bazi_chart", "registrable_domain": "getchineseastrology.com", "upstream": ["bazi"], "read_only_hint": true, "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "pending_test",
+        "input_map": {"birthDate": "{{slot.calendar.solar_date}}"}}
+     ]},
+    {"slot": "synthesis", "contract": "fortune.daily.v1", "required": true, "fanout": 1, "depends_on": ["western", "saju"],
+     "chain": [
+       {"kind": "agentcon", "agent_id": "fortune-synthesis", "resource_id": null, "tool": "daily_fortune", "registrable_domain": "agentconcierge.biz", "upstream": ["rule-table"], "read_only_hint": true, "destructive_hint": false, "idempotent_hint": true, "resend_safe": true, "state": "planned",
+        "input_map": {"sign": "{{slot.western.sign}}", "moon_sign": "{{slot.western.moon_sign}}", "day_pillar": "{{slot.saju.day_pillar}}", "today_day_pillar": "{{slot.saju.today_day_pillar}}", "hour_pillar": "{{slot.saju.hour_pillar}}"}}
+     ]}
+  ],
+  "synthesis": {"kind": "merge-v1", "rules": [
+    "calendar first; western and saju read its solar date and run together; synthesis reads their facts",
+    "lunar dates follow the Korean calendar (KASI rules); a Chinese-calendar answer is marked calendar_basis chinese",
+    "the year pillar changes at Ipchun and the month pillar at the jeol solar terms, not at the lunar new year; Korean standard time, no true-solar-time correction",
+    "without a birth hour only three pillars are given and the answer says the hour pillar is left out",
+    "the reading is the rule table of agent_market/necklaces/fortune_rules.py (Ten Gods, Western elements): same input and day, same words; no model writes it",
+    "every answer starts with 'For entertainment; not advice.' and never states or advises on health, money, legal or medical matters, nor uses frightening words",
+    "the birth date is used for computing only: never in logs, the ledger, evidence or cache keys"
+  ]},
+  "answer_set": "daily-fortune-brief-v1",
+  "min_pearls_answered": 0,
+  "demand": "A direct user request (11-17). Measured: external asks 0 in 30 days (3,029 asks; Explore queries are not stored as text and cannot be counted), x402 paid calls 63 in 30 days (about 49 payers), 252 related agents in our catalog (growth team, 11-17).",
+  "probe_input": {"birth_date": "1990-05-15", "calendar": "solar"},
+  "notes": "Draft (workflow 11-17, BRIEF reports/fortune-necklace-2026-11-17). Members from search and RAG's candidates.md and the agent team's offline substitutes (agent-team/fortune 4a066387); the substitutes lead every slot because no collected calendar tool states Korean (KASI) rules and no outside reading is rule-based. Outside members are pending terms review and a read-only test; 263031 (writes a saved chart) and the true-solar-time BaZi tools are left out. Needs before the gate: the four contracts out of contracts_draft, normalizers that stage solar_date, sign, moon_sign, day_pillar, today_day_pillar and hour_pillar, the agent ids above, and a KASI answer set with boundary cases (Ipchun, jeol terms, leap months, Seollal, sign cusps). Grading: fortune_rules.grade_fortune_task. Lands after the 11-20 v4 verdict."
+}
