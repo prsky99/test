@@ -465,11 +465,11 @@ def test_github_test_family_takes_12_an_hour_and_120_a_day_from_11_18(tmp_path):
 
 
 def test_github_gate_hours_and_the_night_grant_sit_outside_the_test_rule(tmp_path):
-    assert pb.github_reserve('gate', n=30, now=at(19, 11) + 600, directory=tmp_path) == (True, 'ok')     # 11:10 round
-    assert pb.github_reserve('gate', n=3, now=at(19, 11) + 900, directory=tmp_path) == (False, 'github_gate_hour_cap')
-    assert pb.github_reserve('role_tests', now=at(19, 11) + 900, directory=tmp_path) == (False, 'github_gate_hour')
-    assert pb.github_reserve('fallback_live', n=20, now=at(19, 11) + 900, directory=tmp_path) == (True, 'ok')
-    assert pb.github_reserve('gate', n=12, now=at(19, 12), directory=tmp_path) == (True, 'ok')           # day rule untouched
+    assert pb.github_reserve('gate', n=30, now=at(21, 8) + 600, directory=tmp_path) == (True, 'ok')     # 08:10 round (11-21; 11-19 hours cleared 11-17)
+    assert pb.github_reserve('gate', n=3, now=at(21, 8) + 900, directory=tmp_path) == (False, 'github_gate_hour_cap')
+    assert pb.github_reserve('role_tests', now=at(21, 8) + 900, directory=tmp_path) == (False, 'github_gate_hour')
+    assert pb.github_reserve('fallback_live', n=20, now=at(21, 8) + 900, directory=tmp_path) == (True, 'ok')
+    assert pb.github_reserve('gate', n=12, now=at(21, 9), directory=tmp_path) == (True, 'ok')           # day rule untouched
     assert pb.github_reserve('reference_checks', n=30, now=at(18, 1), directory=tmp_path) == (True, 'ok')  # 11-18 night
     assert pb.github_reserve('reference_checks', n=1, now=at(18, 1) + 60, directory=tmp_path) == (False, 'system_share')
 

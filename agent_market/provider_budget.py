@@ -371,7 +371,7 @@ GITHUB_TEST_HOURLY = 12
 GITHUB_TEST_DAILY = 120
 GATE_HOUR_LIVE_MIN = 15
 GATE_HOURS_GITHUB = {'2026111813': 30,                          # github-repo substitute gate 13:10
-                     '2026111911': 32, '2026111916': 32,        # mcp-server-trust-check rounds 11:10, 16:10
+                     # 11-19 11:10/16:10 N2 mcp-server-trust-check hours cleared (PM 11-17: no answer set, no waiting round)
                      '2026112108': 32, '2026112112': 32}        # cve-incident-brief v2 rounds 08:10, 12:10
 
 
