@@ -33,9 +33,18 @@ KEEP_PENDING = 50_000
 
 
 def necklace_log_path():
-    """<AGENTCON_PROJECT_ROOT>/logs/growth/necklace-ad-served.jsonl, or None outside the services (nothing written)."""
+    """<AGENTCON_PROJECT_ROOT>/logs/growth/necklace-ad-served.jsonl; without that variable (the production frontend
+    runs with the project as its working directory and does not set it, checked 11-17) the project's existing
+    logs/growth directory found the way paid_bookings.data_path finds gateway-data. None when neither exists or under
+    pytest, so tests never write into the real logs."""
     root = os.environ.get('AGENTCON_PROJECT_ROOT')
-    return Path(root) / NECKLACE_LOG if root else None
+    if root:
+        return Path(root) / NECKLACE_LOG
+    if os.environ.get('PYTEST_CURRENT_TEST'):
+        return None
+    from .paid_bookings import data_path
+    growth = Path(data_path(str(Path(NECKLACE_LOG).parent)))
+    return growth / Path(NECKLACE_LOG).name if growth.is_dir() else None
 
 
 def _day(day_ms):

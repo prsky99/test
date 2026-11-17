@@ -124,3 +124,16 @@ from tests.test_ad_coin_postgres import cluster  # noqa: E402,F401
 from tests.test_ad_coin_v2_persistence import store  # noqa: E402,F401
 from tests.test_ad_coin_v2_p1 import p1_suite  # noqa: E402,F401
 from tests.test_ad_coin_v2_sponsored_offer import _public_only  # noqa: E402,F401  (no DNS in tests)
+
+
+def test_without_the_root_variable_the_project_logs_folder_is_found_outside_pytest(tmp_path, monkeypatch):
+    """11-17: the production frontend runs from the project folder without AGENTCON_PROJECT_ROOT."""
+    from agent_market.ad_coin.v2 import paid_bookings
+    monkeypatch.delenv('AGENTCON_PROJECT_ROOT', raising=False)
+    (tmp_path / 'logs' / 'growth').mkdir(parents=True)
+    monkeypatch.setattr(paid_bookings, 'data_path', lambda path: str(tmp_path / path))
+    assert sa.necklace_log_path() is None                       # under pytest: never the real logs
+    monkeypatch.delenv('PYTEST_CURRENT_TEST', raising=False)
+    assert sa.necklace_log_path() == tmp_path / 'logs/growth/necklace-ad-served.jsonl'
+    monkeypatch.setattr(paid_bookings, 'data_path', lambda path: str(tmp_path / 'missing' / path))
+    assert sa.necklace_log_path() is None                       # no logs/growth folder: nothing written
