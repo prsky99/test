@@ -335,6 +335,31 @@ def test_monitor_retries_one_transient_failure_before_withdrawing_readiness(edge
         assert len(calls) == 2
         assert (edge.service.summary()['preferred_backend'] == 'worker') is expected
 
+def test_monitor_names_the_failed_call_and_keeps_the_utc_rollover_timeout_at_info(edge, monkeypatch, caplog):
+    # 11-17 (PM 09:1x): two analytics timeouts every day at 09:00-09:01 KST (00:00 UTC) since 11-10. The log names
+    # the call; only an analytics failure in the first minutes of the UTC day is INFO, and readiness is withdrawn
+    # either way.
+    import logging
+    import agent_market.edge_gateway.monitor as monitor_module
+    monkeypatch.setattr(monitor_module, 'RETRY_SECONDS', 0)
+
+    def timeout(request):
+        raise httpx.ReadTimeout('slow', request=request)
+    for clock, level, text in ((86400 * 20410 + 60, logging.INFO, '(analytics, UTC day rollover)'),
+                               (86400 * 20410 + 4000, logging.WARNING, '(analytics)')):
+        edge.clock[0] = clock
+        edge.service.observe(10, clock, healthy=True)
+        with httpx.Client(transport=httpx.MockTransport(timeout)) as client:
+            watcher = Monitor(edge.service, 'a' * 32, 'synthetic-token', client=client)
+            watcher.stop.wait = lambda seconds, real=watcher.stop.wait: (watcher.stop.set() if seconds == 60 else None) or real(0)
+            caplog.clear()
+            with caplog.at_level(logging.INFO, logger='agent_market.edge_gateway.monitor'):
+                watcher.loop()
+        failed = [r for r in caplog.records if r.getMessage().startswith('Edge observation failed')]
+        assert len(failed) == 1 and failed[0].levelno == level and text in failed[0].getMessage()
+        assert edge.service.summary()['preferred_backend'] == 'origin'
+
+
 def test_config_is_owner_only_rejects_private_urls_and_requires_review(edge, tmp_path, monkeypatch):
     value = {'profile': PROFILE, 'public_origin': ORIGIN, 'shared_secret': base64.b64encode(b'e' * 32).decode(),
              'worker_ready': True, 'providers': [{'resource_id': edge.rid, 'version_id': edge.config.providers[0].version_id,

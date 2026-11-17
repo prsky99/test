@@ -28,6 +28,7 @@ QUERY = '''query EdgeUsage($account: string, $start: string, $end: string, $wind
   } }
 }'''
 RETRY_SECONDS = 5
+ROLLOVER_SECONDS = 300   # first minutes of the UTC day (09:00-09:05 KST)
 log = logging.getLogger(__name__)
 # 11-11 runtime block rule (PM decision). Any Worker error in the UTC day used to block Worker execution
 # with no way back; it blocked from 10-31 while the Worker had 2 exceptions in 11 days (0 CPU limit
@@ -70,9 +71,13 @@ class Monitor:
         window = datetime.fromtimestamp(now - WINDOW_SECONDS, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
         client = self.client or bounded_client(allow_private=False, limit=262144, budget=OutboundBudget(10))
         try:
-            response = client.post('https://api.cloudflare.com/client/v4/graphql',
-                headers={'Authorization': 'Bearer ' + self.token, 'Accept-Encoding': 'identity'},
-                json={'query': QUERY, 'variables': {'account': self.account, 'start': start, 'end': end, 'window': window}})
+            try:
+                response = client.post('https://api.cloudflare.com/client/v4/graphql',
+                    headers={'Authorization': 'Bearer ' + self.token, 'Accept-Encoding': 'identity'},
+                    json={'query': QUERY, 'variables': {'account': self.account, 'start': start, 'end': end, 'window': window}})
+            except Exception as error:
+                error.edge_leg = 'analytics'   # which call failed goes into the log line (11-17)
+                raise
             if response.status_code != 200:
                 raise EdgeError('OBSERVATION_UNAVAILABLE')
             data = parse(response.content)
@@ -96,7 +101,7 @@ class Monitor:
             if requests < current.config.soft_limit and not worker_error:
                 path = '/api/edge-gateway/v1/health'
                 timestamp, identity, raw = str(int(now)), secrets.token_hex(16), b'{}'
-                proof = client.post(current.config.origin + path, content=raw, headers={
+                proof = self._health(client, current.config.origin + path, raw, headers={
                     'Content-Type': 'application/json', 'Accept-Encoding': 'identity', 'X-Edge-Time': timestamp,
                     'X-Edge-Nonce': identity,
                     'X-Edge-Signature': service_mac(current.config.key, 'POST', path, timestamp, identity, raw)})
@@ -110,6 +115,14 @@ class Monitor:
         finally:
             if self.client is None:
                 client.close()
+
+    @staticmethod
+    def _health(client, url, raw, headers):
+        try:
+            return client.post(url, content=raw, headers=headers)
+        except Exception as error:
+            error.edge_leg = 'health'
+            raise
 
     @staticmethod
     def transition(current, now, tripped, errors, invoked):
@@ -148,12 +161,21 @@ class Monitor:
                 except Exception as first:
                     # One transient analytics/health miss (rate limit, 5xx, timeout) is retried
                     # once before readiness is withdrawn; freshness expiry still bounds it.
-                    logging.getLogger(__name__).warning('Edge observation retry after %s', getattr(first, 'code', type(first).__name__))
+                    logging.getLogger(__name__).info('Edge observation retry after %s (%s)', getattr(first, 'code', type(first).__name__),
+                                                     getattr(first, 'edge_leg', 'check'))
                     if self.stop.wait(RETRY_SECONDS):
                         break
                     self.refresh()
             except Exception as error:
-                logging.getLogger(__name__).warning('Edge observation failed: %s', getattr(error, 'code', type(error).__name__))
+                leg = getattr(error, 'edge_leg', 'check')
+                # 11-17 (PM 09:1x): from 11-10 the only daily repeat was two analytics timeouts at 09:00-09:01 KST,
+                # i.e. the first minutes of the UTC day, when the query asks for a usage day that has just begun.
+                # Readiness is still withdrawn (Origin is chosen until the next good observation); only that known
+                # case is logged at INFO. Any other failure stays a WARNING.
+                rollover = leg == 'analytics' and self.service.clock() % 86400 < ROLLOVER_SECONDS
+                (logging.getLogger(__name__).info if rollover else logging.getLogger(__name__).warning)(
+                    'Edge observation failed: %s (%s%s)', getattr(error, 'code', type(error).__name__), leg,
+                    ', UTC day rollover' if rollover else '')
                 # A repeated failed observation invalidates earlier readiness immediately.
                 try:
                     with transaction(self.service.store) as db:
