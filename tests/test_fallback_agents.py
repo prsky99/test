@@ -2821,3 +2821,17 @@ def test_agent_record_reads_the_daily_catalog_index_first(tmp_path, monkeypatch)
     assert r["agent_id"] == 6 and "grade" not in r and "under review" in r["answer"]
     r = a.execute("agent-record", {"name": "nobody"})["result"]
     assert r["found"] is False and "catalog index" in r["answer"]
+
+
+
+def test_answer_set_builders_fill_from_spares_and_stop_at_thirty(monkeypatch):
+    """PM 11-17: the 11-18 gates need 30 answerable cases; spares fill gaps, nothing is asked past 30."""
+    from scripts import gold_mail_auth as M, gold_package_readme as R
+    asked = []
+    def get(name):
+        asked.append(name)
+        return None if name == "_dmarc.bad0.example" else ["v=spf1 -all"]
+    cases = M.build([f"bad{i}.example" if i == 0 else f"d{i}.example" for i in range(40)], get)
+    assert len(cases) == 30 and cases[0]["input"]["domain"] == "d1.example"
+    assert len([n for n in asked if not n.startswith("_dmarc.")]) == 31          # one failed domain, then 30
+    assert not {"lodash", "express", "left-pad"} & set(R.SPARES) and len(R.SPARES) == len(set(R.SPARES))

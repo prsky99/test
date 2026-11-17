@@ -48,13 +48,16 @@ def truth_for(domain: str, get) -> dict | None:
     return {"domain": domain, "spf": spf, "dmarc": dmarc}
 
 
-def build(domains: list[str], get) -> list[dict]:
+def build(domains: list[str], get, keep: int = 30) -> list[dict]:
+    """Stops once KEEP domains answered, so spare domains are asked only when an earlier one did not answer."""
     cases = []
     for domain in domains:
         truth = truth_for(domain, get)
         if truth is not None:
             cases.append({"case_id": f"mail:{domain}", "input": {"domain": domain}, "task_type": "substitute",
                           "stratum": "mail_auth", "truth": truth})
+            if len(cases) >= keep:
+                break
     return cases
 
 
@@ -69,8 +72,13 @@ def main(argv=None) -> int:
     out = folder / f"{ns.split}.jsonl"
     if out.exists():
         print(f"{out} exists; a split is never rewritten"); return 2
-    domains = [json.loads(line)["input"]["domain"] for line in (folder / f"{ns.source}.jsonl").read_text().splitlines()
-               if line.strip()]
+    domains, origin = [], {}
+    for split in ns.source.split(","):     # later splits are spares when a domain does not answer (PM 11-17)
+        for line in (folder / f"{split}.jsonl").read_text().splitlines():
+            domain = json.loads(line)["input"]["domain"] if line.strip() else None
+            if domain and domain not in origin:
+                domains.append(domain)
+                origin[domain] = split
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     client = httpx.Client(headers={"Accept": "application/dns-json"}, timeout=10, follow_redirects=False)
 
@@ -85,7 +93,11 @@ def main(argv=None) -> int:
             return None
         body = r.json()
         return records(body) if body.get("Status") in (0, 3) else None   # NOERROR or NXDOMAIN; SERVFAIL -> skip
-    cases = build(domains, get)
+    cases = []
+    for c in build(domains, get):
+        cases.append({**c, "source_split": origin[c["input"]["domain"]]})
+        if len(cases) >= 30:
+            break
     if len(cases) < 30:
         print(f"only {len(cases)} cases; not written"); return 1
     src = [{"name": "Cloudflare public DNS over HTTPS (JSON API), an independent resolver", "url": DOH,
@@ -94,6 +106,8 @@ def main(argv=None) -> int:
         for c in cases[:30]:
             fh.write(json.dumps({**c, "truth_sources": src}, ensure_ascii=False) + "\n")
     print(f"wrote {min(30, len(cases))} cases to {out} at {fetched} (from {ns.source})")
+    for split in dict.fromkeys(c["source_split"] for c in cases[:30]):
+        print(f"  {split}: " + ", ".join(c["case_id"] for c in cases[:30] if c["source_split"] == split))
     return 0
 
 

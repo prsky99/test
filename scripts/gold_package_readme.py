@@ -27,6 +27,13 @@ import httpx
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 SLUG = "package-risk-audit"
+# Packages read while package-readme was built (unit tests and the 11-17 real check): never in an answer set.
+DEV_SEEN = {"left-pad", "lodash", "express"}
+# Spares when the package-risk-audit splits hold too few npm packages with a GitHub README (they hold 29 in all):
+# widely used npm packages, fixed before any gate run, in this order.
+SPARES = ["react", "axios", "chalk", "commander", "debug", "dotenv", "uuid", "moment", "dayjs", "yargs", "semver",
+          "minimist", "glob", "rimraf", "mkdirp", "ws", "cors", "body-parser", "jsonwebtoken", "bcrypt", "mongoose",
+          "redux", "vue", "rxjs", "zod", "prettier", "eslint", "jest", "mocha", "typescript"]
 GITHUB = re.compile(r"github\.com[/:]([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?(?:[/#?].*)?$")
 
 
@@ -69,6 +76,7 @@ def main(argv=None) -> int:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--from", dest="source", default="holdout-r2,holdout-v2-activity")
     p.add_argument("--split", default="readme-r1")
+    p.add_argument("--no-spares", action="store_true", help="only packages from the --from splits")
     ns = p.parse_args(argv)
     folder = ROOT / "gateway-data/necklaces/gold" / SLUG
     out = folder / f"{ns.split}.jsonl"
@@ -80,9 +88,15 @@ def main(argv=None) -> int:
             case = json.loads(line) if line.strip() else {}
             inp = case.get("input") or {}
             name = inp.get("package") or (case.get("truth") or {}).get("package")
-            if (inp.get("ecosystem") in (None, "npm")) and isinstance(name, str) and name not in packages:
+            if (inp.get("ecosystem") in (None, "npm")) and isinstance(name, str) and name not in packages \
+                    and name not in DEV_SEEN:
                 packages.append(name)
                 origin[name] = split
+    if not ns.no_spares:
+        for name in SPARES:
+            if name not in packages and name not in DEV_SEEN:
+                packages.append(name)
+                origin[name] = "spare"
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     client = httpx.Client(timeout=15, follow_redirects=False, headers={"User-Agent": "AgentValCon-gold/1.0"})
 
