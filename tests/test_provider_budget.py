@@ -342,7 +342,7 @@ def test_holdout_r4_openalex_reads_fit_on_11_17_only():
     assert pb.share_limit('reference_checks', 'openalex.org', day='20261117') == pb.domain_total('openalex.org') == 50
     assert pb.share_limit('reference_checks', 'openalex.org', day='20261120') == 10 * 50 // 60   # ordinary day
     # PM 11-16 18:3x: topic v2 answer sets, the gate keeps the rest in the plan files
-    assert pb.share_limit('reference_checks', 'openalex.org', day='20261118') == 38
+    assert pb.share_limit('reference_checks', 'openalex.org', day='20261118') == 80   # PM 11-17: two-index builds
     assert pb.share_limit('reference_checks', 'openalex.org', day='20261119') == 40
 
 
@@ -526,3 +526,22 @@ def test_a_pause_that_passes_midnight_holds_into_the_next_day(tmp_path):
     assert pb.reserve(day, 'role_tests', now=at(19, 1), directory=tmp_path) == (False, 'paused_429')
     assert pb.reserve(day, 'role_tests', now=at(19, 2), directory=tmp_path)[0]
     assert pb.retry_after_end('soon', now=0) is None and pb.retry_after_end(None) is None
+
+
+def test_openalex_and_crossref_day_totals_on_11_18_only(tmp_path):
+    """PM 11-17: topic v2 two-index answer sets on 11-18 (OpenAlex 80, inside the free $0.10; Crossref 220, no fee and no day cap)."""
+    from datetime import datetime, timezone, timedelta
+    kst = timezone(timedelta(hours=9))
+    d17 = datetime(2026, 11, 17, 3, 0, tzinfo=kst).timestamp()
+    d18 = datetime(2026, 11, 18, 0, 20, tzinfo=kst).timestamp()
+    d19 = datetime(2026, 11, 19, 3, 0, tzinfo=kst).timestamp()
+    oa = 'https://api.openalex.org/works?search=x'
+    assert pb.domain_total('openalex.org', day='20261118') == 80
+    assert pb.domain_total('crossref.org', day='20261118') == 220 and pb.domain_total('crossref.org', day='20261119') == 60
+    assert pb.share_limit('reference_checks', 'crossref.org', day='20261118') == 72
+    assert pb.domain_total('npmjs.org', day='20261118') == 120 and pb.domain_total('npmjs.org', day='20261119') == 60
+    assert pb.domain_total('openalex.org', day='20261117') == 50 == pb.domain_total('openalex.org', day='20261119')
+    assert pb.reserve(oa, 'reference_checks', n=80, now=d18, directory=tmp_path) == (True, 'ok')
+    assert pb.reserve(oa, 'reference_checks', now=d18, directory=tmp_path)[0] is False
+    assert pb.reserve(oa, 'reference_checks', n=51, now=d17, directory=tmp_path)[0] is False
+    assert pb.reserve(oa, 'reference_checks', n=51, now=d19, directory=tmp_path)[0] is False

@@ -221,3 +221,16 @@ def test_a_row_keeps_what_find_agents_answered(monkeypatch):
                                 'free_check': False})
     assert row['shortlist'] == [[56799, 'mcp'], [167478, 'mcp']]
     assert row['recommend_timing'].startswith('server;dur=3380')
+
+
+def test_run_file_never_rewrites_a_dated_raw_file(tmp_path):
+    """PM 11-17: each run writes its own KST-minute file; an existing raw file is a record and is never rewritten."""
+    from datetime import datetime, timezone
+    from scripts import real_task_score as rts
+    started = datetime(2026, 11, 11, 19, 8, 52, tzinfo=timezone.utc)      # 11-12 04:08 KST
+    first = rts.run_file(started, tmp_path)
+    assert first.name == '2026-11-12-0408.json'
+    first.write_text('{}')
+    assert rts.run_file(started, tmp_path).name == '2026-11-12-0408-2.json'
+    (tmp_path / '2026-11-11.json').write_text('old')                   # the old UTC-day name is never chosen
+    assert rts.run_file(started, tmp_path).name != '2026-11-11.json'

@@ -91,6 +91,17 @@ ROLE_TEST_MIN = 4
 # $1 per 1,000 requests" (help.openalex.org/api/searching), so about 100 of our searches a day. The older "100,000 a
 # day" no longer appears there (checked 11-16). Half of that, as for every declared domain (PM 11-15 11:40 decision 5).
 DOMAIN_TOTAL = {'sec.gov': 600, 'arxiv.org': 600, 'met.no': 600, 'openalex.org': 50}
+# One-day day totals (PM 11-17 decision, 11-18 only): topic v2 answer sets move to the two-index papers rule
+# (papers-two-index-v1): holdout-r5-2i and holdout-r6-2i are built on 11-18, one OpenAlex and one Crossref read a
+# topic (empty topics are refilled, up to about 72-80 each). OpenAlex 80 stays inside its free $0.10 a day without a
+# key (about 100 searches, help.openalex.org/access/example-costs); Crossref's public REST API has no day cap or fee,
+# only a rate limit (public pool 5 a second, 1 at a time; crossref.org documentation access-and-authentication,
+# read 11-17), and the gate rounds call research-papers (Crossref) the same day. No spend; the dated key ends it.
+# npmjs.org 120 on 11-18 (PM 11-17): the package-readme answer set reads up to about 61 npm calls as 'gate' (30 cases x 2 plus
+# one public search for the spare ranking); the public registry read has no fee.
+ONE_DAY_TOTAL = {'20261118': {'openalex.org': 80, 'crossref.org': 220, 'npmjs.org': 120}}
+# Exact one-day shares, not scaled by the day total (PM 11-17: Crossref 220 on 11-18, the answer-set builder keeps 72).
+ONE_DAY_SHARE = {'20261118': {('reference_checks', 'crossref.org'): 72}}
 # Domains no path of ours may call: their day total is 0 and the ledger refuses every reserve.
 CLOSED_DOMAINS = {
     # PM 11-16 18:0x: Nager.Date (date.nager.at, now nagerholidays.com) asks commercial users for sponsorship
@@ -187,6 +198,8 @@ def domain_total(name, path=None, day=None, directory=None):
     DECLARED_CAP); on a day whose plan holds gate calls there, it rises to those holds, never above the limit."""
     if name in CLOSED_DOMAINS:
         return 0
+    if day and name in ONE_DAY_TOTAL.get(day, {}):
+        return ONE_DAY_TOTAL[day][name]          # a dated day total (PM decision), ends by itself
     if name in DOMAIN_TOTAL:
         return DOMAIN_TOTAL[name]
     per_day = published_per_day(name, path)
@@ -339,7 +352,9 @@ ONE_DAY = {'20261116': {('reference_checks', 'npmjs.org'): 30, ('reference_check
             # in the builder's fixed order. 46 x 50 // 60 = 38 and 48 x 50 // 60 = 40; the gate keeps 12 and 10 in the
             # plan files for the papers step's own fallback (v1 live retests, v2 rounds). r6 short of 30 at 38 reads:
             # the v2 gate moves a day, no more reads.
-            '20261118': {('reference_checks', 'openalex.org'): 46},
+            # PM 11-17: 11-18 totals for the topic v2 two-index builds (ONE_DAY_TOTAL). reference_checks takes all 80 of
+            # OpenAlex (60 x 80 // 60); Crossref's reference_checks share is the exact 72 of ONE_DAY_SHARE (of 220), the rest stays for the gate.
+            '20261118': {('reference_checks', 'openalex.org'): 60},
             '20261119': {('reference_checks', 'openalex.org'): 48}}
 # GitHub's hourly reference_checks share on those days, in the night hours only (00-07 KST), when live answers are few.
 ONE_NIGHT_GITHUB = {'20261116': {'reference_checks': 10}, '20261117': {'reference_checks': 10}, '20261118': {'reference_checks': 30}}
@@ -360,6 +375,9 @@ GATE_HOURS_GITHUB = {'2026111813': 30,                          # github-repo su
 def share_limit(system, name, day=None, directory=None):
     if system == 'cassettes' and (day or today()).replace('-', '') > CASSETTES_UNTIL:
         return 0
+    exact = ONE_DAY_SHARE.get(day or '', {}).get((system, name))
+    if exact is not None:
+        return exact
     base = (ONE_DAY.get(day or '', {}).get((system, name)) or CASSETTE_OVERRIDE.get((system, name))
             or SHARE_OVERRIDE.get((system, name), SHARE[system]))
     total = domain_total(name, day=day, directory=directory)

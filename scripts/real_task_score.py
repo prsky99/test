@@ -383,6 +383,19 @@ def update_readme(report, readme=README, log=None):
     readme.write_text(text)
 
 
+def run_file(started, folder=None):
+    """This run's own raw file, named by its KST start minute. A dated raw file is a record and is never rewritten
+    (PM 11-17: the 11-12 04:18 run rewrote 2026-11-11.json under the old UTC-day name); a second run in the same
+    minute gets -2, -3, ..."""
+    folder = Path(folder or ROOT / 'reports/real-task-score')
+    stem = started.astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d-%H%M')
+    out, n = folder / (stem + '.json'), 1
+    while out.exists():
+        n += 1
+        out = folder / f'{stem}-{n}.json'
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument('--only')
@@ -417,8 +430,7 @@ def main(argv=None):
     summary['scorer_commit'] = scorer_commit()  # 11-12 PM: a score change can be the scorer's own (69657ea9)
     report = {'summary': summary, 'rows': rows}
     # 11-12: twice a day now, so the file carries the KST start time and the night run is not overwritten
-    out = Path(args.out) if args.out else ROOT / 'reports/real-task-score' / (
-        started.astimezone(timezone(timedelta(hours=9))).strftime('%Y-%m-%d-%H%M') + '.json')
+    out = Path(args.out) if args.out else run_file(started)
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=1) + '\n')
     log = ROOT / 'logs/ops/real-task-score.jsonl'

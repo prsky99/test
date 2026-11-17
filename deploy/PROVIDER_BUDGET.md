@@ -12,10 +12,11 @@
 | 규칙 | 값 |
 |---|---|
 | 묶는 단위 | **등록 도메인**(예: `api.example.com`·`www.example.com` → `example.com`). 호스팅 플랫폼(`*.vercel.app`, `*.pages.dev`, `*.up.railway.app` 등)은 입주자 하위 도메인 하나를 한 제공자로 본다 |
-| 도메인당 하루 합계 | 기본 **60회**(`DAILY_TOTAL`, 모든 시스템 합). 예외: 원문 한도를 확인한 공개 기관은 `DOMAIN_TOTAL`(아래 표). 제공자가 한도를 공개한 도메인(`necklaces/member_terms.json`의 `declared_limit`)은 그 한도의 20%(`SHARE_OF_DECLARED`, 최대 1,000 `DECLARED_CAP`, 60 아래로는 내리지 않음). 그날 계획이 관문 호출을 잡아 두었으면 그만큼까지 오르되 공개 한도는 넘지 않는다(PM 11-15 17:16) |
+| 도메인당 하루 합계 | 기본 **60회**(`DAILY_TOTAL`, 모든 시스템 합). 예외: 원문 한도를 확인한 공개 기관은 `DOMAIN_TOTAL`(아래 표). 제공자가 한도를 공개한 도메인(`necklaces/member_terms.json`의 `declared_limit`)은 그 한도의 20%(`SHARE_OF_DECLARED`, 최대 1,000 `DECLARED_CAP`). 한도가 작으면 60보다 작아진다(예: 하루 100이면 20, 11-17 코드 확인). 그날 계획이 관문 호출을 잡아 두었으면 그만큼까지 오르되 공개 한도는 넘지 않는다(PM 11-15 17:16) |
 | 공개 목걸이 실행 | 시험과 실제 실행을 합쳐 그날 한도의 80%(`LIVE_SHARE`)까지. 넘으면 그 자리의 다음 멤버로 넘기고 `quota_exhausted`로 남긴다(실패 아님, `live_reserve`) |
-| 시스템별 몫(`SHARE`, 60 기준) | 목걸이 재시험 35 · 대체 감시(`fallback_watch`) 30 · 녹화(`cassettes`) 20(2026-11-24까지, 뒤에는 0) · 정답 대조(`reference_checks`) 10 · AD Coin 심사 RDAP(`ad_review_rdap`) 10 · 도메인 만료 RDAP(`lifecycle_rdap`) 50 · 제공자 소유 확인(`provider_claims`) 6 · 지문(`fingerprints`) 6 · 역할 과제 시험 5 · 자체 대체 시험 5 · AD Coin 차단 목록(`ad_blocklists`) 4 · 진주 배치 3 · 그때그때 확인 2 · **관문은 합계에서 남은 만큼**. 합계가 60이 아닌 도메인에서는 몫이 같은 비율(합계 ÷ 60)로 바뀐다 |
-| 429 | 한 시스템이라도 429를 받으면 **그날 남은 시간 동안 모든 시스템이 그 도메인을 부르지 않는다**. 같은 프로세스 안에서는 `provider_rest`가 Retry-After를 따로 지킨다 |
+| 시스템별 몫(`SHARE`, 60 기준) | 목걸이 재시험 35 · 대체 감시(`fallback_watch`) 30 · 녹화(`cassettes`) 20(2026-11-24까지, 뒤에는 0) · 정답 대조(`reference_checks`) 10 · AD Coin 심사 RDAP(`ad_review_rdap`) 10 · 도메인 만료 RDAP(`lifecycle_rdap`) 50 · 제공자 소유 확인(`provider_claims`) 6 · 지문(`fingerprints`) 6 · 역할 과제 시험 5 · 자체 대체 시험 5 · AD Coin 차단 목록(`ad_blocklists`) 4 · 진주 배치 3 · 그때그때 확인 2 · **관문은 합계에서 남은 만큼**. 합계가 60이 아닌 도메인에서는 몫이 같은 비율(합계 ÷ 60)로 바뀐다. 역할 과제 시험 몫은 합계가 허락하면 최소 4(`ROLE_TEST_MIN`, 시험 1건 = 요청 4개) |
+| 닫힌 도메인 | `CLOSED_DOMAINS`(약관상 쓰지 않기로 한 곳)은 하루 합계가 0이라 모든 예약을 거절한다 |
+| 429 | 한 시스템이라도 429를 받으면 **그날 남은 시간 동안 모든 시스템이 그 도메인을 부르지 않는다**. 예외: `HOURLY_PAUSE_DOMAINS`(지금 gdeltproject.org)는 다음 정각까지만 멈추고, 공개 실행은 하루 24회(`LIVE_DAY_CAP`) 안에서 쓴다. 같은 프로세스 안에서는 `provider_rest`가 Retry-After를 따로 지킨다 |
 | 호출 간격 | 장부와 별도로 각 시스템이 지킨다(같은 호스트 동시 1, 2초 이상, 관문 문서 3절) |
 
 **쓰는 법**(검색과 RAG, 워크플로우, 에이전트 팀, 운영·SRE 모두)
@@ -90,7 +91,7 @@ GitHub 무인증 REST 한도는 이 맥 IP 하나에 시간당 60번(core)이다
 ## 공개 데이터 기관의 자체 대체 시험 몫 (PM 결정 3, 11-14 06:4x)
 
 - `SHARE_OVERRIDE`: 공개 데이터 기관에 한해 `substitute_tests` 몫을 하루 5에서 30으로 올린다.
-  - 대상 도메인: gleif.org, sec.gov(www·data), nist.gov, cisa.gov, wikipedia.org, wikidata.org, wiktionary.org
+  - 대상 도메인: gleif.org, sec.gov(www·data), nist.gov, cisa.gov, wikipedia.org, wikidata.org, wiktionary.org, gdeltproject.org, census.gov, npmjs.org(뒤의 셋은 11-15 추가, 11-17 코드 확인)
 - 도메인당 하루 합계 60은 그대로다.
 - github.com은 이 덮어쓰기에서 빠진다(GitHub 시간당 몫을 따른다).
 - 기관별 속도 상한은 에이전트의 호스트별 간격이 지킨다(`fallback_agents/limits.py`).
@@ -124,6 +125,8 @@ GitHub 무인증 REST 한도는 이 맥 IP 하나에 시간당 60번(core)이다
 | openalex.org | 50 | 키 없이 하루 $0.10, 검색 1,000건에 $1(검색 약 100회) | 50 | https://help.openalex.org/access/example-costs/ (11-16 확인) |
 
 - OpenAlex는 API 키 없이 하루 50회로 계속 진행한다(사용자 결정 11-16 "OpenAlex는 하루 50회로 계속 진행").
+  - **11-16 기준 50은 그대로 유지한다. 11-18 하루만 80회(PM 위임 결정, 11-17)**: 50은 남의 약관이 아니라 우리 장부 규칙이다(무료 크레딧 약 100회의 절반). 근거는 topic v2 정답 재빌드이고, 코드는 `ONE_DAY_TOTAL`(날짜가 지나면 저절로 끝남)이다. papers 정답 기준을 두 색인(papers-two-index-v1)으로 바꾸면서 holdout-r5-2i와 holdout-r6-2i(각 30건, 빈 주제는 채움 목록으로 바꿔 OpenAlex·Crossref 각 72~80회까지)를 새로 만든다. 무료 $0.10(검색 약 100회) 안이라 지출은 0이다. 그날 관문은 OpenAlex를 쓰지 않으므로(v2 papers 자리는 Crossref 133019) plan-20261118의 OpenAlex gate 예약을 0으로 했다.
+  - **Crossref 11-18 하루 예외(PM 11-17 결정)**: 하루 합계 220회(기본 60, 11-17 PM이 150에서 올림: 정답 빌드 72+133019 재측정 19+관문 회차 60~120+여유), reference_checks 몫 72회. 220을 승인한 근거는 Crossref에 하루 상한과 요금이 없고 정답 빌더가 polite 풀(초당 10·동시 3)로 부른다는 것이다(아래 공식 문서). 같은 날 관문 회차의 research-papers(133019)도 Crossref를 부른다. Crossref 공개 REST API는 가입·요금·하루 상한이 없고 속도 제한만 있다. 공개 풀 초당 5·동시 1, polite 풀 초당 10·동시 3이고, polite 풀은 `mailto` 인자나 `agent` 헤더에 연락 메일을 넣어야 들어간다. 근거: https://www.crossref.org/documentation/retrieve-metadata/rest-api/access-and-authentication/ (2025-10-16 갱신, 11-17 확인), https://www.crossref.org/documentation/retrieve-metadata/rest-api/tips-for-using-the-crossref-rest-api/ (2025-10-24, 결과 캐시·순차 요청·429면 물러남). 정답 빌더(gold_topics_two_index, gold_topics_r3.CROSSREF 주소)는 Crossref polite 풀(mailto=contact@agentconcierge.biz, 사이트에 공개된 주소), 순차 1건씩, reference_checks로 부른다. 관문 회차의 research-papers(owned_data_agents engine)는 User-Agent에 사이트 주소만 넣고 mailto는 보내지 않아 공개 풀(초당 5, 동시 1)이고, CROSSREF 페이서로 순차로 보낸다. 지출은 0이다.
 
 - 600이면 목걸이 재시험 몫은 350, 대체 에이전트 시험 몫은 50(sec.gov는 기존 30의 10배인 300)이다.
 - NVD(nist.gov)와 GLEIF(gleif.org)는 공식 페이지에서 숫자 한도를 확인하지 못해 60을 유지한다. 한도 문서를 확인하면 같은 방식으로 추가한다.

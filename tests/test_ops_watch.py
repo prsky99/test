@@ -524,3 +524,17 @@ def test_ops_auto_never_reads_a_missing_watch_record_as_clear(monkeypatch):
     assert opened[0][0] == 'watch_broken' and 'agent_market' in opened[0][1] and 'agent_market' in actions[0]
     assert ops_auto.watch_record('{"anomalies": {}}', '', 0, handoff=lambda k, t: opened.append(k)) == {'anomalies': {}}
     assert closed == ['watch_broken'] and len(opened) == 1
+
+
+def test_long_tests_count_only_processes_running_tests():
+    """11-17: a zsh reminder loop whose text mentioned release_gate was flagged as a two-hour test (PID 80508)."""
+    from scripts.ops_watch import is_test_process
+    assert is_test_process('/Users/x/.venv-tests/bin/python -m scripts.release_gate day-frontend-20261117-r11')
+    assert is_test_process('.venv/bin/python -m pytest tests/test_a.py -q')
+    assert is_test_process('/Users/x/.venv/bin/pytest tests')
+    assert not is_test_process('/bin/zsh -c T=...; while ...; do sleep 900; done; echo "release_gate → deploy admin"')
+    assert not is_test_process('bash -c for r in day-jobs; do .venv-tests/bin/python -m scripts.release_gate $r; done')
+    assert not is_test_process('grep pytest')
+    # the child scripts.pytest_slot starts (PM 11-17: must still count)
+    assert is_test_process('/Users/x/A2A/.venv-tests/bin/python -m pytest -q -p no:cacheprovider tests/test_a.py')
+    assert is_test_process('nice -n 15 /Users/x/A2A/.venv-tests/bin/python -m pytest -q -p no:cacheprovider tests/test_a.py')

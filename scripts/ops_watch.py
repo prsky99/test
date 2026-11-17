@@ -610,6 +610,16 @@ def main():
         signal.alarm(0)
 
 
+def is_test_process(args):
+    """A process that is itself running tests: python with -m pytest / -m scripts.release_gate, or a pytest
+    executable. A shell whose command text only mentions them (a reminder loop, 11-17 PID 80508) is not one."""
+    import re
+    first = (args.split() or [''])[0].rsplit('/', 1)[-1]
+    if first in ('sh', 'bash', 'zsh', 'grep', 'sleep'):
+        return False
+    return bool(re.search(r'(^|/)pytest(\s|$)|\s-m\s+(pytest|scripts\.release_gate)(\s|$)', args))
+
+
 def _main():
     anomalies = {}
     site, site_path = step('site', check_site, (None, None))
@@ -617,7 +627,7 @@ def _main():
         anomalies['site'] = site
     long_tests, stuck = [], []
     for pid, seconds, args in step('processes', processes, []):
-        if ('pytest' in args or 'release_gate' in args) and 'grep' not in args and seconds > 3600:
+        if is_test_process(args) and seconds > 3600:
             long_tests.append({'pid': pid, 'minutes': seconds // 60, 'cmd': args[:100]})
         if 'scripts.service_deploy' in args and seconds > 1800:
             stuck.append({'pid': pid, 'minutes': seconds // 60, 'cmd': args[:100]})

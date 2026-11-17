@@ -192,3 +192,30 @@ def _no_production_storage_leak():
 import os as _os
 import tempfile as _tempfile
 _os.environ['AGENTCON_SIGNING_DIR'] = _tempfile.mkdtemp(prefix='agentcon-test-signing-')
+
+
+# PM 11-17: test runs never touch production records, secrets or the production database (tests/report_redirect.py):
+# writes under reports/, exports/ and the status board go to gateway-data/test-report-out/ (REPORT_SHOTS=1 writes the
+# records on purpose), opening the production DSN, env or key files and connecting to the production database raise
+# PermissionError. A test that must use them carries @pytest.mark.production_paths. No effect in a release copy.
+from tests import report_redirect as _report_redirect
+from pathlib import Path as _Path
+
+
+def pytest_configure(config):
+    config.addinivalue_line('markers', 'production_paths: this test reads production secrets or connects to the '
+                                       'production database on purpose (reported to the PM, 11-17)')
+
+
+@pytest.fixture(autouse=True, scope='session')
+def _reports_are_records():
+    _report_redirect.install(_Path(__file__).resolve().parents[1])
+    yield
+    _report_redirect.uninstall()
+
+
+@pytest.fixture(autouse=True)
+def _production_paths_marker(request):
+    _report_redirect.allow_production(request.node.get_closest_marker('production_paths') is not None)
+    yield
+    _report_redirect.allow_production(False)
