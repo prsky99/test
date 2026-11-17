@@ -14,7 +14,8 @@ Bounds: one prefetch at a time per process (as Explore and Chat parts), only whe
 so the database connection budget is unchanged (frontend at most 1 + read pool 6 + interactive 4). A prefetch that
 fails, does not match the later call's arguments, or is not needed (the first protocol filled the answer) is
 dropped and the loop searches in turn as before. Server-Timing names the outcome (PM 19:5x): prefetch_hit (its
-duration is how long the in-turn loop waited for the head start), prefetch_miss, prefetch_skip, prefetch_unused.
+duration is how long the in-turn loop waited for the head start), prefetch_miss, prefetch_skip, prefetch_unused;
+prefetch_run is the head start's own time on its thread (11-18).
 """
 import threading
 import time
@@ -56,6 +57,7 @@ def prefetching(recommender, source):
                 return None
 
             def run():
+                began = time.perf_counter()
                 try:
                     from .discovery import discovery_store
                     from .discovery_contracts import isolated_contract_reads
@@ -68,6 +70,7 @@ def prefetching(recommender, source):
                             hint=arguments['hint'], category=arguments['category'], tiers=tiers)
                         return found, tiers
                 finally:
+                    add('prefetch_run', (time.perf_counter() - began) * 1000)   # the MCP search alone (PM 11-18)
                     _slot.release()
             return _executor.submit(copy_context().run, run)
         except BaseException:

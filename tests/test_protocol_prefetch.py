@@ -147,7 +147,7 @@ def outcome(rec, source):
     from agent_market.concierge.retrieval_metrics import capture
     with capture() as values:
         prefetching(rec, source).search('weather forecast', kind=None, limit=4)
-    return {name for name in values['stages_ms'] if name.startswith('prefetch_')}
+    return {name for name in values['stages_ms'] if name.startswith('prefetch_') and name != 'prefetch_run'}
 
 
 def test_server_timing_names_the_prefetch_outcome():
@@ -156,3 +156,15 @@ def test_server_timing_names_the_prefetch_outcome():
     assert outcome(Rec(fail={('mcp', True)}), Source(free=6)) == {'prefetch_miss'}
     filled = {'a2a': [(1, True), (2, True), (6, True), (7, True)], 'mcp': TABLE['mcp']}
     assert outcome(Rec(table=filled), Source(free=6)) == {'prefetch_unused'}   # A2A filled the four
+
+
+def test_the_head_start_records_its_own_time():
+    """PM 11-18: prefetch_hit is the wait after the A2A search; prefetch_run is the MCP search alone, on its thread."""
+    from agent_market.concierge.retrieval_metrics import capture
+    with capture() as values:
+        prefetching(Rec(), Source(free=6)).search('weather forecast', kind=None, limit=4)
+    stages = values['stages_ms']
+    assert stages.get('prefetch_hit', -1) >= 0 and stages.get('prefetch_run', -1) >= 0   # no order: a near-instant search can be shorter than the wait's own overhead
+    with capture() as values:
+        prefetching(Rec(), Source(free=0)).search('weather forecast', kind=None, limit=4)
+    assert 'prefetch_run' not in values['stages_ms']        # skipped: no head start ran

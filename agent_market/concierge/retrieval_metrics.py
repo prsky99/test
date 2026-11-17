@@ -22,6 +22,9 @@ _STAGES = frozenset(('lexical', 'embedding', 'ann', 'expansion', 'projection', '
                      'auto_run_wait', 'auto_run_offer',
                      # Recommendation A2A/MCP head start outcome (protocol_prefetch, PM 11-15 19:5x)
                      'prefetch_hit', 'prefetch_miss', 'prefetch_skip', 'prefetch_unused',
+                     # The MCP head start's own wall time, start to end on its thread (PM 11-18 00:5x): ann and
+                     # admission_loop add both threads, so they could not say how long the MCP search alone took.
+                     'prefetch_run',
                      # Explore document reads split into the statement and the rest (P0 11-16)
                      'doc_sql',
                      # Chat fallbacks split into their focus words and their search (PM 11-16 06:4x)
