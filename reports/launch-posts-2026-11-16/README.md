@@ -263,3 +263,12 @@ Measured: [측정 뒤 기입]. Some steps are still under verification and say s
 - 입력: 과제에서 확실할 때만 채운다(_TOPIC 문구: "papers about X" 등). 2안의 자유 검색 채움은 목걸이 입력에 쓰지 않는다(fill free_text=False, 11-17). 그래서 "find an MCP weather forecast API"에 topic을 "weather forecast"로 넣지 않는다.
 - 목걸이 경로 파일(agent_market/necklaces/*)은 바꾸지 않았다. front·추천 쪽(concierge)만 바꿨다.
 - 배포: 11-18 낮 묶음(12:50 판정 뒤). 판정 실패면 코드는 나가도 켜지지 않는다(live가 아니므로).
+
+### 6.3 사용자 몫 (PM 11-17 승인 때 정리)
+| 일 | 누가 | 이유 |
+|---|---|---|
+| Product Hunt 계정 만들기와 출시 등록 | **사용자** | 계정 생성은 본인만 할 수 있음(1인 1계정 규칙) |
+| Hacker News·dev.to 글 쓰기 | **사용자** | 두 곳 모두 AI가 쓴 글을 금지함. 6.1·5.2 사실 목록으로 직접 씀 |
+| Reddit r/mcp·r/AI_Agents 규칙 원문 확인 | PM이 사용자가 보는 방식(데스크톱 앱, 읽기만)으로 확인 | 이 세션 도구는 reddit.com을 읽지 못함(우회하지 않음) |
+| 모든 채널의 게시 실행 | **사용자 확인 뒤** | 외부 게시는 사용자 확인 사항 |
+| 빈칸 채우기(멤버·측정 줄·실제 호출) | 성장·유통 | 11-18 12:50 판정과 공개 주소 측정 뒤, PM에 보냄 |
