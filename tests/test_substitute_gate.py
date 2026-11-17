@@ -211,3 +211,29 @@ def test_pace_waits_for_room_in_a_hosts_request_window():
             gate.DOMAINS.pop('wiki-grounding', None)
         else:
             gate.DOMAINS['wiki-grounding'] = old
+
+
+def test_gold_slug_reads_another_necklaces_answer_set_and_grades_the_background_shape(tmp_path, monkeypatch):
+    """ops 11-18: wikipedia-summary for the company-due-diligence background seat. --gold-slug reads the company set,
+    the company truth keeps the wiki facts in truth['background'], and the title is the registry's title_name."""
+    from agent_market.fallback_agents.gold_check import case_arguments, judge, wiki_truth
+    monkeypatch.setattr(gate, 'ROOT', tmp_path)
+    monkeypatch.setattr(gate, 'GOLD_SLUG', {})
+    has = {'case_id': 'c1', 'input': {'name': 'Deckers Outdoor Corp', 'country': 'US'},
+           'truth': {'sec_title': 'SPRINKLR, INC.', 'background': {'title': 'Sprinklr', 'url': 'u', 'matched_by': 'title',
+                                                                     'wiki_article': True}}}
+    none = {'case_id': 'c2', 'input': {'name': 'Sky Quarry Inc', 'country': 'US'},
+            'truth': {'sec_title': 'Sky Quarry Inc.', 'background': {'title': None, 'url': None, 'matched_by': None,
+                                                                       'wiki_article': False}}}
+    write(tmp_path, 'company-due-diligence', 'holdout-r9', [has, none])
+    gate.GOLD_SLUG.update({'wikipedia-summary': 'company-due-diligence'})
+    assert [c['case_id'] for c in gate.held_out('wikipedia-summary', 'holdout-r9')] == ['c1', 'c2']
+    assert wiki_truth(has['truth']) == ('Sprinklr', True) and wiki_truth({'wiki': {'title': 'X'}}) == ('X', None)
+    assert case_arguments('wikipedia-summary', has) == {'title': 'Sprinklr'}
+    assert judge('wikipedia-summary', has, {'title': 'Sprinklr'})['pass'] is True
+    assert judge('wikipedia-summary', has, {'title': 'Other'})['pass'] is False
+    assert judge('wikipedia-summary', none, None, 'not_found')['pass'] is True
+    assert judge('wikipedia-summary', none, {'title': 'Sky Quarry'})['pass'] is False
+    # the topic shape is unchanged
+    topic = {'input': {'topic': 'Photosynthesis'}, 'truth': {'wiki': {'title': 'Photosynthesis'}}}
+    assert judge('wikipedia-summary', topic, {'title': 'Photosynthesis'})['pass'] is True

@@ -63,10 +63,21 @@ def band(x):
     return sum(x >= b for b in BANDS)
 
 
+def wiki_truth(truth: dict) -> tuple[str | None, bool | None]:
+    """(article title, has an article) from either answer-set shape (ops 11-18): topic sets keep truth["wiki"] and
+    truth["wiki_article"]; company sets keep the same facts in truth["background"] = {title, url, matched_by,
+    wiki_article}. One reader for both, so a company set grades wikipedia-summary the same way."""
+    truth = truth or {}
+    if "wiki" not in truth and isinstance(truth.get("background"), dict):
+        bg = truth["background"]
+        return bg.get("title"), bg.get("wiki_article")
+    return (truth.get("wiki") or {}).get("title"), truth.get("wiki_article")
+
+
 def judge(agent_id: str, case: dict, result: dict | None, error: str | None = None) -> dict:
     truth = case["truth"]
     if result is None:
-        if agent_id == "wikipedia-summary" and truth.get("wiki_article") is False:
+        if agent_id == "wikipedia-summary" and wiki_truth(truth)[1] is False:
             # a company with no article of its own (holdout-r5-wiki, workflow 11-16): not_found is the right answer
             return {"pass": error == "not_found", "expected_absence": True, "got": error, "want": "not_found"}
         return {"pass": False}
@@ -230,7 +241,7 @@ def judge(agent_id: str, case: dict, result: dict | None, error: str | None = No
         return {"pass": ok, "got": [title, summary[:160]], "want": [truth.get("sec_title"), truth.get("cik")]}
     if agent_id == "wiki-grounding":
         # topic-evidence-brief truth: the topic's Wikipedia article is among the quoted sources
-        want = (truth.get("wiki") or {}).get("title")
+        want = wiki_truth(truth)[0]
         sources = [str(u) for u in (result or {}).get("sources") or []]
         from urllib.parse import unquote
         link = "https://en.wikipedia.org/wiki/" + str(want or "").replace(" ", "_")
@@ -297,8 +308,8 @@ def judge(agent_id: str, case: dict, result: dict | None, error: str | None = No
         return {"pass": bool(want) and f"(SEC CIK {want})" in text, "got": text[:160], "want": want}
     if agent_id == "wikipedia-summary":
         # an article where the truth says the company has none is a wrong answer, never a pass
-        want = (truth.get("wiki") or {}).get("title")
-        return {"pass": truth.get("wiki_article") is not False and bool(want) and (result or {}).get("title") == want,
+        want, article = wiki_truth(truth)
+        return {"pass": article is not False and bool(want) and (result or {}).get("title") == want,
                 "got": (result or {}).get("title"), "want": want or "not_found"}
     if agent_id == "usgs-quakes":
         # the quake part of quakes-near-address: events against USGS asked when graded (retest.grade_quakes: none
@@ -450,6 +461,13 @@ def case_arguments(agent_id: str, case: dict) -> dict:
     arguments = {k: v for k, v in case["input"].items() if k in allowed}
     if "title" in allowed and "title" not in arguments and case["input"].get("topic"):
         arguments["title"] = case["input"]["topic"]
+    if "title" in allowed and "title" not in arguments and case["input"].get("name"):
+        # company answer sets (ops 11-18): the background seat gives an exact-title member the registry step's
+        # slot.registry.title_name, built from the EDGAR name (runner.search_name, then runner.title_name)
+        from agent_market.necklaces.runner import search_name, title_name
+        base = search_name(str((case.get("truth") or {}).get("sec_title") or case["input"]["name"]))
+        if base:
+            arguments["title"] = title_name(base)
     if agent_id == "software-incident" and case["input"].get("cve_id"):
         arguments = {"query": case["input"]["cve_id"]}                       # software.incident.v1 takes a query
     if agent_id == "github-releases":
@@ -499,7 +517,7 @@ def applies(agent_id: str, case: dict) -> bool:
     if agent_id == "rdap-domain":
         return bool((case.get("truth") or {}).get("registered"))
     if agent_id == "wiki-grounding":
-        return bool(((case.get("truth") or {}).get("wiki") or {}).get("title"))
+        return bool(wiki_truth(case.get("truth") or {})[0])
     if agent_id == "site-readiness":   # every site applies; an unreadable robots.txt is graded in judge_site
         return bool((case.get("input") or {}).get("domain"))
     return True

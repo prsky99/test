@@ -112,6 +112,11 @@ def used_cases(paths):
     return used
 
 
+# --gold-slug (ops 11-18): an agent graded on another necklace's answer set, e.g. wikipedia-summary for the
+# company-due-diligence background seat; empty means gold_check.SLUG.
+GOLD_SLUG: dict[str, str] = {}
+
+
 def held_out(agent_id, split, fill_from=None, exclude=frozenset()):
     """The held-out cases the source can answer (gold_check.applies), SUBSTITUTE_CASES of them: the split first, then
     the fill split (11-14: GLEIF and SEC only answer cases with an LEI or a CIK). Cases a source cannot answer are
@@ -122,7 +127,7 @@ def held_out(agent_id, split, fill_from=None, exclude=frozenset()):
     # ('holdout-r2,holdout-r3'); fill_from is one split name or several separated by commas, used in that order.
     fills = [f for f in (fill_from or '').split(',') if f]
     for name in [split] + fills:
-        path = ROOT / 'gateway-data/necklaces/gold' / SLUG[agent_id] / f'{name}.jsonl'
+        path = ROOT / 'gateway-data/necklaces/gold' / (GOLD_SLUG.get(agent_id) or SLUG[agent_id]) / f'{name}.jsonl'
         rows = [json.loads(line) for line in path.read_text(encoding='utf-8').splitlines() if line.strip()]
         cases += [dict(c, split=name) for c in rows if applies(agent_id, c) and (agent_id, c['case_id']) not in exclude]
     return cases[:SUBSTITUTE_CASES]
@@ -251,7 +256,10 @@ def main(argv=None):
     parser.add_argument('--exclude-raw', nargs='*', default=[], help='skip cases already run in these gate raw files')
     parser.add_argument('--limit', type=int, default=None, help='run at most this many cases now (a part of a verdict)')
     parser.add_argument('--continue-from', default=None, help='an earlier part verdict: judge its rows and these together')
+    parser.add_argument('--gold-slug', default=None, help="read the answer set of this necklace instead of the agent's own (e.g. company-due-diligence)")
     args = parser.parse_args(argv)
+    if args.gold_slug:
+        GOLD_SLUG.update({a: args.gold_slug for a in args.agents})
     exclude = used_cases(args.exclude_raw)
     previous = {}
     if args.continue_from:
@@ -263,11 +271,12 @@ def main(argv=None):
         print(json.dumps({'ok': False, 'reason': 'measurement_window'}))
         return 75
     stamp = time.strftime('%Y%m%d-%H%M')
+    label = f'{args.gold_slug}-{args.split}' if args.gold_slug else args.split
     OUT.mkdir(parents=True, exist_ok=True)
     # Two gates started in the same minute shared both names, and the second verdict replaced the first
     # (11-16 06:33 wiki-grounding, then arxiv-search). A taken stamp gets the next free suffix for both files.
     n = 1
-    while (OUT / f'raw-{args.split}-{stamp}.jsonl').exists() or (OUT / f'verdict-{args.split}-{stamp}.json').exists():
+    while (OUT / f'raw-{label}-{stamp}.jsonl').exists() or (OUT / f'verdict-{label}-{stamp}.json').exists():
         n += 1
         stamp = time.strftime('%Y%m%d-%H%M') + f'-{n}'
     want = {a: SUBSTITUTE_CASES - len(previous.get(a, [])) for a in args.agents}
@@ -282,11 +291,11 @@ def main(argv=None):
     if refused:
         print(json.dumps({'ok': False, 'reason': 'budget', 'refused': refused}))
         return 75
-    raw = OUT / f'raw-{args.split}-{stamp}.jsonl'
+    raw = OUT / f'raw-{label}-{stamp}.jsonl'
     report = run(args.agents, args.split, raw, fill_from=args.fill_from, exclude=exclude, limit=args.limit,
                  previous=previous)
-    report.update(at=stamp, raw=str(raw.relative_to(ROOT)))
-    out = OUT / f'verdict-{args.split}-{stamp}.json'
+    report.update(at=stamp, raw=str(raw.relative_to(ROOT)), gold_slug=args.gold_slug)
+    out = OUT / f'verdict-{label}-{stamp}.json'
     out.write_text(json.dumps(report, ensure_ascii=False, indent=1))
     print(json.dumps({a: {k: v for k, v in r.items() if k != 'rows'} for a, r in report['agents'].items()}, ensure_ascii=False))
     print(out.relative_to(ROOT))
