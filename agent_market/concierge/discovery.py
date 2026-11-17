@@ -64,8 +64,9 @@ def currency_conversion(text):
     if not (named >= 2 or named == 1 and CONVERSION_WORD.search(text)) or NOT_MONEY.search(text):
         return False
     from .selection import capability_terms
+    # Read pounds as money here too: "convert 40 British pounds to euros" was a unit conversion (UNIT_NAMES) before.
     return any(CURRENCY_NAME.fullmatch(word) or CURRENCY_CODE.fullmatch(word.upper())
-               for word in capability_terms(text))
+               for word in capability_terms(re.sub(r'\bpounds?\b', 'sterling', text, flags=re.I)))
 
 
 def normalize_task(task):
