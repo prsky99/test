@@ -354,8 +354,8 @@ def connect_bad(conn):
     """Failed connect samples. Same denominator (every sample); a write task fails unless (a)-(d) all hold (PM 11-18),
     any other sample as before: no tool through the gateway, the recommended tool unlisted, or the wrong action."""
     def failed(c):
-        if c.get('write_task'):
-            return not (c.get('direct') or {}).get('passed')
+        if c.get('direct') is not None:    # a write task on a card we do not relay
+            return not c['direct']['passed']
         return not c['tools'] or c.get('error') in ('tool_unlisted', 'action_mismatch')
     return [c for c in conn if failed(c)]
 
@@ -395,7 +395,8 @@ def check_recommend_and_connect(n=2):
             entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
             if direct_connect.write_topic(task):
                 entry['write_task'] = True
-                entry['direct'] = direct_verdict(task, card, wanted, text)
+                if (card or {}).get('connection_available') is not True:
+                    entry['direct'] = direct_verdict(task, card, wanted, text)
             conn.append(entry)
             continue
         seen = {}
@@ -415,9 +416,12 @@ def check_recommend_and_connect(n=2):
             entry['failure'] = seen
         entry['reason'] = failure_reason(entry, first_card(result[1] if result else None))
         if direct_connect.write_topic(task):
-            # A write task is not dropped; it passes on the direct-connect notice, all of (a)-(d) (PM 11-18).
+            # A write task is not dropped. On a card we do not relay it passes on the direct-connect notice, all of
+            # (a)-(d) (PM 11-18); a tool our gateway does relay is judged as before (connected, listed, right action).
             entry['write_task'] = True
-            entry['direct'] = direct_verdict(task, first_card(result[1] if result else None), wanted, text)
+            card = first_card(result[1] if result else None)
+            if (card or {}).get('connection_available') is not True:
+                entry['direct'] = direct_verdict(task, card, wanted, text)
         conn.append(entry)
     rec_bad = [r for r in rec if r['s'] > TARGET['recommend_s'] or not r['answered']]
     conn_bad = connect_bad(conn)
