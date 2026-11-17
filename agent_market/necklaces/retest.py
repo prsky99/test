@@ -863,7 +863,10 @@ def single_members(defn: dict, contrast: str, watch_state: dict | None = None) -
     """Members measured alone. With a whole-task grader (company-due-diligence, PM 11-15 decision 2): every lead pearl
     of every slot and the AgentValCon substitutes in the run chain, so the delta is not owed to our own substitute.
     Otherwise the external members of the contrast slot, as before."""
-    if defn["slug"] not in TASK_GRADERS:
+    # PM 11-17 (topic v2): a necklace graded as a whole task alone (SINGLE_TASK_GRADERS) is measured like the
+    # TASK_GRADERS ones; its contrast slot may have no external member (topic v2 papers is ours), and then there
+    # would be no single baseline and no delta.
+    if defn["slug"] not in TASK_GRADERS and defn["slug"] not in SINGLE_TASK_GRADERS:
         slot = next(s for s in defn["slots"] if s["slot"] == contrast)
         # 11-16: a member whose terms prohibit our use is never called, alone either (the run chain drops it already)
         return [(contrast, m) for m in model.live_members(slot, "external") if model.terms_status(m) != "prohibits"]
