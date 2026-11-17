@@ -51,3 +51,32 @@ PM 11-17 지시: 계정 없이 등록하거나 갱신할 수 있는 MCP·A2A 디
 5. 사용자 몫: AI Agent Store(가입이 필요하면), HOL(계정), Glama 수동 수정(재게시로 안 바뀌면), a2a-registry claim(선택).
 
 참고: 광고("Sponsored" 줄)를 막는 조항은 읽은 어느 곳에서도 보지 못했다. 다만 약관 원문을 읽은 곳은 agents.ml, AI Agent Store, Prowl 세 곳뿐이다.
+
+## 5. 11-18 새벽 반영 확인 (각 페이지 1회 읽기, PM 11-18 01:3x 지시)
+
+| 곳 | 읽은 결과 | 판단 | 다음 |
+|---|---|---|---|
+| Glama | 검색에 "AgentValCon — Agent Value Gateway"(slug biz.agentconcierge)로 나옴. 옛 이름 없음. 항목 주소 https://glama.ai/mcp/connectors/biz.agentconcierge/agent-concierge | **반영됨.** 사용자 몫이던 Glama 수동 수정은 필요 없음 | 없음 |
+| mcptry | 검색어를 받지 않는 첫 페이지만 보임 | 확인 못 함 | 다음 확인 때 항목 주소를 직접 찾음(계정 없이 할 수 있는 갱신 경로 없음, 자동 반영만) |
+| API Tracker | 검색 주소가 404 | 확인 못 함 | 아래 폼 초안으로 갱신·등록 요청(로그인 없는 폼, PM 제출) |
+| PulseMCP | "0 servers"(검색 결과 없음). 페이지에 새 등록·목록 변경을 멈췄다고 적혀 있음 | 등록 안 됨, 지금은 제출 불가 | 재개될 때까지 대기 |
+| mcpservers.org | 403(자동 읽기 차단) | 확인 못 함 | 아래 폼 초안으로 갱신 요청(양식, PM 제출). 메일은 보내지 않음 |
+
+### 폼 초안 (값은 reports/growth-plan-2026-11-14/directory-submissions.md 공통 정보 그대로)
+두 곳 공통으로 넣는 값:
+- Name: `AgentValCon`
+- Tagline: `AgentValCon — Agent Value Gateway`
+- URL / endpoint: `https://agentconcierge.biz/mcp` (Streamable HTTP, no key)
+- Website: `https://agentconcierge.biz/connect`
+- Docs: `https://agentconcierge.biz/llms.txt`
+- Registry name: `biz.agentconcierge/agent-concierge`
+- Category: Search / Developer tools / Agents
+- Short description: `Find tested AI agents and MCP servers, or run a necklace: several tested agents joined in one call.`
+- Long description: 공통 정보 문서의 "긴 설명" 그대로
+- Contact(폼이 요구할 때만): `contact@agentconcierge.biz`
+- Pricing: Free / Repository: 비움(공개하지 않음)
+
+곳별로 덧붙일 것:
+- mcpservers.org: 옛 이름 "Agent Concierge" 항목이 있다면 같은 주소(`https://agentconcierge.biz/mcp`)의 이름·설명 갱신이라고 메모 칸에 적는다: `Rename: the listing for https://agentconcierge.biz/mcp is now AgentValCon (was Agent Concierge); please update the name and description.`
+- API Tracker: 공식 Registry에서 자동으로 오지 않았을 수 있으니 새 등록으로 낸다. 결제·백링크는 요구하지 않는다고 적혀 있음(11-17 확인).
+- 폼이 로그인·약관 동의를 요구하면 멈추고 사용자 몫으로 넘긴다.
