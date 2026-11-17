@@ -320,7 +320,8 @@ class DataAgents:
         # first (a title search, like the topic answer sets), the other most-cited matches after them.
         raw = self._request('GET', 'https://api.crossref.org/works', params={
             'query.bibliographic': args['query'], 'rows': 40, 'sort': 'is-referenced-by-count', 'order': 'desc',
-            'select': 'DOI,title,published,URL,publisher,is-referenced-by-count'})
+            'select': 'DOI,title,published,URL,publisher,is-referenced-by-count',
+            'mailto': 'contact@agentconcierge.biz'})   # Crossref's polite pool (PM 11-17): the site's public contact
         rows = raw['message']['items']
         if type(rows) is not list:
             raise ValueError('Invalid source')

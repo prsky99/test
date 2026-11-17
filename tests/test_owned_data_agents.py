@@ -429,6 +429,7 @@ def test_research_papers_asks_most_cited_first_and_puts_title_matches_ahead(engi
     out = core.execute('research-papers', {'query': 'gene therapy', 'limit': 2})
     params = seen[0].url.params
     assert params['sort'] == 'is-referenced-by-count' and params['order'] == 'desc' and params['rows'] == '40'
+    assert params['mailto'] == 'contact@agentconcierge.biz'          # Crossref's polite pool (PM 11-17)
     assert [i['doi'] for i in out['data']['items']] == ['10.1000/b', '10.1000/a'] and out['data']['partial'] is False
 
 

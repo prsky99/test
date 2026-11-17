@@ -115,7 +115,7 @@ def test_research_and_news_digest_is_unchanged():
     more the same night when the GDELT 429 began passing Retry-After to the ledger)."""
     from agent_market import owned_capability_adapter
     # 11-17 (PM): research-papers asks Crossref most cited first and puts title matches ahead (topic papers seat)
-    assert owned_capability_adapter.IMPLEMENTATION == '3a20e602ebfdc063c9806a9ed96ec3273d1f2789962297ee7015dc131623b187'
+    assert owned_capability_adapter.IMPLEMENTATION == 'f8ed226d96ee4215fe78819b40b758b951c1d26bf70ea3395db0aeeb1b45ae29'
 
 
 def test_documentation_objectives_use_the_docs_agent_and_research_keeps_papers():
