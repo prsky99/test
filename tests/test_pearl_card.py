@@ -22,7 +22,8 @@ def test_a_pearl_card_says_which_roles(tmp_path, monkeypatch):
     assert _card(7)['pearl'] == {'level': 'final', 'roles': ['fx.rate.v1', 'crypto.price.v1']}
     assert 'pearl' not in _card(8)          # provisional: no field
     assert 'pearl' not in _card(9)
-    assert 'pearl' not in _card(10)         # terms prohibit us: not shown as a pearl, as on the pages
+    # PM 11-18 07:2x: terms that prohibit our relay do not hide a pearl; the card says we do not relay it
+    assert _card(10)['pearl'] == {'level': 'final', 'roles': ['sec.filings.v1'], 'relayed': False}
 
 
 def test_no_list_means_no_field():

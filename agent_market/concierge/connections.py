@@ -456,7 +456,8 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     from ..pearls_public import pearl_of
     pearl=pearl_of(value.get('id'))
     if pearl:
-        result['pearl']={'level':pearl['level'],'roles':pearl['roles'][:5]}
+        result['pearl']={'level':pearl['level'],'roles':pearl['roles'][:5],
+                         **({'relayed':False} if pearl.get('relayed') is False else {})}
     # A listing that states a price is never answered as price 0 / free (11-12, price_status.py).
     from .price_status import price_fields
     if 'price_usdc' in value:  # cards built without a price (events, tool specs) stay without one

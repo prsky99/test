@@ -131,14 +131,18 @@ def load(source=None):
 
 
 def pearl_of(resource_id, source=None):
-    """{level, roles} for one listing from its final and verified entries whose terms do not prohibit us (badges and
-    cards, the same rule as the pages), or None."""
+    """{level, roles[, relayed]} for one listing from its final and verified entries (badges and cards), or None.
+    PM 11-18 07:2x: a pearl whose provider terms prohibit our relay is shown, not hidden ("we do not relay" is not "we
+    hide"); it carries relayed: False and the caller connects directly."""
     found = [p for p in load(source).get('pearls', []) if isinstance(p, dict) and p.get('resource_id') == resource_id
-             and p.get('level') in ('final', 'verified') and p.get('terms') != 'prohibits']   # as the pages show them
+             and p.get('level') in ('final', 'verified')]
     if not found:
         return None
     level = 'final' if any(p['level'] == 'final' for p in found) else 'verified'
-    return {'level': level, 'roles': [p['role'] for p in found]}
+    out = {'level': level, 'roles': [p['role'] for p in found]}
+    if any(p.get('terms') == 'prohibits' for p in found):
+        out['relayed'] = False
+    return out
 
 
 def main(argv=None):
