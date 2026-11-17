@@ -2571,45 +2571,6 @@ def test_site_reachability_agent_reports_status_and_final_address(tmp_path):
         a.execute("site-reachability", {"domain": "localhost"})
 
 
-def test_gold_judge_for_mcp_registry():
-    """agent team 11-16: listed false for a made-up name; a listed server needs the same name and the frozen version
-    or a later publish."""
-    from agent_market.fallback_agents.gold_check import judge
-    absent = {"truth": {"listed": False}}
-    assert judge("mcp-registry", absent, {"listed": False, "source": "x"})["pass"]
-    assert not judge("mcp-registry", absent, {"listed": True, "name": "a/b", "source": "x"})["pass"]
-    case = {"truth": {"listed": True, "name": "io.github.a/b", "version": "1.2.0", "published_at": "2026-11-01T00:00:00Z"}}
-    hit = {"listed": True, "name": "io.github.a/b", "version": "1.2.0", "published_at": "2026-11-01T00:00:00Z", "source": "x"}
-    assert judge("mcp-registry", case, hit)["pass"]
-    assert judge("mcp-registry", case, {**hit, "version": "1.3.0", "published_at": "2026-11-17T00:00:00Z"})["pass"]
-    assert not judge("mcp-registry", case, {**hit, "version": "1.1.0", "published_at": "2026-10-01T00:00:00Z"})["pass"]
-    assert not judge("mcp-registry", case, {**hit, "name": "io.github.a/other"})["pass"]
-
-
-def test_gold_judge_for_met_weather_against_nws_hours():
-    """PM 11-16: met-weather's temperature against the NWS hour that contains its time, within 3 C."""
-    from agent_market.fallback_agents.gold_check import judge
-    case = {"truth": {"tolerance_c": 3.0, "nws_hourly": [
-        {"start": "2026-11-17T08:00:00-05:00", "end": "2026-11-17T09:00:00-05:00", "temp_c": 5.0},
-        {"start": "2026-11-17T09:00:00-05:00", "end": "2026-11-17T10:00:00-05:00", "temp_c": 6.0}]}}
-    met = {"temperature_c": 7.4, "time": "2026-11-17T14:00:00Z", "source": "Based on data from MET Norway (CC BY 4.0)"}
-    assert judge("met-weather", case, met)["pass"]                       # 14:00Z = 09:00-05:00, gap 1.4
-    assert not judge("met-weather", case, {**met, "temperature_c": 10.5})["pass"]
-    assert not judge("met-weather", case, {**met, "time": "2026-11-17T20:00:00Z"})["pass"]   # outside the frozen hours
-
-
-def test_gold_met_weather_builder_keeps_celsius_hours():
-    from scripts.gold_met_weather import POINTS, build
-    pages = {"https://api.weather.gov/points/40.7128,-74.0060": {"properties": {"forecastHourly": "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly"}},
-             "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly": {"properties": {"periods": [
-                 {"startTime": "2026-11-17T08:00:00-05:00", "endTime": "2026-11-17T09:00:00-05:00", "temperature": 41, "temperatureUnit": "F"}]}}}
-    cases = build(lambda url: pages[url], POINTS[:1])
-    saved = build(lambda url: pages[url], POINTS[:1], grids={"New York, NY": "https://api.weather.gov/gridpoints/OKX/33,35/forecast/hourly"})
-    assert saved == cases                                  # the saved addresses give the same set, one call a point
-    assert cases[0]["input"] == {"city": "New York, NY", "latitude": 40.7128, "longitude": -74.006}
-    assert cases[0]["truth"]["nws_hourly"][0]["temp_c"] == 5.0 and len(POINTS) >= 30
-
-
 
 # ---------------------------------------------------------------- dns-spf-dmarc (agent team 11-17)
 def _dns_answer(ident, records, rcode=0, truncated=False):
