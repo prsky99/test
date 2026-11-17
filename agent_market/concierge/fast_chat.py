@@ -1020,6 +1020,8 @@ class FastConcierge(Concierge):
                     items = ranked[:3]
                     focus = focus or shared
         # Rewrites, narrowing and part searches cannot discard the original conditions.
+        # PM 11-17: the checks after the searches get their own step, so step_search is the search alone.
+        step('admit')
         items = self._condition_admit(task, items)
         if items and offset == 0 and not any(relayable(item) for item in items) and \
                 time.monotonic() - started < RELAY_WIDEN_BEFORE:
@@ -1064,12 +1066,14 @@ class FastConcierge(Concierge):
         items = relayable_only(items)
         if offset == 0 and CLOCK_TASK.search(str(task or '')):
             items = self._clock_first(task, items, protocol, excluded, started, step)
+        step('offer')
         if offset == 0 and items:
             # PM 11-17 10:3x plan 1: on an armed request (an outside A2A caller) the first runnable of the first two
             # items starts through the gateway beside the answer; offer() hands it to a pool and returns at once.
             from .auto_run import offer
             offer(items[:2], task)
         if not items:
+            step('no_match')
             if persist:
                 with self.book.batch():
                     self.book.save_results(v,[],0)
