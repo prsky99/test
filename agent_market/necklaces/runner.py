@@ -648,11 +648,18 @@ COMPANY_WORDS = re.compile(r"\b(?:company|corporation|incorporated|inc|corp|busi
                            r"founded|headquartered|based in)\b")
 
 
+# a page that lists people or meanings of a name, not one company (Wikipedia surname lists, disambiguation pages)
+NAME_LIST = re.compile(r"\bis an? (?:\w+ )?(?:surname|given name|family name)\b|\bsurname list\b|\bmay (?:also )?refer to\b|"
+                       r"\bnotable people with the (?:sur|given )?name\b")
+
+
 def is_about(entry_text: str, title: str, values: dict) -> bool:
     """The entry is the registry's company: its ticker as a listing ("NYSE: SWX") or its CIK, or a title that is the
     company's name (every distinctive word, nothing else but legal forms and a "(company)" tag) over a text that
     reads as a company. A text that only mentions the name (another company's list, a person) is not about it."""
     text = _TAG.sub("", entry_text).lower()
+    if NAME_LIST.search(text[:400]):
+        return False      # PM 11-18: a surname or name list ("Traeger" for Traeger, Inc.) is never the company
     ticker = str(values.get("slot.registry.ticker") or "").lower()
     if ticker and re.search(r"(?:nyse|nasdaq|amex|otc\w*|ticker)\W{1,4}" + re.escape(ticker) + r"\b", text):
         return True

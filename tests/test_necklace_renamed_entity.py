@@ -30,3 +30,12 @@ def test_people_lists_and_other_companies_stay_out():
 def test_the_exact_title_rule_is_unchanged():
     assert about("SCHOLASTIC CORP", "Scholastic Corporation", "An American publishing company founded in 1920.")
     assert not about("SUN", "Sun Group", "Sun Group is a company.")
+
+
+def test_a_surname_list_is_never_the_company():
+    """PM 11-18: our substitute returned "Traeger" (a surname list) for Traeger, Inc.; the answer set says no article."""
+    assert not about("Traeger, Inc.", "Traeger", 'Traeger or Trager (German for "carrier") is a German surname. Notable '
+                     "people with the surname include a company founder.")
+    assert not about("Acme Corp", "Acme", "Acme may refer to: Acme Corp, a company founded in 1900.")
+    assert about("UNITY SOFTWARE INC.", "Unity Technologies", "Unity Software Inc. (doing business as Unity Technologies) "
+                 "is an American video game software development company.")
