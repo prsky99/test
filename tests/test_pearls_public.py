@@ -64,6 +64,7 @@ def test_load_rereads_only_when_the_file_changes(tmp_path):
 
 
 def test_the_file_lives_under_the_project_root_and_is_replaced_whole(tmp_path, monkeypatch):
+    monkeypatch.delenv('PEARLS_PUBLIC_PATH', raising=False)      # set by tests/conftest.py for every other test
     monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
     assert P.path() == tmp_path / 'gateway-data' / 'pearls' / 'public-pearls.json'
     assert P.write(SUMMARY, GROUPS) == 4
@@ -72,6 +73,7 @@ def test_the_file_lives_under_the_project_root_and_is_replaced_whole(tmp_path, m
 
 
 def test_the_command_writes_from_the_official_exports(tmp_path, monkeypatch, capsys):
+    monkeypatch.delenv('PEARLS_PUBLIC_PATH', raising=False)
     monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
     final = tmp_path / 'exports' / 'pearls' / 'final'
     final.mkdir(parents=True)

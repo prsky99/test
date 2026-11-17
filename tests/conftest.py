@@ -185,6 +185,13 @@ def _no_production_storage_leak():
     os.environ.update(before)
 
 
+@pytest.fixture(autouse=True)
+def _no_live_pearl_list(monkeypatch, tmp_path):
+    """PM 11-18: cards and pages read gateway-data/pearls/public-pearls.json; a test never sees the live list
+    (it changes three times a day). A test that needs pearls writes its own file and points PEARLS_PUBLIC_PATH at it."""
+    monkeypatch.setenv('PEARLS_PUBLIC_PATH', str(tmp_path / 'no-public-pearls.json'))
+
+
 
 # Precision review R04 (11-15): from 11-17 the production signing key exists; no test may sign into
 # gateway-data/signing. Every run gets its own temporary signing folder (scripts.report_v2.signing_dir), and

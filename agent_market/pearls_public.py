@@ -27,6 +27,8 @@ EMPTY = {'pearls': [], 'by_resource': {}}
 
 
 def path():
+    if os.environ.get('PEARLS_PUBLIC_PATH'):            # tests point here (tests/conftest.py); services do not set it
+        return Path(os.environ['PEARLS_PUBLIC_PATH'])
     root = os.environ.get('AGENTCON_PROJECT_ROOT') or Path(__file__).resolve().parents[1]
     return Path(root) / 'gateway-data' / 'pearls' / 'public-pearls.json'
 
@@ -129,9 +131,14 @@ def load(source=None):
 
 
 def pearl_of(resource_id, source=None):
-    """{level, roles} for one listing, or None (badges and cards; final and verified only)."""
-    entry = load(source).get('by_resource', {}).get(str(resource_id))
-    return entry if entry and entry.get('level') in ('final', 'verified') else None
+    """{level, roles} for one listing from its final and verified entries whose terms do not prohibit us (badges and
+    cards, the same rule as the pages), or None."""
+    found = [p for p in load(source).get('pearls', []) if isinstance(p, dict) and p.get('resource_id') == resource_id
+             and p.get('level') in ('final', 'verified') and p.get('terms') != 'prohibits']   # as the pages show them
+    if not found:
+        return None
+    level = 'final' if any(p['level'] == 'final' for p in found) else 'verified'
+    return {'level': level, 'roles': [p['role'] for p in found]}
 
 
 def main(argv=None):

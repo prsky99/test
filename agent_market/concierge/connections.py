@@ -451,6 +451,12 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
             result['connection_reason']=value['connection_reason']  # 11-13 PM: action vs. not verified read-only
     if needs_provider_auth and result.get('direct_endpoint') and not result.get('connection_note'):
         result['connection_note']="This listing needs the provider's own authorization."+DIRECT_NOTE
+    # PM 11-18: a listing that passed our role tests says so (final: rank 1 for the role; verified: 85+ on two
+    # different days). Read from the public pearl list in process memory; no list, no field.
+    from ..pearls_public import pearl_of
+    pearl=pearl_of(value.get('id'))
+    if pearl:
+        result['pearl']={'level':pearl['level'],'roles':pearl['roles'][:5]}
     # A listing that states a price is never answered as price 0 / free (11-12, price_status.py).
     from .price_status import price_fields
     if 'price_usdc' in value:  # cards built without a price (events, tool specs) stay without one
