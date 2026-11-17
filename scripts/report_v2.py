@@ -21,7 +21,15 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 OUT = ROOT / 'exports/pearls'
+# PM 11-17: the pearl runs write role_groups.json three times a day outside git (groups_file()); the copy in git, which
+# the deployed necklace code reads inside its release (necklaces/orders.py ROLE_GROUPS, watch.py), is refreshed once a
+# night by 'publish-groups' and committed with the night bundle.
 GROUPS = ROOT / 'reports/pearls-2026-11-14/role_groups.json'
+
+
+def groups_file():
+    """Where a pearl run writes role_groups.json (outside git)."""
+    return OUT / 'final' / 'role_groups.json'
 RAG_TASKS = ROOT / 'agent_market/necklaces/role_tasks/role-tasks-rag-v1.jsonl'
 SIGNING = ROOT / 'gateway-data/signing'        # 운영·SRE deploy/EVIDENCE_SIGNING.md: keys doc, <keyid>.pem, envelopes/
 PRODUCTION_SIGNING = SIGNING
@@ -514,10 +522,11 @@ def versions_of(rid, role):
     return out
 
 
-def success_days(rid, role, tool, now, extra=None, ref=None):
+def success_days(rid, role, tool, now, extra=None, ref=None, keep=None):
     """Different KST days with a qualifying success under REF's contract (the latest version of TOOL when REF is
-    None). EXTRA is the time of REF itself while it is being saved. Earlier contracts are kept but never counted."""
-    stored = [v for v in versions_of(rid, role) if v.get('tool') == tool]
+    None). EXTRA is the time of REF itself while it is being saved. Earlier contracts are kept but never counted.
+    KEEP, when given, limits the versions read (the evidence numbers count complete versions only)."""
+    stored = [v for v in versions_of(rid, role) if v.get('tool') == tool and (keep is None or keep(v))]
     if ref is None:
         ref = max((v for v in stored if float(v.get('tested') or 0) <= now + 300),
                   key=lambda v: float(v.get('tested') or 0), default=None)    # a future-dated record never leads
@@ -909,11 +918,42 @@ def passing(v):
     return v.get('outcome') == 'succeeded' and bool(acc) and (v.get('quality') or {}).get('score', 0) >= PASS_MARK
 
 
+# Source review C04 (PM 11-17 10:4x): a test evidence v1 record missing one of these qualifies for nothing. The
+# evidence numbers (role_task_summary) count only complete versions; passing() and the rank are unchanged, and the
+# rank run records how many passing outside versions miss a key (passing_missing_keys) so the two never drift apart.
+EVIDENCE_KEYS = ('endpoint', 'tool_fingerprint', 'evaluator_version', 'answer_set', 'case_id', 'response_hash')
+
+
+def evidence_complete(v):
+    """Every key a test evidence v1 record needs is present."""
+    return all(v.get(key) not in (None, '') for key in EVIDENCE_KEYS)
+
+
+def passing_missing_keys(stored):
+    """Stored versions that passed (passing) but miss an evidence key, outside members and our own fallbacks."""
+    out = {'outside': 0, 'own_fallbacks': 0}
+    for v in stored:
+        if passing(v) and not evidence_complete(v):
+            out['own_fallbacks' if is_own_fallback(v.get('resource_id')) else 'outside'] += 1
+    return out
+
+
+def all_stored_versions():
+    """Every stored role-task version (all days, all members)."""
+    out = []
+    for path in (OUT / 'reports').glob('*/*/*.json') if (OUT / 'reports').exists() else []:
+        try:
+            out.append(load_version(path))
+        except (OSError, ValueError):
+            continue
+    return out
+
+
 def role_task_summary(rid, role, tool, now=None):
     """Machine-readable test evidence v1 summary for one member's role tool (PM 11-16 21:5x; the same four names as
     the agent team's evidence records and concierge/role_task_line.py): tasks_run = our stored role-task versions of
     TOOL (our own skips are never stored), tasks_correct = those that passed (succeeded, accuracy compared and met,
-    85+), success_days = different KST days with a qualifying success, last_checked = the newest test (ISO 8601,
+    85+) with every evidence key (C04, 11-17), success_days = different KST days with a qualifying success, last_checked = the newest test (ISO 8601,
     +09:00). One function for the verify snapshot and the evidence address, so their numbers agree; a field
     without a value is left out, nothing is made up."""
     now = time.time() if now is None else now
@@ -921,8 +961,8 @@ def role_task_summary(rid, role, tool, now=None):
     if not stored:
         return {}
     newest = max(float(v.get('tested') or 0) for v in stored)
-    out = {'tasks_run': len(stored), 'tasks_correct': sum(1 for v in stored if passing(v)),
-           'success_days': success_days(rid, canonical(role), tool, now)}
+    out = {'tasks_run': len(stored), 'tasks_correct': sum(1 for v in stored if passing(v) and evidence_complete(v)),
+           'success_days': success_days(rid, canonical(role), tool, now, keep=evidence_complete)}
     if newest > 0:
         out['last_checked'] = dt.datetime.fromtimestamp(newest, dt.timezone(dt.timedelta(hours=9))).isoformat(timespec='seconds')
     return out
@@ -1054,7 +1094,9 @@ def funnel_line(s):
             f"(역할 {s['final_pearls'] + s['provisional_pearls']}/{s['roles_ranked']}, 확정은 서로 다른 날 2회 성공) · "
             f"검증 확정 {s['verified_pearls']} / 목표 {s['targets']['verified']}, 최종 진주 역할 {s['final_pearls']} / 목표 {s['targets']['roles']} · "
             f"외부 대체 1개 이하(AgentValCon 대체 필요): {', '.join(s['roles_needing_own_fallback']) or '없음'}"
-            + (f" · 자체 대체 {own['agents_at_or_above_pass_mark']}개 85점 이상(순위·깔때기 제외)" if own['versions'] else ''))
+            + (f" · 자체 대체 {own['agents_at_or_above_pass_mark']}개 85점 이상(순위·깔때기 제외)" if own['versions'] else '')
+            + (f" · 경고: 통과로 셌지만 증거 필수 키가 빠진 외부 버전 {gap}건(순위와 증거 숫자가 어긋남)"
+               if (gap := (s.get('passing_missing_keys') or {}).get('outside')) else ''))
 
 
 def funnel(versions, ranked, candidates_a=None):
@@ -1269,7 +1311,8 @@ def publish(board=True):
     # Keep the fields the workflow team reads (11-14: id, name, coverage) from the first cut of role_groups.json.
     known = {}
     try:
-        for role in json.loads(GROUPS.read_text()).get('roles', {}).values():
+        source = groups_file() if groups_file().exists() else GROUPS
+        for role in json.loads(source.read_text()).get('roles', {}).values():
             for m in role.get('members', []):
                 known[m.get('id', m.get('resource_id'))] = {k: m[k] for k in ('name', 'coverage') if m.get(k)}
     except (OSError, ValueError, AttributeError):
@@ -1279,11 +1322,13 @@ def publish(board=True):
             m['id'] = m['resource_id']
             m.update(known.get(m['resource_id'], {}))
             m.setdefault('coverage', 'not stated')
-    GROUPS.write_text(json.dumps({'generated': time.strftime('%Y-%m-%d %H:%M'), 'source': 'scripts/report_v2.py (role task test v2)',
+    groups_file().parent.mkdir(parents=True, exist_ok=True)
+    groups_file().write_text(json.dumps({'generated': time.strftime('%Y-%m-%d %H:%M'), 'source': 'scripts/report_v2.py (role task test v2)',
                                   'rank_rule': rank_rule(),
                                   'roles': ranked}, indent=1, ensure_ascii=False))
     official = summary(versions, ranked, candidates_a())
     official['usable'] = usable_pearls(versions, ranked)
+    official['passing_missing_keys'] = passing_missing_keys(all_stored_versions())
     official['judged_by_current_evaluator'] = current_evaluator_share(versions + trials)
     official['grade_trials'] = grade_trials(trials, grades or {}) if grades is not None else \
         {'rule': 'grades unavailable: nothing split this time', 'versions': None}
@@ -1751,12 +1796,20 @@ def save_once_more(result, wait=1.0):
     return False
 
 
+def publish_groups():
+    """Copy the latest run's role_groups.json (outside git) over the copy in git, for the night bundle."""
+    write_replace(GROUPS, groups_file().read_text())
+
+
 def main(argv=None):
     argv = argv or sys.argv[1:]
     if argv[0] == 'import':
         for result in json.loads(Path(argv[1]).read_text()).get('results', []):
             if result.get('outcome') in ('succeeded', 'failed', 'skipped'):
                 save_version(result)
+    elif argv[0] == 'publish-groups':          # the night bundle: the latest run's role_groups.json into git
+        publish_groups()
+        return                                  # nothing is ranked or written to the board
     elif argv[0] == 'import-fallbacks':
         import_fallbacks()
     elif argv[0] == 'rescore':

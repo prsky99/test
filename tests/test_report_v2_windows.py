@@ -181,3 +181,61 @@ def test_role_task_summary_counts_our_stored_versions_only():
     out = V.role_task_summary(9, 'fx.rate.v1', 'convert')
     assert out['tasks_run'] == 1 and out['tasks_correct'] == 0 and out['success_days'] == 0
     assert out['last_checked'].endswith('+09:00') and set(out) == {'tasks_run', 'tasks_correct', 'success_days', 'last_checked'}
+
+
+def evidence(rid, tested, **missing):
+    """A passing version with every test evidence v1 key, minus the ones named in MISSING."""
+    v = {'resource_id': rid, 'role': 'fx.rate.v1', 'tool': 'convert', 'outcome': 'succeeded', 'tested': tested,
+         'quality': {'score': 92.0}, 'data_quality': {'accuracy': {'points': 10}, 'clean': {'points': 5}},
+         'endpoint': 'https://a.example.com/mcp', 'tool_fingerprint': 'f1', 'evaluator_version': 'e1',
+         'answer_set': 'a1', 'case_id': 'c1', 'response_hash': 'h1'}
+    for key in missing:
+        v.pop(key)
+    return v
+
+
+def test_evidence_numbers_count_complete_versions_only_and_the_rank_run_reports_the_gap(monkeypatch):
+    """Source review C04 (PM 11-17 10:4x): a version missing an evidence key is run, never correct or a success day;
+    passing() and the rank keep it; summary.json counts the passing outside versions that miss a key."""
+    now = time.time()
+    stored = [evidence(9, now - 2 * V.DAY), evidence(9, now - V.DAY, tool_fingerprint=1), evidence(9, now - 60)]
+    monkeypatch.setattr(V, 'versions_of', lambda rid, role: list(stored))
+    assert all(V.passing(v) for v in stored) and not V.evidence_complete(stored[1])
+    out = V.role_task_summary(9, 'fx.rate.v1', 'convert', now=now)
+    assert out['tasks_run'] == 3 and out['tasks_correct'] == 2 and out['success_days'] == 2
+    # 11-17 production: the 28 passing versions without a tool fingerprint are all our own fallbacks
+    own = [evidence(f'avc:sec-filings', now - 60, tool_fingerprint=1) for _ in range(28)]
+    assert V.passing_missing_keys(own + stored[::2]) == {'outside': 0, 'own_fallbacks': 28}
+    assert V.passing_missing_keys(stored + own) == {'outside': 1, 'own_fallbacks': 28}
+    failed = {**evidence(5, now), 'outcome': 'failed', 'case_id': None}
+    assert V.passing_missing_keys([failed]) == {'outside': 0, 'own_fallbacks': 0}   # only passing versions count
+
+
+def test_board_line_warns_when_a_passing_outside_version_misses_an_evidence_key():
+    s = V.summary([], {}, 10, now=time.time())
+    s['passing_missing_keys'] = {'outside': 0, 'own_fallbacks': 28}
+    assert '경고' not in V.funnel_line(s)
+    s['passing_missing_keys'] = {'outside': 2, 'own_fallbacks': 28}
+    assert '증거 필수 키가 빠진 외부 버전 2건' in V.funnel_line(s)
+    s.pop('passing_missing_keys')
+    assert '경고' not in V.funnel_line(s)                     # an older summary.json without the field
+
+
+def test_role_groups_are_written_outside_git_and_published_once_a_night(out, monkeypatch, tmp_path):
+    """PM 11-17: the pearl runs write role_groups.json under exports (three times a day); the copy in git, which the
+    deployed necklace code reads inside its release, changes only by 'publish-groups' for the night bundle."""
+    import inspect
+    assert V.groups_file() == out / 'final' / 'role_groups.json'
+    source = inspect.getsource(V.publish)
+    assert 'groups_file().write_text' in source and 'GROUPS.write_text' not in source
+    published = tmp_path / 'git' / 'role_groups.json'
+    published.parent.mkdir()
+    published.write_text('{"roles": {}}')
+    monkeypatch.setattr(V, 'GROUPS', published)
+    V.groups_file().parent.mkdir(parents=True)
+    V.groups_file().write_text('{"generated": "2026-11-17 20:16", "roles": {"fx.rate.v1": {}}}')
+    called = []
+    monkeypatch.setattr(V, 'publish', lambda board=True: called.append(board))
+    V.main(['publish-groups'])
+    assert called == []                                          # no ranking, nothing on the board
+    assert published.read_text() == V.groups_file().read_text()
