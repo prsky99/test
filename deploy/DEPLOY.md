@@ -214,6 +214,18 @@ frontend·admin 배포는 이전 칸(직전 버전 프로세스)을 남겨 즉�
   - 데우기 요청마다 Server-Timing을 `warmed[].server_timing`에 남긴다.
 - 그래서 frontend 배포는 스냅샷을 만드는 몇 분만큼 길어진다. 속도 정책(첫 요청 2초)을 위한 대가다.
 
+## 배포 뒤 공개 화면을 바로 바꿔야 할 때: 엣지 퍼지 (2026-11-18, PM 06:40 결정)
+- 11-18부터 `/new/en/*.html`(live 9개·안내 7개)과 `/customer/sign-in`은 Cloudflare 엣지에 6시간(+낡은 사본 허용 1일) 남는다. 브라우저는 그대로 5분이다(성장·유통 5a30dca0, 메모 `deploy/cloudflare-edge-ttl-new-en-20261118.md`).
+  - 이유: 2시간마다 재는 전수 점검이 늘 만료된 사본을 만나 느렸다(11-17 이후 느린 페이지 46건 중 24건).
+- 배포 때 퍼지는 **필수가 아니다.** 옛 HTML이 부르는 옛 `?v=` 자원은 이전 릴리스 8개를 보관하는 장치(`pearl_view.earlier_asset`)가 서빙하고, 이 변경이 처음 나가는 배포 직후에는 옛 사본이 300초 규칙으로 만료된다.
+- 퍼지가 필요한 때: 문구·가격 정정처럼 화면을 **바로** 바꿔야 할 때, 그리고 30시간 안에 배포가 9번을 넘어 가장 오래된 해시를 못 찾을 때.
+- 순서
+  1. 배포 완료와 `./agentcon status`로 활성 버전을 확인한다.
+  2. PM이 크롬(이 맥 크롬, Cloudflare 로그인 있음)에서 Caching → Configuration → Purge Cache → **Custom Purge → URLs**에 `deploy/cloudflare-purge-urls-new-en.txt`의 URL을 넣는다. 무료 플랜은 URL 목록 퍼지만 되고 한 번에 30개까지다(목록은 18개).
+  3. 퍼지한 URL 몇 개를 공개 주소로 받아 `cf-cache-status`가 `MISS`(첫 요청) 뒤 `HIT`로 바뀌는지, 본문이 새 버전인지 본다.
+- 홈(`/`)과 `/agent/*` 같은 긴 꼬리 페이지는 이 변경 대상이 아니다(6시간 TTL 그대로).
+- 퍼지 실행은 Cloudflare 설정이라 PM 몫이다(CLAUDE.md "PM에 맡긴 실행"). 팀 세션은 퍼지가 필요하다고 PM에 알리기만 한다.
+
 ## 배포 잠금은 도구가 확인한다 (2026-11-11)
 - 11-11에 다른 팀이 잠금을 쥐고 있는 동안 배포를 시작했다가 게이트에서 멈춘 일, 잠금이 풀리길 기다리거나 짐작한 일이 여러 번 있었다.
 - 이제 `./agentcon deploy …`와 `./agentcon worker-deploy …`에는 `--lock-owner <팀>`이 반드시 있어야 한다.
