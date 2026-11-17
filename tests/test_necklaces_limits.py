@@ -87,3 +87,34 @@ def test_cache_serves_completed_runs_only_and_expires():
     assert cache.get(cache.key("s", 2, "d", {"q": "x"})) is None        # another version is another answer
     clock.t += 601
     assert cache.get(key) is None
+
+
+def test_a_full_window_says_when_a_run_fits_again():
+    # PM 11-17 08:5x: Retry-After from the window that frees last
+    clock = Clock()
+    lim = limits.RunLimiter(clock=clock, per_client=2, per_necklace=30, total=60)
+    lim.admit("a", "1.1.1.1")
+    clock.t += 10
+    lim.admit("a", "1.1.1.1")
+    clock.t += 10
+    with pytest.raises(limits.Refused) as refused:
+        lim.admit("a", "1.1.1.1")
+    assert refused.value.retry_after == 40          # the first run leaves the window at 1060; now 1020
+
+
+def test_capacity_attempts_are_counted_in_the_run_event(tmp_path, monkeypatch):
+    defs, entry = setup(tmp_path)
+    real = runner.Runner.run
+
+    def full(self, defn, values):
+        result = real(self, defn, values)
+        first = next(iter(result["attempts"]))
+        result["attempts"][first].append({"error": "capacity", "ok": False})
+        return result
+    monkeypatch.setattr(runner.Runner, "run", full)
+    kwargs = dict(root=tmp_path, definitions_dir=defs, sensitive=lambda v: False, limiter=limits.RunLimiter(),
+                  cache=limits.ResultCache(), domains=limits.DomainCap(),
+                  caller=caller_from({1: "CVE-2020-28500", 3: "listed in CISA KEV"}, []))
+    service.run_for_surface(None, entry, {"q": "a"}, "mcp", {"ip": "203.0.113.9", "ua": "x"}, **kwargs)
+    event = json.loads(next((tmp_path / "runs").glob("*.jsonl")).read_text().splitlines()[-1])
+    assert event["capacity_attempts"] == 1

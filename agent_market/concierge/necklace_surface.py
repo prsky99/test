@@ -998,7 +998,8 @@ def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz'
     return text, {'necklace': entry['slug'], 'ran': not refused, 'ok': ok, 'stages': result.get('stages'),
                   'error_code': result.get('error_code'), 'output': result.get('output'),
                   'cached': bool(result.get('cached')), 'ran_at': result.get('ran_at'),
-                  **({'notice': result['notice']} if result.get('notice') else {})}, not ok
+                  **({'notice': result['notice']} if result.get('notice') else {}),
+                  **({'retry_after_s': result['retry_after_s']} if result.get('retry_after_s') else {})}, not ok
 
 
 REFUSED = {'invalid_input', 'consent_required', 'sensitive_input', 'rate_limited', 'out_of_scope', 'definition_changed',
@@ -1080,8 +1081,13 @@ def necklace_router(front=None):
         """Web run (the page's Run button): one JSON object of inputs plus necklace_notice=necklace-v1 (the consent
         checkbox, never stored). Same rules as MCP and A2A: nothing runs unless the necklace is offered."""
         headers = {'Cache-Control': 'no-store'}
-        if front is not None and not front.limit.allow(front.security.resolve_ip(request)):
-            return JSONResponse({'ran': False, 'error_code': 'rate_limited'}, status_code=429, headers=headers)
+        if front is not None and not front.limit.allow(ip := front.security.resolve_ip(request)):
+            # PM 11-17 08:5x: when to come back, in the header and (for agents) in the body
+            wait = front.limit.retry_after(ip)
+            from ..necklaces.service import note_refusal
+            note_refusal(None, slug if SLUG.fullmatch(slug or '') else None, 'rate_limited', 'web_ip')
+            return JSONResponse({'ran': False, 'error_code': 'rate_limited', 'retry_after_s': wait}, status_code=429,
+                                headers={**headers, 'Retry-After': str(wait)})
         raw = await request.body()
         try:
             arguments = json.loads(raw) if 0 < len(raw) <= MAX_RUN_BODY else None
@@ -1095,6 +1101,8 @@ def necklace_router(front=None):
         if answer is None:
             return JSONResponse({'ran': False, 'error_code': 'unknown_necklace'}, status_code=404, headers=headers)
         text, structured, failed = answer
+        if structured.get('error_code') == 'rate_limited' and structured.get('retry_after_s'):
+            headers['Retry-After'] = str(structured['retry_after_s'])   # HTTP 200 + ok:false stays for callers
         return JSONResponse({**structured, 'text': text}, status_code=200, headers=headers)
 
     @router.post('/necklaces/{slug}/run', include_in_schema=False)

@@ -31,10 +31,11 @@ CACHE_ENTRIES = 256
 
 
 class Refused(Exception):
-    def __init__(self, code: str):
+    def __init__(self, code: str, retry_after: int | None = None):
         super().__init__(code)
         self.code = code
         self.error_code = code
+        self.retry_after = retry_after   # seconds until the full window frees a run (rate_limited only)
 
 
 class _Window:
@@ -62,8 +63,11 @@ class RunLimiter:
         keys = [("client", client or "unknown"), ("necklace", slug), ("total", "")]
         with self.lock:
             windows = [self.windows.setdefault(k, _Window()) for k in keys]
-            if any(w.count(now, 60) >= self.limits[k[0]] for k, w in zip(keys, windows)):
-                raise Refused("rate_limited")
+            full = [w for k, w in zip(keys, windows) if w.count(now, 60) >= self.limits[k[0]]]
+            if full:
+                # PM 11-17 08:5x: tell the caller when a run fits again (the oldest run of the latest-freeing window)
+                wait = max(w.times[0] + 60 - now for w in full)
+                raise Refused("rate_limited", retry_after=max(1, int(wait + 0.999)))
             for w in windows:
                 w.times.append(now)
             if len(self.windows) > 10_000:          # forget idle clients

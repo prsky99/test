@@ -139,6 +139,20 @@ def definitions_root() -> Path:
     return Path(os.environ.get("NECKLACE_DEFINITIONS_DIR") or model.DEFINITIONS)
 
 
+def note_refusal(root, slug, code: str, surface: str):
+    """One line per run refused before anything was sent (PM 11-17 08:5x: rate_limited per day decides whether the
+    run limits or MAX_INFLIGHT go up). Kept in refusals/<date>.jsonl, apart from runs/, so run counts do not change.
+    No client, address or input is written."""
+    at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    try:
+        path = Path(data_root() if root is None else root) / "refusals" / (at[:10].replace("-", "") + ".jsonl")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"at": at, "slug": slug, "code": code, "surface": surface}, sort_keys=True) + "\n")
+    except OSError:
+        pass   # counting never changes the answer
+
+
 def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | None = None, *,
                     root: Path | None = None, definitions_dir: Path | None = None,
                     caller=None, sensitive=None, limiter=None, cache=None, domains=None, quota_budget=None) -> dict:
@@ -171,7 +185,11 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
         # PM R21: per client, per necklace and total run limits before anything is sent
         (limits.LIMITER if limiter is None else limiter).admit(defn["slug"], (meta or {}).get("ip"))
     except (Refused, limits.Refused) as exc:
-        return {"ok": False, "output": None, "stages": {}, "error_code": exc.code}
+        wait = getattr(exc, "retry_after", None)
+        if exc.code == "rate_limited":
+            note_refusal(root, entry.get("slug"), exc.code, source)
+        return {"ok": False, "output": None, "stages": {}, "error_code": exc.code,
+                **({"retry_after_s": wait} if wait else {})}
     cache = limits.CACHE if cache is None else cache
     cache_key = cache.key(defn["slug"], defn["version"], model.digest(defn), values)
     cached = cache.get(cache_key)
@@ -205,6 +223,10 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
         event["connection_empty"] = True  # PM 17:28: a required value from an earlier step was empty (ours)
     if result.get("cached"):
         event["cached"] = True          # served from the short result cache: no member was called
+    capacity = sum(1 for tries in (result.get("attempts") or {}).values() for a in tries
+                   if isinstance(a, dict) and a.get("error") == "capacity")
+    if capacity:
+        event["capacity_attempts"] = capacity   # PM 11-17 08:5x: member calls not sent, MAX_INFLIGHT was full
     try:
         runner.append_event(root, event)
     except OSError:

@@ -276,3 +276,35 @@ def test_the_page_form_follows_the_same_rules(site):
     assert 'Finished.' in first.text and calls(servers) == 2
     other = client.post('/necklaces/advisory-brief/run', data={'q': 'beta', 'necklace_notice': 'necklace-v1'})
     assert 'alpha-secret-term' not in other.text and 'beta' in other.text           # no one else's input on the page
+
+
+def test_a_refused_run_says_when_to_come_back_and_is_counted_apart_from_runs(site):
+    # PM 11-17 08:5x: both rate_limited answers carry Retry-After (the window's seconds left) and retry_after_s;
+    # the run limit keeps HTTP 200 + ok:false; refusals are counted in refusals/, never in runs/.
+    client, servers, data = site
+    body = {'q': 'lodash', 'necklace_notice': 'necklace-v1'}
+    answers = [client.post('/api/necklaces/advisory-brief/run', json=body) for _ in range(limits.PER_CLIENT_PER_MINUTE + 1)]
+    refused = answers[-1]
+    assert [a.json().get('error_code') for a in answers[:-1]] == [None] * limits.PER_CLIENT_PER_MINUTE
+    assert refused.status_code == 200 and refused.json()['ok'] is False and refused.json()['error_code'] == 'rate_limited'
+    wait = refused.json()['retry_after_s']
+    assert 1 <= wait <= 60 and refused.headers['retry-after'] == str(wait)
+    assert len(events(data)) == limits.PER_CLIENT_PER_MINUTE
+    lines = [json.loads(line) for path in (data / 'refusals').glob('*.jsonl') for line in path.read_text().splitlines()]
+    assert lines and lines[-1]['code'] == 'rate_limited' and lines[-1]['slug'] == 'advisory-brief'
+    assert set(lines[-1]) == {'at', 'slug', 'code', 'surface'}          # no client, address or input
+
+
+def test_the_address_limit_answers_429_with_retry_after(site, monkeypatch):
+    client, servers, data = site
+    import gc
+    from agent_market.concierge.front import Front
+    front = [o for o in gc.get_objects() if isinstance(o, Front)][-1]      # the site's Front: only its run limit
+    monkeypatch.setattr(front.limit, 'allow', lambda key: False)
+    monkeypatch.setattr(front.limit, 'retry_after', lambda key: 17)
+    answer = client.post('/api/necklaces/advisory-brief/run', json={'q': 'lodash', 'necklace_notice': 'necklace-v1'})
+    assert answer.status_code == 429 and answer.headers['retry-after'] == '17'
+    body = answer.json()                     # the public problem document keeps our fields and adds its own
+    assert {k: body[k] for k in ('ran', 'error_code', 'retry_after_s')} == {'ran': False, 'error_code': 'rate_limited',
+                                                                           'retry_after_s': 17}
+    assert calls(servers) == 0
