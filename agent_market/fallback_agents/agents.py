@@ -70,7 +70,8 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "sec-company-profile": 24 * 3600, "sun-times": 10 * 365 * 86400, "site-reachability": 60,
            "dns-spf-dmarc": 86400, "package-readme": 86400, "agent-record": 2 * 86400,
            "ofac-sdn": 3 * 86400, "korean-lunar": 10 * 365 * 86400, "western-sign": 10 * 365 * 86400,
-           "saju-pillars": 10 * 365 * 86400, "fortune-daily": 10 * 365 * 86400}   # the daily list index; served up to three days if a refresh fails  # rules age from the library release; update the pin at least yearly
+           "saju-pillars": 10 * 365 * 86400, "fortune-daily": 10 * 365 * 86400,
+           "mbti-profile": 10 * 365 * 86400, "mbti-fortune": 10 * 365 * 86400}   # the daily list index; served up to three days if a refresh fails  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -1780,6 +1781,79 @@ class FallbackAgents:
         out.update(answer=answer[:8000], source="AgentValCon fixed rule table (" + out["rules_version"] + "); "
                    "today's Moon sign computed (Meeus)", url="https://en.wikipedia.org/wiki/Four_Pillars_of_Destiny")
         if check_synthesis(out, has_hour):      # the gate's check, the same one the round runs
+            raise FallbackUnavailable("invalid_output", "The reading did not pass its own checks.")
+        return out, {"status": "computed", "age_seconds": 0}, False, {"rule table": None}
+
+    # ---------------------------------------------------------------- mbti-fortune-brief (PM 11-17, user request)
+    def _mbti_profile(self, args, remaining):
+        """persona.mbti_profile.v1: the type checked and a reproducible sample birth date from the age (mbti.py)."""
+        from .mbti import SAMPLE_NOTE, normalize_type, sample_birthday, sample_range, temperament
+        try:
+            code = normalize_type(args.get("mbti"))
+            today = self._fortune_today(args)
+            born = sample_birthday(code, args.get("age"), today)
+        except ValueError as exc:
+            raise FallbackUnavailable("invalid_input", str(exc)[:160]) from exc
+        first, last = sample_range(args["age"], today)
+        answer = (f"Type {code} ({temperament(code)}). Sample birth date for age {args['age']} on {today.isoformat()}: "
+                  f"{born.isoformat()}. {SAMPLE_NOTE}")
+        return ({"answer": answer, "source": "Computed: a seeded draw inside the age range (no data fetched)",
+                 "type": code, "axes": {"energy": code[0], "information": code[1], "decisions": code[2],
+                                        "structure": code[3]},
+                 "temperament": temperament(code), "age": args["age"], "today": today.isoformat(),
+                 "sample_birth_date": born.isoformat(), "sample_range": [first.isoformat(), last.isoformat()],
+                 "sample_notice": SAMPLE_NOTE},
+                {"status": "computed", "age_seconds": 0}, False, {"sample draw": None})
+
+    def _mbti_fortune(self, args, remaining):
+        """fortune.mbti_daily.v1: the four letters fused with the day master's ten god and today's Moon element by the
+        fixed tables in mbti.py; checked on every answer by necklaces.mbti_gate.check_mbti_synthesis (which runs the
+        fortune gate's check_synthesis and the 16-type notices and axes)."""
+        from ..necklaces.mbti_gate import check_mbti_synthesis
+        from .fortune_calc import STEMS, moon_today, ten_god
+        from .fortune_rules import BANNED
+        from .mbti import (AXIS_LINES, MAPPING_NOTE, MOON_LINES, RULES_VERSION, SAMPLE_NOTE, TEMPERAMENT_LINES,
+                           TRADEMARK_NOTE, normalize_type, temperament)
+        try:
+            code = normalize_type(args.get("type"))
+        except ValueError as exc:
+            raise FallbackUnavailable("invalid_input", str(exc)[:160]) from exc
+        today = self._fortune_date(args["today"])
+        stems = {st[1]: i for i, st in enumerate(STEMS)}
+        def stem_of(text):
+            hit = next((ch for ch in str(text or "") if ch in stems), None)
+            return stems[hit] if hit else None
+        dm, ts = stem_of(args.get("day_master")), stem_of(args.get("today_day_pillar"))
+        rel, god = "same", None          # without the saju step the lines follow the 'same element' row
+        if dm is not None and ts is not None:
+            st = STEMS[dm]
+            g = ten_god({"stem_element": st[2], "stem_polarity": st[3]}, ts)
+            rel, god = g["relation"], f"{g['name']} ({g['english']})"
+        moon = moon_today(today)
+        names = ("energy", "information", "decisions", "structure")
+        axes = {name: {"letter": code[i], "line": AXIS_LINES[code[i]][rel]} for i, name in enumerate(names)}
+        temperament_line = TEMPERAMENT_LINES[temperament(code)]
+        notes = [SAMPLE_NOTE + (f" (sample: {args['sample_birth_date']})" if args.get("sample_birth_date") else ""),
+                 "No hour pillar is used: hour pillar not given, so the reading uses three pillars.",
+                 "Dates follow the Korean lunar calendar (KASI rules) and Korea standard time.",
+                 MAPPING_NOTE, TRADEMARK_NOTE]
+        parts = []
+        if args.get("sign"):
+            parts.append(f"Sample Sun sign: {args['sign']}" + (f" ({str(args.get('element')).lower()})." if args.get("element") else "."))
+        if god:
+            parts.append(f"Today's stem is {god} to the sample day master.")
+        parts.append(f"For {code}: " + "; ".join(a["line"] for a in axes.values()) + ".")
+        parts.append(MOON_LINES[code[0]][moon["moon_element"]])
+        parts.append(temperament_line)
+        headline = f"{today.isoformat()}: {code}, {axes['energy']['line']}"
+        answer = " ".join(["For entertainment; not advice.", headline + "."] + parts + notes)
+        if BANNED.search(answer):
+            raise FallbackUnavailable("invalid_output", "The reading did not pass its own checks.")
+        out = {"disclaimer": "For entertainment; not advice.", "answer": answer[:8000],
+               "source": f"AgentValCon fixed rule table ({RULES_VERSION}); today's Moon sign computed (Meeus)",
+               "headline": headline[:200], "axes": axes, "temperament_line": temperament_line, "notes": notes,
+               "rules_version": RULES_VERSION}
+        if check_mbti_synthesis(out, code):
             raise FallbackUnavailable("invalid_output", "The reading did not pass its own checks.")
         return out, {"status": "computed", "age_seconds": 0}, False, {"rule table": None}
 

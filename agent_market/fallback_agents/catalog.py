@@ -454,6 +454,23 @@ SPECS = {
         "sources": [ALMANAC, FORTUNE_RULES],
         "rate": "no network calls",
     },
+    "mbti-profile": {
+        "name": "AgentValCon Personality Sample Profile", "tool": "get_personality_sample_profile",
+        "contract": "persona.mbti_profile.v1",
+        "description": "Check a 16-type personality code (four letters, such as INTJ) and draw a sample birth date from "
+                       "an age, the same for the same input on the same day; not the real birthday; no network calls.",
+        "sources": [ALMANAC],
+        "rate": "no network calls",
+    },
+    "mbti-fortune": {
+        "name": "AgentValCon Personality Daily Reading", "tool": "get_personality_daily_reading",
+        "contract": "fortune.mbti_daily.v1",
+        "description": "Today's 16-type personality reading from the four type letters, a Sun zodiac and a day master "
+                       "against today's day pillar and Moon, by a fixed rule table; for entertainment, not advice; "
+                       "no network calls.",
+        "sources": [ALMANAC, FORTUNE_RULES],
+        "rate": "no network calls",
+    },
     "agent-record": {
         "name": "AgentValCon Agent Record", "tool": "check_agent_record", "contract": "agent.record.v1",
         "description": "What AgentValCon's own records say about an agent or MCP server, by its https URL or name: "
