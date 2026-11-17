@@ -52,7 +52,9 @@ def test_explore_search_layout_structure(w, legacy_public_entry):
     assert "flex-shrink: 0" in html
 
 
-@pytest.mark.parametrize('preview', [False, True], ids=['empty-shell', 'inline-preview'])
+# 70230022 (PM 11-16 22:3x): the home page always carries the empty shell, never an inline preview, so the former
+# 'inline-preview' form no longer exists; Explore's first view is the authoritative request.
+@pytest.mark.parametrize('preview', [False], ids=['empty-shell'])
 def test_explore_category_chip_toggle_and_initial_newest_display(explore_page, catalog, monkeypatch, preview):
     state = explore_page
     _, front, client, _, _ = catalog

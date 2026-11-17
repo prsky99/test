@@ -54,14 +54,19 @@ def fixture(path, suffix):
     return store
 
 def page(client):
+    """The home page itself carries no catalog preview since 70230022 (PM 11-16 22:3x: the same bytes for every request;
+    Explore loads through its own API). The bounded-time and store-switch guarantees this child proves are those of the
+    bootstrap projection the other surfaces read (front.html_bootstrap), so it is read directly, and the home page is
+    only checked to answer, stay the same bytes and keep its hashed script policy."""
     print('request-started', flush=True)
     response = client.get('/', headers={'accept': 'text/html'})
     assert response.status_code == 200
     match = re.search(r'<script[^>]*id="appBootstrapData"[^>]*>(.*?)</script>', response.text, re.S)
     assert match
-    data = json.loads(match.group(1))
+    assert "script-src 'self'" in response.headers['content-security-policy']
+    assert client.get('/', headers={'accept': 'text/html'}).text == response.text
+    data = json.loads(client.app.state.front.html_bootstrap.read(seconds=5))
     assert type(data) is dict and set(('overview', 'explore', 'insights', 'testbench_examples')) <= data.keys()
-    assert "script-src 'self' 'sha256-" in response.headers['content-security-policy']  # 11-11 hashes (PM decision A)
     return data
 
 with tempfile.TemporaryDirectory(prefix='a2a-bootstrap-lock-') as directory:
@@ -184,11 +189,15 @@ def test_warm_bootstrap_and_html_never_reuse_recorded_success(fresh_managed, sur
     elif surface == 'json':
         second = json.loads(front.bootstrap_snapshot_json())
     else:
+        # 70230022 (PM 11-16 22:3x): the home page carries no catalog preview, so it can never show a recorded success
+        # of a listing that has since failed; Explore loads through its own API (checked by the dict and json forms).
         response = client.get('/', headers={'accept': 'text/html'})
         assert response.status_code == 200
         match = re.search(r'<script[^>]*id="appBootstrapData"[^>]*>(.*?)</script>', response.text, re.S)
         assert match
-        second = json.loads(match.group(1))
+        embedded = json.loads(match.group(1))
+        assert embedded.get('explore') is None and not _cards(embedded, rid)
+        second = json.loads(front.bootstrap_snapshot_json())
     assert _cards(second, rid) and all(not card['connection_readiness']['verified_callable'] for card in _cards(second, rid))
     assert len(calls) == before_calls
 
