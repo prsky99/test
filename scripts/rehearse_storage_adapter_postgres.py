@@ -57,6 +57,12 @@ def _tools():
     raise RehearsalError('tools_unavailable')
 
 
+def guarded_path(*dirs):
+    """PYTHONPATH for a rehearsal child: tests/child_guard first (its sitecustomize refuses connects to the outside
+    network, as the outside-network guard does in the test process), then DIRS (PM 11-18, 운영·SRE)."""
+    return os.pathsep.join((str(Path(__file__).resolve().parents[1] / 'tests' / 'child_guard'), *map(str, dirs)))
+
+
 def _environment(root):
     home = root / 'home'
     home.mkdir(mode=0o700)
@@ -71,7 +77,9 @@ def _environment(root):
             # 11-18 (검색과 RAG, night tests): with no REDIS_DB a child's RedisHub took 127.0.0.1:6379 database 0, the
             # production Redis, and read production task outcomes (listing ids 1, 2, 3 ... collide with real ones); the
             # synthetic selection then came back empty at night. Children use the tests' own database number.
-            'REDIS_DB': '15', 'AGENTCON_UNDER_TEST': '1'}
+            'REDIS_DB': '15', 'AGENTCON_UNDER_TEST': '1',
+            # and the outside-network guard of tests/child_guard (a child does not inherit the test's patched socket)
+            'PYTHONPATH': guarded_path()}
 
 
 def _run(args, env, *, timeout=30, input=None):
@@ -330,7 +338,7 @@ def _contract_child(descriptor, driver):
     root = Path(__file__).resolve().parents[1]
     driver_root = Path(driver.__file__).resolve().parent.parent
     env = dict(descriptor['environment'])
-    env['PYTHONPATH'] = os.pathsep.join((str(root), str(driver_root)))
+    env['PYTHONPATH'] = guarded_path(root, driver_root)
     result = _run([sys.executable, '-B', '-c',
                    'from scripts.rehearse_storage_adapter_postgres import _worker_main; raise SystemExit(_worker_main())'],
                   env, input=json.dumps({'socket': descriptor['socket']}), timeout=30)

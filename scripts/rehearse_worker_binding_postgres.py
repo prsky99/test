@@ -164,7 +164,8 @@ def rehearse():
     before={str(path):hashlib.sha256(path.read_bytes()).hexdigest() for path in files}
     with _private_cluster(_tools()) as cluster:
         env=dict(cluster['environment']);env['PYTHONDONTWRITEBYTECODE']='1'
-        env['PYTHONPATH']=str(Path(__file__).resolve().parents[1])+os.pathsep+str(Path(driver.__file__).resolve().parent.parent)
+        from scripts.rehearse_storage_adapter_postgres import guarded_path
+        env['PYTHONPATH']=guarded_path(Path(__file__).resolve().parents[1],Path(driver.__file__).resolve().parent.parent)
         result=subprocess.run([sys.executable,'-B','-c','from scripts.rehearse_worker_binding_postgres import _worker; _worker()'],input=json.dumps(cluster),env=env,text=True,capture_output=True,timeout=180)
         if result.returncode:raise RuntimeError('Native worker binding fixture failed: '+result.stderr[-4000:])
         result=json.loads(result.stdout)

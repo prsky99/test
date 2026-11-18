@@ -11,7 +11,8 @@ def test_native_qa7_schema_recovery():
     driver=_driver()
     with _private_cluster(_tools()) as cluster:
         env=dict(cluster['environment']);env['PYTHONDONTWRITEBYTECODE']='1'
-        env['PYTHONPATH']=str(Path.cwd())+os.pathsep+str(Path(driver.__file__).resolve().parent.parent)
+        from scripts.rehearse_storage_adapter_postgres import guarded_path
+        env['PYTHONPATH']=guarded_path(Path.cwd(),Path(driver.__file__).resolve().parent.parent)
         code='''
 from scripts import rehearse_application_store_postgres as base
 from scripts.rehearse_qa7_remediation import contracts

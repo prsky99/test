@@ -16,6 +16,15 @@ code never imports this module):
    socket or port 55432) raise PermissionError. This joins the 11-15 guard in
    agent_market.application_runtime.refuse_production_in_tests, which only covers the store's own connect.
 
+4. Outside network (PM 11-18): a socket connect to an address that is not loopback, private or link-local raises
+   PermissionError, and the test fails at teardown even when the code under test swallowed the error. (11-17 23:26
+   and 11-18 04:08: test_fallback_agents' watch test probed nine real sources - CISA, SEC, GLEIF, npm, deps.dev,
+   arXiv, crt.sh, Wikipedia - with the ledger in a temporary folder, and rewrote the KEV copy under gateway-data.)
+   A test that calls a real outside service on purpose carries @pytest.mark.live_network; the night full pytest
+   leaves those out (-m "not live_network"). Until the affected tests are listed and marked (first nights, PM 11-18)
+   the default is report: the attempts are only written to test-report-out/outside-network.log and nothing is
+   blocked; NETWORK_GUARD=block refuses them.
+
 A test that has to use these on purpose carries @pytest.mark.production_paths (the conftest then lifts parts 2 and
 3 for that test only; the list is reported to the PM). Subprocesses a test starts are not covered here; the
 application runtime guard still refuses them through the inherited PYTEST_CURRENT_TEST.
@@ -23,6 +32,7 @@ application runtime guard still refuses them through the inherited PYTEST_CURREN
 import builtins
 import fnmatch
 import io
+import ipaddress
 import os
 import socket
 import time
@@ -101,13 +111,42 @@ def _refuse_address(address):
                               '(tests/report_redirect.py; mark the test production_paths if it must)')
 
 
+def is_outside_address(address):
+    """An internet address: not loopback, private (RFC 1918, fc00::/7), link-local or unspecified. AF_UNIX paths
+    and names that do not parse as an address (already resolved by the time connect() runs) are not checked."""
+    if not (isinstance(address, tuple) and len(address) >= 2 and isinstance(address[0], str)):
+        return False
+    try:
+        ip = ipaddress.ip_address(address[0].split('%', 1)[0])
+    except ValueError:
+        return address[0] not in ('localhost',)
+    if getattr(ip, 'ipv4_mapped', None):
+        ip = ip.ipv4_mapped
+    return not (ip.is_loopback or ip.is_private or ip.is_link_local or ip.is_unspecified)
+
+
+def _refuse_outside(address):
+    if not _state or _state['live'] or not is_outside_address(address):
+        return
+    test = os.environ.get('PYTEST_CURRENT_TEST', '?').rsplit(' (', 1)[0]
+    _state['outside'].append((test, address[0], address[1]))
+    with _ORIGINAL_OPEN(os.path.join(_state['out'], 'outside-network.log'), 'a', encoding='utf-8') as log:
+        log.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}\t{test}\t{address[0]}:{address[1]}\t{_state['network']}\n")
+    if _state['network'] == 'block':
+        raise PermissionError(f'tests may not connect to the outside network ({address[0]}:{address[1]}; '
+                              'tests/report_redirect.py part 4: use a cassette or a fake transport, or mark the test '
+                              'live_network if it must call the real service)')
+
+
 def _connect(self, address):
     _refuse_address(address)
+    _refuse_outside(address)
     return _ORIGINAL_CONNECT(self, address)
 
 
 def _connect_ex(self, address):
     _refuse_address(address)
+    _refuse_outside(address)
     return _ORIGINAL_CONNECT_EX(self, address)
 
 
@@ -153,7 +192,8 @@ def install(root, environ=None):
     out = os.path.join(root, 'gateway-data', 'test-report-out')
     os.makedirs(out, exist_ok=True)
     _state.update(root=root, out=out, moved=set(), log=os.path.join(out, 'redirects.log'), allowed=False,
-                  records=environ.get('REPORT_SHOTS') != '1')
+                  records=environ.get('REPORT_SHOTS') != '1', live=False, outside=[],
+                  network='block' if environ.get('NETWORK_GUARD') == 'block' else 'report')
     io.open = builtins.open = _open
     socket.socket.connect, socket.socket.connect_ex = _connect, _connect_ex
     _patch_psycopg()
@@ -176,6 +216,20 @@ def allow_production(flag):
     """For one test marked production_paths: lift the secret and database parts (records stay redirected)."""
     if _state:
         _state['allowed'] = bool(flag)
+
+
+def allow_live_network(flag):
+    """For one test marked live_network: outside connects go through (and are not recorded)."""
+    if _state:
+        _state['live'] = bool(flag)
+
+
+def take_outside():
+    """The outside connects refused since the last call (block mode only; report mode never fails a test)."""
+    if not _state or _state['network'] != 'block':
+        return []
+    taken, _state['outside'] = _state['outside'], []
+    return taken
 
 
 def active():
