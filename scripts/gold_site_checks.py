@@ -3,6 +3,11 @@ v2 first; the tls and reachability seats are required and have no external membe
 
     .venv/bin/python -m scripts.gold_site_checks --kind tls   --split tls-r1     # --from holdout-r2,holdout-r1 (r1 = spares)
     .venv/bin/python -m scripts.gold_site_checks --kind reach --split reach-r1
+    .venv/bin/python -m scripts.gold_site_checks --kind tls   --split tls-r2 --pool <pool.json>   # ops 11-18
+
+--pool (ops 11-18, after tls-r1 overlapped live sets): a domain list fixed before the build, e.g. picked from a public
+ranking list ({"domains": [{"domain", "spare"}, ...]}); cases are taken in md5(salt + domain) order, the spares after
+the cases, and the manifest names the pool file and its sha256. --pool and --from are never used together.
 
 The 30 domains of a website-trust-brief split no substitute was built or tuned on (holdout-r2) are read again by a
 reader that shares no code with the agents:
@@ -124,6 +129,21 @@ def excluded_domains(folder: Path, splits) -> tuple[set, str]:
     return held, ", ".join(used) or "none found"
 
 
+def pool_domains(path: Path, salt: str = "tls2:") -> tuple[list[str], str]:
+    """(domains in build order, sha256 of the pool file): non-spares then spares, each in md5(salt + domain) order;
+    a domain listed twice counts once (its first place decides whether it is a spare)."""
+    raw = Path(path).read_bytes()
+    rows = json.loads(raw).get("domains") or []
+    first: dict[str, bool] = {}
+    for row in rows:
+        domain = str(row.get("domain") if isinstance(row, dict) else row).strip().lower()
+        if domain and domain not in first:
+            first[domain] = bool(row.get("spare")) if isinstance(row, dict) else False
+    key = lambda d: hashlib.md5((salt + d).encode()).hexdigest()
+    ordered = sorted((d for d, s in first.items() if not s), key=key) + sorted((d for d, s in first.items() if s), key=key)
+    return ordered, hashlib.sha256(raw).hexdigest()
+
+
 def build(domains: list[str], read, keep: int = 30) -> list[dict]:
     """Cases for the first KEEP domains READ answered for (READ -> None skips a domain: spares fill in order)."""
     cases = []
@@ -145,11 +165,17 @@ def main(argv=None) -> int:
     from agent_market.provider_budget import note, reserve
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--kind", choices=sorted(KINDS), required=True)
-    p.add_argument("--from", dest="source", default="holdout-r2,holdout-r1")
+    p.add_argument("--from", dest="source", default=None, help="splits to read (default holdout-r2,holdout-r1)")
+    p.add_argument("--pool", type=Path, default=None, help="a fixed domain list instead of --from (ops 11-18)")
+    p.add_argument("--pool-salt", default="tls2:")
     p.add_argument("--split", required=True)
     p.add_argument("--exclude", default="holdout-r3,holdout-r4",
                    help="v2 round splits whose domains are never used (workflow 11-17)")
     ns = p.parse_args(argv)
+    if ns.pool is not None and ns.source is not None:
+        p.error("--pool and --from are never used together")
+    if ns.pool is None and ns.source is None:
+        ns.source = "holdout-r2,holdout-r1"
     folder = ROOT / "gateway-data/necklaces/gold" / SLUG
     out = folder / f"{ns.split}.jsonl"
     if out.exists():
@@ -157,12 +183,21 @@ def main(argv=None) -> int:
     held, held_from = excluded_domains(folder, ns.exclude.split(","))
     print(f"excluding {len(held)} v2 round domains ({held_from})")
     domains, origin = [], {}
-    for split in ns.source.split(","):     # later splits are spares when a site cannot be read
-        for line in (folder / f"{split}.jsonl").read_text().splitlines():
-            domain = json.loads(line)["input"]["domain"].strip().lower() if line.strip() else None
-            if domain and domain not in origin and domain not in held:
+    if ns.pool is not None:
+        listed, pool_sha = pool_domains(ns.pool, ns.pool_salt)
+        source_label = [f"pool:{ns.pool.name}", f"sha256:{pool_sha}", f"order:md5({ns.pool_salt}domain)"]
+        for domain in listed:
+            if domain not in held:
                 domains.append(domain)
-                origin[domain] = split
+                origin[domain] = f"pool:{ns.pool.name}"
+    else:
+        source_label = ns.source.split(",")
+        for split in ns.source.split(","):     # later splits are spares when a site cannot be read
+            for line in (folder / f"{split}.jsonl").read_text().splitlines():
+                domain = json.loads(line)["input"]["domain"].strip().lower() if line.strip() else None
+                if domain and domain not in origin and domain not in held:
+                    domains.append(domain)
+                    origin[domain] = split
     fetched = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def booked(url):
@@ -217,13 +252,13 @@ def main(argv=None) -> int:
     except (OSError, ValueError):
         data = {}
     data.setdefault("files", {})[ns.split] = {
-        "cases": len(cases), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), "from": ns.source.split(","),
+        "cases": len(cases), "sha256": hashlib.sha256(out.read_bytes()).hexdigest(), "from": source_label,
         "for": f"{KINDS[ns.kind]} substitute gate", "built_at": fetched, "excluded_from": held_from,
         "skipped": [d for d in domains if d not in {c["input"]["domain"] for c in cases}][:40]}
     tmp = manifest.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1))
     tmp.replace(manifest)
-    print(f"wrote {len(cases)} cases to {out} at {fetched} (from {ns.source})")
+    print(f"wrote {len(cases)} cases to {out} at {fetched} (from {', '.join(source_label)})")
     return 0
 
 

@@ -97,3 +97,25 @@ def test_v2_round_domains_are_never_gate_cases(tmp_path, monkeypatch):
     held, used = G.excluded_domains(tmp_path, ["holdout-r3", "holdout-r4"])
     assert held == {"usa.gov", "nsf.gov", "round.example"} and used == "LISTS[holdout-r3], holdout-r4.jsonl"
     assert G.excluded_domains(tmp_path, ["holdout-r9"]) == (set(), "none found")
+
+
+def test_pool_orders_cases_by_md5_then_spares_and_names_its_sha(tmp_path):
+    """ops 11-18: tls-r2 from a fixed pool (a public ranking list), md5 order, spares after the cases."""
+    import hashlib
+    import json
+    pool = tmp_path / "pool.json"
+    pool.write_text(json.dumps({"domains": [{"domain": "b.com"}, {"domain": "A.com"}, {"domain": "z.org", "spare": True},
+                                            {"domain": "y.org", "spare": True}, {"domain": "a.com", "spare": True}]}))
+    got, sha = G.pool_domains(pool)
+    key = lambda d: hashlib.md5(("tls2:" + d).encode()).hexdigest()
+    assert got == sorted(["a.com", "b.com"], key=key) + sorted(["y.org", "z.org"], key=key)   # a.com stays a case
+    assert sha == hashlib.sha256(pool.read_bytes()).hexdigest()
+    assert G.pool_domains(pool, salt="x:")[0][:2] == sorted(["a.com", "b.com"], key=lambda d: hashlib.md5(("x:" + d).encode()).hexdigest())
+
+
+def test_pool_and_from_are_never_used_together(tmp_path):
+    pool = tmp_path / "pool.json"
+    pool.write_text('{"domains": []}')
+    with pytest.raises(SystemExit) as stop:
+        G.main(["--kind", "tls", "--split", "tls-test-never", "--pool", str(pool), "--from", "holdout-r2"])
+    assert stop.value.code == 2
