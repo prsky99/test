@@ -1,3 +1,7 @@
+-- CANCELLED (PM 11-18 23:31, ops pre-check): do not run or rehearse this file. Its statements 3 and 4 expect exactly one
+-- capability_eligibility row each for 147960 and 241601, and both resources have 0 rows now (table 7,099 rows, read 11-18 23:29), so the
+-- all-or-nothing change always fails. The 4 evidence rows expire by themselves on 11-19 10:18-10:41; the 4 edge runs leave the 7-day
+-- count on 11-24. A new change needs a new file written against the rows as they are then.
 -- 11-17 PM decision 2 (ops analysis of the Worker c2702834 rollback): between 08:41 and 10:48 the Edge Worker
 -- reported four calls our own runner cut at its 3.5 s slot deadline as outcome_unknown (closed 1.4-1.6 s after
 -- start). The origin counted them as provider timeouts and recorded UPSTREAM_TIMEOUT execution evidence, which also

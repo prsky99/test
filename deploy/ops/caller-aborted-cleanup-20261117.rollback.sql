@@ -1,3 +1,7 @@
+-- CANCELLED (PM 11-18 23:31, ops pre-check): do not run or rehearse this file. Its statements 3 and 4 expect exactly one
+-- capability_eligibility row each for 147960 and 241601, and both resources have 0 rows now (table 7,099 rows, read 11-18 23:29), so the
+-- all-or-nothing change always fails. The 4 evidence rows expire by themselves on 11-19 10:18-10:41; the 4 edge runs leave the 7-day
+-- count on 11-24. A new change needs a new file written against the rows as they are then.
 -- Restore for caller-aborted-cleanup-20261117.sql: puts the 4 runs, 4 evidence rows and 2 eligibility rows back to
 -- their values before the change (values read 11-17 14:2x with scripts.prod_ro_sql). The eligibility rows are only
 -- put back if nothing newer was written to them since the change (executed_at still the restored value).
