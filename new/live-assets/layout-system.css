@@ -226,3 +226,26 @@
  .workspace-pearl .layout-select-action button{justify-self:start}
 }
 @media(prefers-reduced-motion:reduce){:is([data-pearl-entry],.workspace-pearl) *{scroll-behavior:auto}}
+
+/* Workspace screens (.ws-layout) and stacked card pages (.layout-stack), 11-18 (AI AD Coin, user report on AD Coin
+   spacing): the same rhythm as the layout tokens above. Stacked groups sit 24px apart, a row keeps its text and
+   buttons on one centre line, a label sits 8px above its control, fields and their help text follow one rule,
+   numbered lists keep the text on the card's left line, and on a phone the side menu is one scrolling line. */
+:is(.ws-layout,.layout-stack){--layout-field-gap:8px;--layout-action-gap:12px;--layout-group-gap:24px;--layout-page-gap:32px}
+.layout-stack>*+*{margin-top:var(--layout-group-gap)}
+.layout-stack>.page-heading+*,.layout-stack>:empty{margin-top:0}
+.ws-layout>.ws-sidebar,.ws-layout>.ws-main{padding-top:var(--layout-group-gap)}
+.ws-main :is(.row,.between)>.actions{margin-top:0}
+.ws-main :is(.row,.between)>:is(h1,h2,h3,p,span,code),.ws-main :is(.row,.between)>div>:last-child{margin-bottom:0}
+.ws-main .row{gap:var(--layout-action-gap) var(--layout-group-gap)}
+.ws-main .actions{gap:var(--layout-action-gap);margin-top:var(--layout-group-gap)}
+.ws-main .card>.badge+:is(h2,h3){margin-top:var(--layout-action-gap)}
+.ws-main .card>.badge:first-child{margin-bottom:0}
+.ws-main label.field{display:grid;gap:var(--layout-field-gap);margin:0;align-content:start;line-height:1.2}
+.ws-main label.field>:is(input,select,textarea){margin:0}
+.ws-main .grid{gap:var(--layout-group-gap)}
+.ws-main :not(.grid)>:is(.grid,label.field,fieldset,.check)+:is(.grid,label.field,fieldset,.check,.actions,.row){margin-top:var(--layout-group-gap)}
+.ws-main .card>:is(ul,ol,div):empty{margin:0}
+.ws-main :is(.grid,label.field)+.caption{margin-top:var(--layout-field-gap)}
+:is(.ws-main,.layout-stack) .card ol{padding-left:0;margin-left:0;list-style-position:inside}
+@media(max-width:700px){.ws-layout>.ws-sidebar{padding-top:12px}.ws-layout>.ws-main{padding-top:var(--layout-group-gap)}.ws-sidebar>nav{display:flex;gap:6px;min-width:max-content}.ws-main .actions>.btn{flex:1 1 auto}}
