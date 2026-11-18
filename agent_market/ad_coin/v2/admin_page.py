@@ -35,6 +35,19 @@ def advertise_html():
     return html
 
 
+def reach_card():
+    """PM 11-18 19:4x: the measured reach-by-budget table, on this operator screen only (not public until the
+    measured outside shows reach PM's bar). From the daily snapshot: no database work on this request."""
+    import os
+    from . import reach
+    from .paid_bookings import data_path
+    try:
+        price = float(os.environ.get("AD_COIN_PAID_PRICE_USDC", "5") or 5)
+    except ValueError:
+        price = 5.0
+    return reach.table_html(reach.read_snapshot(data_path(reach.SNAPSHOT)), price) if price > 0 else ""
+
+
 def router_for():
     router = APIRouter()
     html, script_name, script = _build()
@@ -46,7 +59,7 @@ def router_for():
 
     @router.get(PATH, include_in_schema=False)
     async def page():
-        return HTMLResponse(html, headers=_headers())
+        return HTMLResponse(html.replace("@@reach@@", reach_card()), headers=_headers())
 
     @router.get(PATH + "/assets/{name}", include_in_schema=False)
     async def asset(name: str, request: Request):
