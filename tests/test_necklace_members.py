@@ -126,10 +126,18 @@ def test_our_provisional_member_leads_before_an_external_one_that_passes_neither
     assert [a.get("resource_id") for a in lead["alternates"]] == [3, 4]
 
 
-def test_our_own_data_agent_prohibited_by_the_terms_table_is_never_called():
-    """PM 17:02: 133018 (our Hacker News data agent, kind agentcon with a resource_id) is prohibits in the terms
-    table; the chain drops it and the runner never calls it."""
+def test_our_own_data_agent_prohibited_by_the_terms_table_is_never_called(tmp_path, monkeypatch):
+    """PM 17:02: an own data agent (kind agentcon with a resource_id) that is prohibits in the terms table is dropped
+    from the chain and never called. 133018 was Hacker News (prohibits); it reads GDELT and is allowed since 11-18,
+    so the test writes its own table with 133018 prohibits instead of leaning on the shared one."""
     from agent_market.necklaces import runner
+    table = json.loads(model.TERMS_TABLE.read_text(encoding="utf-8"))
+    table["members"]["133018"] = {"status": "prohibits", "source": "https://x.example/terms", "checked_at": "2026-11-16",
+                                  "basis": "test"}
+    path = tmp_path / "member_terms.json"
+    path.write_text(json.dumps(table), encoding="utf-8")
+    monkeypatch.setattr(model, "TERMS_TABLE", path)
+    monkeypatch.setattr(model, "_TERMS_CACHE", {})
     hn = {"kind": "agentcon", "resource_id": 133018, "tool": "search_technology_news", "read_only_hint": True,
           "destructive_hint": False, "state": "active", "registrable_domain": "agentconcierge.biz", "upstream": ["hn"],
           "input_map": {"query": "{{input.q}}"}}
