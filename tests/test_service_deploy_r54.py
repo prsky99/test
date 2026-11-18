@@ -100,7 +100,7 @@ def test_worker_deploy_checks_in_order_and_records_them(tmp_path, monkeypatch, c
     order = []
     monkeypatch.setattr(sd, 'check_board_lock', lambda *a, **k: order.append('lock'))
     monkeypatch.setattr(sd.Deployment, 'check_base', lambda self, role, release, *a: order.append('base'))
-    monkeypatch.setattr(sd, 'check_policy_hash', lambda m, role, release: order.append('policy') or {'changed': False})
+    monkeypatch.setattr(sd, 'check_policy_hash', lambda m, role, release, **k: order.append('policy') or {'changed': False})
     monkeypatch.setattr(sd, 'check_sql_list', lambda m, role, release: order.append('sql') or {'compared': True})
     monkeypatch.setattr(sd, 'release_gate', lambda root, release, commit=None: order.append('gate') or {'ran': 1})
     monkeypatch.setattr(sd.Deployment, 'release_commit', lambda self, release: 'c1')
@@ -156,3 +156,46 @@ def test_a_packaged_release_protects_itself_until_deployed_or_48_hours(tmp_path)
             if sd.PACKAGED_TAG in l] == ['jobs-r3']
     sd.unpin_packaged(tmp_path, now=2000 + 49 * 3600)                    # older than 48 h: expires
     assert (tmp_path / 'pinned-releases.txt').read_text().splitlines() == lines[:2]
+
+
+def test_allow_policy_hash_day_lets_one_change_through_and_is_recorded(tmp_path):
+    """PM 11-18: --allow-policy-hash-day REASON passes a day change of the policy hash; a short reason, no change and
+    non-policy roles are unaffected; the exception is written to its own jsonl and to the overrides list."""
+    manager = Manager(tmp_path, STATE)
+    hashes = {'fe-r1': 'aaaa', 'fe-r2': 'bbbb', 'fe-same': 'aaaa', 'ad-r1': 'x', 'ad-r2': 'y'}
+    hasher = lambda m, release: hashes.get(release)
+    noon = time.mktime((2026, 11, 15, 12, 0, 0, 0, 0, -1))
+    reason = 'user asked for the deploy now; 21:10 is 07:10 in the US east'
+    with pytest.raises(SystemExit, match='policy_hash_day_reason_too_short'):
+        sd.check_policy_hash(manager, 'frontend', 'fe-r2', noon, hasher, allow_day='now')
+    check = sd.check_policy_hash(manager, 'frontend', 'fe-r2', noon, hasher, allow_day=reason)
+    assert check['changed'] is True and check['day_exception'] == reason
+    same = sd.check_policy_hash(manager, 'frontend', 'fe-same', noon, hasher, allow_day=reason)
+    assert same['changed'] is False and 'day_exception' not in same          # nothing to excuse, nothing recorded
+    assert sd.check_policy_hash(manager, 'admin', 'ad-r2', noon, hasher, allow_day=reason) is None
+    sd.log_policy_day_exception(tmp_path, 'ops', 'deploy', 'frontend', 'fe-r2', check)
+    sd.log_override(tmp_path, 'ops', 'deploy frontend', 'fe-r2', ['--allow-policy-hash-day'])
+    row = json.loads((tmp_path / 'logs/ops/policy-hash-day-exceptions.jsonl').read_text().splitlines()[0])
+    assert row['release'] == 'fe-r2' and row['from'] == 'aaaa' and row['to'] == 'bbbb' and row['reason'] == reason
+    assert '--allow-policy-hash-day' in (tmp_path / sd.OVERRIDES).read_text()
+
+
+def test_worker_deploy_with_the_day_exception_records_it(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(sd, 'check_board_lock', lambda *a, **k: None)
+    monkeypatch.setattr(sd.Deployment, 'check_base', lambda self, role, release, *a: None)
+    seen = {}
+    def policy(m, role, release, **k):
+        seen.update(k)
+        return {'active': 'aaaa', 'release': 'bbbb', 'changed': True, 'day_exception': k.get('allow_day')}
+    monkeypatch.setattr(sd, 'check_policy_hash', policy)
+    monkeypatch.setattr(sd, 'check_sql_list', lambda m, role, release: {'compared': True})
+    monkeypatch.setattr(sd, 'release_gate', lambda root, release, commit=None: {'ran': 1})
+    monkeypatch.setattr(sd.Deployment, 'release_commit', lambda self, release: 'c1')
+    monkeypatch.setattr(sd.Deployment, 'deploy_worker', lambda self, role, release, **k: {})
+    reason = 'the day deploy is the user instruction; the regeneration counts once'
+    _main(monkeypatch, tmp_path, ['worker-deploy', 'jobs', 'jobs-r2', '--lock-owner', '운영·SRE', '--no-prune',
+                                  '--allow-policy-hash-day', reason])
+    assert seen == {'allow_day': reason}
+    row = json.loads((tmp_path / 'logs/ops/policy-hash-day-exceptions.jsonl').read_text().splitlines()[0])
+    assert row['release'] == 'jobs-r2' and row['role'] == 'jobs' and row['reason'] == reason and row['owner'] == '운영·SRE'
+    assert '--allow-policy-hash-day' in (tmp_path / sd.OVERRIDES).read_text()

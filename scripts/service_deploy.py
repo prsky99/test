@@ -1489,8 +1489,10 @@ def release_policy_hash(manager, release):
     return value or None
 
 
-def check_policy_hash(manager, role, release, now=None, hasher=release_policy_hash):
-    """Refuse a frontend or jobs release that changes the policy hash outside 00:30-01:30."""
+def check_policy_hash(manager, role, release, now=None, hasher=release_policy_hash, allow_day=None):
+    """Refuse a frontend or jobs release that changes the policy hash outside 00:30-01:30. allow_day (a reason of at
+    least 20 characters, from --allow-policy-hash-day) lets one such change through in the day: the reason is returned
+    in the checks and written by main() to logs/ops/policy-hash-day-exceptions.jsonl and the overrides list."""
     if role not in POLICY_ROLES:
         return None
     active = active_release(manager, role)
@@ -1499,10 +1501,25 @@ def check_policy_hash(manager, role, release, now=None, hasher=release_policy_ha
         raise SystemExit('policy_hash_unreadable: %s %s' % (active if not before else '', release if not after else ''))
     local = time.localtime(now)
     minute = local.tm_hour * 60 + local.tm_min
-    if before != after and not POLICY_NIGHT[0] <= minute < POLICY_NIGHT[1]:
+    day_change = before != after and not POLICY_NIGHT[0] <= minute < POLICY_NIGHT[1]
+    if day_change and allow_day:
+        if len(str(allow_day).strip()) < 20:
+            raise SystemExit('policy_hash_day_reason_too_short: give the reason in at least 20 characters')
+        return {'active': before[:12], 'release': after[:12], 'changed': True, 'day_exception': str(allow_day).strip()[:300]}
+    if day_change:
         raise SystemExit('policy_hash_changes_outside_night: %s %s -> %s %s; deploy it 00:30-01:30'
                          % (active, before[:12], release, after[:12]))
     return {'active': before[:12], 'release': after[:12], 'changed': before != after}
+
+
+def log_policy_day_exception(root, owner, command, role, release, check):
+    """One line per used --allow-policy-hash-day: who, when, which release, the hashes and the reason."""
+    path = Path(root) / 'logs/ops/policy-hash-day-exceptions.jsonl'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a', encoding='utf-8') as out:
+        out.write(json.dumps({'at': time.strftime('%Y-%m-%d %H:%M'), 'owner': owner, 'command': command, 'role': role,
+                              'release': release, 'from': check['active'], 'to': check['release'],
+                              'reason': check['day_exception']}, ensure_ascii=False) + '\n')
 
 
 def check_sql_list(manager, role, release):
@@ -1688,6 +1705,7 @@ def main():
     deploy.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a frontend release without scripts.release_gate')
     deploy.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     deploy.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
+    deploy.add_argument('--allow-policy-hash-day', metavar='REASON', help='deploy a frontend or jobs release that changes the policy hash in the day, with the reason (at least 20 characters); written to logs/ops/policy-hash-day-exceptions.jsonl and the overrides list. Regenerates the explore documents for hours.')
     deploy.add_argument('--take-stale-lock', action='store_true', help="take over another team's stale lock line (pid gone or older than 60 minutes)")
     rollback = commands.add_parser('rollback'); rollback.add_argument('role', choices=PORTS)
     rollback.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
@@ -1715,6 +1733,7 @@ def main():
     worker.add_argument('--no-prune', action='store_true', help='keep old releases after a successful deploy')
     worker.add_argument('--force-base', action='store_true', help='deploy although the release was built on a release that is no longer active')
     worker.add_argument('--lock-owner', required=True, help='your team; the status board lock section must hold your line only')
+    worker.add_argument('--allow-policy-hash-day', metavar='REASON', help='deploy a frontend or jobs release that changes the policy hash in the day, with the reason (at least 20 characters); written to logs/ops/policy-hash-day-exceptions.jsonl and the overrides list. Regenerates the explore documents for hours.')
     worker.add_argument('--take-stale-lock', action='store_true', help="take over another team's stale lock line (pid gone or older than 60 minutes)")
     worker.add_argument('--skip-gate', action='store_true', help='emergency only: deploy a worker release without scripts.release_gate')
     args = parser.parse_args()
@@ -1733,7 +1752,11 @@ def main():
                                       ('--take-stale-lock', args.take_stale_lock)) if on])
         if not args.force_base:
             manager.check_base(args.role, args.release)  # before the gate's minutes of tests; deploy checks again
-        checks = {'policy_hash': check_policy_hash(manager, args.role, args.release),
+        policy = check_policy_hash(manager, args.role, args.release, allow_day=args.allow_policy_hash_day)
+        if policy and policy.get('day_exception'):
+            log_policy_day_exception(args.root, args.lock_owner, args.command, args.role, args.release, policy)
+            log_override(args.root, args.lock_owner, args.command + ' ' + args.role, args.release, ['--allow-policy-hash-day'])
+        checks = {'policy_hash': policy,
                   'sql_list': check_sql_list(manager, args.role, args.release)}
         if not args.skip_gate:
             checks['gate'] = release_gate(args.root, args.release, commit=manager.release_commit(args.release))
