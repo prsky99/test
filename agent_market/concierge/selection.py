@@ -1040,6 +1040,7 @@ class QualityRecommender(Recommender):
         with stage('execution_history'):
             history = EXECUTION_HISTORY.read(self.store)
         ranked_at = time.perf_counter()
+        from ..pearls_public import role_lift
         choices = []
         report_resources = {}
         for raw in rows:
@@ -1093,7 +1094,11 @@ class QualityRecommender(Recommender):
             score = min(100,max(0,_number(r['report_score'] if report_at >= stamp(r['eval_at']) and r['report_score'] is not None else r['eval_score'])))
             reliability = (_number(r['health_ok_24h'])+1)/(_number(r['health_n_24h'])+2)
             latency = _number(r['report_latency'] if report_ok else r['probe_latency_ms'], float('inf'))
-            rank = (int(bool(success_at)),) + execution_standing(history.get(r['id'])) + (success_at, active_at,
+            # PM 11-18 pearl priority, stage 2: a final, then a verified pearl whose role the request names is examined
+            # right after the real gateway outcomes and before recency, so it can enter the shortlist; it still passes
+            # every safety and relevance check below. Terms that prohibit our relay get no lift (pearls_public).
+            rank = (int(bool(success_at)),) + execution_standing(history.get(r['id'])) + (
+                    role_lift(r['id'], core, _term_in), success_at, active_at,
                     (5-'ABCDF'.index(grade)) if grade else 0, score, reliability, -latency)
             choices.append((rank,r,grade,score,active_at,report_at,report_ok))
         # Verify relevance lazily in recency order. Safety and relevance still gate every candidate.

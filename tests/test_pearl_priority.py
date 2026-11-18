@@ -99,3 +99,62 @@ def test_explore_without_a_list_keeps_the_hybrid_order(catalog, monkeypatch):  #
     found = [dict(store.resource(i)) for i in ids]
     monkeypatch.setattr('agent_market.concierge.hybrid_explore.candidates', lambda *a, **k: found)
     assert [item['id'] for item in explore(store, None, 'weather forecast', None, None, False, False, 45)['items']] == ids
+
+
+# Stage 2 (PM 11-18): the selection examines a role pearl right after the real gateway outcomes and before recency.
+
+def _words(role, tool, pattern=None):
+    return pearls_public.role_words(role, tool, pattern)
+
+
+def test_role_words_come_from_the_role_name_the_tool_and_the_catalog_pattern():
+    words = _words('ip.lookup.v1', 'ip_geolocation', r'^(?:ip_lookup|geolocate_ip|lookup_ip\w*)$')
+    assert words.split() == ['ip', 'lookup', 'geolocation', 'geolocate']
+
+
+def test_role_lift_needs_a_specific_word_of_the_role(pearls):
+    from agent_market.concierge.selection import _term_in
+    pearls([{'resource_id': 1, 'role': 'weather.forecast.v1', 'level': 'final', 'tool': 'get_forecast', 'terms': 'silent',
+             'words': _words('weather.forecast.v1', 'get_forecast', r'^(?:get_weather|forecast)$')},
+            {'resource_id': 2, 'role': 'domain.lookup.v1', 'level': 'verified', 'tool': 'whois_lookup', 'terms': 'allowed'},
+            {'resource_id': 3, 'role': 'sec.filings.v1', 'level': 'final', 'tool': 'list_filings', 'terms': 'prohibits'},
+            {'resource_id': 4, 'role': 'book.search.v1', 'level': 'provisional', 'tool': 'search_books', 'terms': 'silent'}])
+    lift = pearls_public.role_lift
+    assert lift(1, ['weather', 'forecast'], _term_in) == 2
+    assert lift(2, ['whois'], _term_in) == 1                    # words from the role name and tool when none are written
+    assert lift(2, ['search', 'lookup'], _term_in) == 0         # generic words name no role
+    assert lift(1, ['books'], _term_in) == 0                    # a pearl for another role
+    assert lift(3, ['sec', 'filings'], _term_in) == 0           # terms prohibit our relay
+    assert lift(4, ['books'], _term_in) == 0                    # provisional
+    assert lift(9, ['weather'], _term_in) == 0 and lift('1', ['weather'], _term_in) == 0
+
+
+def test_no_list_lifts_nothing():
+    from agent_market.concierge.selection import _term_in
+    assert pearls_public.role_lift(1, ['weather'], _term_in) == 0
+
+
+def test_the_written_file_carries_role_words(tmp_path):
+    groups = {'roles': {'weather.forecast.v1': {'final_pearl': 7, 'members': [
+        {'resource_id': 7, 'score': 95, 'success_days': 2, 'tool': 'get_forecast', 'recent_tasks': 4, 'recent_pass_rate': 1}]}}}
+    target = tmp_path / 'p.json'
+    pearls_public.write({'rules': {'pass_mark': 85, 'confirm_days': 2}}, groups, {7: 'silent'}, target=target)
+    pearl = json.loads(target.read_text())['pearls'][0]
+    assert pearl['words'].split()[:3] == ['weather', 'forecast', 'get'] and 'current' in pearl['words'].split()
+
+
+def test_the_selection_examines_the_role_pearl_before_a_newer_listing(catalog, pearls):  # noqa: F811
+    _, front, _, add, now = catalog
+    newer = add('Forecast Now', description='Weather forecast temperature API', report_at=now - 10)
+    pearl = add('Forecast Pearl', description='Weather forecast temperature API', report_at=now - 5000)
+    other = add('Forecast Other', description='Weather forecast temperature API', report_at=now - 6000)
+    entry = {'role': 'weather.forecast.v1', 'tool': 'forecast', 'terms': 'silent',
+             'words': _words('weather.forecast.v1', 'forecast')}
+    pearls([{**entry, 'resource_id': pearl, 'level': 'final'}])
+    assert [item['id'] for item in front.rec.search('weather forecast for Oslo', kind='mcp', limit=3)] == [pearl, newer, other]
+    # A pearl whose terms prohibit our relay keeps the recency order.
+    pearls([{**entry, 'resource_id': pearl, 'level': 'final', 'terms': 'prohibits'}])
+    assert [item['id'] for item in front.rec.search('weather forecast for Bergen', kind='mcp', limit=3)] == [newer, pearl, other]
+    # A pearl of another role is not lifted for this request.
+    pearls([{'resource_id': pearl, 'role': 'book.search.v1', 'tool': 'search_books', 'level': 'final', 'terms': 'silent'}])
+    assert [item['id'] for item in front.rec.search('weather forecast for Tromso', kind='mcp', limit=3)] == [newer, pearl, other]

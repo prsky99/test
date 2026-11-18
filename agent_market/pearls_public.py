@@ -17,6 +17,7 @@ Our own fallback agents are not listed. Nothing about a visitor is read or writt
 """
 import json
 import os
+import re
 import threading
 from pathlib import Path
 
@@ -52,8 +53,16 @@ def _level(member, final_id, pass_mark, confirm_days, provisional_id=None):
     return 'provisional' if days >= 1 and rid == provisional_id else None
 
 
-def build(summary, role_groups, terms=None, generated=None, methodology=None):
-    """The public document from the official results. TERMS maps resource id -> allowed/silent/prohibits."""
+def role_words(role, tool, pattern=None):
+    """The words a request about ROLE may use: its readable name, the pearl's tool and the role's tool names
+    (scripts.role_catalog patterns, e.g. ip_lookup|ip_geolocation|geolocate_ip), lower case and space separated."""
+    names = re.findall(r'[a-z][a-z0-9_]+', str(pattern or '').lower())
+    return ' '.join(dict.fromkeys(' '.join([label(role), str(tool or '')] + names).replace('_', ' ').lower().split()))
+
+
+def build(summary, role_groups, terms=None, generated=None, methodology=None, role_tools=None):
+    """The public document from the official results. TERMS maps resource id -> allowed/silent/prohibits; ROLE_TOOLS maps
+    a role id to its tool-name pattern (scripts.role_catalog), written into each pearl's words."""
     rules = (summary or {}).get('rules') or {}
     pass_mark = rules.get('pass_mark', 85)
     confirm_days = rules.get('confirm_days', 2)
@@ -80,7 +89,8 @@ def build(summary, role_groups, terms=None, generated=None, methodology=None):
                 'score': round(float(member.get('score', member.get('best_recent_score'))), 1),
                 'passed': int(round(rate * tasks)), 'of': int(tasks), 'days': int(member.get('success_days') or 0),
                 'last_checked': str(member.get('tested') or '')[:10] or None,
-                'terms': terms.get(rid) or 'unknown'})
+                'terms': terms.get(rid) or 'unknown',
+                'words': role_words(role, member.get('tool'), (role_tools or {}).get(role))})
     by_resource = {}
     for pearl in pearls:
         key = str(pearl['resource_id'])
@@ -96,7 +106,12 @@ def build(summary, role_groups, terms=None, generated=None, methodology=None):
 
 def write(summary, role_groups, terms=None, target=None, methodology=None):
     """Build and replace the public file atomically; returns the number of pearls written."""
-    document = build(summary, role_groups, terms, methodology=methodology)
+    try:   # report_v2 and the CLI run from the repository root; the services only load() the file
+        from scripts.role_catalog import ROLES
+        role_tools = {role: (spec or {}).get('tools') for role, spec in ROLES.items()}
+    except Exception:
+        role_tools = {}
+    document = build(summary, role_groups, terms, methodology=methodology, role_tools=role_tools)
     target = Path(target or path())
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(target.suffix + '.tmp')
@@ -168,6 +183,37 @@ def pearl_rank(resource_id, tool=None, source=None):
             continue
         best = min(best, RANK[p['level']])
     return best
+
+
+# Request words that name no role on their own (PM 11-18 pearl priority, stage 2): "whois lookup" is about domains,
+# not every role whose tool is a lookup.
+GENERIC_WORDS = frozenset('''search lookup look get list find fetch check query info details data records record address name
+    names convert code current latest recent who when where what has many right now local'''.split())
+_index = {'value': None, 'by_id': {}}
+
+
+def role_lift(resource_id, terms, term_in, source=None):
+    """The selection's ordering lift for one listing (PM 11-18 stage 2): 2 for a final pearl, 1 for a verified pearl,
+    whose role the request names (a specific request word in the pearl's role words, matched by TERM_IN, the
+    selection's own word test); 0 otherwise, for a pearl whose terms prohibit our relay, and without the list.
+    It only orders the candidates; every safety and relevance check still runs on each of them."""
+    if type(resource_id) is not int:
+        return 0
+    value = load(source)
+    with _lock:
+        if _index['value'] is not value:
+            by_id = {}
+            for p in value.get('pearls', []):
+                if (isinstance(p, dict) and type(p.get('resource_id')) is int and p.get('level') in ('final', 'verified')
+                        and p.get('terms') != 'prohibits'):
+                    words = p.get('words') or role_words(p.get('role'), p.get('tool'))
+                    by_id.setdefault(p['resource_id'], []).append((2 if p['level'] == 'final' else 1, words))
+            _index.update(value=value, by_id=by_id)
+        entries = _index['by_id'].get(resource_id)
+    if not entries:
+        return 0
+    specific = [t for t in terms or () if isinstance(t, str) and t not in GENERIC_WORDS]
+    return max((lift for lift, words in entries if any(term_in(t, words) for t in specific)), default=0)
 
 
 def main(argv=None):

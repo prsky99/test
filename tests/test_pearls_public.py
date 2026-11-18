@@ -29,7 +29,7 @@ def test_levels_follow_the_official_counts():
     fx = next(p for p in doc['pearls'] if p['resource_id'] == 46160)
     assert fx == {'resource_id': 46160, 'role': 'fx.rate.v1', 'label': 'Fx rate', 'field': 'finance', 'level': 'final',
                   'final': True, 'tool': 't', 'score': 91.0, 'passed': 2, 'of': 3, 'days': 2,
-                  'last_checked': '2026-11-16', 'terms': 'silent'}
+                  'last_checked': '2026-11-16', 'terms': 'silent', 'words': 'fx rate t'}
     assert doc['schema'] == P.SCHEMA and doc['evaluator_version'] == 'dq-x'
     assert doc['by_resource']['225022'] == {'level': 'final', 'roles': ['fx.rate.v1', 'weather.forecast.v1']}
     assert doc['by_resource']['273045']['level'] == 'provisional'
