@@ -54,9 +54,14 @@ def test_rerun_measures_only_the_excluded_cases_once(tmp_path, monkeypatch):
     day = "20261117"
     (tmp_path / "retest").mkdir()
     (tmp_path / "retest" / f"{day}.jsonl").write_text("".join(json.dumps(l) + "\n" for l in first(27, 1, 2)))
-    from agent_market.necklaces import retest
+    from agent_market.necklaces import model, retest
     monkeypatch.setattr(retest, "load_cases", lambda root, slug, split: [{"case_id": c} for c in
                                                                          ("p0", "f0", "x0", "x1")])
+    # The fixture round ran v1; the real topic-evidence-brief is v2 since 11-17 13:15 (a0594a38), and gate_round rightly
+    # refuses a rerun of a round that ran an older version ("the round ran v1; the definition is now v2", exit 2).
+    # The test must not depend on the live definition's version (it failed at night 11-18 05:05 for that reason).
+    monkeypatch.setattr(model, "load_valid", lambda *a, **k: [{"slug": "topic-evidence-brief", "version": 1,
+                                                                 "slots": []}])
     asked = []
 
     def fake(defn, cases, data, split, system, base):
