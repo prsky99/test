@@ -876,10 +876,21 @@ def standing_line(entry, now=None):
     claim = verified(entry.get('quality') or {})
     if claim:
         return 'Standing: running · Verified 95% (' + str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed).'
-    cases = ((entry.get('quality') or {}).get('cumulative') or {}).get('cases')
-    # Before the claim the page never shows the claim's words or number (PM 11-14 rule, test_verified_95_only_after_110...)
-    return ('Standing: running · not marked verified yet. That needs ' + str(VERIFIED_CASES)
-            + ' retests with at most one failure' + (' (now ' + str(cases) + ').' if isinstance(cases, int) else '.'))
+    # PM 22:30 (11-18): the held-out retests that the "110 retests" sentence waited for are switched off (user
+    # decision 11-18: the gate is the connection test), so it could never be reached. A live necklace without a
+    # connection line yet says what comes next, with the number from the gate's own rules.
+    return 'Standing: running · ' + connection_pending_text() + '.'
+
+
+def connection_pending_text():
+    try:
+        from ..necklaces.gate_rules import summary
+        runs = summary()['necklace']['stage_2_connection_runs']
+    except Exception:          # noqa: BLE001 - the page never breaks on the rules module; it says no number then
+        runs = None
+    return ('its connection test (' + str(runs) + ' runs on different inputs) has not run yet; once it passes, one '
+            'connection run a day keeps it open' if isinstance(runs, int) else
+            'its connection test has not run yet; once it passes, one connection run a day keeps it open')
 
 
 # PM 13:53 decision 3 (11-15): how far a run can fall back, from the judge's snapshot (workflow team): "agentvalcon" when

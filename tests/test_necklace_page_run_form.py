@@ -21,7 +21,7 @@ def test_live_page_has_a_keyboard_form_and_a_standing_line(site):  # noqa: F811
     assert 'id="nk-q"' in html and 'for="nk-q"' in html and 'aria-describedby="nk-q-hint"' in html and ' required' in html
     assert 'name="necklace_notice" value="necklace-v1" required' in html
     assert '<button class="btn primary" type="submit">Run</button>' in html
-    assert 'Standing: running · not marked verified yet.' in html and '95%' not in html
+    assert 'Standing: running · its connection test (3 runs on different inputs) has not run yet; once it passes, one connection run a day keeps it open.' in html and '95%' not in html   # PM 22:30: the 110-retest wait could never be reached
     assert "form-action 'self'" in r.headers['content-security-policy']
     held = client.get('/necklaces/held-brief', headers={'accept': 'text/html'}).text
     assert '<form' not in held and 'Standing: paused.' in held
