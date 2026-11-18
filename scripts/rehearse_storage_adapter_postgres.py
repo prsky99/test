@@ -71,7 +71,7 @@ def _environment(root):
             # 11-18 (검색과 RAG, night tests): with no REDIS_DB a child's RedisHub took 127.0.0.1:6379 database 0, the
             # production Redis, and read production task outcomes (listing ids 1, 2, 3 ... collide with real ones); the
             # synthetic selection then came back empty at night. Children use the tests' own database number.
-            'REDIS_DB': '15'}
+            'REDIS_DB': '15', 'AGENTCON_UNDER_TEST': '1'}
 
 
 def _run(args, env, *, timeout=30, input=None):

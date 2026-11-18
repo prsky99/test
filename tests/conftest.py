@@ -166,6 +166,8 @@ def _clear_production_pointers():
     for key in [k for k in os.environ if k.startswith(_PRODUCTION_POINTERS)]:
         del os.environ[key]
     os.environ['REDIS_DB'] = _TEST_REDIS_DB
+    # 11-18: the mark that makes infra.redis_hub refuse database 0 here and in every child that keeps it
+    os.environ['AGENTCON_UNDER_TEST'] = '1'
 
 
 _clear_production_pointers()

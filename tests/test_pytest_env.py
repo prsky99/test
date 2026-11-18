@@ -59,6 +59,7 @@ def test_redis_uses_the_database_number_from_the_environment(monkeypatch):
     assert RedisHub().db == 15
     assert RedisHub(db=3).db == 3
     monkeypatch.delenv('REDIS_DB')
+    monkeypatch.delenv('AGENTCON_UNDER_TEST', raising=False)   # production: no mark, database 0 as before
     assert RedisHub().db == 0
 
 

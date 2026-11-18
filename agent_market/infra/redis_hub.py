@@ -95,6 +95,10 @@ class RedisHub:
         self.port = int(port or os.environ.get("REDIS_PORT", 6379))
         # REDIS_DB (11-15 R03): tests use their own database number on the shared server; production keeps 0
         self.db = int(os.environ.get("REDIS_DB", 0)) if db is None else db
+        # 11-18 second guard: a test process or a child it starts (marked AGENTCON_UNDER_TEST) never opens the
+        # production database 0, even when a picked environment dropped REDIS_DB. Without the mark nothing changes.
+        if self.db == 0 and os.environ.get("AGENTCON_UNDER_TEST"):
+            raise RuntimeError("redis_production_db_in_tests: set REDIS_DB to the tests' database")
         self.socket_timeout = socket_timeout
         self.socket_connect_timeout = socket_connect_timeout
 
