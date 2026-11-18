@@ -77,3 +77,11 @@ def test_gate_section_tells_rules_from_what_has_run(tmp_path, monkeypatch):
     assert 'retest · hold below at next daily check' in text and 'retest · pass rate' not in text
     assert 'No necklace is offered yet' in text
     assert "each server's tool" not in page and 'records what changed' in page
+
+
+def test_a_one_day_rule_reads_without_different_days():
+    """PM 11-18 (one daily check): with successes_on_different_days 1 the page says the score is judged on the role task."""
+    data = mp.method()
+    data = {**data, 'verified_pearl': {**data['verified_pearl'], 'successes_on_different_days': 1}}
+    text = re.sub(r'<[^>]+>', ' ', mp.page_html(data=data))
+    assert 'scores 85 or more on its role task.' in text and '1 different days' not in text

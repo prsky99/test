@@ -40,3 +40,9 @@ def test_page_says_the_real_number_of_agents():
     snap['necklaces'][0] = {**entry, 'comparison': {'slots': 3}}
     assert 'This necklace joins 3 agents in one call.' in ns.page('trip-brief', snapshot=snap, now=NOW)[1]
     assert ns.steps_sentence({'pearls': [{'required': True}]}) == ''
+
+
+def test_one_day_rule_has_no_different_days_in_the_paragraph():
+    one = {**RULES, 'verified_pearl': {'min_score': 85, 'successes_on_different_days': 1}}
+    text = ns.member_rules_text({'member_rules': one})
+    assert 'at least 85 in our test reports.' in text and 'different days' not in text

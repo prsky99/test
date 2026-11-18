@@ -138,3 +138,11 @@ def test_a_pearl_without_an_evidence_page_is_not_shown_as_having_no_evidence(pea
     other = site.get('/agent/%d' % plain, headers={'Accept': 'text/html'}).text
     assert 'No recorded evidence yet' in other and 'pearl-badge' not in other   # an agent that is not a pearl is unchanged
 
+
+
+def test_one_confirmation_day_reads_as_one_day_and_the_chip_names_the_score_not_two_days():
+    """PM 11-18 (one daily check): a pearl confirmed on one day says "1 day", not "1 different days"; more days keep the old wording."""
+    assert pb.measured_line(row(days=1)) == 'Passed 3 of 3 role tasks \u00b7 confirmed on 1 day \u00b7 last checked 2026-11-16'
+    assert pb.measured_line(row(days=3)).endswith('confirmed on 3 different days \u00b7 last checked 2026-11-16')
+    script = open('new/en/assets/pearl-ui.js', encoding='utf-8').read()
+    assert 'Scored at least 85 out of 100 on our role task tests.' in script and 'two different days' not in script

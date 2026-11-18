@@ -116,7 +116,7 @@ def best_for_role(role, base='https://agentconcierge.biz', snapshot=None):
                 + ', '.join(str(p['name'] or p['agent_id']) + ' (' + str(p['score']) + '/100)' for p in pearls) + '.')
     else:
         text = role + ': no verified pearl yet (an agent needs ' + str((snapshot.get('verified_rule') or {}).get('min_score', 85)) + \
-            '+ with an accuracy check on two different days).'
+            '+ on its role task).'
     if necklaces:
         text += ' Necklaces that run this job to the end: ' + ', '.join(n['slug'] for n in necklaces) + '.'
     text += ' Method: ' + base + METHOD_URL

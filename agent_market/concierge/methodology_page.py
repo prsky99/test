@@ -129,8 +129,9 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
     vp, fp = data.get('verified_pearl') or {}, data.get('final_pearl') or {}
     parts.append('<section aria-labelledby="mPearl"><h2 id="mPearl">4. Pearls</h2>'
                  '<p>A <strong>verified pearl</strong> scores ' + esc(vp.get('min_score', '')) + ' or more on '
-                 + esc(vp.get('successes_on_different_days', '')) + ' different days.</p>'
-                 '<p>A <strong>final pearl</strong> is ' + esc(fp.get('rule', '')) + '; '
+                 + ('its role task.</p>' if vp.get('successes_on_different_days') == 1
+                    else esc(vp.get('successes_on_different_days', '')) + ' different days.</p>')
+                 + '<p>A <strong>final pearl</strong> is ' + esc(fp.get('rule', '')) + '; '
                  + ('one place per registrable domain in a role; ' if fp.get('one_place_per_registrable_domain_in_a_role') else '')
                  + 'reranked ' + esc(fp.get('reranked', '')) + '.</p></section>')
     gate = data.get('necklace_gate') or {}

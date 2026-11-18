@@ -343,7 +343,8 @@ def provisional_note(snapshot=None):
         return PROVISIONAL_NOTE
     return ('Under verification: the agent answered our test for this step within the last ' + format(within, 'g')
             + ' days with a score of at least ' + format(low, 'g') + ', below the verified-pearl bar (' + format(high, 'g')
-            + ' or more on ' + format(days, 'g') + ' different days). When a verified pearl is available for the step, '
+            + (' or more on its role task' if days == 1 else ' or more on ' + format(days, 'g') + ' different days')
+            + '). When a verified pearl is available for the step, '
             'it takes the place.')
 
 
@@ -451,7 +452,7 @@ def member_rules_text(snapshot=None):
     score, days = _rule_number(verified.get('min_score')), _rule_number(verified.get('successes_on_different_days'))
     if score is not None and days is not None:
         sentences.append('A step is led by a verified pearl when its agent scored at least ' + format(score, 'g')
-                         + ' in our test reports on ' + format(days, 'g') + ' different days.')
+                         + (' in our test reports.' if days == 1 else ' in our test reports on ' + format(days, 'g') + ' different days.'))
     provisional = rules.get('provisional') if isinstance(rules.get('provisional'), dict) else {}
     p_score, within, reports = (_rule_number(provisional.get('min_score')), _rule_number(provisional.get('within_days')),
                                 _rule_number(provisional.get('reports')))

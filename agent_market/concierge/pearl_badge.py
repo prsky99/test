@@ -121,4 +121,4 @@ def measured_line(row):
     """The one measured sentence, nothing else: tasks passed, days confirmed, last check."""
     date = row['last_checked']
     return ('Passed ' + str(row['passed']) + ' of ' + str(row['of']) + ' role tasks · confirmed on '
-            + str(row['days']) + ' different days · last checked ' + date)
+            + ('1 day' if row['days'] == 1 else str(row['days']) + ' different days') + ' · last checked ' + date)

@@ -159,3 +159,10 @@ def test_the_kept_notes_file_reads_strings_and_objects_and_rejects_odd_links():
                                                                   'https://data.norge.no/nlod/en/2.0',
                                                                   'https://api.met.no/doc/License']
     assert ns.sources_note({'slug': 'topic-evidence-brief'}).startswith('What each step uses')
+
+
+def test_the_provisional_note_with_a_one_day_rule(snapshot):  # noqa: F811
+    one = {**RULES, 'verified_pearl': {'min_score': 85, 'successes_on_different_days': 1}}
+    note = ns.provisional_note({'member_rules': one})
+    assert '(85 or more on its role task). When a verified pearl is available for the step, it takes the place.' in note
+    assert 'different days' not in note

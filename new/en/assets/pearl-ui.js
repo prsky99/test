@@ -124,7 +124,7 @@
       if(!level||!meta||q('.pearl-chip',card))return;
       const chip=document.createElement('span');chip.className='badge success pearl-chip';
       chip.textContent=level==='final'?'Final pearl':'Verified pearl';
-      chip.title='Passed our role task tests on two different days. See /methodology for how we test.';
+      chip.title='Scored at least 85 out of 100 on our role task tests. See /methodology for how we test.';
       meta.prepend(chip);
       if(pearlDirect.includes(card.dataset.id)){const note=document.createElement('span');note.className='caption pearl-direct';note.textContent=pearlDirectNote;chip.after(note);}
     });

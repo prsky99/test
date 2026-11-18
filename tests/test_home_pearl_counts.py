@@ -94,9 +94,14 @@ def test_the_script_fills_the_numbers_once_and_shows_the_necklace_card_from_one_
 def test_about_explains_pearls_and_necklaces_in_plain_words_with_the_real_rules():
     html = (PAGES / 'about.html').read_text(encoding='utf-8')
     assert html.count('What are pearls?') == 1 and html.count('What are necklaces?') == 1
-    for fact in ('at least 85 out of 100', 'two different days', 'at least 57 of 60 test runs pass (95%)', '95th percentile',
+    for fact in ('at least 85 out of 100 on its role task', 'at least 57 of 60 test runs pass (95%)', '95th percentile',
                  'only the values we measured'):
         assert fact in html, fact
+    # PM 11-18 (one daily check): the two-day wording is gone from every page that carries the About text
+    for page in sorted(PAGES.glob('*.html')):
+        text = page.read_text(encoding='utf-8')
+        assert 'two different days' not in text and 'Two different days' not in text and 'two separate days' not in text, page.name
+    assert 'Checked against known answers' in html
     assert html.count('href="https://agentconcierge.biz/methodology"') >= 2
     assert 'An agent can be a pearl for more than one job.' in html                          # 86011 is a pearl for three jobs (PM 11-18)
     assert 'Steps have a fallback agent where one has passed our tests' in html and 'Each step has a fallback agent' not in html
