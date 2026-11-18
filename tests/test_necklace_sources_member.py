@@ -25,4 +25,6 @@ def test_the_website_trust_sentence_has_no_fixed_standing_for_external_members()
     assert '{member:52559@domain.lookup.v1}' in text and '{member:39800@dns.mail_auth.v1}' in text
     assert 'verified third-party' not in text and 'DKIM is not checked' in text
     rendered = ns.sources_note(WTB, {'agents': {}})
-    assert '{member:' not in rendered and rendered.count('under verification') >= 4
+    # PM 21:33 (11-18): the sentence no longer claims our own lookups take over ("ours is under verification");
+    # the fallbacks are drawn from approvals.json under the agents
+    assert '{member:' not in rendered and rendered.count('under verification') >= 2 and 'when it fails' not in rendered

@@ -112,13 +112,14 @@ def test_stage_passes_coordinates_to_the_feed():
     seen = {}
 
     def caller(member, args, timeout_s):
-        if member["tool"] == "geocode_address":
+        if member["tool"] in ("geocode_address", "geocode"):      # the location step (37322 leads it since 11-18)
             return {"results": [{"lat": 35.658581, "lon": 139.745433, "name": "Tokyo Tower"}]}
         seen[member["resource_id"]] = args
         return {"count": 1, "quakes": [quake(SURE)]}
     defn = model.load("agent_market/necklaces/definitions/quakes-near-address.json")
     result = runner.Runner(caller).run(defn, {"address": "Tokyo Tower, Minato, Tokyo, Japan"})
-    assert seen[37322]["lat"] == 35.658581 and seen[37322]["lon"] == 139.745433 and seen[37322]["radius_km"] == 1000
+    # 11-18 21:2x: 178542 leads quakes (37322 leads location; one lead per failure domain); it reads the point
+    assert seen[178542]["near"] == "35.658581,139.745433" and seen[178542]["radius_km"] == 1000
     assert result["output"]["quakes"]["answers"][0]["events"][0]["mag"] == 5.6
 
 

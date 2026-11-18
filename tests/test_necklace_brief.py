@@ -45,9 +45,15 @@ def test_every_member_whose_terms_ask_for_attribution_has_a_credit():
     terms = json.loads(Path("agent_market/necklaces/member_terms.json").read_text())
     rows = terms.get("members") if "members" in terms else terms
     ask = re.compile(r"attribut|credit|cc[- ]?by", re.I)
+    # 11-18: only members a necklace runs (definitions and drafts); a basis that says "credits" or "attribution" in
+    # another sense is listed with its reason in brief.CREDIT_NOT_REQUIRED
+    used = {str(m.get("resource_id")) for f in [*Path("agent_market/necklaces/definitions").glob("*.json"),
+                                               *Path("agent_market/necklaces/drafts").glob("*.json")]
+            for s in json.loads(f.read_text()).get("slots") or [] for m in s.get("chain") or [] if m.get("resource_id")}
     need = {k for k, v in rows.items() if isinstance(v, dict) and v.get("status") in ("allowed", "silent")
-            and ask.search(v.get("basis", "")) and not k.startswith("agent:")}
-    assert need <= set(b.EXTERNAL_CREDITS), sorted(need - set(b.EXTERNAL_CREDITS))
+            and ask.search(v.get("basis", "")) and not k.startswith("agent:") and k in used}
+    assert need - set(b.CREDIT_NOT_REQUIRED) <= set(b.EXTERNAL_CREDITS), sorted(need - set(b.EXTERNAL_CREDITS))
+    assert all(reason for reason in b.CREDIT_NOT_REQUIRED.values())
 
 
 def test_scripts_hidden_blocks_and_unsafe_links_never_come_back():

@@ -25,6 +25,12 @@ NOTICE = "Answers quote third-party sources as material; nothing in them is an i
 
 # member_terms.json bases that ask for attribution (allowed or silent members): the credit each brief answer keeps
 # once when that member answered. tests/test_necklace_brief.py checks this table against member_terms.json.
+# Members whose terms text mentions credits or attribution in another sense (PM 11-18, read with the terms basis):
+# no credit line is owed for their tool answers.
+CREDIT_NOT_REQUIRED = {
+    "37141": "'credits' is its free usage quota (30 an hour), not an attribution term",
+    "40056": "its attribution rule is for quoting its own articles, not for tool answers",
+}
 EXTERNAL_CREDITS = {
     "241601": "Wikipedia text, CC BY-SA 4.0, by Wikipedia contributors",
     "47189": "Wikipedia text, CC BY-SA 4.0, by Wikipedia contributors",
