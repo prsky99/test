@@ -105,6 +105,17 @@ def preview_tests(entry):
     return None
 
 
+PROMO_KEYS = ('quality', 'cost', 'completion', 'comparison')
+
+
+def public_view(entry):
+    """What the public surfaces may print about an entry (PM 11-18 17:3x): for a preview necklace no accuracy, speed, cost or
+    comparison figure (it has no measured round yet), so those blocks are dropped; offered() still reads the original."""
+    if isinstance(entry, dict) and entry.get('status') == 'preview':
+        return {k: v for k, v in entry.items() if k not in PROMO_KEYS}
+    return entry
+
+
 def own_members(entry, now=None):
     """(counted, label, until) of the time-limited exception for necklaces built with our own agents (PM 11-18 16:55,
     entry['own_members'] from the judge), or None: a whole number of members 1..10, a label, and a last day (Asia/Seoul)
@@ -122,9 +133,16 @@ def own_members(entry, now=None):
     return (counted, label.strip(), str(until)) if (now or datetime.now(timezone.utc)) < last else None
 
 
+def has_preview(entry):
+    """True when the judge marked the entry as a preview: entry['preview'] with gate_passed false (workflow team 11-18 17:2x).
+    Test counts are optional: without a measured round the block has only the note and the page shows no number."""
+    block = entry.get('preview') if isinstance(entry, dict) and isinstance(entry.get('preview'), dict) else {}
+    return block.get('gate_passed') is False
+
+
 def opened(entry):
     """True once the necklace was ever shown as open: it passed the gate, or it runs as a preview (never both claims)."""
-    return bool(_time(entry.get('gate_passed_at'))) or (entry.get('status') in ('preview', 'held') and preview_tests(entry) is not None)
+    return bool(_time(entry.get('gate_passed_at'))) or (entry.get('status') in ('preview', 'held') and has_preview(entry))
 
 
 def offered(entry, now=None):
@@ -139,8 +157,8 @@ def offered(entry, now=None):
     # PM 16:03 (user instruction d4670360): two members that answer, verified pearls or provisional ones, as the judge
     # marks them (standing); two verified pearls is the aim, not the condition. The answer gate below is unchanged.
     members = sum(1 for p in pearls if member_status(p) in MEMBER_LABELS) + (own_members(entry, now) or (0,))[0]
-    # a preview necklace runs without the gate; it needs recorded test runs instead and never carries a gate claim
-    cleared = (bool(_time(entry.get('gate_passed_at'))) if entry.get('status') == 'live' else preview_tests(entry) is not None)
+    # a preview necklace runs without the gate; the judge's preview block (gate_passed false) stands in for it and never carries a gate claim
+    cleared = (bool(_time(entry.get('gate_passed_at'))) if entry.get('status') == 'live' else has_preview(entry))
     return (cleared and members >= 2 and all(map(_alternates_ok, pearls))
             and isinstance(delta, (int, float)) and delta > 0
             and tested is not None and now - tested <= timedelta(hours=FRESH_HOURS))
@@ -156,6 +174,12 @@ def by_slug(slug, snapshot=None):
 def live(snapshot=None, now=None):
     """Open necklaces that passed the gate; a preview is not promoted in recommendation answers."""
     return [e for e in (snapshot or load()).get('necklaces') or [] if isinstance(e, dict) and e.get('status') == 'live' and offered(e, now)]
+
+
+def available(snapshot=None, now=None):
+    """Necklaces that can be run now: live ones and previews (the tool lists), never promoted as results of a question."""
+    return [e for e in (snapshot or load()).get('necklaces') or []
+            if isinstance(e, dict) and e.get('status') in ('live', 'preview') and offered(e, now)]
 
 
 def tool_name(slug):
@@ -468,7 +492,8 @@ def public_member_id(member):
 
 def public_item(entry, base='https://agentconcierge.biz', now=None):
     """The /api/necklaces entry: what a person or an agent needs to choose and run it; no internal fields."""
-    quality, cost, completion = entry.get('quality') or {}, entry.get('cost') or {}, entry.get('completion') or {}
+    shown = public_view(entry)
+    quality, cost, completion = shown.get('quality') or {}, shown.get('cost') or {}, shown.get('completion') or {}
     item = {'slug': entry['slug'], 'name': entry.get('name'), 'summary': entry.get('summary'),
             **({'sources': sources_note(entry)} if sources_note(entry) else {}),
             **({'attribution': attribution(entry)} if attribution(entry) else {}),
@@ -504,8 +529,8 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
         item['fallback'] = fallback(entry)
     if scope_notice(entry):
         item['scope_notice'] = scope_notice(entry)
-    if comparison(entry):
-        item['comparison'] = public_comparison(comparison(entry))
+    if comparison(shown):
+        item['comparison'] = public_comparison(comparison(shown))
     found = notice(entry, base)
     if found:
         item['notice'] = {'title': found[0], 'text': found[1], **found[2]}
@@ -1009,6 +1034,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
         return 301, '/necklaces/' + entry['replaced_by']
     esc = lambda value: html.escape(str(value), quote=True)
     item = public_item(entry, base, now)
+    view = public_view(entry)               # no accuracy, speed or comparison figure on a preview page
     runs = offered(entry, now)
     att = attribution(entry)
     lead = ' '.join(x for x in ((entry.get('summary') or ''), sources_note(entry) or '') if x)
@@ -1024,7 +1050,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
              + ('<p class="muted necklace-fallback">' + esc(fallback_line(entry)) + '</p>' if fallback_line(entry) else '')
              + ('<p class="necklace-free">' + esc(FREE_NOW) + '</p>' if free_now(entry) and offered(entry, now) else '')
              + (('<p class="necklace-why">' + esc(WHY) + (' ' + esc(steps_sentence(entry)) if steps_sentence(entry) else '') + '</p>'
-                 + ('<p class="muted necklace-measured">' + esc(comparison_line(entry)) + '</p>' if comparison_line(entry) else ''))
+                 + ('<p class="muted necklace-measured">' + esc(comparison_line(view)) + '</p>' if comparison_line(view) else ''))
                 if offered(entry, now) else '')]
     if run is not None:
         parts.append(result_section(run[1], esc))
@@ -1038,12 +1064,12 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
         parts.append('<section class="notice" role="status"><h2>' + esc(title) + '</h2><p>'
                      + esc(text[len(title):].strip()) + '</p>' + link + '</section>')
     facts = []
-    if single_line(entry.get('quality')):
-        facts.append(('Against its best single member', single_line(entry.get('quality'))))
-    window = tested(entry.get('quality') or {})
+    if single_line(view.get('quality')):
+        facts.append(('Against its best single member', single_line(view.get('quality'))))
+    window = tested(view.get('quality') or {})
     if window:
         facts.append(('Recent test success', str(window[0]) + '/' + str(window[1]) + ' cases (last 7 days)'))
-    claim = verified(entry.get('quality') or {})
+    claim = verified(view.get('quality') or {})
     if claim:  # only after 110 cumulative retests with at most one failure (PM 11-14)
         facts.append(('Verified 95%', str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed'))
     cost = item['cost']
@@ -1172,11 +1198,12 @@ NOTICE_SENTENCE = ('Your input is sent to the agents listed in necklace_details;
 
 def tools(snapshot=None, now=None):
     """MCP tools for offered necklaces, plus necklace_details when there is at least one (none while nothing is live)."""
-    rows = live(snapshot, now)
+    rows = available(snapshot, now)
     if not rows:
         return []
     out = []
-    for e in rows:
+    for original in rows:
+        e = {**public_view(original), 'slug': original['slug']}
         window = tested(e.get('quality') or {})
         claim = verified(e.get('quality') or {})
         evidence = (' Verified 95%: ' + str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed.' if claim
@@ -1278,7 +1305,8 @@ def example_arguments(schema, example=None):
 def skills(base='https://agentconcierge.biz', snapshot=None, now=None):
     """A2A card skills for offered necklaces (none while nothing is live)."""
     out = []
-    for e in live(snapshot, now):
+    for original in available(snapshot, now):
+        e = public_view(original)
         example = 'run necklace ' + e['slug'] + ' ' + json.dumps(example_arguments(e.get('input_schema'), example_input(e)),
                                                                    separators=(',', ':'))
         out.append({'id': skill_id(e['slug']), 'name': e.get('name') or e['slug'],

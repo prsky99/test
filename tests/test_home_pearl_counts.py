@@ -141,3 +141,53 @@ def test_a_preview_necklace_is_counted_apart_from_the_open_ones(tmp_path, monkey
     script = open('new/en/assets/pearl-ui.js', encoding='utf-8').read()
     assert 'necklaces_preview' in script and "' open \u00b7 '" in script and "' preview'" in script
 
+
+
+def test_a_preview_without_measured_rounds_shows_the_note_and_no_number():
+    """Workflow team 11-18 17:2x (PM): no v2 round ran today, so entry['preview'] is only {note, gate_passed: false}: no tests and no
+    rounds, not even a zero. The necklace still runs and is counted as a preview; the page and the API draw no number."""
+    from datetime import datetime, timezone
+    from tests.test_necklace_surface import necklace
+    now = datetime.now(timezone.utc)
+    note = 'Preview — test runs in progress'
+    entry = necklace('website-trust', status='preview', gate_passed_at=None, preview={'note': note, 'gate_passed': False})
+    assert ns.has_preview(entry) and ns.offered(entry, now) and ns.preview_count({'necklaces': [entry]}, now) == 1
+    assert ns.live_count({'necklaces': [entry]}, now) == 0
+    item = ns.public_item(entry, now=now)
+    assert item['preview'] == {'note': note, 'gate_passed': False} and 'tests' not in item['preview']
+    assert ns.standing_line(entry, now) == 'Standing: ' + note + '.'
+    status, page = ns.page('website-trust', snapshot={'necklaces': [entry]}, now=now)
+    assert status == 200 and note in page and 'test runs passed so far' not in page and 'passed our gate' not in page
+    # a preview block that does not say gate_passed false is not a preview; a held preview keeps its page but is not offered
+    assert not ns.has_preview(dict(entry, preview={'note': note})) and not ns.offered(dict(entry, preview={'note': note}), now)
+    held = dict(entry, status='held', held_reason='own_members_unapproved')
+    assert not ns.offered(held, now) and ns.page('website-trust', snapshot={'necklaces': [held]}, now=now)[0] == 200
+    assert ns.preview_count({'necklaces': [held]}, now) == 0
+
+
+def test_a_preview_necklace_prints_no_accuracy_speed_or_comparison_figure_anywhere():
+    """PM 17:3x condition: a preview has no measured round, so no promo figure (accuracy, time, tokens, comparison) comes out of
+    the page, the API item, the MCP tool list, the A2A skills or the llms.txt section, even when the entry still carries the blocks."""
+    from datetime import datetime, timezone
+    from tests.test_necklace_surface import necklace
+    now = datetime.now(timezone.utc)
+    note = 'Preview — test runs in progress'
+    side = lambda a: {'accuracy': a, 'seconds': 3.2, 'tokens': 1200, 'calls': 4}
+    entry = necklace('website-trust', status='preview', gate_passed_at=None, preview={'note': note, 'gate_passed': False},
+                     comparison={'cases': 30, 'measured_at': '2026-11-17', 'with': side(0.9), 'without': side(0.7)})
+    assert ns.comparison(entry) is not None and ns.offered(entry, now)           # the figures exist in the entry
+    snap = {'necklaces': [entry]}
+    item = ns.public_item(entry, now=now)
+    assert 'comparison' not in item and not (set(item['quality']) & {'success_rate', 'best_single_rate', 'delta_pp', 'passed', 'cases'})
+    assert item['cost'] == {} and item['completion'] == {}
+    status, page = ns.page('website-trust', snapshot=snap, now=now)
+    assert status == 200 and note in page
+    for text in ('Typical time', 'Recent test success', 'Against its best single member', 'Recent completion', 'Without AgentValCon fallbacks', 'Last retest', '1200', '90%', '3.2 s', 'Verified 95%'):   # the entry's own figures never appear
+        assert text not in page, text
+    tool = [t for t in ns.tools(snap, now) if t['name'] == 'necklace_website_trust'][0]        # the preview runs from the tool list
+    skill = ns.skills(snapshot=snap, now=now)[0]
+    for text in ('Recent tests', 'measured', '1200', '90%', 'Verified 95%'):
+        assert text not in tool['description'], text
+        assert text not in skill['description'], text
+    assert 'website-trust' not in ns.llms_section(snapshot=snap, now=now)          # not promoted in the guide text
+    assert ns.live(snap, now) == [] and [e['slug'] for e in ns.available(snap, now)] == ['website-trust']
