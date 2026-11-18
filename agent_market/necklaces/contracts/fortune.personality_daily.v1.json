@@ -1,5 +1,5 @@
 {
-  "id": "fortune.mbti_daily.v1",
+  "id": "fortune.personality_daily.v1",
   "role": "Today's 16-type personality fortune: the Western sign and the saju day master against today's day pillar, blended with the four-letter type by fixed rules (same inputs and date give the same text); for entertainment",
   "input_schema": {
     "type": "object",
@@ -184,5 +184,5 @@
       "today": "2026-11-18"
     }
   ],
-  "status": "draft (workflow 11-17, BRIEF reports/mbti-fortune-necklace-2026-11-17; necklace path frozen until 11-20)"
+  "status": "draft (workflow 11-17; renamed 11-18 by PM 16:47 so no public text names a test publisher)"
 }

@@ -1,17 +1,12 @@
 {
-  "slug": "mbti-fortune-brief",
+  "slug": "personality-fortune-brief",
   "version": 1,
   "status": "candidate",
-  "name": "16-type personality fortune",
-  "summary": "For entertainment; not advice. From a four-letter personality type code and an age: a sample birth date drawn from that age, its Korean lunar date, Western Sun sign and three saju pillars, and today's reading that blends them with the four letters by fixed rules (our own mapping for fun). The birth date is a sample drawn from your age, not your real birthday. MBTI is a trademark of The Myers-Briggs Company; not affiliated.",
+  "name": "Fortune by personality type",
+  "summary": "Today's fortune from your birth date (Korean saju and Western sun sign), read through your four-letter personality type (16 types). For entertainment; not advice.",
   "input_schema": {
     "type": "object",
     "properties": {
-      "mbti": {
-        "type": "string",
-        "pattern": "^[EIei][SNsn][TFtf][JPjp](-[ATat])?$",
-        "description": "a four-letter 16-type code such as INTJ (-A or -T is ignored)"
-      },
       "age": {
         "type": "integer",
         "minimum": 0,
@@ -21,15 +16,20 @@
       "today": {
         "type": "string",
         "pattern": "^20[0-9]{2}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$"
+      },
+      "type": {
+        "type": "string",
+        "pattern": "^[EIei][SNsn][TFtf][JPjp](-[ATat])?$",
+        "description": "a four-letter personality type code such as INTJ or ENFP"
       }
     },
     "required": [
-      "mbti",
+      "type",
       "age"
     ],
     "additionalProperties": false
   },
-  "input_help": "mbti: a four-letter type code (e.g. INTJ); age: full years 0-110; today defaults to today in Asia/Seoul. The birth date is a sample drawn from your age, not your real birthday.",
+  "input_help": "type: a four-letter personality type code such as INTJ or ENFP; age: full years 0-110; today defaults to today in Asia/Seoul. The birth date is a sample drawn from your age, not your real birthday.",
   "budget_ms": {
     "total": 5000,
     "slot": 1200
@@ -37,7 +37,7 @@
   "slots": [
     {
       "slot": "profile",
-      "contract": "persona.mbti_profile.v1",
+      "contract": "persona.personality_profile.v1",
       "required": true,
       "fanout": 1,
       "chain": [
@@ -50,15 +50,15 @@
           "kind": "agentcon",
           "resource_id": null,
           "state": "planned",
-          "agent_id": "mbti-profile",
+          "agent_id": "personality-profile",
           "tool": "get_personality_sample_profile",
           "upstream": [
             "sample-rule"
           ],
           "input_map": {
-            "mbti": "{{input.mbti}}",
             "age": "{{input.age}}",
-            "today": "{{input.today}}"
+            "today": "{{input.today}}",
+            "type": "{{input.type}}"
           }
         }
       ]
@@ -99,7 +99,7 @@
       "required": true,
       "fanout": 1,
       "depends_on": [
-        "calendar"
+        "profile"
       ],
       "chain": [
         {
@@ -117,7 +117,7 @@
             "meeus-ephemeris"
           ],
           "input_map": {
-            "birth_date": "{{slot.calendar.solar_date}}",
+            "birth_date": "{{slot.profile.sample_birth_date}}",
             "today": "{{slot.profile.today}}"
           }
         }
@@ -129,7 +129,7 @@
       "required": true,
       "fanout": 1,
       "depends_on": [
-        "calendar"
+        "profile"
       ],
       "chain": [
         {
@@ -147,7 +147,7 @@
             "kasi-rules"
           ],
           "input_map": {
-            "birth_date": "{{slot.calendar.solar_date}}",
+            "birth_date": "{{slot.profile.sample_birth_date}}",
             "today": "{{slot.profile.today}}"
           }
         }
@@ -155,10 +155,11 @@
     },
     {
       "slot": "synthesis",
-      "contract": "fortune.mbti_daily.v1",
+      "contract": "fortune.personality_daily.v1",
       "required": true,
       "fanout": 1,
       "depends_on": [
+        "profile",
         "western",
         "saju"
       ],
@@ -172,7 +173,7 @@
           "kind": "agentcon",
           "resource_id": null,
           "state": "planned",
-          "agent_id": "mbti-fortune",
+          "agent_id": "personality-fortune",
           "tool": "get_personality_daily_reading",
           "upstream": [
             "rule-table"
@@ -194,19 +195,17 @@
     "kind": "merge-v1",
     "rules": [
       "profile first: the sample birth date makes the given age today (today - (age+1) years < date <= today - age years) and is drawn by the contract's seed rule, so the same input on the same day gives the same date and words",
-      "calendar, western and saju read the sample date (no hour: three pillars); synthesis blends them with the four letters by the mbti-fortune agent's fixed rule table (our own mapping for fun); no model writes it",
-      "every answer starts with 'For entertainment; not advice.', says the birth date is a sample, names the trademark holder, and never states or advises on health, money, legal or medical matters, nor uses frightening words",
+      "western and saju read the sample date directly and calendar converts it (no hour: three pillars); synthesis blends them with the four letters by the personality-fortune agent's fixed rule table (our own mapping for fun); no model writes it",
+      "every answer starts with 'For entertainment; not advice.', says the birth date is a sample, says the four-letter types are used descriptively and not affiliated with any test publisher, and never states or advises on health, money, legal or medical matters, nor uses frightening words",
       "only the type and the age are received; the raw input never reaches logs, the ledger, evidence or cache keys"
     ]
   },
-  "answer_set": "mbti-fortune-brief-v1",
-  "min_pearls_answered": 0,
+  "answer_set": "personality-fortune-brief-v1",
   "demand": "A direct user request (11-17). Measured: external asks 0 in 30 days (Explore queries are not stored as text and cannot be counted), catalog supply 9 (no x402); public interest: the four-letter types as a common language among Gen Z in Korea and Japan (Korea Times 2026-04, The Star 2025-10-10) (growth team, 11-17).",
   "probe_input": {
-    "mbti": "INTJ",
-    "age": 30
+    "age": 30,
+    "type": "INTJ"
   },
-  "notes": "Draft (workflow 11-17, BRIEF reports/mbti-fortune-necklace-2026-11-17). Five roles, our offline substitutes in every step (mbti-profile and mbti-fortune are new, agent team agent-team/mbti e692d846; korean-lunar, western-sign and saju-pillars are shared with daily-fortune-brief, unchanged). Outside members: none yet (search and RAG's survey due 11-18 18:00). Grading: necklaces/mbti_gate.grade_mbti_task (sample in the age range and by the contract's rule, KASI facts of the sample date, the four axes, the notices, a second run equal). Lands after the 11-20 v4 verdict.",
-  "trademark_notice": "MBTI is a trademark of The Myers-Briggs Company; not affiliated.",
+  "notes": "Draft (workflow 11-17, BRIEF reports/personality-fortune-necklace-2026-11-17). Five roles, our offline substitutes in every step (personality-profile and personality-fortune are new, agent team the agent team's 16-type branch e692d846; korean-lunar, western-sign and saju-pillars are shared with daily-fortune-brief, unchanged). Outside members: none yet (search and RAG's survey due 11-18 18:00). Grading: necklaces/mbti_gate.grade_mbti_task (sample in the age range and by the contract's rule, KASI facts of the sample date, the four axes, the notices, a second run equal). Lands after the 11-20 v4 verdict. Trademark: the public text never names a personality-test publisher; the reading says 'Four-letter personality types are used descriptively; not affiliated with any test publisher.' (PM 16:47).",
   "sample_notice": "The birth date is a sample drawn from your age, not your real birthday."
 }

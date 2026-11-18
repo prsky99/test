@@ -1,4 +1,4 @@
-"""mbti-fortune-brief gate (PM 11-17): sample date in the age range and by the contract's rule, the KASI facts of that
+"""personality-fortune-brief gate (PM 11-17, renamed 11-18): sample date in the age range and by the contract's rule, the KASI facts of that
 date, the four axes, the notices and reproducibility. Synthetic cases only."""
 import json
 from datetime import date
@@ -27,7 +27,7 @@ def test_the_sample_follows_the_rule_is_reproducible_and_stays_in_range():
 
 
 def test_the_contract_states_the_same_rule():
-    c = json.loads(Path("agent_market/necklaces/contracts/persona.mbti_profile.v1.json").read_text())
+    c = json.loads(Path("agent_market/necklaces/contracts/persona.personality_profile.v1.json").read_text())
     assert "mbti-fortune|v1|" in c["sample_rule"] and "seed mod" in c["sample_rule"]
     assert c["output_schema"]["properties"]["sample_notice"]["const"] == g.SAMPLE_NOTICE
 
@@ -58,7 +58,7 @@ def test_the_reading_needs_the_notices_and_four_axes_from_the_input():
 
 TODAY = date(2026, 11, 18)
 SAMPLE = g.sample_birth_date("INTJ", 30, TODAY).isoformat()
-CASE = {"case_id": "synthetic:mbti-1", "input": {"mbti": "INTJ", "age": 30, "today": TODAY.isoformat()},
+CASE = {"case_id": "synthetic:personality-1", "input": {"type": "INTJ", "age": 30, "today": TODAY.isoformat()},
         "truth": {"sample_birth_date": SAMPLE, "lunar_date": "1996-01-01", "is_leap_month": False, "sign": "Leo",
                   "year_pillar": "Byeong-ja 丙子", "month_pillar": "Gap-o 甲午", "day_pillar": "Gap-ja 甲子",
                   "today_day_pillar": "Gyeong-o 庚午"}}
@@ -89,3 +89,24 @@ def test_the_whole_task_grader():
     changed = output(synthesis={"answers": [reading(answer=reading()["answer"] + " Extra.")]})
     notes = {}
     assert not g.grade_mbti_task(CASE, output(), again=changed, notes=notes) and "not_reproducible" in notes["wrong"]
+
+
+def test_no_public_text_names_mbti():
+    """PM 16:47 (11-18): the address, the tool, the definition's public fields, the contracts' ids and schema names and
+    the notice the reading must carry hold no 'mbti' (case-insensitive). The seed string inside the contract's sample
+    rule is internal (it fixes the sample dates) and is the one exception."""
+    import re
+    d = json.loads(Path("agent_market/necklaces/drafts/personality-fortune-brief-v1.json").read_text())
+    public = {k: d.get(k) for k in ("slug", "name", "summary", "input_schema", "input_help", "probe_input", "scope_notice",
+                                    "synthesis", "answer_set")}
+    public["slots"] = [{"slot": s["slot"], "contract": s["contract"],
+                        "chain": [{k: m.get(k) for k in ("agent_id", "resource_id", "tool", "input_map")} for m in s["chain"]]}
+                       for s in d["slots"]]
+    assert "mbti" not in json.dumps(public, ensure_ascii=False).lower()
+    assert "trademark_notice" not in d
+    for name in ("persona.personality_profile.v1", "fortune.personality_daily.v1"):
+        c = json.loads(Path(f"agent_market/necklaces/contracts/{name}.json").read_text())
+        c.pop("sample_rule", None)
+        assert c["id"] == name and "mbti" not in json.dumps(c, ensure_ascii=False).lower()
+    assert not re.search("(?i)mbti", g.TRADEMARK) and "not affiliated" in g.TRADEMARK
+    assert not list(Path("agent_market/necklaces/contracts").glob("*mbti*"))

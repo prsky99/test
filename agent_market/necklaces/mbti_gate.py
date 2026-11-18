@@ -1,7 +1,7 @@
-"""mbti-fortune-brief gate (PM 11-17, user request; BRIEF reports/mbti-fortune-necklace-2026-11-17/BRIEF.md).
+"""personality-fortune-brief gate (PM 11-17, user request; renamed 11-18 by PM 16:47: no public text names a test publisher).
 
 Grading is independent of the code that answers: the sample birth date is recomputed here from the rule written in
-the contract (persona.mbti_profile.v1 sample_rule), and the computed facts of that date (Korean lunar date, leap
+the contract (persona.personality_profile.v1 sample_rule), and the computed facts of that date (Korean lunar date, leap
 month, Sun sign, year/month/day pillars, today's day pillar) come from the answer set (KASI rules), not from our
 agents. The reading is checked for its structure, the banned words and the notices only, with the daily fortune's
 gate module (necklaces/fortune_rules.py) plus the 16-type notices.
@@ -14,7 +14,8 @@ from datetime import date, timedelta
 from . import fortune_rules as fr
 
 SAMPLE_NOTICE = "The birth date is a sample drawn from your age, not your real birthday."
-TRADEMARK = "MBTI is a trademark of The Myers-Briggs Company; not affiliated."
+TRADEMARK = ("Four-letter personality types are used descriptively; not affiliated with any test publisher. "
+             "For entertainment; not advice.")   # PM 16:47 (11-18)
 OWN_MAPPING = "our own mapping for fun"
 AXES = (("energy", "EI"), ("information", "SN"), ("decisions", "TF"), ("structure", "JP"))
 SUPPORTED = (date(1912, 1, 1), date(2100, 12, 31))       # the Korean lunar calendar's supported range (BRIEF 3)
@@ -73,7 +74,7 @@ def _first(slot_out, key):
 
 
 def grade_mbti_task(case: dict, output: dict, again: dict | None = None, notes: dict | None = None) -> bool:
-    """CASE input: mbti, age, today; truth: sample_birth_date (from the rule) and the KASI facts of that date.
+    """CASE input: type, age, today; truth: sample_birth_date (from the rule) and the KASI facts of that date.
     The answer passes when its sample date is in the age range and equals the rule's, its facts match the truth, the
     reading passes check_mbti_synthesis, and a second run of the same input (AGAIN) gives the same date and words."""
     notes = notes if notes is not None else {}
@@ -99,7 +100,7 @@ def grade_mbti_task(case: dict, output: dict, again: dict | None = None, notes: 
         wrong += fact_notes.get("wrong", [])
     synth = (output or {}).get("synthesis") or {}
     body = (synth.get("answers") or [synth])[0] if isinstance(synth, dict) else {}
-    problems = check_mbti_synthesis(body, inp["mbti"])
+    problems = check_mbti_synthesis(body, inp["type"])
     if problems:
         wrong.append("synthesis:" + "|".join(problems))
     if again is not None:

@@ -1,15 +1,10 @@
 {
-  "id": "persona.mbti_profile.v1",
+  "id": "persona.personality_profile.v1",
   "role": "A 16-type personality code (four letters) and an age -> a sample birth date that makes that age today, drawn reproducibly, and the code's four axes (our own mapping for fun; not affiliated with The Myers-Briggs Company)",
   "sample_rule": "Range: the dates D with today - (age+1) years < D <= today - age years (a 29 February anchor in a non-leap year is 28 February). Seed: sha256('mbti-fortune|v1|' + TYPE + '|' + age + '|' + today) as a hex integer, TYPE the four upper-case letters without -A/-T, today YYYY-MM-DD in Asia/Seoul. The sample is the range's dates in ascending order at index seed mod the range's length. A range outside 1912-2100 is refused (invalid_input), never redrawn.",
   "input_schema": {
     "type": "object",
     "properties": {
-      "mbti": {
-        "type": "string",
-        "pattern": "^[EIei][SNsn][TFtf][JPjp](-[ATat])?$",
-        "maxLength": 6
-      },
       "age": {
         "type": "integer",
         "minimum": 0,
@@ -18,10 +13,15 @@
       "today": {
         "type": "string",
         "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+      },
+      "type": {
+        "type": "string",
+        "pattern": "^[EIei][SNsn][TFtf][JPjp](-[ATat])?$",
+        "maxLength": 6
       }
     },
     "required": [
-      "mbti",
+      "type",
       "age"
     ],
     "additionalProperties": false
@@ -129,20 +129,20 @@
   ],
   "test_inputs": [
     {
-      "mbti": "INTJ",
       "age": 30,
-      "today": "2026-11-18"
+      "today": "2026-11-18",
+      "type": "INTJ"
     },
     {
-      "mbti": "enfp-t",
       "age": 0,
-      "today": "2026-11-18"
+      "today": "2026-11-18",
+      "type": "enfp-t"
     },
     {
-      "mbti": "ISTJ",
       "age": 110,
-      "today": "2026-11-18"
+      "today": "2026-11-18",
+      "type": "ISTJ"
     }
   ],
-  "status": "draft (workflow 11-17, BRIEF reports/mbti-fortune-necklace-2026-11-17; necklace path frozen until 11-20)"
+  "status": "draft (workflow 11-17; renamed 11-18 by PM 16:47 so no public text names a test publisher)"
 }
