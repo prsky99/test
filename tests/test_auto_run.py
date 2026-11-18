@@ -28,6 +28,10 @@ def fresh(monkeypatch, tmp_path):
     terms = tmp_path / 'member_terms.json'
     terms.write_text('{"members": {}}')
     monkeypatch.setattr('agent_market.provider_budget.TERMS_PATH', terms)
+    # the verdict reader is relay_terms; conftest points it at an empty file, so point it at this test's file
+    from agent_market.concierge import relay_terms
+    monkeypatch.setattr(relay_terms, '_path', lambda: terms)
+    relay_terms.reset()
     yield terms
 
 
