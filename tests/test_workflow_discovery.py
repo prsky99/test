@@ -159,3 +159,37 @@ def test_signed_product_discovery_keeps_publication_guards_across_scoped_chat(ro
         assert not later['data']['workflows']
         assert client.get(f'/api/workflows/templates/{workflow["id"]}').status_code == 404
     assert len(routing[3]) == before
+
+
+def test_the_first_workflow_of_a_chat_or_a2a_answer_carries_the_mcp_run_line_when_a_run_is_allowed(discovery, monkeypatch):
+    """PM 11-18 (reports/connect-gap-2026-11-18): an agent that asks once and leaves needs the next step in the answer."""
+    import re
+    from agent_market.concierge import workflow_discovery as wd
+    _, _, client, ids = discovery
+    task = 'Recommend a workflow template for technology news and related research papers'
+
+    def ask():
+        rest = client.post('/chat', json={'message': task}).json()
+        a2a = client.post('/a2a', json={'jsonrpc': '2.0', 'id': 1, 'method': 'message/send', 'params': {'message': {
+            'parts': [{'kind': 'text', 'text': task}]}}}).json()
+        return rest, ' '.join(p.get('text', '') for p in a2a['result']['parts'] if p['kind'] == 'text')
+
+    allowed = {'available': True, 'reason_code': 'READY', 'message': 'ok', 'checked_at': None}
+    monkeypatch.setattr(wd, 'workflow_execution_availability', lambda store, workflow: allowed, raising=False)
+    monkeypatch.setattr('agent_market.concierge.execution_availability.workflow_execution_availability',
+                        lambda store, workflow: allowed)
+    rest, a2a_text = ask()
+    first = rest['data']['workflows'][0]
+    assert first['id'] == ids['news']
+    expected = ('Run here: call tool run_workflow on https://agentconcierge.biz/mcp with '
+                + json.dumps({'template_id': first['id'], 'definition_hash': first['definition_hash']}, separators=(',', ':')))
+    for text in (rest['reply'], a2a_text):
+        assert expected in text and len(re.findall('Run here:', text)) == 1       # the first workflow only
+        assert text.index(expected) < text.index('Open: ')                          # right under the first item, before the page link
+        assert 'Review the published inputs and authorize a run before execution.' in text   # the human line stays
+    denied = {'available': False, 'reason_code': 'RESOURCE_UNAVAILABLE', 'message': 'no', 'checked_at': None}
+    monkeypatch.setattr(wd, 'workflow_execution_availability', lambda store, workflow: denied, raising=False)
+    monkeypatch.setattr('agent_market.concierge.execution_availability.workflow_execution_availability',
+                        lambda store, workflow: denied)
+    rest, a2a_text = ask()
+    assert 'Run here:' not in rest['reply'] and 'Run here:' not in a2a_text

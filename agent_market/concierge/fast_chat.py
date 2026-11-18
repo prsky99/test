@@ -776,6 +776,12 @@ class FastConcierge(Concierge):
                 lines.append(str(index+1)+'. '+display_label(item['name'], 'Published workflow')+' [WORKFLOW]')
                 detail = display_label(item['description'], '')
                 if detail: lines.append(detail)
+                # PM 11-18 (connect gap, reports/connect-gap-2026-11-18): an agent that asks once and leaves needs the next step in
+                # this answer. The first workflow, when its recorded checks allow a run, carries the MCP call as one line.
+                if index == 0 and (item.get('execution_availability') or {}).get('available') is True:
+                    lines.append('Run here: call tool run_workflow on https://agentconcierge.biz/mcp with '
+                                 + json.dumps({'template_id': item['id'], 'definition_hash': item['definition_hash']}, separators=(',', ':'))
+                                 + '; add an "input" object if workflow_details lists declared fields.')
             lines += ['Open: https://agentconcierge.biz'+selected['page_path'],
                       'Review the published inputs and authorize a run before execution.']
             if changes and not result['changed']: lines.append('No material workflow change was found.')
