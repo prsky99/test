@@ -69,6 +69,36 @@ def currency_conversion(text):
                for word in capability_terms(re.sub(r'\bpounds?\b', 'sterling', text, flags=re.I)))
 
 
+# 11-18 (public find_agents, PM 12:5x): agents ask in question form, and its words became required capability words
+# ("how many pounds is 68 kilograms" -> many, pounds, kilograms; "which airport has the code YVR and where is it" ->
+# airport, has, code, yvr, where; "what does the English word ephemeral mean" -> word, ephemeral, mean), so nothing
+# matched. A question keeps its task words and drops the words that only make it a question.
+QUESTION_FORM = re.compile(r"^\s*(?:what|who|when|where|why|which|how\s+(?:many|much|old|far|tall|long))\b", re.I)
+QUESTION_WORDS = re.compile(r"""\b(?:how\s+(?:many|much|old|far|tall|long)|what(?:'s|\s+is|\s+are|\s+does|\s+do)?|which|who|when
+  |where|why|does|do|did|is|are|was|were|has|have|had|means?(?=\s*[?.!]*\s*$)|right\s+now|it|there)\b""", re.I | re.X)
+# "mean" only at the end ("what does X mean?"): "what is the mean of these numbers" keeps it (PM 11-18)
+WORD_MEANING = re.compile(r"""^\s*what\s+does\s+(?:the\s+)?(?:english\s+)?(?:word\s+)?["']?(?!(?:the|a|an)\b)([A-Za-z][\w-]*)["']?
+  \s+(?:mean|means)\b|^\s*what(?:'s|\s+is)\s+the\s+meaning\s+of\s+(?:the\s+(?:english\s+)?word\s+)?["']?([A-Za-z][\w-]*)""",
+                          re.I | re.X)
+
+
+def question_task(text):
+    """The task words of a question, or None when TEXT is no question or nothing would be left."""
+    if not QUESTION_FORM.match(text or ''):
+        return None
+    meaning = WORD_MEANING.match(text)
+    if meaning:
+        return 'dictionary definition of ' + (meaning.group(1) or meaning.group(2))
+    rest = re.sub(r'\s+', ' ', QUESTION_WORDS.sub(' ', text)).strip(' ?.,')
+    if not re.search(r'[A-Za-z]{3}', rest):
+        return None
+    from .selection import UNIT_NAMES
+    units = [w for w in re.findall(r'[a-z]+', rest.lower()) if w in UNIT_NAMES]
+    if len(set(units)) >= 2:           # "how many grams are in 3 pounds": a unit conversion
+        return 'convert ' + rest
+    return rest
+
+
 def normalize_task(task):
     from .chat_task_spec import canonical_text
     text = interpret(canonical_text(task)).positive
@@ -77,6 +107,7 @@ def normalize_task(task):
         # word search to the forms converters use ("Convert currencies and fetch FX rates") without becoming required.
         money = re.sub(r'\bpounds?\b', 'sterling', text, flags=re.I)
         return 'currency conversion for ' + money + ' (convert currencies, exchange rates)'
+    text = question_task(text) or text
     if re.search(r'\bsql\b',text,re.I)and re.search(r'\b(?:run|execut)\w*\b',text,re.I):
         return 'sql query for '+text
     if re.search(r'\bsummari[sz]\w*\b',text,re.I)and re.search(r'\bmeeting\s+(?:notes|minutes|transcripts?)\b',text,re.I):
