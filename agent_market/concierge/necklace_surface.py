@@ -140,6 +140,15 @@ def has_preview(entry):
     return block.get('gate_passed') is False
 
 
+def connect_check(entry, now=None):
+    """(last_at, ok) of the daily connection check, or None when the entry has none (workflow team 11-18: entry['connect'] =
+    {passed_at, last_at, last_ok}). A live necklace with this block is judged by the connection run, not by delta or a retest."""
+    block = entry.get('connect') if isinstance(entry, dict) and isinstance(entry.get('connect'), dict) else None
+    if block is None:
+        return None
+    return _time(block.get('last_at')), block.get('last_ok') is True
+
+
 def opened(entry):
     """True once the necklace was ever shown as open: it passed the gate, or it runs as a preview (never both claims)."""
     return bool(_time(entry.get('gate_passed_at'))) or (entry.get('status') in ('preview', 'held') and has_preview(entry))
@@ -165,6 +174,12 @@ def offered(entry, now=None):
         # refuses a preview whose recorded retest is older than the freshness window.
         recent = tested is None or now - tested <= timedelta(hours=FRESH_HOURS)
         return cleared and members >= 2 and all(map(_alternates_ok, pearls)) and recent
+    check = connect_check(entry)
+    if entry.get('status') == 'live' and check is not None:
+        # the connection gate (PM 11-18): no accuracy score, so no delta or retest; the last daily connection run must have passed
+        # and be recent. The judge holds the entry itself (connect_failed, connect_stale) when it does not.
+        last, ok = check
+        return cleared and members >= 2 and all(map(_alternates_ok, pearls)) and ok and last is not None and now - last <= timedelta(hours=FRESH_HOURS)
     return (cleared and members >= 2 and all(map(_alternates_ok, pearls))
             and isinstance(delta, (int, float)) and delta > 0
             and tested is not None and now - tested <= timedelta(hours=FRESH_HOURS))
@@ -811,6 +826,9 @@ def standing_line(entry, now=None):
         return 'Standing: paused.' if status == 'held' else 'Standing: stopped.'
     if not offered(entry, now):
         return 'Standing: not running now (waiting for its next retest).'
+    check = connect_check(entry)
+    if check is not None:       # no accuracy claim exists for a connection-gated necklace: say what is checked, and when
+        return 'Standing: running · connected end to end and checked every day' + (' (last check ' + check[0].strftime('%Y-%m-%d') + ').' if check[0] else '.')
     claim = verified(entry.get('quality') or {})
     if claim:
         return 'Standing: running · Verified 95% (' + str(claim[0]) + '/' + str(claim[1]) + ' cumulative retests passed).'
