@@ -7,8 +7,10 @@ def test_address_x_quakes_stamps_the_shipped_definition_members():
     shipped = model.load("agent_market/necklaces/definitions/quakes-near-address.json")
     assert stamped["slug"] == shipped["slug"] and model.validate(stamped) == []
     ids = lambda d: [[(m.get("resource_id"), m["tool"]) for m in s["chain"]] for s in d["slots"]]
-    # v2 (11-19) adds a local_time step after the hub and the consumer: the stamp gives those two
+    # v2 (11-19) adds a local_time step after the hub and the consumer: the stamp gives those two. The shipped
+    # stamp crosses the leads like the shipped definition (37322 leads location, 178542 quakes: one lead per domain)
     assert ids(stamped) == ids(shipped)[:len(stamped["slots"])] and len(stamped["slots"]) == 2
+    assert [s["chain"][0]["resource_id"] for s in stamped["slots"]] == [37322, 178542]   # crossed leads
     assert len(stamped["slots"]) <= model.MAX_REQUIRED_SLOTS
 
 

@@ -43,10 +43,12 @@ HUBS = {
         "example": "Tokyo Tower, Minato, Tokyo, Japan", "point": (35.6586, 139.7454, "JP", "Asia/Tokyo"),
         "contract": "geocode.address.v1",
         "gives": {"lat", "lon", "point"},
-        "chain": [_member("external", "geocode_address", {"query": "{{input.address}}"}, ["google-maps"], rid=264482,
-                          domain="dmvtransit.com", pearl=True),
-                  _member("external", "geocode", {"address": "{{input.address}}"}, ["us-census"], rid=37322,
-                          domain="datakoot.com"),
+        # 11-18 (ops 21:25): 264482 dropped, several of its tools lost the read-only hint; 178542 (geocode.address.v1
+        # pearl) is the fallback. With quakes the leads are crossed in the shipped definition (one lead per domain).
+        "chain": [_member("external", "geocode", {"address": "{{input.address}}"}, ["us-census"], rid=37322,
+                          domain="datakoot.com", pearl=True),
+                  _member("external", "geocode", {"query": "{{input.address}}", "limit": 1}, ["openstreetmap"],
+                          rid=178542, domain="augur-trade.com"),
                   dict(_member("agentcon", "geocode_us_address", {"address": "{{input.address}}"}, ["us-census"],
                                agent_id="census-geocode"), coverage={"country": ["US"]})]},
     "ip": {
@@ -132,6 +134,15 @@ def stamp(hub_key: str, consumer_key: str) -> dict | None:
             member["input_map"]["location"] = "{{slot.location.point}},{{slot.location.country_code}}"
         if member.get("agent_id") == "holiday-calendar" and "country_code" in hub["gives"]:
             member["input_map"]["country"] = "{{slot.location.country_code}}"     # the hub's own ISO code first
+    # one lead per failure domain (model rule): when the hub's lead domain also leads here, the next external pearl of
+    # another domain leads this step and the first one stays as its fallback (11-18: 37322 leads location, 178542 quakes)
+    hub_lead = next((m for m in location["chain"] if m["kind"] == "external"), {}).get("registrable_domain")
+    externals = [m for m in chain if m["kind"] == "external"]
+    if externals and externals[0].get("registrable_domain") == hub_lead:
+        other = next((m for m in externals[1:] if m.get("pearl") and m.get("registrable_domain") != hub_lead), None)
+        if other is not None:
+            chain.remove(other)
+            chain.insert(chain.index(externals[0]), other)
     second = {"slot": use["slot"], "contract": use["contract"], "required": True, "fanout": 1,
               "depends_on": ["location"], "chain": chain}
     slug = f"{consumer_key}-near-{hub_key}" if consumer_key == "quakes" else f"{consumer_key}-at-{hub_key}"

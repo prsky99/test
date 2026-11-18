@@ -41,24 +41,6 @@
       "chain": [
         {
           "kind": "external",
-          "resource_id": 264482,
-          "tool": "geocode_address",
-          "registrable_domain": "dmvtransit.com",
-          "upstream": [
-            "google-maps"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "state": "active",
-          "pearl": true,
-          "input_map": {
-            "query": "{{input.address}}"
-          }
-        },
-        {
-          "kind": "external",
           "resource_id": 37322,
           "tool": "geocode",
           "registrable_domain": "datakoot.com",
@@ -72,6 +54,25 @@
           "state": "active",
           "input_map": {
             "address": "{{input.address}}"
+          },
+          "pearl": true
+        },
+        {
+          "kind": "external",
+          "resource_id": 178542,
+          "tool": "geocode",
+          "registrable_domain": "augur-trade.com",
+          "upstream": [
+            "openstreetmap"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "input_map": {
+            "query": "{{input.address}}",
+            "limit": 1
           }
         },
         {
@@ -110,29 +111,6 @@
       "chain": [
         {
           "kind": "external",
-          "resource_id": 37322,
-          "tool": "earthquakes",
-          "registrable_domain": "datakoot.com",
-          "upstream": [
-            "usgs"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "state": "active",
-          "pearl": true,
-          "input_map": {
-            "lat": "{{slot.location.lat}}",
-            "lon": "{{slot.location.lon}}",
-            "radius_km": 1000,
-            "days": 7,
-            "min_magnitude": 4.5,
-            "limit": 20
-          }
-        },
-        {
-          "kind": "external",
           "resource_id": 178542,
           "tool": "earthquakes",
           "registrable_domain": "augur-trade.com",
@@ -149,6 +127,28 @@
             "near": "{{slot.location.point}}",
             "radius_km": 1000,
             "period": "week",
+            "min_magnitude": 4.5,
+            "limit": 20
+          }
+        },
+        {
+          "kind": "external",
+          "resource_id": 37322,
+          "tool": "earthquakes",
+          "registrable_domain": "datakoot.com",
+          "upstream": [
+            "usgs"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "active",
+          "input_map": {
+            "lat": "{{slot.location.lat}}",
+            "lon": "{{slot.location.lon}}",
+            "radius_km": 1000,
+            "days": 7,
             "min_magnitude": 4.5,
             "limit": 20
           }
@@ -230,7 +230,7 @@
       ]
     }
   ],
-  "notes": "v1 candidate from the location hub (100-necklace plan 4-1, workflow 11-15). Leads are verified pearls 264482 (geocode.address) and 37322, 178542 (earthquake.feed) by the 11-15 verify snapshot; all three passed the relay check at 11:41-11:46. 37322's geocode is US Census (US addresses only) and stands second. Gaps before the gate: no AgentValCon fallback for geocode.address yet, and the usgs-quakes fallback takes no coordinates (asked of the agent team). Delta risk: 178542 accepts a place name by itself, so the task is graded as coordinates plus the strongest nearby quake together (retest.grade_quakes_task). 11-15: usgs-quakes (our USGS feed filtered by distance, agent team 82d1a98d) ends the quakes chain, planned until ops approves it. 11-15: census-geocode (US Census, agent team 3a8c3775) ends the location chain for US addresses only (coverage country US), planned until ops approves it. v2 (PM 11-18 19:3x, connection gate): a third role, local_time (84607 current_time, fallback 37684 time_now), reads the location step's IANA zone and is not called without it (needs).",
+  "notes": "v1 candidate from the location hub (100-necklace plan 4-1, workflow 11-15). Leads are verified pearls 264482 (geocode.address) and 37322, 178542 (earthquake.feed) by the 11-15 verify snapshot; all three passed the relay check at 11:41-11:46. 37322's geocode is US Census (US addresses only) and stands second. Gaps before the gate: no AgentValCon fallback for geocode.address yet, and the usgs-quakes fallback takes no coordinates (asked of the agent team). Delta risk: 178542 accepts a place name by itself, so the task is graded as coordinates plus the strongest nearby quake together (retest.grade_quakes_task). 11-15: usgs-quakes (our USGS feed filtered by distance, agent team 82d1a98d) ends the quakes chain, planned until ops approves it. 11-15: census-geocode (US Census, agent team 3a8c3775) ends the location chain for US addresses only (coverage country US), planned until ops approves it. v2 (PM 11-18 19:3x, connection gate): a third role, local_time (84607 current_time, fallback 37684 time_now), reads the location step's IANA zone and is not called without it (needs). 11-18 21:2x (ops fingerprint review): 264482 dropped, several of its tools lost the read-only hint (baseline 11-15 16:16 kept, not a normal change); location is now 37322 (pearl) then 178542 geocode (pearl, 10 free calls a day, a payment-required answer is a failure and moves on) then census-geocode, and quakes is led by 178542 (98.9) then 37322, so each failure domain leads one step.",
   "min_pearls_answered": 2,
   "probe_input": {
     "address": "Tokyo Tower, Minato, Tokyo, Japan",
