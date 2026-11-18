@@ -63,7 +63,18 @@ def snapshot():
     ]}
 
 
-def test_only_gated_fresh_better_multi_pearl_necklaces_are_offered(snapshot):
+def checked_own(tmp_path, monkeypatch, rows):
+    """PM 21:33 (11-18): our own fallback counts on the page only with a passed check in approvals.json."""
+    import json
+    folder = tmp_path / 'gateway-data/necklaces'
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / 'approvals.json').write_text(json.dumps({'substitutes': [
+        dict(r, state='approved', at='2026-11-18T21:00:00+0900', gate_record={'connect_test': 'x'}) for r in rows]}))
+    monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
+
+
+def test_only_gated_fresh_better_multi_pearl_necklaces_are_offered(snapshot, tmp_path, monkeypatch):
+    checked_own(tmp_path, monkeypatch, [{'resource_id': 900001, 'tool': 't'}])
     offered = [e['slug'] for e in ns.live(snapshot, NOW)]
     assert offered == ['trip-brief']
     assert ns.sitemap_paths(snapshot, NOW) == ['/necklaces/trip-brief']
@@ -76,7 +87,8 @@ def test_only_gated_fresh_better_multi_pearl_necklaces_are_offered(snapshot):
     assert not listed['paper-digest']['offered'] and listed['paper-digest']['notice']['necklace_status'] == 'held'
 
 
-def test_a_live_page_shows_measured_numbers_completion_and_pearls(snapshot):
+def test_a_live_page_shows_measured_numbers_completion_and_pearls(snapshot, tmp_path, monkeypatch):
+    checked_own(tmp_path, monkeypatch, [{'resource_id': 900001, 'tool': 't'}])
     status, value = ns.page('trip-brief', snapshot=snapshot, now=NOW)
     assert status == 200
     for text in ('On the same 30 cases, the best single member agent answering the whole task alone got 70%; '

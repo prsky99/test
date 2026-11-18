@@ -267,6 +267,10 @@ PROVISIONAL_NOTE = ('Under verification: the agent answered our test for this st
                     'verified-pearl bar. When a verified pearl is available for the step, it takes the place.')
 OWN_PROVISIONAL_NOTE = ('AgentValCon agent, under verification: our own agent for this step, which passed our substitute '
                         'check; it leads until a verified pearl is available.')
+# user decision 11-18: our own substitute is approved by three connection runs; its accuracy is not scored
+OWN_CONNECTED_NOTE = ('AgentValCon agent: our own agent for this step. It passed three connection runs on different '
+                      'inputs, answering in the step\u2019s form within the time budget; its accuracy is not scored. It '
+                      'leads until a verified pearl is available.')
 OWN_UNCHECKED_NOTE = ('AgentValCon agent, not yet checked: our own agent for this step has no passed substitute check on '
                       'record.')
 CHECKED_SUBSTITUTE = ('approved', 'provisional')
@@ -300,8 +304,33 @@ def substitute_checked(pearl, path=None):
             _APPROVALS.update(key=key, value=latest)
     except (OSError, ValueError, AttributeError, TypeError):
         return False
-    row = _APPROVALS['value'].get((pearl.get('resource_id'), pearl.get('tool')))
+    row = _approval_row(pearl)
     return bool(row) and row.get('state') in CHECKED_SUBSTITUTE and bool(row.get('gate_record'))
+
+
+def _approval_row(pearl):
+    """The latest approvals.json row for our own agent (PM 21:33, 11-18): ops writes resource_id 'avc:<agent_id>', while
+    a snapshot lead of ours has no resource_id, so the row is found by (resource_id, tool), then ('avc:' + agent_id,
+    tool), then by the tool alone when exactly one of our own agents has it."""
+    rows = _APPROVALS['value']
+    tool = pearl.get('tool')
+    if (pearl.get('resource_id'), tool) in rows:
+        return rows[(pearl.get('resource_id'), tool)]
+    if pearl.get('agent_id'):
+        # by the agent, as the run itself finds it (judge.load_substitutes keys on agent_id and role): a definition
+        # may name our agent's tool differently from the approval row (dns-spf-dmarc, 11-18)
+        found = [row for (rid, _), row in rows.items() if rid == 'avc:' + str(pearl['agent_id'])]
+        return max(found, key=lambda row: row['at']) if found else None
+    if pearl.get('resource_id') is None:
+        found = [row for (rid, t), row in rows.items() if t == tool and str(rid).startswith('avc:')]
+        if len(found) == 1:
+            return found[0]
+    return None
+
+
+def substitute_record(pearl, path=None):
+    """The approval row when substitute_checked, else None."""
+    return _approval_row(pearl) if substitute_checked(pearl, path) else None
 
 
 # PM 11-16 06:5x: a required step with no usable outside member runs on our own agent alone; the page and the agent
@@ -342,6 +371,13 @@ def own_provisional_note(snapshot=None):
         return OWN_PROVISIONAL_NOTE
     return ('AgentValCon agent, under verification: our own agent for this step, which ' + ' '.join(own.split())
             + '; it leads until a verified pearl is available.')
+
+
+def own_checked_note(pearl, snapshot=None):
+    """Which check our own agent passed, from its approval row: connection runs (connect_test) or the held-out gate."""
+    row = substitute_record(pearl) or {}
+    record = row.get('gate_record') if isinstance(row.get('gate_record'), dict) else {}
+    return OWN_CONNECTED_NOTE if record.get('connect_test') else own_provisional_note(snapshot)
 
 
 def provisional_note(snapshot=None):
@@ -531,7 +567,8 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
                                  and re.fullmatch(r'[1-9][0-9]{0,9}', str(p.get('resource_id') or '')) else None),
                         'external_usable': usable_external(p), 'external_pending': external_pending(p),
                         'alternates': {'external': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'external'),
-                                       'agentcon': sum(1 for a in p.get('alternates') or [] if a.get('kind') == 'agentcon')}}
+                                       'agentcon': sum(1 for a in p.get('alternates') or []
+                                                       if a.get('kind') == 'agentcon' and substitute_checked(a))}}
                        for p in entry.get('pearls') or [] if isinstance(p, dict)],
             'quality': {**{k: quality.get(k) for k in ('success_rate', 'best_single_rate', 'delta_pp', 'delta_pairs',
                                                         'delta_necklace_rate', 'tested_at')
@@ -887,11 +924,42 @@ def _coverage_sentence(coverage):
     return ' Our backup is partial: ' + '; '.join(parts) + '.'
 
 
+def step_fallbacks(entry):
+    """[(role, outside, own)] for each required step from the snapshot's members (PM 21:33, 11-18): outside fallbacks
+    are the external alternates, our own counts only with a passed check in approvals.json; a step our own agent leads
+    has outside None. Empty when the snapshot has no members."""
+    out = []
+    for p in entry.get('pearls') or [] if isinstance(entry, dict) else []:
+        if not isinstance(p, dict) or p.get('required', True) is False:
+            continue
+        alts = [a for a in p.get('alternates') or [] if isinstance(a, dict)]
+        outside = sum(1 for a in alts if a.get('kind') == 'external')
+        own = sum(1 for a in alts if a.get('kind') == 'agentcon' and substitute_checked(a))
+        out.append((str(p.get('role') or 'step'), None if p.get('kind') == 'agentcon' else outside, own))
+    return out
+
+
+def _step_phrase(role, outside, own):
+    if outside is None:
+        return role + ': our own agent' + (', other providers after it' if own else ', no other provider yet')
+    if outside and own:
+        return role + ': other providers, then our own agent'
+    if outside:
+        return role + ': other providers'
+    return role + (': our own agent' if own else ': no fallback yet')
+
+
 def fallback_line(entry):
     found = fallback(entry)
     if not found:
         return None
     limits = _coverage_sentence(found['own_coverage']) if found.get('own_coverage') else ''
+    steps = step_fallbacks(entry)
+    if steps and not all(outside and own for _, outside, own in steps):
+        # a step without an outside fallback (or without a checked backup of ours) never reads "other providers are
+        # tried ... for every step": each step says what it really falls to
+        return ('Fallback per step: ' + '; '.join(_step_phrase(*s) for s in steps)
+                + '. If a step\u2019s fallbacks also fail, the run stops.' + limits)
     if found['depth'] == 'agentvalcon':
         return 'Fallback: if a provider fails, other providers are tried, then an AgentValCon backup, for every step.' + limits
     return ('Fallback: other providers only for ' + ', '.join(found['slots_without_own'])
@@ -1140,7 +1208,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
                      + '</ul>' + ('<p class="muted necklace-provisional-note">' + esc(provisional_note(snapshot)) + '</p>'
                                   if any(p['standing'] == 'provisional' and p.get('card') for p in item['pearls']) else '')
                      + ''.join('<p class="muted necklace-own-note">' + esc(note) + '</p>' for note in dict.fromkeys(
-                         own_provisional_note(snapshot) if substitute_checked(p) else OWN_UNCHECKED_NOTE
+                         own_checked_note(p, snapshot) if substitute_checked(p) else OWN_UNCHECKED_NOTE
                          for p in (entry.get('pearls') or []) if isinstance(p, dict) and p.get('kind') == 'agentcon'
                          and member_status(p) == 'provisional'))
                      + '</section>')

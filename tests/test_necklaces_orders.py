@@ -21,7 +21,7 @@ def live_entry(now=None):
     now = now or datetime.now(timezone.utc)
     stamp = (now - timedelta(hours=1)).isoformat()
     pearl = {"resource_id": 38608, "role": "book", "pearl": True,
-             "alternates": [{"kind": "external"}, {"kind": "agentcon"}]}
+             "alternates": [{"kind": "external"}, {"kind": "agentcon", "agent_id": "book-own", "tool": "t"}]}
     return {"slug": "book-author-brief", "name": "Book and author brief", "status": "live", "gate_passed_at": stamp,
             "pearls": [pearl, dict(pearl, resource_id=241601, role="author")],
             "quality": {"tested_at": stamp, "delta_pp": 12.0, "success_rate": 0.97},
@@ -75,7 +75,14 @@ def test_cannot_build_says_why(task, reason):
         assert out["missing_roles"] == ["weather.forecast.v1"]
 
 
-def test_notice_bundle_comes_from_the_snapshot_and_waits_for_the_gate():
+def test_notice_bundle_comes_from_the_snapshot_and_waits_for_the_gate(tmp_path, monkeypatch):
+    import json
+    folder = tmp_path / "gateway-data/necklaces"       # PM 21:33: our own fallback counts only with a passed check
+    folder.mkdir(parents=True)
+    (folder / "approvals.json").write_text(json.dumps({"substitutes": [
+        {"resource_id": "avc:book-own", "agent_id": "book-own", "tool": "t", "state": "approved",
+         "at": "2026-11-18T21:00:00+0900", "gate_record": {"connect_test": "x"}}]}))
+    monkeypatch.setenv("AGENTCON_PROJECT_ROOT", str(tmp_path))
     from agent_market.concierge import necklace_surface
     snap = {"necklaces": [live_entry()]}
     bundle = orders.notice("book-author-brief", snap)
