@@ -307,3 +307,31 @@ def test_a_recommended_tool_whose_required_field_the_task_cannot_fill_gives_way(
     # a recommended tool the task can fill still comes first, and without a sample the old order holds
     assert rts.pick_tool(tools, 'package ' + task, {'find_package'}, sample, task)['name'] == 'find_package'
     assert rts.pick_tool(tools, 'package ' + task, {'find_compatible_version'})['name'] == 'find_compatible_version'
+
+def test_a_row_the_terms_stopped_keeps_what_our_answer_said_about_a_direct_connection(monkeypatch, tmp_path):
+    """PM 11-18 20:3x: for tasks the terms forbid relaying, the row records whether our answer says so and gives the provider's own
+    address (the honest-answer column), with the first 200 characters; rows that were called carry no direct_note."""
+    from scripts import real_task_score as rts
+    honest = ("Recommended agent [MCP]\nConnection: The provider's terms do not allow us to relay calls to this listing.\n"
+              "Endpoint: https://faceabot.example/mcp\nDirect endpoint: https://faceabot.example/mcp\n\nSecond lead [MCP]\nEndpoint: https://other.example/mcp")
+    silent = "Recommended agent [MCP]\nEndpoint: https://faceabot.example/mcp\nCall: tools/call"
+    note = rts.direct_note(honest)
+    assert note['says_not_relayed'] and note['direct_endpoint'] and 'Second lead' not in note['head'] and len(note['head']) <= 200
+    assert rts.direct_note(silent) == {'says_not_relayed': False, 'direct_endpoint': False, 'head': 'Recommended agent [MCP] Endpoint: https://faceabot.example/mcp Call: tools/call'}
+    assert rts.direct_note(None) == {'says_not_relayed': False, 'direct_endpoint': False, 'head': ''}
+    terms = tmp_path / 'member_terms.json'
+    terms.write_text(json.dumps({'members': {'143970': {'status': 'prohibits'}}}))
+    monkeypatch.setattr(rts, 'TERMS', terms)
+
+    def recommend(client, task):
+        recommend.last_text = honest
+        return 200, [{'id': 143970, 'kind': 'mcp', 'name': 'faceabot'}]
+    monkeypatch.setattr(rts, 'recommend', recommend)
+    def never(*a, **k):
+        raise AssertionError('called')
+    never.last_timing = ''
+    monkeypatch.setattr(rts, 'rpc', never)
+    row = rts.score_task(None, {'id': 'a10', 'who': 'agent', 'task': 'Search Wikipedia', 'needs': 'wikipedia'})
+    assert row['outcome'] == 'terms_prohibits' and row['direct_note']['says_not_relayed'] and row['direct_note']['direct_endpoint']
+    listing = rts.score_task(None, {'id': 'p15', 'who': 'person', 'task': 'YouTube transcript', 'needs': 'transcript', 'free_check': False})
+    assert listing['outcome'] == 'listing_only' and 'direct_note' in listing

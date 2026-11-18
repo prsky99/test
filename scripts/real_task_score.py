@@ -128,6 +128,9 @@ rpc.last_timing = ''
 
 def recommend(client, task):
     status, data = rpc(client, BASE + '/mcp', 'tools/call', {'name': 'find_agents', 'arguments': {'task': task}})
+    # the answer text of this call, kept for direct_note() below (PM 11-18 20:3x); the score rows never store more than 200 characters of it
+    recommend.last_text = '\n'.join(c.get('text') for c in ((data.get('result') or {}).get('content') or [])
+                                    if isinstance(c, dict) and isinstance(c.get('text'), str))
     sc = (data.get('result') or {}).get('structuredContent') or {}
     for key in ('agents', 'recommendations', 'items', 'results'):
         if isinstance(sc.get(key), list):
@@ -273,6 +276,25 @@ def checked(task, payload):
 TERMS = ROOT / 'agent_market/necklaces/member_terms.json'
 
 
+def direct_note(text):
+    """What our recommendation answer says about the top lead when we may not relay it (PM 11-18 20:3x, the honest-answer column of
+    reports/real-task-score-causes-2026-11-18): {'says_not_relayed': the answer says the provider's terms do not let us relay it,
+    'direct_endpoint': it gives the provider's own address, 'head': the first 200 characters of the top lead's block}. Read from our
+    own answer text for our own task sentence; nothing a visitor typed is involved.
+
+    The phrases are matched against the wording our answer uses, so they must follow it: the refusal line is relay_terms.NOTE
+    (agent_market/concierge/relay_terms.py, "The provider's terms do not allow us to relay calls to this listing.") and the
+    'Connection:' / 'Direct endpoint:' lines are built in fast_chat.py (find_agents answer, around the terms_restricted branch);
+    connections.DIRECT_NOTE ("we do not relay this tool") is the other accepted form. Change those texts and these markers together."""
+    text = text if isinstance(text, str) else ''
+    lines = text.splitlines()
+    starts = [i for i, line in enumerate(lines) if re.search(r'\[(?:MCP|A2A|X402)\]', line)]
+    block = '\n'.join(lines[starts[0]:starts[1]] if len(starts) > 1 else lines[starts[0]:] if starts else lines)
+    low = block.lower()
+    return {'says_not_relayed': any(m in low for m in ('do not allow us to relay', 'do not relay', 'does not relay')),
+            'direct_endpoint': 'direct endpoint:' in low, 'head': ' '.join(block.split())[:200]}
+
+
 def terms_prohibit(rid, path=None):
     """True when the agent team's terms verdict for rid is prohibits (PM 11-18: this check called 143970 faceabot ten
     times after its 11-16 verdict, and 214764, 413095, 34807 too - another party's terms are a line we do not cross,
@@ -304,12 +326,13 @@ def score_task(client, task):
     relevant = bool(words(task['needs']) & agent_words)
     if not task.get('free_check', True):
         row.update(outcome='listing_only', detail='not called: the task needs a paid or keyed source (free_check false)',
-                   relevant=relevant)
+                   relevant=relevant, direct_note=direct_note(getattr(recommend, 'last_text', '')))
         return row
     kind, rid = top.get('kind'), top.get('id')
     if terms_prohibit(rid):
         row.update(outcome='terms_prohibits', relevant=relevant,
-                   detail='not called: the provider terms prohibit this use (necklaces/member_terms.json)')
+                   detail='not called: the provider terms prohibit this use (necklaces/member_terms.json)',
+                   direct_note=direct_note(getattr(recommend, 'last_text', '')))
         return row
     gateway = '%s/api/gateway/%s/%s' % (BASE, kind, rid)
     t1 = time.monotonic()
@@ -318,7 +341,8 @@ def score_task(client, task):
             st, init = rpc(client, gateway, 'initialize', {'protocolVersion': '2025-06-18', 'capabilities': {},
                                                            'clientInfo': {'name': 'real-task-score', 'version': '1'}})
             if 'result' not in init and cause_of(st, init) == 'terms_prohibits':
-                row.update(outcome='terms_prohibits', detail='initialize %s TERMS_RESTRICTED' % st)
+                row.update(outcome='terms_prohibits', detail='initialize %s TERMS_RESTRICTED' % st,
+                           direct_note=direct_note(getattr(recommend, 'last_text', '')))
                 return row
             if 'result' not in init:
                 row.update(outcome='connection_failed', detail='initialize %s %s' % (st, json.dumps(init.get('error'))[:160]))
