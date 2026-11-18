@@ -205,6 +205,36 @@ def test_a_failed_attempt_is_kept_with_its_error_time_and_raw_start():
     assert cg._row({"check": "c", "ok": True}, {"attempts": {}}) == {"check": "c", "ok": True}   # nothing failed
 
 
+def test_a_new_version_moves_into_definitions_only_with_both_keys(tmp_path, monkeypatch):
+    """PM 21:35 (11-18): website-trust v3 stays in drafts/ until its gate passed and ops approved v3; v2 stays public."""
+    import json as _json
+    monkeypatch.setattr(cg.model, "validate", lambda d: [])      # the fake definition; the keys are under test
+    defs, root = tmp_path / "definitions", tmp_path / "root"
+    defs.mkdir()
+    root.mkdir()
+    v2 = defn3()
+    (defs / f"{v2['slug']}.json").write_text(_json.dumps(v2))
+    v3 = dict(defn3(), version=v2["version"] + 1)
+    draft = tmp_path / "draft.json"
+    draft.write_text(_json.dumps(v3))
+    assert cg.promote(root, draft, defs, now=NOW)["why"].startswith("connect_not_passed")
+    cg.record(root, {"slug": v3["slug"], "version": v3["version"], "digest": model.digest(v3), "kind": "gate",
+                     "ok": True}, now=NOW)
+    assert cg.promote(root, draft, defs, now=NOW)["why"].startswith("ops approval for this version")
+    (root / "approvals.json").write_text(_json.dumps({"approvals": [
+        {"slug": v3["slug"], "state": "approved", "version": v2["version"], "definition_digest": model.digest(v2),
+         "at": "2026-11-18T10:00:00Z"}]}))
+    assert "approval_mismatch" in cg.promote(root, draft, defs, now=NOW)["why"]      # v2's approval is not v3's
+    assert model.load(defs / f"{v2['slug']}.json")["version"] == v2["version"]      # v2 untouched so far
+    (root / "approvals.json").write_text(_json.dumps({"approvals": [
+        {"slug": v3["slug"], "state": "approved", "version": v3["version"], "definition_digest": model.digest(v3),
+         "at": "2026-11-18T13:00:00Z"}]}))
+    got = cg.promote(root, draft, defs, now=NOW)
+    assert got["promoted"] and got["replaced_version"] == v2["version"]
+    assert model.load(defs / f"{v2['slug']}.json")["version"] == v3["version"]
+    assert "already has version" in cg.promote(root, draft, defs, now=NOW)["why"]
+
+
 def test_inputs_come_from_tuning_only(tmp_path):
     folder = tmp_path / "gold" / "topic-brief"
     folder.mkdir(parents=True)

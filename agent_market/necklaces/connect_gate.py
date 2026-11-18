@@ -377,6 +377,34 @@ def daily_run(defn: dict, root: Path) -> dict:
     return {"slug": defn["slug"], "connect": "daily", "ok": line["ok"], "at": line["at"]}
 
 
+def promote(root: Path, draft: Path, definitions_dir: Path | None = None, now: float | None = None) -> dict:
+    """Move a new version from drafts/ into definitions/ only with both keys (PM 21:35, 11-18): its connection gate
+    passed for this version and digest, and the latest ops approval for the slug is for it. Until then the public
+    entry stays the earlier version (a v3 in definitions/ without its keys would hold the necklace, and an approval
+    for v3 while v2 is in definitions/ reads as approval_mismatch for v2), so ops writes the approval and runs
+    this right after; the judge is run at once so the gap is one write."""
+    from . import judge
+    now = time.time() if now is None else now
+    definitions_dir = Path(definitions_dir or model.DEFINITIONS)
+    defn = model.load(draft)
+    errors = model.validate(defn)
+    if errors:
+        return {"promoted": False, "why": "invalid", "errors": errors}
+    target = definitions_dir / f"{defn['slug']}.json"
+    current = model.load(target) if target.exists() else None
+    if current is not None and current["version"] >= defn["version"]:
+        return {"promoted": False, "why": f"definitions already has version {current['version']}"}
+    passed = state_of(Path(root), defn, now).get("passed_at")
+    if not passed:
+        return {"promoted": False, "why": "connect_not_passed for this version and digest"}
+    approved, reason = judge.approval_state(defn, judge.load_approvals(Path(root) / "approvals.json").get(defn["slug"]))
+    if not approved:
+        return {"promoted": False, "why": f"ops approval for this version: {reason}"}
+    target.write_text(Path(draft).read_text(encoding="utf-8"), encoding="utf-8")
+    return {"promoted": True, "slug": defn["slug"], "version": defn["version"], "digest": model.digest(defn),
+            "passed_at": passed, "replaced_version": current["version"] if current else None}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("slug")
@@ -385,10 +413,29 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--substitute", help="a substitute's gate: its agent id (with --slot)")
     parser.add_argument("--slot", help="the step the substitute is put in")
     parser.add_argument("--base", default=None)
+    parser.add_argument("--definition", type=Path, help="a new version kept in drafts/ (PM 21:35): its gate runs "
+                                                         "without touching the public one")
+    parser.add_argument("--promote", action="store_true", help="with --definition: move it into definitions/ once "
+                                                               "its gate passed and ops approved this version")
     args = parser.parse_args(argv)
     if bool(args.substitute) != bool(args.slot):
         parser.error("--substitute and --slot go together")
-    defn = next((d for d in model.load_valid() if d["slug"] == args.slug), None)
+    if args.promote:
+        if not args.definition:
+            parser.error("--promote needs --definition")
+        out = promote(args.root, args.definition)
+        if out.get("promoted"):
+            from . import judge
+            out["judge"] = judge.run_once(args.root)["entries"].get(out["slug"])
+        print(json.dumps(out, ensure_ascii=False))
+        return 0 if out.get("promoted") else 1
+    if args.definition:
+        defn = model.load(args.definition)
+        if model.validate(defn) or defn["slug"] != args.slug:
+            print(json.dumps({"error": "invalid_definition", "errors": model.validate(defn)}))
+            return 2
+    else:
+        defn = next((d for d in model.load_valid() if d["slug"] == args.slug), None)
     if defn is None:
         print(json.dumps({"error": "unknown_slug"}))
         return 2
