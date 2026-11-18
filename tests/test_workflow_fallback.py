@@ -186,13 +186,15 @@ def test_cap_and_percent_apply_at_admission_not_per_node(routing,monkeypatch):
 
 @pytest.mark.parametrize('changes',[
     {'canary_percent':11},{'canary_percent':True},{'max_runs':101},{'expires':float('nan')},
-    {'expires':time.time()+90000},{'authority':False},{'notice':'other'},
+    {'expires_in':90000},{'authority':False},{'notice':'other'},
     {'pairs':[{'node_id':'search','resource_id':'https://private.invalid','contract_id':'docs.search.v1'}]},
     {'pairs':[{'node_id':'search','resource_id':1,'contract_id':'products.compare.v1'}]},
     {'mode':'automatic'},{'revision':999},
 ])
 def test_policy_rejects_unsafe_or_unbounded_input(routing,changes):
     rt,wf,ids,*_=routing
+    if 'expires_in' in changes:   # computed when the test runs: a long night run collects hours before it runs (11-18)
+        changes={**{k:v for k,v in changes.items() if k!='expires_in'},'expires':time.time()+changes['expires_in']}
     with pytest.raises((RoutingDenied,ValueError)):config(rt,wf,ids,**changes)
     assert rt.fallback.inspect(wf['id'])['revision']==0
 
