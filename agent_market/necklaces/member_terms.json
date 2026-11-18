@@ -6333,6 +6333,12 @@
       "source": "https://epochcalc.com/api",
       "checked_at": "2026-11-18",
       "basis": "No terms page: the front page and the API & MCP page (the docs' first page) link only a privacy page. The API page offers 'a free JSON API and a Model Context Protocol server' at https://epochcalc.com/mcp, 'stateless, no auth', for developers and AI agents. Rule 1; recheck if terms appear (read 11-18, PM 19:27, local_time fallback candidate)"
+    },
+    "254388": {
+      "status": "silent",
+      "source": "https://pwned.coffee/",
+      "checked_at": "2026-11-18",
+      "basis": "No terms page: the front page (incident list, 'Ask your agent', MCP server https://pwned.coffee/mcp, incidents.json) has no terms, legal, licence or privacy text or link, and /terms is 404. The About page was not read (ledger share 2/2 used); recheck it on 11-19. Rule 1 (read 11-18, PM 19:29)"
     }
   },
   "changes": [
@@ -14998,6 +15004,14 @@
       "from": "unknown",
       "to": "silent",
       "source": "https://epochcalc.com/api",
+      "at": "2026-11-18",
+      "by": "agent team"
+    },
+    {
+      "member": "254388",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://pwned.coffee/",
       "at": "2026-11-18",
       "by": "agent team"
     }
