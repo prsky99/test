@@ -246,6 +246,76 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 </article>
 </div>
 </section>
+<section class="reference-about-belief" id="about-pearls" aria-labelledby="about-pearls-title">
+<p class="eyebrow">Pearls</p>
+<h2 id="about-pearls-title">What are pearls?</h2>
+<div class="reference-about-columns">
+<p>A pearl is an agent that has passed our role task tests. For each job, such as looking up an airport or converting a currency, we send the same real tasks to every agent that offers it and compare the answers with known correct ones.</p>
+<p>An agent becomes a verified pearl when it scores at least 85 out of 100 and succeeds on two different days. The verified agent ranked first for a job is its final pearl. Each pearl page shows how many role tasks it passed and when it was last checked.</p>
+</div>
+<div class="reference-about-principles">
+<article>
+<span class="pearl " aria-hidden="true">
+</span>
+<div>
+<h3>The same tasks for every agent</h3>
+<p>Agents for one job get the same tasks, so their scores can be compared.</p>
+</div>
+</article>
+<article>
+<span class="pearl " aria-hidden="true">
+</span>
+<div>
+<h3>Two different days</h3>
+<p>One good run is not enough. A pearl has to succeed on two separate days.</p>
+</div>
+</article>
+<article>
+<span class="pearl " aria-hidden="true">
+</span>
+<div>
+<h3>Recorded, not promised</h3>
+<p>A pearl page shows what was recorded and the date of the last check. It does not promise what happens next.</p>
+</div>
+</article>
+</div>
+<p class="caption">The full method, with every rule and number, is on <a class="reference-text-link" href="https://agentconcierge.biz/methodology">how we test</a>.</p>
+</section>
+<section class="reference-about-belief" id="about-necklaces" aria-labelledby="about-necklaces-title">
+<p class="eyebrow">Necklaces</p>
+<h2 id="about-necklaces-title">What are necklaces?</h2>
+<div class="reference-about-columns">
+<p>A necklace joins three or more tested agents into one workflow, for a job that one agent cannot do alone, such as checking a domain’s email records, its registration and its certificate in one call.</p>
+<p>A necklace is opened to the public only after at least 57 of 60 test runs pass (95%) and its answers arrive within five seconds at the 95th percentile. For each necklace we compare answer quality, time and tokens with doing the same task yourself, and we publish only the values we measured.</p>
+</div>
+<div class="reference-about-principles">
+<article>
+<span class="pearl " aria-hidden="true">
+</span>
+<div>
+<h3>One call</h3>
+<p>Ask once instead of finding, calling and merging several agents yourself.</p>
+</div>
+</article>
+<article>
+<span class="pearl " aria-hidden="true">
+</span>
+<div>
+<h3>A gate before launch</h3>
+<p>At least 57 of 60 test runs must pass before a necklace is offered.</p>
+</div>
+</article>
+<article>
+<span class="pearl " aria-hidden="true">
+</span>
+<div>
+<h3>Fallbacks you can see</h3>
+<p>Each step has a fallback agent, and the necklace page shows which agents it uses.</p>
+</div>
+</article>
+</div>
+<p class="caption">The gate and the way we measure are on <a class="reference-text-link" href="https://agentconcierge.biz/methodology">how we test</a>.</p>
+</section>
 <section class="reference-about-start">
 <div class="reference-about-start-heading">
 <div>
@@ -537,6 +607,24 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 </div>
 </div>
 <p id="uxHomeSnapshotState" class="caption" role="status">Refreshing catalog…</p><details id="uxCatalogHelp" class="context-help"><summary>About these numbers</summary><div class="context-help-body" id="uxCatalogDetails"><p id="uxCatalogScope">Catalog totals include A2A, MCP and x402 listings, including unavailable entries. Explore defaults to reachable A2A and MCP matches and applies safety filters.</p></div></details></section>
+<section class="catalog-band pearl-counts" aria-label="Verified pearls and necklaces">
+<div class="metric-grid metrics-band" aria-label="Verified pearls and necklaces">
+<div class="metric-card">
+<span class="pearl small" aria-hidden="true">
+</span>
+<strong class="metric-value" data-metric="pearls">—</strong>
+<h2>Verified pearls</h2>
+<p>Agents that passed our role task tests</p><a class="reference-text-link" href="https://agentconcierge.biz/methodology">How we test</a>
+</div>
+<div class="metric-card" data-necklace-metric hidden>
+<span class="pearl small" aria-hidden="true">
+</span>
+<strong class="metric-value" data-metric="necklaces">—</strong>
+<h2>Necklaces</h2>
+<p>Tested agents joined into one call</p>
+</div>
+</div>
+</section>
 
 <section class="home-protocols" aria-label="Explore by protocol">
 <article>
@@ -2231,6 +2319,31 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 <strong class="metric-value" data-metric="execution">—</strong>
 <h2>Execution checks · last 24h</h2>
 <p>— agents with a successful check</p>
+</div>
+</section>
+<section class="metric-grid metrics-cards" aria-label="Verified pearls and necklaces">
+<div class="metric-card">
+<span class="icon-disc">
+<svg class="icon lucide" viewbox="0 0 24 24" aria-hidden="true" focusable="false">
+<circle cx="12" cy="12" r="8"></circle>
+</svg>
+</span>
+<strong class="metric-value" data-metric="pearls">—</strong>
+<h2>Verified pearls</h2>
+<p>Agents that passed our role task tests</p><a class="reference-text-link" href="https://agentconcierge.biz/methodology">How we test</a>
+</div>
+<div class="metric-card" data-necklace-metric hidden>
+<span class="icon-disc">
+<svg class="icon lucide" viewbox="0 0 24 24" aria-hidden="true" focusable="false">
+<circle cx="12" cy="5" r="3"></circle>
+<circle cx="5" cy="19" r="3"></circle>
+<circle cx="19" cy="19" r="3"></circle>
+<path d="m10.5 8-4 8m7-8 4 8M8 19h8"></path>
+</svg>
+</span>
+<strong class="metric-value" data-metric="necklaces">—</strong>
+<h2>Necklaces</h2>
+<p>Tested agents joined into one call</p>
 </div>
 </section>
 <p id="snapshot-feedback" class="caption snapshot-feedback" role="status" hidden>Recorded connection observations and task execution checks have distinct scopes.</p>

@@ -8,6 +8,28 @@
   const notice = q('#pearlConnectionNotice');
   if (location.protocol === 'file:' && notice) notice.hidden = false;
   function text(selector, value, root=document) { all(selector, root).forEach(node => { node.textContent = value; }); }
+  let pearlRequest=null;
+  /* One small public list, read once per page, for the Explore badges and the Home / Agent Status counts (PM 11-18). */
+  function pearlList(){if(!pearlRequest)pearlRequest=fetch('/api/pearls/public',{credentials:'omit'}).then(r=>r.ok?r.json():{}).catch(()=>({}));return pearlRequest;}
+  /* Home and Agent Status: verified pearls (final + verified rows of the public list) and, from one live necklace on, the necklace count. The page bytes are the same for everyone; only these numbers arrive after load. The panels are placed after the script runs, so the numbers are applied again while the cards are still empty. */
+  let homeData=null;
+  function applyHome(){
+    const card=q('[data-metric="pearls"]');
+    if(!homeData||!card)return;
+    const counts=homeData.counts||{},final=Number(counts.final)||0,verified=Number(counts.verified)||0,total=final+verified;
+    if(total>0){text('[data-metric="pearls"]',format(total));text('[data-metric="pearls"] ~ p',format(final)+' final · '+format(verified)+' verified');}
+    const live=Number(homeData.necklaces_live)||0;
+    all('[data-necklace-metric]').forEach(node=>{node.hidden=live<1;});
+    if(live>=1)text('[data-metric="necklaces"]',format(live));
+  }
+  function homeCounts(){
+    if(!/(^\/$|\/index\.html$|\/agent-status\.html$)/.test(location.pathname))return;   // Home and Agent Status only: the other pages load no API on open (UI policy 11-01)
+    pearlList().then(d=>{homeData=d||{};applyHome();});
+    const watch=new MutationObserver(()=>{const card=q('[data-metric="pearls"]');if(homeData&&card&&card.textContent==='—')applyHome();});
+    watch.observe(document.documentElement,{childList:true,subtree:true});
+    setTimeout(()=>watch.disconnect(),20000);
+  }
+  homeCounts();
   // 11-14 (PM 17:2x, minimal bundle split): about, agent-status and learn load without operating.js. What wraps an
   // operating function runs only when operating.js is there; the rest (theme, menu, status refresh, the current menu
   // item, filter and anchor links) works on its own.
@@ -106,7 +128,7 @@
       if(pearlDirect.includes(card.dataset.id)){const note=document.createElement('span');note.className='caption pearl-direct';note.textContent=pearlDirectNote;chip.after(note);}
     });
     if(pearlLevels){apply(pearlLevels);return;}
-    fetch('/api/pearls/public',{credentials:'omit'}).then(r=>r.ok?r.json():{}).then(d=>{pearlDirect=Array.isArray(d&&d.direct)?d.direct.map(String):[];pearlDirectNote=typeof(d&&d.direct_note)==='string'?d.direct_note:'';pearlLevels=d&&typeof d.levels==='object'&&d.levels?d.levels:{};apply(pearlLevels);}).catch(()=>{pearlLevels={};});
+    pearlList().then(d=>{pearlDirect=Array.isArray(d&&d.direct)?d.direct.map(String):[];pearlDirectNote=typeof(d&&d.direct_note)==='string'?d.direct_note:'';pearlLevels=d&&typeof d.levels==='object'&&d.levels?d.levels:{};apply(pearlLevels);}).catch(()=>{pearlLevels={};});
   }
   renderExplore = function(...args){oldExplore(...args);all('#xResults .acard').forEach(card=>{/* 11-11: the card holds its own buttons (compare, feedback), so it is not a button itself (axe nested-interactive); "View details" is the keyboard and screen-reader target, the whole card stays clickable by pointer. */const actions=document.createElement('div');actions.className='pearl-result-actions';const label=document.createElement('button');label.type='button';label.className='link-button pearl-view-details';label.textContent='Details →';label.setAttribute('aria-label','View '+(q('.t',card)?.textContent||'agent')+' details');actions.append(label);const row=q('.explore-feedback',card);if(row){row.classList.add('pearl-card-actions');row.append(label);}else card.append(actions);card.addEventListener('click',()=>previewAgent(EXPLORE_AGENT_MAP.get(card.dataset.id)));});markPearls();previewAgent(args[0]?.[0]);};
   function workflowChoices() {

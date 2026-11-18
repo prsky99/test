@@ -477,6 +477,15 @@ def testing_item(entry):
     return item
 
 
+def live_count(snapshot=None, now=None):
+    """How many necklaces are offered now (judged snapshot only; none in testing, none held or retired)."""
+    snapshot = snapshot or load()
+    now = now or datetime.now(timezone.utc)
+    return sum(1 for entry in snapshot.get('necklaces') or []
+               if isinstance(entry, dict) and SLUG.fullmatch(entry.get('slug') or '') and entry.get('status') != 'testing'
+               and offered(entry, now))
+
+
 def listing(base='https://agentconcierge.biz', snapshot=None, now=None):
     """Offered necklaces, then stopped ones still inside their 30-day notice (never a necklace that never went live);
     necklaces in testing are listed apart in `in_testing` with their test count only."""
@@ -1325,6 +1334,7 @@ def necklace_router(front=None):
         from . import pearl_badge
         return JSONResponse({'schema': 'agentcon-pearl-levels-v1', 'levels': pearl_badge.public_levels(),
                              'direct': pearl_badge.direct_ids(), 'direct_note': pearl_badge.DIRECT_NOTE,
+                             'counts': pearl_badge.counts(), 'necklaces_live': live_count(),
                              'method': pearl_badge.METHOD_URL}, headers={'Cache-Control': 'public, max-age=60'})
 
     @router.get('/api/feed/necklaces.json', include_in_schema=False)
