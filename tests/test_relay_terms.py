@@ -160,3 +160,17 @@ def test_a_restricted_listing_that_is_also_a_pearl_carries_both(terms, tmp_path,
     assert card['connection_available'] is False and card['connection_reason'] == 'terms_restricted'
     assert card['direct_endpoint'] == 'https://x711.io/mcp' and card['connection_note'].endswith(DIRECT_NOTE)
     assert 'connect_steps' not in card
+
+
+def test_search_keeps_a_terms_restricted_card_after_three_relayable_ones(terms):
+    """PM 11-18 14:5x (review by 검색과 RAG): with three or more relayable candidates the recommender used to drop a
+    listing whose terms prohibit our relay (it sat in the 'paid or own account' place of the key). It now follows the
+    relayable ones inside the list (the card keeps its direct address), and is only cut when the limit is reached."""
+    from agent_market.concierge.gateway_exposure import ExposedFirstRecommender
+    from tests.test_gateway_exposure import Recommender, SAFE, Store, _row
+    ids = (1, 2, 3, 143970)                      # 143970 is 'prohibits' in the fixture's verdict file
+    store = Store({rid: _row(rid, [SAFE]) for rid in ids})
+    items = [{'id': 143970, 'kind': 'mcp'}] + [{'id': rid, 'kind': 'mcp'} for rid in (1, 2, 3)]   # it was first in the pool
+    rec = ExposedFirstRecommender(Recommender(items), store)
+    assert [i['id'] for i in rec.search('pdf to text', limit=4)] == [1, 2, 3, 143970]
+    assert [i['id'] for i in rec.search('pdf to text', limit=3)] == [1, 2, 3]       # pushed back, not filtered out
