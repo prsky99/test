@@ -100,7 +100,7 @@ def test_build_queue_never_retests_a_member_whose_terms_prohibit(monkeypatch):
 def test_tool_names_that_were_left_out_now_reach_their_role():
     import role_catalog
     want = {'check_agent_readiness': 'website.ai_readiness.v1', 'list_public_holidays': 'holiday.calendar.v1',
-            'convert_timezone': 'timezone.time.v1', 'resolve_company': 'company.registry.v1',
+            'convert_timezone': 'timezone.time.v1',
             'company_filings': 'sec.filings.v1', 'get_latest_news': 'news.search.v1',
             'osv_get_vulnerability': 'cve.record.v1', 'latest_kev': 'cve.exploited.v1'}
     for name, role in want.items():
@@ -191,7 +191,11 @@ def test_old_verdicts_are_rejudged_from_the_new_budget_in_demand_order(monkeypat
 def test_company_profile_names_reach_their_own_role_only():
     """PM 11-16: company.profile.v1 is its own contract; a profile tool is queued under it, not also as a registry."""
     import role_catalog
-    for name in ('get_sec_company_profile', 'company_profile', 'get_company_profile', 'company_overview'):
+    for name in ('get_sec_company_profile', 'company_profile', 'get_company_profile'):
         assert role_catalog.roles_for_tool(name) == ['company.profile.v1'], name
-    for name in ('get_company', 'get_company_info', 'resolve_company', 'lookup_company'):
+    for name in ('lookup_company',):
         assert role_catalog.roles_for_tool(name) == ['company.registry.v1'], name
+    # PM 11-18 (Antigravity W6 / W1): get_company*, resolve_company and company_overview lost 26 of 26 role tests
+    # (layoff trackers, self-bios, token lookups); they reach no role now
+    for name in ('get_company', 'get_company_info', 'resolve_company', 'company_overview'):
+        assert role_catalog.roles_for_tool(name) == [], name
