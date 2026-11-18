@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "biz.agentconcierge/agent-concierge",
+  "title": "AgentValCon \u2014 Agent Value Gateway",
+  "description": "Find AI agents for a task; run workflows built from agents we tested, in one call.",
+  "version": "1.2.0",
+  "websiteUrl": "https://agentconcierge.biz/connect",
+  "icons": [
+    {
+      "src": "https://agentconcierge.biz/logo.svg",
+      "mimeType": "image/svg+xml",
+      "sizes": [
+        "any"
+      ]
+    },
+    {
+      "src": "https://agentconcierge.biz/new/en/assets/pearl.png",
+      "mimeType": "image/png",
+      "sizes": [
+        "1254x1254"
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://agentconcierge.biz/mcp"
+    }
+  ]
+}
