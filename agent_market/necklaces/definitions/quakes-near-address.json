@@ -1,9 +1,9 @@
 {
   "slug": "quakes-near-address",
-  "version": 1,
+  "version": 2,
   "status": "candidate",
   "name": "Earthquakes near an address",
-  "summary": "Where an address or landmark is, as coordinates, and the earthquakes of magnitude 4.5 or more within 1,000 km of it in the last 7 days (USGS data), each with magnitude, time, place and distance.",
+  "summary": "Where an address or landmark is, as coordinates, and the earthquakes of magnitude 4.5 or more within 1,000 km of it in the last 7 days (USGS data), each with magnitude, time, place and distance, and the local time there now.",
   "input_schema": {
     "type": "object",
     "properties": {
@@ -177,9 +177,60 @@
           }
         }
       ]
+    },
+    {
+      "slot": "local_time",
+      "contract": "timezone.time.v1",
+      "required": true,
+      "fanout": 1,
+      "depends_on": [
+        "location"
+      ],
+      "chain": [
+        {
+          "kind": "external",
+          "tool": "current_time",
+          "upstream": [
+            "plumbkit"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": false,
+          "resend_safe": false,
+          "state": "active",
+          "input_map": {
+            "timezone": "{{slot.location.timezone}}"
+          },
+          "resource_id": 84607,
+          "registrable_domain": "plumbkit.dev",
+          "needs": [
+            "timezone"
+          ]
+        },
+        {
+          "kind": "external",
+          "tool": "time_now",
+          "upstream": [
+            "epochcalc"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": false,
+          "resend_safe": false,
+          "state": "active",
+          "input_map": {
+            "timezone": "{{slot.location.timezone}}"
+          },
+          "resource_id": 37684,
+          "registrable_domain": "epochcalc.com",
+          "needs": [
+            "timezone"
+          ]
+        }
+      ]
     }
   ],
-  "notes": "v1 candidate from the location hub (100-necklace plan 4-1, workflow 11-15). Leads are verified pearls 264482 (geocode.address) and 37322, 178542 (earthquake.feed) by the 11-15 verify snapshot; all three passed the relay check at 11:41-11:46. 37322's geocode is US Census (US addresses only) and stands second. Gaps before the gate: no AgentValCon fallback for geocode.address yet, and the usgs-quakes fallback takes no coordinates (asked of the agent team). Delta risk: 178542 accepts a place name by itself, so the task is graded as coordinates plus the strongest nearby quake together (retest.grade_quakes_task). 11-15: usgs-quakes (our USGS feed filtered by distance, agent team 82d1a98d) ends the quakes chain, planned until ops approves it. 11-15: census-geocode (US Census, agent team 3a8c3775) ends the location chain for US addresses only (coverage country US), planned until ops approves it.",
+  "notes": "v1 candidate from the location hub (100-necklace plan 4-1, workflow 11-15). Leads are verified pearls 264482 (geocode.address) and 37322, 178542 (earthquake.feed) by the 11-15 verify snapshot; all three passed the relay check at 11:41-11:46. 37322's geocode is US Census (US addresses only) and stands second. Gaps before the gate: no AgentValCon fallback for geocode.address yet, and the usgs-quakes fallback takes no coordinates (asked of the agent team). Delta risk: 178542 accepts a place name by itself, so the task is graded as coordinates plus the strongest nearby quake together (retest.grade_quakes_task). 11-15: usgs-quakes (our USGS feed filtered by distance, agent team 82d1a98d) ends the quakes chain, planned until ops approves it. 11-15: census-geocode (US Census, agent team 3a8c3775) ends the location chain for US addresses only (coverage country US), planned until ops approves it. v2 (PM 11-18 19:3x, connection gate): a third role, local_time (84607 current_time, fallback 37684 time_now), reads the location step's IANA zone and is not called without it (needs).",
   "min_pearls_answered": 2,
   "probe_input": {
     "address": "Tokyo Tower, Minato, Tokyo, Japan",
