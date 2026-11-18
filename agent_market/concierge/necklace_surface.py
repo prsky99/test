@@ -1089,15 +1089,46 @@ WHY_PLACEHOLDER = '<div data-necklace-why></div>'
 def why_card(snapshot=None, now=None):
     """Home and Workflows (PM 16:03): the reason, up to three offered necklaces and the request link, rendered into the
     pages' placeholder by pearl_view; '' while none is offered, so the pages never show a necklace that is not there."""
-    rows = live(snapshot, now)
+    # PM 21:41 (11-18, user decision: once one necklace is public, home and status show it): previews are listed too,
+    # after the open ones, with a "Preview" tag and never a gate claim
+    rows = [*live(snapshot, now), *[e for e in available(snapshot, now) if e.get('status') == 'preview']]
     if not rows:
         return ''
     esc = lambda value: html.escape(str(value), quote=True)
-    links = ''.join('<li><a href="/necklaces/' + esc(e['slug']) + '">' + esc(e.get('name') or e['slug']) + '</a></li>'
+    links = ''.join('<li><a href="/necklaces/' + esc(e['slug']) + '">' + esc(e.get('name') or e['slug']) + '</a>'
+                    + (' <span class="necklace-preview-tag">' + esc(PREVIEW_TAG) + '</span>'
+                       if e.get('status') == 'preview' else '') + '</li>'
                     for e in rows[:3])
     return ('<section class="card necklace-why-card" aria-label="Necklaces"><h3>Necklaces: tested agents in one call</h3>'
-            '<p>' + esc(WHY) + '</p><ul>' + links + '</ul><div class="actions"><a class="btn" href="/necklaces/request">'
-            'Request a necklace</a></div></section>')
+            '<p>' + esc(WHY) + '</p><ul>' + links + '</ul><div class="actions"><a class="btn" href="/necklaces">'
+            'All necklaces</a> <a class="btn" href="/necklaces/request">Request a necklace</a></div></section>')
+
+
+PREVIEW_TAG = 'Preview'
+INDEX_LEAD = ('Each necklace joins agents of different roles into one call. Open ones passed our gate; '
+              'previews run while their test runs are in progress.')
+
+
+def index_page(base='https://agentconcierge.biz', snapshot=None, now=None):
+    """/necklaces (PM 21:41, 11-18): every necklace that can be run now, open ones first, each with its standing, one
+    line and a run link. A preview says "Preview — test runs in progress" and no figure; nothing else is shown."""
+    from .growth_pages import shell, heading
+    rows = [*live(snapshot, now), *[e for e in available(snapshot, now) if e.get('status') == 'preview']]
+    esc = lambda value: html.escape(str(value), quote=True)
+    items = ''.join(
+        '<li class="necklace-index-item"><h2><a href="/necklaces/' + esc(e['slug']) + '">' + esc(e.get('name') or e['slug'])
+        + '</a></h2><p class="necklace-index-standing">' + esc(PREVIEW_NOTE if e.get('status') == 'preview' else 'Open')
+        + '</p><p>' + esc(e.get('summary') or '') + '</p><p><a href="/necklaces/' + esc(e['slug'])
+        + '#runTitle">Run it</a></p></li>'      # one line: the sources and credits are on the necklace's own page
+        for e in rows)
+    body = (heading('Necklaces', 'Necklaces', INDEX_LEAD)
+            + ('<ul class="necklace-index">' + items + '</ul>' if rows else '<p>No necklace can be run yet.</p>')
+            + '<p><a class="btn" href="/necklaces/request">Request a necklace</a></p>')
+    structured = {'@context': 'https://schema.org', '@type': 'ItemList', 'name': 'Necklaces',
+                  'itemListElement': [{'@type': 'ListItem', 'position': i + 1, 'url': base + '/necklaces/' + e['slug'],
+                                       'name': e.get('name') or e['slug']} for i, e in enumerate(rows)]}
+    return shell(title='Necklaces | AgentValCon', description=INDEX_LEAD, canonical=base + '/necklaces',
+                 body='<div class="pearl-page">' + body + '</div>', structured=structured, index=bool(rows))
 
 
 # 11-15 user decision (PM 11:3x): necklaces run free for now. The judge marks it in the snapshot (pricing {"mode":
@@ -1231,7 +1262,9 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
 
 
 def sitemap_paths(snapshot=None, now=None):
-    return ['/necklaces/' + e['slug'] for e in live(snapshot, now)]
+    open_now = live(snapshot, now)
+    listed = open_now or [e for e in available(snapshot, now) if e.get('status') == 'preview']
+    return (['/necklaces'] if listed else []) + ['/necklaces/' + e['slug'] for e in open_now]
 
 
 def _input_note(entry):
@@ -1540,6 +1573,12 @@ def necklace_router(front=None):
     @router.get('/api/feed/necklaces.json', include_in_schema=False)
     def api_feed():
         return JSONResponse(feed(), media_type='application/feed+json', headers={'Cache-Control': 'public, max-age=60'})
+
+    @router.get('/necklaces', include_in_schema=False)
+    def necklaces_index(request: Request):
+        from .growth_pages import PAGE_CSP
+        base = front.base(request) if front is not None else 'https://agentconcierge.biz'
+        return HTMLResponse(index_page(base), headers={'Content-Security-Policy': PAGE_CSP})
 
     @router.get('/necklaces/{slug}', include_in_schema=False)
     def necklace(slug: str):

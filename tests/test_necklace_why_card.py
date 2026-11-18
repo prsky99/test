@@ -166,3 +166,37 @@ def test_the_provisional_note_with_a_one_day_rule(snapshot):  # noqa: F811
     note = ns.provisional_note({'member_rules': one})
     assert '(85 or more on its role task). When a verified pearl is available for the step, it takes the place.' in note
     assert 'different days' not in note
+
+
+def _with_preview(snapshot):
+    live = next(e for e in snapshot['necklaces'] if e['slug'] == 'trip-brief')
+    preview = {**live, 'slug': 'site-brief', 'name': 'Site brief', 'summary': 'One domain in one answer.',
+               'status': 'preview', 'gate_passed_at': None, 'quality': {},
+               'preview': {'gate_passed': False, 'note': ns.PREVIEW_NOTE}}
+    return {**snapshot, 'necklaces': [*snapshot['necklaces'], preview]}
+
+
+def test_a_preview_necklace_is_on_the_card_and_the_index_with_its_tag(snapshot):  # noqa: F811
+    """PM 21:41 (11-18, user decision: one public necklace shows on home and status): previews after the open ones,
+    tagged Preview, never a gate claim; /necklaces lists both with a run link; the sitemap has /necklaces."""
+    snap = _with_preview(snapshot)
+    assert [e['slug'] for e in ns.available(snap, NOW)] == ['trip-brief', 'site-brief']
+    card = ns.why_card(snapshot=snap, now=NOW)
+    assert 'href="/necklaces/site-brief">Site brief</a> <span class="necklace-preview-tag">Preview</span>' in card
+    assert card.index('trip-brief') < card.index('site-brief') and 'href="/necklaces"' in card
+    only = {**snap, 'necklaces': [e for e in snap['necklaces'] if e['slug'] != 'trip-brief']}
+    assert 'site-brief' in ns.why_card(snapshot=only, now=NOW)                  # a preview alone still shows
+    page = ns.index_page(snapshot=snap, now=NOW)
+    for text in ('href="/necklaces/trip-brief"', 'href="/necklaces/site-brief#runTitle"', ns.PREVIEW_NOTE,
+                 'One domain in one answer.', 'href="/necklaces/request"', '<link rel="canonical" href="https://agentconcierge.biz/necklaces">'):
+        assert text in page, text
+    assert 'passed the gate' not in page.split('site-brief')[1].split('</li>')[0]
+    assert ns.sitemap_paths(snap, NOW)[0] == '/necklaces' and '/necklaces/site-brief' not in ns.sitemap_paths(snap, NOW)
+    assert ns.sitemap_paths(only, NOW) == ['/necklaces']
+    none = {**snap, 'necklaces': []}
+    assert ns.sitemap_paths(none, NOW) == [] and 'No necklace can be run yet.' in ns.index_page(snapshot=none, now=NOW)
+
+
+def test_the_index_route_answers(client):  # noqa: F811
+    page = client.get('/necklaces', headers={'Accept': 'text/html'})
+    assert page.status_code == 200 and '<h1>Necklaces</h1>' in page.text and 'Content-Security-Policy' in page.headers

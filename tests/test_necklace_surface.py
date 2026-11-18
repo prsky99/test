@@ -77,7 +77,7 @@ def test_only_gated_fresh_better_multi_pearl_necklaces_are_offered(snapshot, tmp
     checked_own(tmp_path, monkeypatch, [{'resource_id': 900001, 'tool': 't'}])
     offered = [e['slug'] for e in ns.live(snapshot, NOW)]
     assert offered == ['trip-brief']
-    assert ns.sitemap_paths(snapshot, NOW) == ['/necklaces/trip-brief']
+    assert ns.sitemap_paths(snapshot, NOW) == ['/necklaces', '/necklaces/trip-brief']   # PM 21:41: the index page first
     listed = {i['slug']: i for i in ns.listing(snapshot=snapshot, now=NOW)['necklaces']}
     # stopped necklaces stay listed with their notice during the 30 days; never-approved ones never appear
     assert set(listed) == {'trip-brief', 'paper-digest', 'old-brief'}
@@ -180,7 +180,7 @@ def test_llms_and_sitemap_put_offered_necklaces_first_and_stay_unchanged_without
     (tmp_path / 'gateway-data/necklaces/necklaces.json').write_text(json.dumps({**snapshot, 'necklaces': [live]}))
     text = llms_txt('https://agentconcierge.biz', {}, None)
     assert text.index('## Necklaces you can run') < text.index('Compact remote MCP')
-    assert sitemap_paths({'tasks': [], 'catalog': [], 'captured': 0})[0] == '/necklaces/trip-brief'
+    assert sitemap_paths({'tasks': [], 'catalog': [], 'captured': 0})[:2] == ['/necklaces', '/necklaces/trip-brief']
 
 
 @pytest.mark.parametrize('cumulative, shown', [
