@@ -39,23 +39,29 @@ def daemon_environment(release_dir, env_text, env_file=None):
 
 
 PIN_TAG = '# adcoin-worker daemon (install-adcoin-worker.sh)'
+PREVIOUS_TAG = '# adcoin-worker daemon previous release (rollback target)'
 
 
-def pin_release(path, release):
+def pin_release(path, release, previous=None):
     """Keep the daemon's release folder out of the post-deploy prune (gateway-data/services/pinned-releases.txt).
 
     11-15 PM: the daemon runs from a release folder that only a running process protected. The line written here
-    replaces the one an earlier install wrote, so only the release the daemon runs now stays pinned."""
+    replaces the one an earlier install wrote, so only the release the daemon runs now stays pinned.
+    11-19 (unattended reinstall, PM 00:37): PREVIOUS, the release the daemon ran before this install, stays pinned
+    too (one line, its own tag), so a rollback always finds its folder; the next install replaces it."""
     import os
     import tempfile
-    if not release or any(c in release for c in '/# \n'):
-        raise ValueError('invalid release name')
+    for name in (release,) + ((previous,) if previous else ()):
+        if not name or any(c in name for c in '/# \n'):
+            raise ValueError('invalid release name')
     try:
         with open(path, encoding='utf-8') as fh:
             lines = fh.read().splitlines()
     except FileNotFoundError:
         lines = []
-    lines = [line for line in lines if not line.rstrip().endswith(PIN_TAG)] + [f'{release}  {PIN_TAG}']
+    lines = [line for line in lines if not line.rstrip().endswith((PIN_TAG, PREVIOUS_TAG))] + [f'{release}  {PIN_TAG}']
+    if previous and previous != release:
+        lines.append(f'{previous}  {PREVIOUS_TAG}')
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(os.path.abspath(path)), prefix='.pinned-')
     with os.fdopen(fd, 'w', encoding='utf-8') as fh:
         fh.write('\n'.join(lines) + '\n')

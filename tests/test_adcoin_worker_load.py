@@ -21,12 +21,16 @@ case "$cmd" in
   bootstrap)
     echo bootstrap >> "$D/calls"
     n=$(count bootstrap_fail); if [ "$n" -gt 0 ]; then echo $((n - 1)) > "$D/bootstrap_fail"; echo "Bootstrap failed: 5" >&2; exit 5; fi
+    if [ -f "$D/crashes" ]; then touch "$D/crashed"; exit 0; fi
     [ -f "$D/never_runs" ] || touch "$D/loaded" ;;
 esac
+# a job launchd keeps relaunching: listed, but with no PID
+[ "$cmd" = list ] && [ -f "$D/crashed" ] && printf -- '-\t1\t%s\n' "$LABEL"
+exit 0
 '''
 
 
-def run(tmp_path, *, unload_polls=0, bootstrap_fail=0, never_runs=False, wait=120, **extra):
+def run(tmp_path, *, unload_polls=0, bootstrap_fail=0, never_runs=False, crashes=False, wait=120, **extra):
     fake = tmp_path / 'launchctl'
     fake.write_text(FAKE)
     fake.chmod(0o755)
@@ -35,6 +39,8 @@ def run(tmp_path, *, unload_polls=0, bootstrap_fail=0, never_runs=False, wait=12
         (tmp_path / 'bootstrap_fail').write_text(str(bootstrap_fail))
     if never_runs:
         (tmp_path / 'never_runs').touch()
+    if crashes:
+        (tmp_path / 'crashes').touch()
     env = {**os.environ, 'LAUNCHCTL': str(fake), 'FAKE_DIR': str(tmp_path), 'LABEL': LABEL,
            'UNLOAD_POLLS': str(unload_polls), 'INSTALL_WAIT_SECONDS': str(wait), 'INSTALL_SETTLE_SECONDS': '0',
            'INSTALL_RETRY_SECONDS': '0', 'INSTALL_POLL_SECONDS': '0', 'INSTALL_REBOOTOUT_SECONDS': '0',
@@ -78,3 +84,22 @@ def test_the_wait_is_wall_clock_time_even_when_sleep_returns_at_once(tmp_path):
     took = time.monotonic() - started
     assert code == 3 and took >= 2.9 and 'bootstrap' not in calls
     assert 'limit 3s' in out
+
+
+def test_a_job_listed_without_a_pid_is_not_running(tmp_path):
+    """11-19 (unattended reinstall, PM 00:37): launchd lists a daemon that keeps exiting with '-' for its PID; the old
+    check (label listed) took that for running. Now the final check needs a PID."""
+    rc, out, calls = run(tmp_path, crashes=True)
+    assert rc == 5 and 'no PID' in out and 'NOT running' in out and calls == ['bootout', 'bootstrap']
+
+
+def test_install_script_locks_keeps_the_previous_plist_and_rolls_back_once():
+    """The install script is not run here (it writes the real pinned-releases.txt and LaunchAgents); its order is."""
+    text = (ROOT / 'deploy/launchd/install-adcoin-worker.sh').read_text()
+    order = ['mkdir "$LOCK"', 'cp -p "$P" "$P.prev"', 'plistlib.dump(spec, f)', 'pin "$REL" "$PREV"',
+             'adcoin-worker-load.sh" "$L" "$P"', 'cp -p "$P.prev" "$P"', 'pin "$PREV" ""', 'exit 6', 'exit 7']
+    at = [text.index(part) for part in order]
+    assert at == sorted(at), dict(zip(order, at))
+    assert "trap 'rmdir \"$LOCK\"" in text and 'exit 9' in text and 'exit 2' in text
+    assert '[ "$PREV" != "$REL" ]' in text            # never "roll back" onto the release that just failed
+    assert text.count('adcoin-worker-load.sh" "$L" "$P"') == 2   # the new release once, the rollback once: no loop

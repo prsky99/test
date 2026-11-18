@@ -18,6 +18,9 @@ SLEEP=${INSTALL_SLEEP:-sleep}      # replaceable for tests (an instant sleep rep
 TRIES=${INSTALL_BOOTSTRAP_TRIES:-3}; RERUN=${RERUN:-the same install command}
 DOMAIN="gui/$(id -u)"
 listed() { "$LAUNCHCTL" list | grep -q "[[:space:]]$L\$"; }
+# 11-19 (unattended reinstall, PM 00:37): "listed" is enough to wait for an unload, but a job listed with no PID
+# (launchd relaunching a daemon that keeps exiting) is not running; the final check needs a PID
+running() { "$LAUNCHCTL" list | awk -v l="$L" '$3 == l && $1 ~ /^[0-9]+$/ {found = 1} END {exit !found}'; }
 now() { date +%s; }
 pause() {   # wait $1 seconds of wall-clock time, even if sleep comes back early
   [ "$1" -gt 0 ] || return 0
@@ -46,5 +49,5 @@ until "$LAUNCHCTL" bootstrap "$DOMAIN" "$P"; do
   echo "bootstrap failed; trying again in ${RETRY}s"; pause "$RETRY"; tries=$((tries + 1))
 done
 pause "$SETTLE"
-if ! listed; then echo "$L is not running after the bootstrap"; down; exit 5; fi
+if ! running; then echo "$L is not running after the bootstrap (no PID)"; down; exit 5; fi
 exit 0

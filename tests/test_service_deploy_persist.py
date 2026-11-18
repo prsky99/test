@@ -52,6 +52,25 @@ def test_the_daemon_release_is_pinned_once_and_the_prune_keeps_it(tmp_path):
         raise AssertionError(bad)
 
 
+def test_the_previous_daemon_release_stays_pinned_as_the_rollback_target(tmp_path):
+    """11-19 (unattended reinstall, PM 00:37): a reinstall keeps the release the daemon ran before pinned under its own
+    tag, so a rollback finds its folder; the next reinstall replaces both lines and other teams' lines stay."""
+    from scripts.adcoin_worker_env import PIN_TAG, PREVIOUS_TAG, pin_release
+    deployment = Deployment(tmp_path / 'root')
+    pinned = deployment.directory / 'pinned-releases.txt'
+    pinned.write_text('align-admin-20261113-r2\n')
+    pin_release(str(pinned), 'r14', 'r11')
+    pin_release(str(pinned), 'r19', 'r14')
+    lines = pinned.read_text().splitlines()
+    assert lines == ['align-admin-20261113-r2', 'r19  ' + PIN_TAG, 'r14  ' + PREVIOUS_TAG]
+    assert deployment.waiting_releases({'r11', 'r14', 'r19', 'align-admin-20261113-r2'}) == {
+        'r14', 'r19', 'align-admin-20261113-r2'}                       # r11 may be pruned now, r14 may not
+    pin_release(str(pinned), 'r14', None)                                 # a rollback pins the old one alone
+    assert [line for line in pinned.read_text().splitlines() if 'adcoin-worker' in line] == ['r14  ' + PIN_TAG]
+    pin_release(str(pinned), 'r20', 'r20')                                # same release: no previous line
+    assert not any(line.endswith(PREVIOUS_TAG) for line in pinned.read_text().splitlines())
+
+
 def test_the_install_script_pins_before_it_loads_the_daemon():
     from pathlib import Path
     text = (Path(__file__).resolve().parents[1] / 'deploy/launchd/install-adcoin-worker.sh').read_text()
