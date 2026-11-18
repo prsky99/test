@@ -206,6 +206,10 @@ _os.environ['AGENTCON_SIGNING_DIR'] = _tempfile.mkdtemp(prefix='agentcon-test-si
 # gateway-data/owned-data-agents/tech-news.json that production reads (11-17 02:05, 11-18 04:33 and 06:28).
 # tech_news.PATH follows OWNED_NEWS_BUNDLE, which every child inherits.
 _os.environ['OWNED_NEWS_BUNDLE'] = _os.path.join(_tempfile.mkdtemp(prefix='agentcon-test-news-'), 'tech-news.json')
+# 11-18 (운영·SRE): a Python child does not inherit the patched socket either; tests/child_guard/sitecustomize.py
+# installs the outside-network part of tests/report_redirect.py in every child whose PYTHONPATH leads with it.
+_CHILD_GUARD = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), 'child_guard')
+_os.environ['PYTHONPATH'] = _CHILD_GUARD + (_os.pathsep + _os.environ['PYTHONPATH'] if _os.environ.get('PYTHONPATH') else '')
 
 
 # PM 11-17: test runs never touch production records, secrets or the production database (tests/report_redirect.py):
@@ -219,6 +223,8 @@ from pathlib import Path as _Path
 def pytest_configure(config):
     config.addinivalue_line('markers', 'production_paths: this test reads production secrets or connects to the '
                                        'production database on purpose (reported to the PM, 11-17)')
+    config.addinivalue_line('markers', 'live_network: this test calls a real outside service on purpose; the night '
+                                       'full pytest leaves it out (PM 11-18)')
 
 
 @pytest.fixture(autouse=True, scope='session')
@@ -233,3 +239,17 @@ def _production_paths_marker(request):
     _report_redirect.allow_production(request.node.get_closest_marker('production_paths') is not None)
     yield
     _report_redirect.allow_production(False)
+
+
+@pytest.fixture(autouse=True)
+def _no_outside_network(request):
+    """PM 11-18 (tests/report_redirect.py part 4): no test reaches the internet unless it is marked live_network. The
+    code under test may catch the refusal (a fallback agent turns it into source_unavailable), so the test fails here."""
+    _report_redirect.allow_live_network(request.node.get_closest_marker('live_network') is not None)
+    _report_redirect.take_outside()
+    yield
+    _report_redirect.allow_live_network(False)
+    refused = _report_redirect.take_outside()
+    if refused:
+        pytest.fail('outside network refused: ' + ', '.join(sorted({f'{host}:{port}' for _, host, port in refused}))
+                    + ' (use a cassette or fake transport, or mark live_network)', pytrace=False)
