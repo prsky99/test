@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 
 LABEL = "Sponsored"
 DISCLOSURE = "Sponsored by the advertiser. Ads never change which agents are recommended."
+# Machine-readable disclosure for the Explore and Chat card API (PM 11-21 assignment, started 11-18 22:40): the same
+# facts as the agent-answer slot (concierge/ad_slot.disclosure; tests keep the two equal). The ad side may not import
+# the organic side, so the values are repeated here. `disclosure` stays the sentence the screens print.
+AD_DISCLOSURE = {"sponsored": True, "paid_placement": True,
+                 "affects": {"ranking": False, "selection": False, "test_results": False},
+                 "statement": "Advertising does not affect ranking, selection or test results.",
+                 "policy_url": "https://agentconcierge.biz/ads/library",
+                 "policy_json": "https://agentconcierge.biz/ads/library.json"}
 MAX_CARDS = 2
 SNAPSHOT_LIMIT = 5000
 TEXT_LIMIT = 280
@@ -116,12 +124,14 @@ class SponsoredSlots:
                 or not 1 <= limit <= MAX_CARDS:
             raise ContractError("unsupported_targeting", 422)
         if site_category in SENSITIVE_SITE_CATEGORIES:     # medical, legal and financial advice topics: no ad (11-14)
-            return {"label": LABEL, "disclosure": DISCLOSURE, "reward": None, "placement": placement, "cards": []}
+            return {"label": LABEL, "disclosure": DISCLOSURE, "ad_disclosure": AD_DISCLOSURE, "reward": None,
+                "placement": placement, "cards": []}
         cards = self.cards(category, region)[:limit] if region in self.regions else []
         cards = [{**card, "why": why_shown(category, region)} for card in cards]
         if cards and count:
             self._count(cards, category, region, placement)
-        return {"label": LABEL, "disclosure": DISCLOSURE, "reward": None, "placement": placement, "cards": cards}
+        return {"label": LABEL, "disclosure": DISCLOSURE, "ad_disclosure": AD_DISCLOSURE, "reward": None,
+                "placement": placement, "cards": cards}
 
     def _count(self, cards, category, region, placement):
         now = self._clock()

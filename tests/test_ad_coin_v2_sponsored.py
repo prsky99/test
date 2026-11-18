@@ -58,6 +58,7 @@ def test_http_slot_is_public_cached_and_carries_no_reward(p1_suite):  # noqa: F8
     assert response.status_code == 200 and 'private' in response.headers['cache-control']  # varies by country (11-11)
     body = response.json()
     assert body['label'] == LABEL and body['reward'] is None and 'never change which agents' in body['disclosure']
+    assert body['ad_disclosure']['sponsored'] is True and set(body['ad_disclosure']['affects'].values()) == {False}
     assert 'set-cookie' not in response.headers
     assert TestClient(app).get('/api/ad-coin/v2/sponsored', params={'category': 'x', 'region': 'US'}).status_code == 422
 

@@ -34,6 +34,7 @@ DESCRIPTION_LINE = ('Ads: at most one offer labelled "Sponsored" may follow the 
 # field, apart from the results, the ranking and the evidence (`facts` are ours and say so).
 AFFECTS = {'ranking': False, 'selection': False, 'test_results': False}
 STATEMENT = 'Advertising does not affect ranking, selection or test results.'
+META_KEY = 'biz.agentconcierge/sponsored'   # MCP _meta key for a text-only result's Sponsored item
 MAX_LINE = 400
 MAX_FIELD = 2000
 SLOW_SECONDS = 0.05      # the provider is an in-memory lookup; a slower call is noted, never retried
@@ -309,6 +310,11 @@ def attach_mcp(result, ctx):
     out['content'] = list(result.get('content') or []) + [{'type': 'text', 'text': line(items[0])}]
     if isinstance(structured, dict):
         out['structuredContent'] = {**structured, 'sponsored': items}
+    else:
+        # a result with only text still carries the item and its disclosure in a field a client can read (11-18):
+        # MCP result _meta, under our reverse-domain key, never inside the organic content
+        meta = result.get('_meta') if isinstance(result.get('_meta'), dict) else {}
+        out['_meta'] = {**meta, META_KEY: items}
     return out
 
 

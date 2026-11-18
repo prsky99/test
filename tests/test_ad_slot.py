@@ -265,3 +265,26 @@ def test_the_fortune_necklaces_sit_in_the_creative_slot():
     for slug in ('daily-fortune-brief', 'personality-fortune-brief'):
         ctx = ad_slot.necklace_context('mcp', slug)
         assert ctx['category'] == 'social' and SITE_CATEGORIES[ctx['category']] == 'creative' and ctx['necklace'] == slug
+
+
+def test_card_api_carries_the_same_machine_readable_disclosure_as_agent_answers():
+    """PM 11-21 assignment (started 11-18 22:40): the Explore and Chat card API says, in fields, what the agent slot
+    says: sponsored, paid placement, no effect on ranking, selection or test results, and where the policy is."""
+    from agent_market.ad_coin.v2.sponsored import AD_DISCLOSURE, DISCLOSURE
+    assert AD_DISCLOSURE == ad_slot.disclosure()               # one set of facts on both surfaces
+    assert set(AD_DISCLOSURE['affects'].values()) == {False} and AD_DISCLOSURE['policy_url'].endswith('/ads/library')
+    assert 'never change' in DISCLOSURE                         # the sentence the screens print is unchanged
+
+
+def test_a_text_only_mcp_result_carries_the_item_in_meta_apart_from_the_content(monkeypatch):
+    item = {'label': 'Sponsored', 'advertiser': 'Example AI', 'text': 'Sponsored: finds papers by topic.',
+            'why_shown': 'Booked for research in US.', 'disclosure_url': 'https://agentconcierge.biz/advertise'}
+    monkeypatch.setattr(ad_slot, '_PROVIDER', lambda ctx: dict(item))
+    organic = {'content': [{'type': 'text', 'text': 'organic answer'}], '_meta': {'other': 1}}
+    out = ad_slot.attach_mcp(organic, ad_slot.context('mcp', 'find_agents', {'category': 'web_search'}, None))
+    assert out['content'][0] == {'type': 'text', 'text': 'organic answer'}          # organic first and unchanged
+    assert out['content'][-1]['text'].startswith('Sponsored: ')
+    shown = out['_meta'][ad_slot.META_KEY][0]
+    assert out['_meta']['other'] == 1 and shown['sponsored'] is True and shown['disclosure'] == ad_slot.disclosure()
+    assert 'structuredContent' not in out and organic == {'content': [{'type': 'text', 'text': 'organic answer'}],
+                                                          '_meta': {'other': 1}}       # input not mutated

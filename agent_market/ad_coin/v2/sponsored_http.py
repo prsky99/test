@@ -45,7 +45,9 @@ def router_for(slots, offers=None) -> APIRouter:
             if sensitive(text=q[:500]):
                 # an advice-seeking task (q is only read here, never stored or logged): no ad. There is no opt-out:
                 # ads are always shown (user 11-15); an `ads` parameter or header is ignored.
-                return JSONResponse({"label": "Sponsored", "reward": None, "placement": placement, "cards": []},
+                from .sponsored import AD_DISCLOSURE, DISCLOSURE
+                return JSONResponse({"label": "Sponsored", "disclosure": DISCLOSURE, "ad_disclosure": AD_DISCLOSURE,
+                                     "reward": None, "placement": placement, "cards": []},
                                     headers={"Cache-Control": "private, max-age=60", "Vary": VARY,
                                              "X-Robots-Tag": "noindex"})
             body = await run_in_threadpool(slots.response, category, region, placement, limit, counted)
