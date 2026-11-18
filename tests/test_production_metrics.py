@@ -68,3 +68,41 @@ def test_write_keeps_one_line_per_day_and_the_run_names_no_site(tmp_path, monkey
     import socket
     monkeypatch.setattr(socket.socket, 'connect', lambda *a, **k: (_ for _ in ()).throw(AssertionError('network')))
     pm.collect(root, now=NOW)                                                          # reading files needs no connection
+
+
+def add_pearls(root, rows):
+    path = root / 'gateway-data/pearls/public-pearls.json'
+    data = json.loads(path.read_text())
+    data['pearls'] += rows
+    path.write_text(json.dumps(data))
+
+
+def prow(agent, role, level='verified', **extra):
+    return {'resource_id': agent, 'role': role, 'level': level, 'passed': 3, 'of': 3, 'days': 1, 'last_checked': '2026-11-19',
+            'terms': 'silent', **extra}
+
+
+def test_goals_start_with_a_baseline_then_count_new_pearls_and_necklaces_and_carry_the_shortfall(tmp_path):
+    root = build(tmp_path)
+    day1, day2, day3 = '2026-11-19', '2026-11-20', '2026-11-21'
+    first = pm.collect(root, day=day1, now=NOW)
+    assert first['goals'] is None and 'baseline not set yet' in pm.line(first)         # nothing is called "new" before a baseline
+    pm.write(root, first)                                                              # the first --write sets the baseline
+    state = json.loads((root / 'logs/ops/production-state.json').read_text())
+    assert set(state['pearls'].values()) == {'baseline'} and len(state['pearls']) == 3 and state['necklaces']['topic-evidence-brief'] == 'baseline'
+    # day 2: 5 new pearls (one needs a direct connection: left out), a repeat of an old pair is not new
+    add_pearls(root, [prow(10 + i, 'x.y.v1') for i in range(5)] + [prow(99, 'x.y.v1', terms='prohibits', ), prow(1, 'a.b.v1')])
+    # the 'direct' flag is derived from terms prohibits by the public list; one more necklace opens
+    second = pm.collect(root, day=day2, now=NOW)
+    g = second['goals']
+    assert (g['new_pearls'], g['pearl_target'], g['pearl_shortfall'], g['pearl_carry_in'], g['pearl_carry_out']) == (5, 24, 19, 0, 19)
+    assert (g['new_necklaces'], g['necklace_shortfall'], g['necklace_carry_out']) == (0, 3, 3)
+    assert 'new pearls 5 of 24 (short 19, carried in 0, carried on 19)' in pm.line(second)
+    pm.write(root, second)
+    pm.write(root, pm.collect(root, day=day2, now=NOW))                                # the same day again changes nothing
+    assert json.loads((root / 'logs/ops/production-state.json').read_text())['days'][day2]['new_pearls'] == 5
+    # day 3: the shortfall of 19 pearls and 3 necklaces is added to the target; 30 new pearls beat 24 + 19 only in part
+    add_pearls(root, [prow(100 + i, 'z.w.v1') for i in range(30)])
+    third = pm.collect(root, day=day3, now=NOW)['goals']
+    assert (third['new_pearls'], third['pearl_carry_in'], third['pearl_shortfall'], third['pearl_carry_out']) == (30, 19, 0, 13)
+    assert third['necklace_carry_in'] == 3 and third['necklace_carry_out'] == 6 and third['necklace_target'] == 3
