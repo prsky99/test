@@ -172,6 +172,17 @@ def test_a_substitute_is_judged_on_its_own_step_only():
     assert {r["chain"] for r in got["stage2"]} == {"no time budget in definition"}
 
 
+def test_a_failed_attempt_is_kept_with_its_error_time_and_raw_start():
+    """Agent team 21:30 (11-18): the reason of a failure elsewhere in the chain is recorded, not only the step name."""
+    result = {"attempts": {"registration": [
+        {"resource_id": 52559, "tool": "lookup", "kind": "external", "ok": False, "ms": 4100,
+         "error_class": "timeout", "raw": "x" * 500},
+        {"resource_id": None, "tool": "rdap", "kind": "agentcon", "ok": True, "ms": 30}]}}
+    assert cg.trace(result) == [{"slot": "registration", "member": 52559, "kind": "external",
+                                 "error_class": "timeout", "ms": 4100, "raw": "x" * 200}]
+    assert cg._row({"check": "c", "ok": True}, {"attempts": {}}) == {"check": "c", "ok": True}   # nothing failed
+
+
 def test_inputs_come_from_tuning_only(tmp_path):
     folder = tmp_path / "gold" / "topic-brief"
     folder.mkdir(parents=True)

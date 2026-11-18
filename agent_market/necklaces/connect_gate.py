@@ -99,6 +99,27 @@ def step_ok(result: dict, slot_name: str, kinds: tuple = ("external", "agentcon"
     return True, None
 
 
+TRACE_RAW = 200
+
+
+def trace(result: dict) -> list[dict]:
+    """Every failed attempt of the run (agent team 21:30, 11-18: 52559's three failures could not be told apart, the
+    lines kept only the step name): step, member, error class, time and the first characters of the raw answer."""
+    out = []
+    for slot, attempts in (result.get("attempts") or {}).items():
+        for a in attempts or []:
+            if not a.get("ok"):
+                out.append({"slot": slot, "member": a.get("resource_id") or a.get("tool"), "kind": a.get("kind"),
+                            "error_class": a.get("error_class"), "ms": a.get("ms"),
+                            "raw": (a.get("raw") or "")[:TRACE_RAW] or None})
+    return out
+
+
+def _row(row: dict, result: dict) -> dict:
+    failures = trace(result)
+    return dict(row, trace=failures) if failures else row
+
+
 def run_ok(defn: dict, result: dict) -> tuple[bool, str | None]:
     if not result.get("completed"):
         return False, f"not completed (failed step {result.get('failed_slot')})"
@@ -163,12 +184,12 @@ def stage1(defn: dict, caller, values: dict, watch_state: dict | None, runner_cl
         ok, why = step_ok(result, name)
         if not ok and not part["slots"][-1].get("required", True):
             ok, why = True, f"optional step: {why}"
-        rows.append({"check": f"join:{k}:{name}", "ok": ok, "why": why})
+        rows.append(_row({"check": f"join:{k}:{name}", "ok": ok, "why": why}, result))
         if not ok:
             return rows                         # the step to fix: nothing further is joined
     result = runner_cls(caller, watch_state=watch_state).run(defn, values)
     ok, why = run_ok(defn, result)
-    rows.append({"check": "whole", "ok": ok, "why": why, "latency_ms": result.get("latency_ms")})
+    rows.append(_row({"check": "whole", "ok": ok, "why": why, "latency_ms": result.get("latency_ms")}, result))
     for slot in defn["slots"]:
         if not slot.get("required", True):
             continue
@@ -176,7 +197,7 @@ def stage1(defn: dict, caller, values: dict, watch_state: dict | None, runner_cl
         result = runner_cls(caller, watch_state=state).run(defn, values)
         kinds = ("external", "agentcon") if slot.get("own_fallback") else ("external",)
         ok, why = step_ok(result, slot["slot"], kinds)
-        rows.append({"check": f"fallback:{slot['slot']}", "ok": ok, "why": why})
+        rows.append(_row({"check": f"fallback:{slot['slot']}", "ok": ok, "why": why}, result))
     return rows
 
 
@@ -185,7 +206,8 @@ def stage2(defn: dict, caller, inputs: list[dict], watch_state: dict | None, run
     for i, values in enumerate(inputs[:CONNECT_RUNS]):
         result = runner_cls(caller, watch_state=watch_state).run(defn, values)
         ok, why = run_ok(defn, result)
-        rows.append({"check": f"connect:{i + 1}", "ok": ok, "why": why, "latency_ms": result.get("latency_ms")})
+        rows.append(_row({"check": f"connect:{i + 1}", "ok": ok, "why": why, "latency_ms": result.get("latency_ms")},
+                         result))
     return rows
 
 
@@ -254,8 +276,8 @@ def substitute_gate(defn: dict, slot_name: str, agent_id: str, caller, inputs: l
             ok, why = False, f"{slot_name}: no timing for the substitute's answer"
         elif ok and ms > slot_budget:
             ok, why = False, f"{slot_name}: {ms} ms over the step budget {slot_budget} ms"
-        rows.append({"check": f"substitute:{i + 1}", "ok": ok, "why": why, "ms": ms,
-                     "chain": run_ok(defn, result)[1]})
+        rows.append(_row({"check": f"substitute:{i + 1}", "ok": ok, "why": why, "ms": ms,
+                          "chain": run_ok(defn, result)[1]}, result))
     contract = next(s["contract"] for s in defn["slots"] if s["slot"] == slot_name)
     return {"slug": defn["slug"], "version": defn["version"], "digest": model.digest(defn), "kind": "substitute",
             "agent_id": agent_id, "slot": slot_name, "contract": contract, "stage2": rows,
