@@ -117,10 +117,17 @@ def test_unreadable_approvals_mean_no_approvals(tmp_path):
     assert judge.load_approvals(tmp_path / "missing.json") == {}
 
 
-def test_run_once_with_shipped_definitions_publishes_nothing_yet(tmp_path):
+def shipped_previews():
+    return {d["slug"] for d in model.load_valid() if d["status"] == "preview"}
+
+
+def test_run_once_with_shipped_definitions_publishes_only_the_previews(tmp_path):
+    """Nothing is live yet; website-trust-brief is a preview (PM 16:2x, 11-18). In an empty root there is no watch
+    state, so the preview shows held (watch_state_missing), never live, and no gate time."""
     result = judge.run_once(tmp_path)
-    assert result["entries"] == {}
-    assert json.loads((tmp_path / "necklaces.json").read_text())["necklaces"] == []
+    assert result["entries"] == {slug: "held" for slug in shipped_previews()}
+    written = json.loads((tmp_path / "necklaces.json").read_text())["necklaces"]
+    assert all(e["held_reason"] == "watch_state_missing" and e["gate_passed_at"] is None for e in written)
     members = json.loads((tmp_path / "members.json").read_text())
     assert members["schema"] == "agentcon-necklace-members-v1"
     assert {367249, 276982, 37259} <= set(members["resource_ids"])
@@ -163,7 +170,9 @@ def test_events_and_held_at_follow_status_changes():
 
 def test_run_once_keeps_judge_state(tmp_path):
     judge.run_once(tmp_path)
-    assert json.loads((tmp_path / "judge_state.json").read_text()) == {"status": {}, "events": [], "gate_passed": {}}
+    state = json.loads((tmp_path / "judge_state.json").read_text())
+    assert state["events"] == [] and state["gate_passed"] == {}            # a held preview makes no public event
+    assert set(state["status"]) == set(state["preview_since"]) == shipped_previews()
     assert json.loads((tmp_path / "necklaces.json").read_text())["events"] == []
 
 

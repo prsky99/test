@@ -49,7 +49,7 @@ def test_preview_without_a_measured_round_shows_the_note_and_no_number(tmp_path)
         assert got["status"] == "preview" and got["held_reason"] is None
         assert got["preview"] == {"note": "Preview — test runs in progress", "gate_passed": False}
         assert got["gate_passed_at"] is None and got["value"] is None and got["comparison"] is None
-        text = json.dumps(got["preview"])
+        text = json.dumps(got["preview"], ensure_ascii=False)
         assert "tests" not in got["preview"] and "rounds" not in got["preview"] and not any(c.isdigit() for c in text)
 
 
