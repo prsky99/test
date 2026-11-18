@@ -146,3 +146,27 @@ def test_one_confirmation_day_reads_as_one_day_and_the_chip_names_the_score_not_
     assert pb.measured_line(row(days=3)).endswith('confirmed on 3 different days \u00b7 last checked 2026-11-16')
     script = open('new/en/assets/pearl-ui.js', encoding='utf-8').read()
     assert 'Scored at least 85 out of 100 on our role task tests.' in script and 'two different days' not in script
+
+
+def test_in_testing_reads_the_public_count(tmp_path, monkeypatch):
+    # PM 11-18 21:43: the home row's "pearls being verified" number comes from the public list; None (shown as a dash)
+    # when the file is missing, broken or has no count (PM 21:46: never a made-up 0)
+    import json
+    from agent_market.concierge import pearl_badge as pb
+    monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
+    pb._cache.update(key=None, value={}, in_testing=None)
+    assert pb.in_testing() is None
+    file = tmp_path / 'gateway-data/pearls/public-pearls.json'
+    file.parent.mkdir(parents=True)
+    file.write_text(json.dumps({'schema': pb.SCHEMA, 'pearls': [], 'counts': {'in_testing': 56}}))
+    assert pb.in_testing() == 56
+    file.write_text(json.dumps({'schema': pb.SCHEMA, 'pearls': [], 'counts': {'in_testing': 'many'}}))
+    assert pb.in_testing() is None
+    file.write_text(json.dumps({'schema': pb.SCHEMA, 'pearls': []}))              # an older file without the count
+    assert pb.in_testing() is None
+    file.write_text('{broken')
+    assert pb.in_testing() is None
+    file.write_text(json.dumps({'schema': pb.SCHEMA, 'pearls': [], 'counts': {'in_testing': 0}}))
+    assert pb.in_testing() == 0                                                     # a measured zero stays zero
+    file.unlink()
+    assert pb.in_testing() is None

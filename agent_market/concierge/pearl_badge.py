@@ -22,7 +22,7 @@ METHOD_URL = '/methodology'
 DIRECT_NOTE = "Connect directly — we don't relay this agent (provider terms)"  # fixed wording (PM 11-18)
 MAX_BYTES = 8 * 1024 * 1024
 MAX_ROLES = 3
-_cache = {'key': None, 'value': {}, 'counts': {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}}
+_cache = {'key': None, 'value': {}, 'counts': {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}, 'in_testing': None}
 
 
 def path():
@@ -60,12 +60,17 @@ def load():
     if _cache['key'] == key:
         return _cache['value']
     value, counts, jobs, agents = {}, {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}, set(), set()
+    testing = None
     if stat.st_size <= MAX_BYTES:
         try:
             data = json.loads(file.read_text(encoding='utf-8'))
         except (OSError, ValueError):
             data = None
         pearls = data.get('pearls') if isinstance(data, dict) and data.get('schema') == SCHEMA else None
+        raw_counts = data.get('counts') if pearls is not None and isinstance(data.get('counts'), dict) else {}
+        found_testing = raw_counts.get('in_testing')
+        if isinstance(found_testing, int) and not isinstance(found_testing, bool) and 0 <= found_testing <= 100000:
+            testing = found_testing
         for raw in (pearls if isinstance(pearls, list) else ()):
             agent_id = raw.get('resource_id') if isinstance(raw, dict) else None
             row = _row(raw)
@@ -78,8 +83,19 @@ def load():
             found.sort(key=lambda r: (r['level'] != 'final', r['role']))
             value[agent_id] = found[:MAX_ROLES]
     counts.update(jobs=len(jobs), agents=len(agents))
-    _cache.update(key=key, value=value, counts=counts)
+    _cache.update(key=key, value=value, counts=counts, in_testing=testing)
     return value
+
+
+def in_testing():
+    """Pearls being verified (PM 11-18 21:43): the public list's counts.in_testing; None when the file is absent, broken
+    or has no such count (PM 21:46: the page then shows a dash, never a made-up 0). Its one-line rule is
+    counts.in_testing_rule in the same file (agent_market/pearls_public.IN_TESTING_RULE)."""
+    file = path()
+    if file is None or not file.exists():
+        return None
+    load()
+    return _cache.get('in_testing')
 
 
 def counts():

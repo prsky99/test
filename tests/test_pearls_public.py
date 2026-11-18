@@ -81,3 +81,15 @@ def test_the_command_writes_from_the_official_exports(tmp_path, monkeypatch, cap
     (final / 'role_groups.json').write_text(json.dumps(GROUPS))
     assert P.main(['write']) == 0 and '4 pearls' in capsys.readouterr().out
     assert P.main([]) == 2
+
+
+def test_in_testing_counts_the_near_group_only():
+    # PM 11-18 21:43: ranked outside members at 70-84.9 whose latest result succeeded; pearls, untested and own agents out
+    def m(rid, score, rank=1, outcome='succeeded'):
+        return {'resource_id': rid, 'score': score, 'best_recent_score': score, 'rank': rank, 'outcome': outcome, 'success_days': 1}
+    groups = {'roles': {'fx.rate.v1': {'members': [m(1, 90.0), m(2, 84.9), m(3, 70.0), m(4, 69.9), m(5, 80.0, rank=None),
+                                                   m(6, 75.0, outcome='failed'), m('avc:fx', 80.0)]},
+                        'weather.forecast.v1': {'members': [m(2, 82.0)]}}}
+    assert P.in_testing(groups) == 3                                    # (2, fx), (3, fx), (2, weather)
+    doc = P.build(SUMMARY, groups, {})
+    assert doc['counts']['in_testing'] == 3 and doc['counts']['in_testing_rule'] == P.IN_TESTING_RULE

@@ -60,6 +60,30 @@ def role_words(role, tool, pattern=None):
     return ' '.join(dict.fromkeys(' '.join([label(role), str(tool or '')] + names).replace('_', ' ').lower().split()))
 
 
+IN_TESTING_FLOOR = 70   # = scripts/report_v2.NEAR_MARK: the near group the daily retests take (PM 11-16 17:5x)
+IN_TESTING_RULE = ('outside agents ranked in a role with a latest role-task score from 70 to below the pass mark; '
+                   'they are retested every day until they reach the mark or their score drops')
+
+
+def in_testing(role_groups, pass_mark=85):
+    """(PM 11-18 21:43, user: the home row shows pearls being verified) Distinct (agent, role) pairs that are not a pearl
+    but are still on the way: a ranked outside member (integer id, our own avc: agents left out) whose latest result
+    succeeded and whose best recent score is IN_TESTING_FLOOR or more and below PASS_MARK. Those are exactly the near
+    group report_v2.retest_queue takes each day. Candidates never tested and members under 70 are not counted."""
+    pairs = set()
+    for role, entry in ((role_groups or {}).get('roles') or {}).items():
+        members = entry.get('members') if isinstance(entry, dict) else None
+        for member in members or []:
+            if not isinstance(member, dict):
+                continue
+            rid = member.get('resource_id', member.get('id'))
+            best = member.get('best_recent_score') if member.get('best_recent_score') is not None else member.get('score')
+            if (type(rid) is int and member.get('rank') and member.get('outcome') in (None, 'succeeded')
+                    and isinstance(best, (int, float)) and IN_TESTING_FLOOR <= best < pass_mark):
+                pairs.add((rid, role))
+    return len(pairs)
+
+
 def build(summary, role_groups, terms=None, generated=None, methodology=None, role_tools=None):
     """The public document from the official results. TERMS maps resource id -> allowed/silent/prohibits; ROLE_TOOLS maps
     a role id to its tool-name pattern (scripts.role_catalog), written into each pearl's words."""
@@ -101,6 +125,7 @@ def build(summary, role_groups, terms=None, generated=None, methodology=None, ro
     return {'schema': SCHEMA, 'generated': generated or (summary or {}).get('generated'), 'methodology': methodology,
             'evaluator_version': rules.get('evaluator_version'),
             'rules': {'pass_mark': pass_mark, 'confirm_days': confirm_days},
+            'counts': {'in_testing': in_testing(role_groups, pass_mark), 'in_testing_rule': IN_TESTING_RULE},
             'pearls': pearls, 'by_resource': by_resource}
 
 
