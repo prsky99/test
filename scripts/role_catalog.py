@@ -123,8 +123,8 @@ ROLES = {
     'astro.western_sign.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet (computed by our substitute)'},
     'saju.pillars.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet (outside candidates wait for one)'},
     'fortune.daily.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet (our rule-table reading)'},
-    'persona.mbti_profile.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet, no outside member found'},
-    'fortune.mbti_daily.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet, no outside member found'},
+    'persona.personality_profile.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet, no outside member found'},
+    'fortune.personality_daily.v1': {'tools': r'(?!)', 'queue': 'blocked: no role task yet, no outside member found'},
     # Pearl scout W3 review (검색과 RAG with the workflow team, PM 11-17): roles a necklace draft or plan uses
     # (company-sanctions-screen, regulation-brief cases, cve-incident-brief v2, website-trust v2, entity checks);
     # tool names narrowed from Antigravity's patterns after reading the grade A snapshot; tasks in role-tasks-rag-v1.

@@ -3,7 +3,7 @@ computed substitutes fill them and none has a role task yet (검색과 RAG, afte
 from scripts import role_catalog
 
 SIX = ('calendar.lunar_convert.v1', 'astro.western_sign.v1', 'saju.pillars.v1', 'fortune.daily.v1',
-       'persona.mbti_profile.v1', 'fortune.mbti_daily.v1')
+       'persona.personality_profile.v1', 'fortune.personality_daily.v1')
 
 
 def test_the_six_are_listed_and_match_no_tool():
