@@ -17,7 +17,7 @@
     const card=q('[data-metric="pearls"]');
     if(!homeData||!card)return;
     const counts=homeData.counts||{},final=Number(counts.final)||0,verified=Number(counts.verified)||0,total=final+verified;
-    if(total>0){text('[data-metric="pearls"]',format(total));text('[data-metric="pearls"] ~ p',format(final)+' final · '+format(verified)+' verified');}
+    if(total>0){text('[data-metric="pearls"]',format(total));text('[data-metric="pearls"] ~ p',format(final)+' final · '+format(verified)+' verified'+(Number(counts.jobs)>0?' across '+format(Number(counts.jobs))+' jobs':''));}
     const live=Number(homeData.necklaces_live)||0;
     all('[data-necklace-metric]').forEach(node=>{node.hidden=live<1;});
     if(live>=1)text('[data-metric="necklaces"]',format(live));

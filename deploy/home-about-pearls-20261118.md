@@ -3,13 +3,13 @@
 ## 무엇이 바뀌나
 | 화면 | 내용 |
 |---|---|
-| 홈(index.html) | 기존 4칸 아래에 둘째 띠: "Verified pearls"(최종+검증 진주 수, 아래에 "N final · M verified", How we test 링크)와 "Necklaces"(공개 목걸이 수) |
+| 홈(index.html) | 기존 4칸 아래에 둘째 띠: "Verified pearls"(최종+검증 진주 수, 아래에 "N final · M verified across J jobs", How we test 링크)와 "Necklaces"(공개 목걸이 수) |
 | 에이전트 현황(agent-status.html) | 기존 카드 아래에 같은 두 카드(아이콘 원판 형식) |
 | About(about.html) | "What are pearls?"(85점·서로 다른 날 2회·최종 진주)와 "What are necklaces?"(3개 이상 연결, 관문 60회 중 57회=95%·95번째 백분위 5초, 직접 할 때와 비교해 잰 값만 공개) 두 절을 "Our belief"와 "Get started" 사이에 추가. 그림은 기존 진주 목걸이 그림과 pearl 장식을 그대로 씀 |
 - 기존 CSS 클래스(metric-grid·metrics-band·metrics-cards·reference-about-belief·reference-about-principles)만 쓰고 페이지 전용 스타일은 없다. 첫 화면 CSS(`new/en/assets/critical/`)는 이 세 페이지분을 다시 만들었다.
 
 ## 숫자는 어디서 오나
-- HTML은 모든 방문자에게 같은 바이트다(숫자 자리는 "—"). 숫자는 로드 뒤 `/api/pearls/public` 한 번(60초 캐시, 엣지 캐시 대상)에서 온다: `counts`(공개 진주 목록 gateway-data/pearls/public-pearls.json의 level final·verified 행 수, 한 에이전트의 여러 역할은 각각 센다)와 `necklaces_live`(gateway-data/necklaces/necklaces.json 판정 스냅샷에서 지금 제공 중인 목걸이 수).
+- HTML은 모든 방문자에게 같은 바이트다(숫자 자리는 "—"). 숫자는 로드 뒤 `/api/pearls/public` 한 번(60초 캐시, 엣지 캐시 대상)에서 온다: `counts`(공개 진주 목록 gateway-data/pearls/public-pearls.json의 level final·verified 행 수 `final`·`verified`, 서로 다른 역할 수 `jobs`, 서로 다른 에이전트 수 `agents`. 한 에이전트의 여러 역할은 각각 센다: 11-18 07:5x 파일에서 63행 = 에이전트 60개 × 역할 26개. 화면은 행 수와 역할 수를 쓰고 에이전트 수는 API에만 둔다)와 `necklaces_live`(gateway-data/necklaces/necklaces.json 판정 스냅샷에서 지금 제공 중인 목걸이 수).
 - **목걸이 칸은 `hidden`으로 시작하고 `necklaces_live`가 1 이상일 때만 나타난다.** 0과 1 두 경우를 시험으로 고정했다(tests/test_home_pearl_counts.py). 첫 공개 후보 website-trust가 11-18 21:50 판정을 통과해 11-19 00:30에 공개되면 이 칸이 저절로 나타난다.
 - 판정이 안 났거나 파일이 없거나 깨졌으면 진주 칸은 "—"로 남고(숫자 없음, 오류 없음), 목걸이 칸은 숨는다.
 

@@ -22,7 +22,7 @@ METHOD_URL = '/methodology'
 DIRECT_NOTE = "Connect directly — we don't relay this agent (provider terms)"  # fixed wording (PM 11-18)
 MAX_BYTES = 8 * 1024 * 1024
 MAX_ROLES = 3
-_cache = {'key': None, 'value': {}, 'counts': {'final': 0, 'verified': 0}}
+_cache = {'key': None, 'value': {}, 'counts': {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}}
 
 
 def path():
@@ -59,7 +59,7 @@ def load():
     key = (str(file), stat.st_mtime_ns, stat.st_size)
     if _cache['key'] == key:
         return _cache['value']
-    value, counts = {}, {'final': 0, 'verified': 0}
+    value, counts, jobs, agents = {}, {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}, set(), set()
     if stat.st_size <= MAX_BYTES:
         try:
             data = json.loads(file.read_text(encoding='utf-8'))
@@ -72,19 +72,23 @@ def load():
             if row and isinstance(agent_id, int) and not isinstance(agent_id, bool) and agent_id > 0:
                 value.setdefault(agent_id, []).append(row)
                 counts[row['level']] += 1
+                jobs.add(row['role'])
+                agents.add(agent_id)
         for agent_id, found in list(value.items()):
             found.sort(key=lambda r: (r['level'] != 'final', r['role']))
             value[agent_id] = found[:MAX_ROLES]
+    counts.update(jobs=len(jobs), agents=len(agents))
     _cache.update(key=key, value=value, counts=counts)
     return value
 
 
 def counts():
-    """{'final': n, 'verified': m}: the rows of the public list at those levels (an agent with two roles counts twice).
+    """{'final': n, 'verified': m, 'jobs': j, 'agents': a}: the rows of the public list at those levels (an agent with two roles
+    counts twice), the different jobs (roles) they cover and the different agents.
 
     Read from the same file and cache as load(); {'final': 0, 'verified': 0} when the file is absent or broken."""
     if load() == {}:
-        return {'final': 0, 'verified': 0}
+        return {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}
     return dict(_cache['counts'])
 
 

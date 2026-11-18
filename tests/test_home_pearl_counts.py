@@ -22,7 +22,7 @@ def put_pearls(root, rows):
     folder = root / 'gateway-data/pearls'
     folder.mkdir(parents=True, exist_ok=True)
     (folder / 'public-pearls.json').write_text(json.dumps({'schema': pb.SCHEMA, 'generated': '2026-11-18T09:20:00+09:00', 'pearls': rows}))
-    pb._cache.update(key=None, value={}, counts={'final': 0, 'verified': 0})
+    pb._cache.update(key=None, value={}, counts={'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0})
 
 
 def row(agent, role, level, **extra):
@@ -34,15 +34,16 @@ def row(agent, role, level, **extra):
 
 def test_the_counts_are_the_final_and_verified_rows_of_the_public_list_and_no_other_level(tmp_path, monkeypatch):
     monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
-    assert pb.counts() == {'final': 0, 'verified': 0}                      # no file: nothing, no error
+    assert pb.counts() == {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}   # no file: nothing, no error
     put_pearls(tmp_path, [row(1, 'a.b.v1', 'final'), row(2, 'a.b.v1', 'verified'), row(3, 'c.d.v1', 'final'),
                           row(4, 'e.f.v1', 'provisional'), row(5, 'g.h.v1', 'verified', terms='prohibits'),
                           row(6, 'a.v1', 'verified'), row(6, 'b.v1', 'verified'), row(6, 'c.v1', 'verified'), row(6, 'd.v1', 'verified'),
                           {'level': 'final'}])
-    assert pb.counts() == {'final': 2, 'verified': 6}                      # four roles of one agent all count, a broken row not
+    # four roles of one agent all count, a broken row not; 7 different jobs and 5 different agents (an agent can be a pearl for more jobs)
+    assert pb.counts() == {'final': 2, 'verified': 6, 'jobs': 7, 'agents': 5}
     (tmp_path / 'gateway-data/pearls/public-pearls.json').write_text('{broken')
-    pb._cache.update(key=None, value={}, counts={'final': 0, 'verified': 0})
-    assert pb.counts() == {'final': 0, 'verified': 0}
+    pb._cache.update(key=None, value={}, counts={'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0})
+    assert pb.counts() == {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}
 
 
 def test_no_necklace_offered_means_zero_and_one_offered_means_one(client, tmp_path, monkeypatch):  # noqa: F811
@@ -50,11 +51,11 @@ def test_no_necklace_offered_means_zero_and_one_offered_means_one(client, tmp_pa
     monkeypatch.setenv('AGENTCON_PROJECT_ROOT', str(tmp_path))
     put_pearls(tmp_path, [row(1, 'a.b.v1', 'final')])
     empty = site.get('/api/pearls/public').json()
-    assert empty['necklaces_live'] == 0 and empty['counts'] == {'final': 1, 'verified': 0}
+    assert empty['necklaces_live'] == 0 and empty['counts'] == {'final': 1, 'verified': 0, 'jobs': 1, 'agents': 1}
     open_topic(monkeypatch, tmp_path)                                       # one judged, fresh, live necklace
     put_pearls(tmp_path / 'root', [row(1, 'a.b.v1', 'final'), row(2, 'a.b.v1', 'verified')])
     one = site.get('/api/pearls/public').json()
-    assert one['necklaces_live'] == 1 and one['counts'] == {'final': 1, 'verified': 1}
+    assert one['necklaces_live'] == 1 and one['counts'] == {'final': 1, 'verified': 1, 'jobs': 1, 'agents': 2}
     assert ns.live_count() == 1
 
 
@@ -82,6 +83,7 @@ def test_the_script_fills_the_numbers_once_and_shows_the_necklace_card_from_one_
     assert script.count("fetch('/api/pearls/public'") == 1                                  # one request for Explore and Home
     assert "all('[data-necklace-metric]').forEach(node=>{node.hidden=live<1;});" in script
     assert "text('[data-metric=\"pearls\"]',format(total))" in script and script.count('homeCounts();') == 1
+    assert "' across '+format(Number(counts.jobs))+' jobs'" in script                         # the line names the jobs, from the API
     assert 'MutationObserver' in script and "card.textContent==='—'" in script                 # the panels arrive after the script
     assert 'innerHTML' not in script[script.index('let homeData'):script.index('function homeCounts')]
     # strict mode: a function declared in a block is not visible outside it, so the helpers sit before the operating-only region
@@ -96,6 +98,8 @@ def test_about_explains_pearls_and_necklaces_in_plain_words_with_the_real_rules(
                  'only the values we measured'):
         assert fact in html, fact
     assert html.count('href="https://agentconcierge.biz/methodology"') >= 2
+    assert 'An agent can be a pearl for more than one job.' in html                          # 86011 is a pearl for three jobs (PM 11-18)
+    assert 'Steps have a fallback agent where one has passed our tests' in html and 'Each step has a fallback agent' not in html
     assert 'about-necklace-art' in html                                                      # the drawing of the necklace stays
     lowered = html[html.index('id="about-pearls"'):html.index('<section class="reference-about-start">')].lower()
     for word in ('faster', 'cheaper', 'guarantee', 'best '):
