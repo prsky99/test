@@ -354,8 +354,9 @@ GOLD_BUILDS = (('agent_market.necklaces.gold_repos', 'package-risk-audit', 'hold
                ('agent_market.necklaces.gold_topics_r5', 'topic-evidence-brief', 'holdout-r5'),
                # PM 11-16 18:3x: topic v2's two rounds (r4's OpenAlex part is not built for now: arxiv-search is
                # re-judged on holdout-r5 and wiki-grounding on holdout-r4-wiki)
-               ('agent_market.necklaces.gold_topics_r6', 'topic-evidence-brief', 'holdout-r6'),
-               ('agent_market.necklaces.gold_topics_r7', 'topic-evidence-brief', 'holdout-r7'))
+               ('agent_market.necklaces.gold_topics_r6', 'topic-evidence-brief', 'holdout-r6'))
+# gold_topics_r7 ('holdout-r7') is off: the holdout answer-set gate was turned off on 11-18 (connection test instead) and its daily
+# build kept calling outside servers (11-19: 0/44 at provider_429). PM 11-19 02:36.
 GOLD_SKIP = set()   # (split, day) pairs a builder rests on
 # Days a builder may run (first, last; None = open): OpenAlex allows 50 a day and the plan gives r6 38 on 11-18 and
 # r7 40 on 11-19, so r6 does not spill into r7's day (PM 11-16 18:3x: a short r6 moves the v2 gate a day instead).
