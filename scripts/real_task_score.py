@@ -203,7 +203,16 @@ def arguments_for(schema, sample, task_text):
     return args
 
 
-def pick_tool(tools, needs, preferred):
+def fillable(tool, sample, task_text):
+    """True when arguments_for fills every required field of TOOL from the task's sample input (PM 11-18 15:2x, p09 of
+    the 15:12 round: the recommended find_compatible_version of 35565 requires `with`, which a latest-version task
+    does not have, and the call failed -32602)."""
+    schema = tool.get('inputSchema') or {}
+    args = arguments_for(schema, sample, task_text)
+    return all(k in args for k in (schema.get('required') or []))
+
+
+def pick_tool(tools, needs, preferred, sample=None, task_text=''):
     callable_tools = [t for t in tools if isinstance(t, dict) and t.get('name') and not WRITE_WORDS.search(t['name'])]
     if not callable_tools:
         return None
@@ -218,7 +227,10 @@ def pick_tool(tools, needs, preferred):
         # order the rest. With (hit, named) a tool with a long description beat the recommended `search` with
         # `search_authors` and the case failed as bad_answer. A recommended reverse lookup for a forward task still loses.
         named = 1 if t['name'] in preferred and not reverse else 0
-        return (named, hit)
+        # A tool whose required fields the task cannot fill comes after every tool it can fill, named or not; among
+        # those the word hits decide as before (PM 11-18 15:2x).
+        can = 1 if sample is None or fillable(t, sample, task_text) else 0
+        return (can, named, hit)
     return max(callable_tools, key=score)
 
 
@@ -320,7 +332,7 @@ def score_task(client, task):
             # Recommended tools (tools_schema) break ties; the tool that best matches the task wins, so a
             # recommendation that shows the wrong direction (reverse_geocode for geocoding) is recorded below.
             recommended = {t.get('name') for t in (top.get('tools_schema') or []) if isinstance(t, dict)} | set(top.get('tools') or [])
-            tool = pick_tool(tools, task['needs'] + ' ' + task['task'], recommended)
+            tool = pick_tool(tools, task['needs'] + ' ' + task['task'], recommended, task['sample_input'], task['task'])
             if tool and recommended and tool['name'] not in recommended:
                 row['recommended_tool_mismatch'] = sorted(recommended)[:3]
             row['tool_source'] = 'recommendation' if tool and tool['name'] in recommended else 'tools/list'

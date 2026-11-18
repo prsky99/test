@@ -283,3 +283,27 @@ def test_among_several_recommended_tools_the_better_word_hit_wins_and_a_reverse_
     assert rts.pick_tool(tools, 'capital of a country', {'lookup_city', 'lookup_country'})['name'] == 'lookup_country'
     assert rts.pick_tool(tools, 'capital of a country', {'reverse_lookup'})['name'] == 'lookup_country'   # the task did not ask for reverse
     assert rts.pick_tool(tools, 'reverse lookup of a country by its capital', {'reverse_lookup'})['name'] == 'reverse_lookup'
+
+
+def test_a_recommended_tool_whose_required_field_the_task_cannot_fill_gives_way():
+    """PM 11-18 15:2x, p09 of the 15:12 round (35565 Vigia): the recommendation named find_compatible_version, which
+    requires `with` (name@version constraints) that a latest-version task does not have; the call failed -32602.
+    The next tool the task can fill wins by its word hits (package_status, which passed on 11-15 and 11-16)."""
+    pkg = {'type': 'string'}
+    eco = {'enum': ['npm', 'pypi'], 'type': 'string'}
+    tools = [{'name': 'find_compatible_version', 'description': 'Newest version compatible with constraints',
+              'inputSchema': {'type': 'object', 'required': ['ecosystem', 'name', 'with'],
+                              'properties': {'ecosystem': eco, 'name': pkg, 'with': {'type': 'string'}}}},
+             {'name': 'package_status', 'description': 'Latest version, deprecation and known vulnerabilities of a package',
+              'inputSchema': {'type': 'object', 'required': ['ecosystem', 'name'],
+                              'properties': {'ecosystem': eco, 'name': pkg}}},
+             {'name': 'find_package', 'description': 'Search packages by name prefix',
+              'inputSchema': {'type': 'object', 'required': ['query'], 'properties': {'query': pkg}}}]
+    task = 'What is the latest version of the Python package requests, and does it have known vulnerabilities?'
+    sample = {'ecosystem': 'pypi', 'name': 'requests'}
+    assert not rts.fillable(tools[0], sample, task) and rts.fillable(tools[1], sample, task)
+    assert rts.pick_tool(tools, 'package version vulnerabilities ' + task, {'find_compatible_version'}, sample, task)['name'] \
+        == 'package_status'
+    # a recommended tool the task can fill still comes first, and without a sample the old order holds
+    assert rts.pick_tool(tools, 'package ' + task, {'find_package'}, sample, task)['name'] == 'find_package'
+    assert rts.pick_tool(tools, 'package ' + task, {'find_compatible_version'})['name'] == 'find_compatible_version'
