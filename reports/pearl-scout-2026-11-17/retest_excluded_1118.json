@@ -1,0 +1,576 @@
+{
+ "made": "2026-11-18 15:27",
+ "by": "검색과 RAG (PM 11-18 15:4x)",
+ "rule": "tool not taken by scripts/role_catalog.py name rule (3a420bd0) and best score < 70 (report_v2.NEAR_MARK): left out of retest_queue",
+ "retests_before": 257,
+ "excluded": 81,
+ "rows": [
+  {
+   "resource_id": 226120,
+   "role": "book.search.v1",
+   "tool": "search_book",
+   "best_score": 65.0,
+   "retest_reason": "rank 3"
+  },
+  {
+   "resource_id": 39451,
+   "role": "company.profile.v1",
+   "tool": "lookup_company",
+   "best_score": 50.0,
+   "retest_reason": "rank 2"
+  },
+  {
+   "resource_id": 59543,
+   "role": "company.registry.v1",
+   "tool": "get_company",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 200258,
+   "role": "company.registry.v1",
+   "tool": "get_company",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 105582,
+   "role": "company.registry.v1",
+   "tool": "get_company",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 50243,
+   "role": "company.registry.v1",
+   "tool": "company_profile",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 252314,
+   "role": "company.registry.v1",
+   "tool": "get_company",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 235695,
+   "role": "company.registry.v1",
+   "tool": "resolve_company",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 35644,
+   "role": "company.registry.v1",
+   "tool": "get_company",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 47130,
+   "role": "country.indicator.v1",
+   "tool": "imf_query_dataset",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 134525,
+   "role": "country.indicator.v1",
+   "tool": "search_indicators",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 306433,
+   "role": "country.indicator.v1",
+   "tool": "get_indicators",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 287206,
+   "role": "country.indicator.v1",
+   "tool": "search_indicators",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 40997,
+   "role": "country.indicator.v1",
+   "tool": "search_indicators",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 196007,
+   "role": "country.indicator.v1",
+   "tool": "get_indicators",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 58194,
+   "role": "country.indicator.v1",
+   "tool": "get_macro_indicators",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 276982,
+   "role": "cve.exploited.v1",
+   "tool": "cisa_kev_exploited_vulns",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 34216,
+   "role": "cve.exploited.v1",
+   "tool": "get_kev_catalog",
+   "best_score": 43.0,
+   "retest_reason": "rank 5"
+  },
+  {
+   "resource_id": 37259,
+   "role": "cve.record.v1",
+   "tool": "search_cves",
+   "best_score": 10.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 166821,
+   "role": "cve.record.v1",
+   "tool": "get_advisory",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 39150,
+   "role": "dictionary.define.v1",
+   "tool": "define_term",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 47354,
+   "role": "dictionary.define.v1",
+   "tool": "define_term",
+   "best_score": 55.0,
+   "retest_reason": "rank 2"
+  },
+  {
+   "resource_id": 269568,
+   "role": "dictionary.define.v1",
+   "tool": "define",
+   "best_score": 55.0,
+   "retest_reason": "rank 3"
+  },
+  {
+   "resource_id": 127639,
+   "role": "encyclopedia.summary.v1",
+   "tool": "get_article_summary",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 47989,
+   "role": "events.search.v1",
+   "tool": "get_upcoming_events",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 86087,
+   "role": "fx.rate.v1",
+   "tool": "get_rates",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 46139,
+   "role": "github.releases.v1",
+   "tool": "get_latest_release",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 32821,
+   "role": "github.releases.v1",
+   "tool": "list_releases",
+   "best_score": 45.0,
+   "retest_reason": "rank 1"
+  },
+  {
+   "resource_id": 50636,
+   "role": "github.releases.v1",
+   "tool": "list_releases",
+   "best_score": 45.0,
+   "retest_reason": "rank 2"
+  },
+  {
+   "resource_id": 33418,
+   "role": "github.releases.v1",
+   "tool": "list_releases",
+   "best_score": 45.0,
+   "retest_reason": "rank 3"
+  },
+  {
+   "resource_id": 88731,
+   "role": "github.repo.v1",
+   "tool": "check_repo",
+   "best_score": 55.0,
+   "retest_reason": "rank 1"
+  },
+  {
+   "resource_id": 33550,
+   "role": "mcp.registry.lookup.v1",
+   "tool": "search_servers",
+   "best_score": 55.0,
+   "retest_reason": "rank 3"
+  },
+  {
+   "resource_id": 42500,
+   "role": "mcp.registry.lookup.v1",
+   "tool": "search_servers",
+   "best_score": 55.0,
+   "retest_reason": "rank 4"
+  },
+  {
+   "resource_id": 59440,
+   "role": "package.health.v1",
+   "tool": "get_package",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 115890,
+   "role": "package.health.v1",
+   "tool": "get_package",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 52074,
+   "role": "package.health.v1",
+   "tool": "get_package_score",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 35565,
+   "role": "package.releases.v1",
+   "tool": "list_versions",
+   "best_score": 50.0,
+   "retest_reason": "rank 2"
+  },
+  {
+   "resource_id": 325037,
+   "role": "papers.search.v1",
+   "tool": "lookup_paper",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 56149,
+   "role": "sec.filings.v1",
+   "tool": "latest_filings",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 43641,
+   "role": "sec.filings.v1",
+   "tool": "get_filing",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 43428,
+   "role": "sec.filings.v1",
+   "tool": "search_filings",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 84434,
+   "role": "sec.filings.v1",
+   "tool": "search_filings",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 57588,
+   "role": "software.incident.v1",
+   "tool": "get_incidents",
+   "best_score": 44.6,
+   "retest_reason": "rank 5"
+  },
+  {
+   "resource_id": 241154,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 45097,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 425715,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 58017,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 38297,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 35251,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 425963,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 38451,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 38018,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 35411,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 217252,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 58592,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 36582,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 280288,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 308087,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 291878,
+   "role": "stock.quote.v1",
+   "tool": "get_quote",
+   "best_score": 10.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 50067,
+   "role": "timezone.time.v1",
+   "tool": "convert_time",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 56022,
+   "role": "timezone.time.v1",
+   "tool": "convert_time",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 64880,
+   "role": "timezone.time.v1",
+   "tool": "timezone",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 358122,
+   "role": "timezone.time.v1",
+   "tool": "get_time",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 39225,
+   "role": "timezone.time.v1",
+   "tool": "v1_timezone",
+   "best_score": 20.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 433014,
+   "role": "timezone.time.v1",
+   "tool": "time_zone_at_point",
+   "best_score": 63.0,
+   "retest_reason": "rank 3"
+  },
+  {
+   "resource_id": 42749,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 36484,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 432982,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 258257,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 261399,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 368845,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 86337,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 35289,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 39606,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 41972,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 38825,
+   "role": "web.grounding.v1",
+   "tool": "answer_question",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 36494,
+   "role": "website.ai_readiness.v1",
+   "tool": "check_french_readiness",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 432764,
+   "role": "website.ai_readiness.v1",
+   "tool": "check_irs_179d_cmmc_readiness",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 39413,
+   "role": "website.ai_readiness.v1",
+   "tool": "check_readiness",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 272838,
+   "role": "website.ai_readiness.v1",
+   "tool": "check_data_readiness",
+   "best_score": 7.0,
+   "retest_reason": "after_failure"
+  },
+  {
+   "resource_id": 58158,
+   "role": "website.ai_readiness.v1",
+   "tool": "check_submission_readiness",
+   "best_score": 10.0,
+   "retest_reason": "after_failure"
+  }
+ ]
+}
