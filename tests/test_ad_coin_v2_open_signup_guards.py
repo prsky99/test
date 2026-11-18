@@ -3,7 +3,7 @@ and the free first coin booking goes only to an advertiser that received them.""
 import time
 
 from agent_market.ad_coin.v2 import points
-from agent_market.ad_coin.v2.advertiser_applications import welcome_after_payment
+from agent_market.ad_coin.v2.advertiser_applications import APPLIED, AuditLogger, welcome_after_payment
 from agent_market.ad_coin.v2.economy import CoinEconomy
 from agent_market.ad_coin.v2.sponsored_booking import SponsoredBookings
 from tests.test_ad_coin_postgres import cluster  # noqa: F401
@@ -19,6 +19,11 @@ def test_welcome_coins_and_first_booking_support_follow_a_confirmed_usdc_payment
     points.issue(commercial.ledger, 1000 * points.ATOMS_PER_COIN, reason="guards-%d" % time.time_ns())
     coin = SponsoredBookings(commercial.store, commercial.ledger, taxonomy=commercial.taxonomy,
                              regions=commercial.regions, access=commercial.access)
+    # the fixture advertiser is set up by an operator (no application, so no free-day guard); mark it as one that came through the
+    # open application, the case this guard is about (night test 11-18: without this line the first assertion failed since 11-15)
+    with commercial.store.atomic():
+        AuditLogger.log(commercial.store, APPLIED, "succeeded", actor_principal_id=str(suite.advertiser),
+                        target_id=suite.advertiser, details={"display_name": "Guard test", "flags": []})
     with commercial.store.atomic():
         assert not coin._support_allowed(suite.advertiser, NOW)            # a bare sign-up gets no free day
     assert welcome_after_payment(commercial.store, economy, suite.advertiser) is None   # nothing paid yet

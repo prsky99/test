@@ -269,7 +269,9 @@ def test_search_waits_for_a_slow_response_without_replaying_the_read(pearl_page)
     held=[]
     page.route('**/api/explore?*',lambda route:held.append(route))
     page.locator('.pearl-search-panel [data-kind="x402"]').click()
-    page.wait_for_timeout(50)
+    for _ in range(100):                      # wait for the request itself, not a fixed 50 ms (night test 11-18: failed under load)
+        if held:break
+        page.wait_for_timeout(50)
     assert len(held)==1
     page.clock.run_for(14000)
     assert len(held)==1
