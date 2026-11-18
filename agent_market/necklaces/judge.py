@@ -584,7 +584,18 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
             entries.append(found)
     from .members import rules as member_rules
     return {"schema": SCHEMA, "generated_at": _iso(now), "judge_commit": judge_commit, "necklaces": entries,
-            "events": events, "member_rules": member_rules((watch_state or {}).get("standing"))}
+            "events": events, "member_rules": member_rules((watch_state or {}).get("standing")),
+            "verifying": {"count": verifying_count(definitions, root)}}
+
+
+def verifying_count(definitions: list[dict], root: Path) -> int:
+    """Necklaces in verification (PM 21:43, 11-18, user instruction for the four number cards): a definition that is
+    not open (live or preview) and not retired, with connection gate lines for its current version and digest. A
+    planned one (no line yet) and a draft are not counted; previews are counted in the public card, not here. Only the
+    number is published, never the names of necklaces that are not public."""
+    from . import connect_gate
+    return sum(1 for defn in definitions if defn.get("status") not in ("live", "preview", "retired")
+               and connect_gate.history(root, defn))
 
 
 def members(definitions: list[dict], now: float | None = None, standing: dict | None = None) -> dict:

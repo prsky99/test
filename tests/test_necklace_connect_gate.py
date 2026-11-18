@@ -332,3 +332,18 @@ def test_a_read_only_email_name_exception_is_one_pair_bound_to_its_tool_fingerpr
     prints["resources"]["37141"]["tools"] = {"email_auth_check": "0" * 64}        # the provider changed the tool
     got = run_gate(defn, prints=prints, now=NOW)
     assert "fingerprints:news" in failed(got) and "37141 exception_fingerprint_changed" in str(got["static"])
+
+
+def test_necklaces_in_verification_are_the_unopened_ones_with_connection_lines(tmp_path):
+    """PM 21:43 (11-18): the "in verification" card counts not-yet-open necklaces that have connection gate lines for
+    their current version and digest; previews belong to the public card, a planned one (no line) is not counted."""
+    from agent_market.concierge import necklace_surface as ns
+    planned, testing, preview = defn3(), dict(defn3(), slug="other-brief"), dict(defn3(), slug="third-brief",
+                                                                             status="preview")
+    for d in (testing, preview):
+        cg.record(tmp_path, {"slug": d["slug"], "version": d["version"], "digest": model.digest(d), "kind": "gate",
+                             "ok": False}, now=NOW)
+    assert judge.verifying_count([planned, testing, preview], tmp_path) == 1
+    snap = judge.snapshot([planned, testing, preview], {}, tmp_path, now=NOW)
+    assert snap["verifying"] == {"count": 1} and "other-brief" not in str(snap["verifying"])
+    assert ns.verifying_count(snap) == 1 and ns.verifying_count({"necklaces": []}) is None

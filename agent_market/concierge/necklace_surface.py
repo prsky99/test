@@ -630,6 +630,13 @@ def preview_count(snapshot=None, now=None):
                if isinstance(entry, dict) and entry.get('status') == 'preview' and offered(entry, now))
 
 
+def verifying_count(snapshot=None):
+    """Necklaces in verification (PM 21:43): the judge's count of not-yet-open necklaces in their connection test; the
+    public card counts live and preview ones, so the two never overlap. None when the snapshot has no count."""
+    value = ((snapshot or load()).get('verifying') or {}).get('count')
+    return value if type(value) is int and value >= 0 else None
+
+
 def listing(base='https://agentconcierge.biz', snapshot=None, now=None):
     """Offered necklaces, then stopped ones still inside their 30-day notice (never a necklace that never went live);
     necklaces in testing are listed apart in `in_testing` with their test count only."""
