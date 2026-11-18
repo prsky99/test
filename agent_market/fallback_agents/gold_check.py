@@ -55,7 +55,8 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "korean-lunar": "daily-fortune-brief", "western-sign": "daily-fortune-brief",      # scripts/gold_fortune_tuning.py
         "saju-pillars": "daily-fortune-brief", "fortune-daily": "daily-fortune-brief",     # (PM 11-17; holdout by ops)    # split record-r1 (scripts/gold_agent_record.py, agent team 11-17)
         "tls-certificate": "website-trust-brief",    # split tls-r1 (scripts/gold_site_checks.py --kind tls, 11-17)
-        "site-reachability": "website-trust-brief"}  # split reach-r1 (scripts/gold_site_checks.py --kind reach, 11-17)
+        "site-reachability": "website-trust-brief",  # split reach-r1 (scripts/gold_site_checks.py --kind reach, 11-17)
+        "mbti-profile": "personality-fortune-brief", "mbti-fortune": "personality-fortune-brief"}   # scripts/gold_mbti_tuning.py (PM 11-18)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -108,10 +109,32 @@ def judge_fortune(agent_id: str, case: dict, result: dict | None, error: str | N
     return {"pass": not wrong, "wrong": wrong}
 
 
+MBTI_AGENTS = ("mbti-profile", "mbti-fortune")
+
+
+def judge_mbti(agent_id: str, case: dict, result: dict | None, error: str | None) -> dict:
+    """personality-fortune-brief substitutes (PM 11-18): the profile's type, letters, temperament, age range and sample date
+    against scripts/gold_mbti_tuning.py (computed there from the contract's rule); a range outside 1912-2100 passes only
+    when refused as invalid_input; the reading is graded only by the gate's check_mbti_synthesis."""
+    truth = case["truth"]
+    if truth.get("refused"):
+        return {"pass": result is None and error == truth["refused"], "got": error or "answered", "want": truth["refused"]}
+    if result is None:
+        return {"pass": False, "got": error}
+    if agent_id == "mbti-fortune":
+        from ..necklaces.mbti_gate import check_mbti_synthesis
+        problems = check_mbti_synthesis(result, truth["type"])
+        return {"pass": not problems, "problems": problems}
+    wrong = [k for k, want in truth.items() if result.get(k) != want]
+    return {"pass": not wrong, "wrong": wrong}
+
+
 def judge(agent_id: str, case: dict, result: dict | None, error: str | None = None) -> dict:
     truth = case["truth"]
     if agent_id in FORTUNE_AGENTS:
         return judge_fortune(agent_id, case, result, error)
+    if agent_id in MBTI_AGENTS:
+        return judge_mbti(agent_id, case, result, error)
     if result is None:
         if agent_id == "wikipedia-summary" and wiki_truth(truth)[1] is False:
             # a company with no article of its own (holdout-r5-wiki, workflow 11-16): not_found is the right answer
@@ -537,6 +560,8 @@ def applies(agent_id: str, case: dict) -> bool:
     if agent_id == "github-releases":
         return bool((case.get("truth") or {}).get("repository_github"))
     if agent_id in FORTUNE_AGENTS:       # each fortune case names its agent (scripts/gold_fortune_tuning.py)
+        return case.get("agent") == agent_id
+    if agent_id in MBTI_AGENTS:          # each mbti case names its agent (scripts/gold_mbti_tuning.py)
         return case.get("agent") == agent_id
     if agent_id == "agent-record":       # record cases only (truth built by scripts/gold_agent_record.py)
         return "found" in (case.get("truth") or {})
