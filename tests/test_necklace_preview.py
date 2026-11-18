@@ -125,3 +125,52 @@ def test_a_preview_needs_no_delta_and_no_retest_before_its_first_one(tmp_path):
     assert build(defn, bad, [])["held_reason"] == "quality_low"
     live = dict(defn, status="live")                                               # live keeps its delta rule
     assert judge.build_entry(live, None, {}, NOW, None, verified=BOTH)["status"] == "held"
+
+
+def test_a_preview_with_no_retest_is_held_72_hours_after_it_began_and_a_hold_does_not_restart_the_clock(tmp_path):
+    """PM 17:3x: the first-retest exemption ends 72 hours after the definition became a preview."""
+    defn = preview_defn()
+    state = {}
+    watch = {"updated": judge._iso(NOW), "holds": {}}
+    first = judge.snapshot([defn], {}, tmp_path, NOW, watch_state=watch, judge_state=state, verified=BOTH)
+    assert first["necklaces"][0]["status"] == "preview" and state["preview_since"][defn["slug"]] == judge._iso(NOW)
+    later = NOW + 71 * 3600
+    watch["updated"] = judge._iso(later)
+    assert judge.snapshot([defn], {}, tmp_path, later, watch_state=watch, judge_state=state,
+                          verified=BOTH)["necklaces"][0]["status"] == "preview"
+    late = NOW + 73 * 3600
+    watch["updated"] = judge._iso(late)
+    held = judge.snapshot([defn], {}, tmp_path, late, watch_state=watch, judge_state=state, verified=BOTH)
+    assert held["necklaces"][0]["held_reason"] == "stale_retest"
+    again = judge.snapshot([defn], {}, tmp_path, late + 3600, watch_state=dict(watch, updated=judge._iso(late + 3600)),
+                           judge_state=state, verified=BOTH)
+    assert again["necklaces"][0]["held_reason"] == "stale_retest"           # held in between: the clock kept running
+    live = dict(defn, status="live")
+    judge.snapshot([live], {}, tmp_path, late, watch_state=watch, judge_state=state, verified=BOTH)
+    assert defn["slug"] not in state["preview_since"]                       # leaving preview clears it
+
+
+def test_the_exemptions_are_for_preview_only_live_still_needs_its_gate_and_a_positive_delta(tmp_path):
+    """PM 17:3x: switching to live brings back delta > 0 and the passed gate."""
+    defn = dict(preview_defn(), status="live")
+    summary(tmp_path, defn["slug"], quality={"delta_pp": None, "cases_7d": 5, "tested_at": judge._iso(NOW - 3600)})
+    no_delta = judge.build_entry(defn, approval(defn), judge.load_summary(tmp_path, defn["slug"]), NOW, verified=BOTH)
+    assert no_delta["status"] == "held" and no_delta["held_reason"] == "delta_nonpositive"
+    fresh = tmp_path / "fresh"
+    summary(fresh, defn["slug"])                                             # delta 17, tested an hour ago
+    no_gate = judge.build_entry(defn, None, judge.load_summary(fresh, defn["slug"]), NOW, verified=BOTH)
+    assert no_gate["held_reason"] == "not_approved" and no_gate["gate_passed_at"] is None
+    ok = judge.build_entry(defn, approval(defn), judge.load_summary(fresh, defn["slug"]), NOW, verified=BOTH)
+    assert ok["status"] == "live" and ok["gate_passed_at"]
+
+
+def test_a_preview_entry_carries_no_token_speed_or_accuracy_number(tmp_path):
+    """PM 17:3x: no saving, speed or accuracy figure for a preview, in any field the surface or an agent reads."""
+    defn = preview_defn()
+    summary(tmp_path, defn["slug"], value={"tokens": {"median": 900}},
+            quality={"delta_pp": 12.0, "cases_7d": 5, "success_rate": 0.8, "tested_at": judge._iso(NOW - 60)},
+            cost={"usdc_per_run": 0, "p50_ms": 2100, "p95_ms": 4200}, completion={"runs": 5, "completed": 4})
+    got = build(defn, tmp_path, [])
+    assert got["status"] == "preview"
+    assert got["quality"] == {"tested_at": judge._iso(NOW - 60)}
+    assert got["cost"] is None and got["completion"] is None and got["value"] is None and got["comparison"] is None

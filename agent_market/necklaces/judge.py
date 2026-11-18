@@ -268,13 +268,18 @@ def own_members(defn: dict, running: dict, states: dict | None, now: float,
     return {"counted": counted, "roles": roles, "until": str(until), "label": OWN_MEMBER_LABEL}, None
 
 
-def _quality_hold(entry: dict, now: float, preview: bool = False) -> str | None:
+PREVIEW_FIRST_RETEST_HOURS = 72     # PM 17:3x: a preview with no retest at all is held this long after it began
+
+
+def _quality_hold(entry: dict, now: float, preview: bool = False, since: float | None = None) -> str | None:
     """A preview (PM 17:2x) claims no value against doing the task yourself, so it needs no positive delta, and before
     its first retest it has no test time to go stale; once retested it is held like a live one when the retest is
     old (and by the retest's own holds, quality_low and the like, through summary held_reason)."""
     quality = entry.get("quality") or {}
     tested = _parse_time(quality.get("tested_at"))
     if preview and tested is None and not quality.get("cases_7d"):
+        if since is not None and now - since > PREVIEW_FIRST_RETEST_HOURS * 3600:
+            return "stale_retest"           # PM 17:3x: 72 hours as a preview and still no retest summary
         return None
     if tested is None or now - tested > STALE_HOURS * 3600:
         return "stale_retest"
@@ -358,7 +363,7 @@ def load_watch_state(root: Path, now: float) -> tuple[dict, str | None]:
 def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
                 watch_state: dict | None = None, verified: set | None = None,
                 watch_problem: str | None = None, preview_rows: list | None = None,
-                substitute_states: dict | None = None) -> dict | None:
+                substitute_states: dict | None = None, preview_since: float | None = None) -> dict | None:
     status = defn["status"]
     if status not in PUBLIC:
         return None
@@ -435,9 +440,15 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
               or ("members_unqualified" if entry["member_count"] < max(2, defn.get("min_pearls_answered") or 2)
                   else None)
               or summary.get("held_reason")
-              or _quality_hold(entry, now, preview=previewing))
+              or _quality_hold(entry, now, preview=previewing, since=preview_since))
     if reason:
         entry["status"], entry["held_reason"] = "held", reason
+    if previewing:
+        # PM 17:3x: a preview shows no token, speed or accuracy number anywhere; only the test time stays (the
+        # surface's freshness check) and the measured rounds stay in entry.preview when there are any
+        quality = entry.get("quality") or {}
+        entry["quality"] = {"tested_at": quality.get("tested_at")} if quality.get("tested_at") else None
+        entry["cost"] = entry["completion"] = None
     return entry
 
 
@@ -526,9 +537,17 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
     # surface keeps the page and the tool answer with the stop notice instead of a 404 / "Unknown necklace".
     passed = {} if judge_state is None else judge_state.setdefault("gate_passed", {})
     verified = verified_pearls() if verified is None else verified
+    # PM 17:3x: when each definition became a preview, kept apart from the status history so a hold in between does
+    # not restart the 72 hours; cleared once the definition leaves preview
+    since_map = {} if judge_state is None else judge_state.setdefault("preview_since", {})
     for defn in definitions:
+        if defn["status"] == "preview":
+            since_map.setdefault(defn["slug"], _iso(now))
+        else:
+            since_map.pop(defn["slug"], None)
+        since = _parse_time(since_map.get(defn["slug"])) if defn["status"] == "preview" else None
         entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state,
-                            verified, watch_problem, preview_rows, substitute_states)
+                            verified, watch_problem, preview_rows, substitute_states, since)
         if entry is not None:
             if entry.get("gate_passed_at"):
                 passed[defn["slug"]] = entry["gate_passed_at"]
