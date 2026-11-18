@@ -29,7 +29,7 @@ def run(env_extra=None, path=True):
 
 
 def test_a_child_with_the_guard_folder_cannot_connect_outside():
-    done = run()
+    done = run({'NETWORK_GUARD': 'block'})
     assert done.returncode == 0 and done.stdout.strip() == 'blocked', done.stdout + done.stderr
 
 
@@ -77,7 +77,8 @@ def test_every_rehearsal_child_builds_its_path_through_the_guard_helper():
 
 def test_a_child_started_with_the_helper_path_cannot_reach_the_outside():
     from scripts.rehearse_storage_adapter_postgres import guarded_path
-    env = {'PATH': os.environ.get('PATH', ''), 'PYTHONPATH': guarded_path(Path(__file__).resolve().parents[1])}
+    env = {'PATH': os.environ.get('PATH', ''), 'PYTHONPATH': guarded_path(Path(__file__).resolve().parents[1]),
+           'NETWORK_GUARD': 'block'}    # report is the default; this asserts the refusal itself, with no real connect
     done = subprocess.run([sys.executable, '-c', CODE], env=env, capture_output=True, text=True, timeout=20)
     assert done.returncode == 0 and done.stdout.strip() == 'blocked', done.stdout + done.stderr
 
@@ -88,3 +89,30 @@ def test_the_default_mode_is_report_and_block_is_opt_in():
     import tests.report_redirect as redirect
     source = Path(redirect.__file__).read_text(encoding='utf-8')
     assert "network='block' if environ.get('NETWORK_GUARD') == 'block' else 'report'" in source
+
+
+def test_a_child_in_report_mode_logs_the_attempt_with_a_child_mark_and_does_not_refuse(tmp_path, monkeypatch):
+    """Same rule as the parent (PM 11-18): by default a child only records an outside connect; block refuses it."""
+    import importlib.util
+    import socket
+    attempts = []
+    monkeypatch.setattr(socket.socket, 'connect', lambda self, address: attempts.append(address))
+    monkeypatch.setattr(socket.socket, 'connect_ex', lambda self, address: attempts.append(address) or 0)
+    monkeypatch.delenv('NETWORK_GUARD', raising=False)
+    spec = importlib.util.spec_from_file_location('child_guard_report', GUARD / 'sitecustomize.py')
+    module = importlib.util.module_from_spec(spec)
+    log = tmp_path / 'outside-network.log'
+    spec.loader.exec_module(module)               # wraps the (recorded) connect; restored by monkeypatch below
+    module._LOG = log
+    socket.socket().connect(('8.8.8.8', 80))      # outside: recorded, not refused, and the (fake) connect ran
+    socket.socket().connect(('127.0.0.1', 80))    # inside: not recorded
+    assert attempts == [('8.8.8.8', 80), ('127.0.0.1', 80)]
+    rows = log.read_text(encoding='utf-8').splitlines()
+    assert len(rows) == 1 and rows[0].endswith('8.8.8.8:80\treport\tchild')
+    module._MODE = 'block'
+    try:
+        socket.socket().connect(('8.8.8.8', 80))
+        refused = False
+    except PermissionError:
+        refused = True
+    assert refused and len(log.read_text(encoding='utf-8').splitlines()) == 2
