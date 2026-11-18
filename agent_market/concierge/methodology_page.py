@@ -153,11 +153,12 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
     except Exception:
         offered_now, members = None, None
     parts.append('<section aria-labelledby="mGate"><h2 id="mGate">5. Necklace gate</h2>'
-                 '<p>A necklace (a workflow of pearls) is offered only after it passes this gate. After that, a day&#39;s '
-                 'retest success below 0.8, a retest older than 48 hours, or a delta of 0 or less holds it at the next '
-                 'daily check. Its page shows its own recent results.</p>'
+                 '<p>A necklace opens only after its connection test: its steps are joined one at a time and run, every step '
+                 'falls back to another agent, and the whole chain then runs three times on different inputs. After it opens, '
+                 'one connection run a day keeps it open; it is held when that run fails or is older than 48 hours. Its page '
+                 'shows its own recent results.</p>'
                  + ('<p class="necklace-member-rules">' + members + '</p>' if members else '')
-                 + ('<p class="muted">No necklace is offered yet, so these retest rules have not been applied to a live '
+                 + ('<p class="muted">No necklace is offered yet, so these gate rules have not been applied to a live '
                     'one.</p>' if offered_now == 0 else '')
                  + _table(['Item', 'Value'], gate_rows) + '</section>')
     roles = [r for r in data.get('roles') or [] if isinstance(r, dict)]
