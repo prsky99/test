@@ -1432,7 +1432,25 @@ def retest_queue(versions, day=None, limit=RETEST_A_DAY, now=None, skip=frozense
         sorted(confirmed, key=lambda c: c['rank'])
     failed = [{'role': v['role'], 'id': v['resource_id'], 'tool': v['tool'], 'kind': 'retest', 'rank': None, 'after_failure': True}
               for v in sorted(versions, key=lambda v: float(v.get('tested') or 0)) if failure_due(v, now)]
-    return [c for c in out + failed if (c['id'], canonical(c['role'])) not in skip][:limit]
+    off = off_role_members(versions)
+    return [c for c in out + failed if (c['id'], canonical(c['role'])) not in skip
+            and (c['id'], canonical(c['role']), c['tool']) not in off][:limit]
+
+
+def off_role_members(versions):
+    """(id, role, tool) of members whose tool the role's name rule no longer takes and whose best score stays under
+    NEAR_MARK (PM 11-18 15:2x, the 09:12 run's wrong_tool failures): narrowing role_catalog stops new candidates, but a
+    member already tested kept coming back as a retest (stock.quote get_quote at 7 points, web.grounding answer_question,
+    company.registry get_company). A member queued by hand or by seed that scores 70 or more stays (214656
+    serp_live_search, 178541 doi_lookup)."""
+    best = {}
+    for v in versions:
+        key = (v['resource_id'], canonical(v['role']), v['tool'])
+        score = (v.get('quality') or {}).get('score')
+        score = score if isinstance(score, (int, float)) else (v.get('score') if isinstance(v.get('score'), (int, float)) else 0)
+        best[key] = max(best.get(key, 0), score)
+    return {key for key, score in best.items()
+            if score < NEAR_MARK and key[1] not in role_catalog.roles_for_tool(key[2])}
 
 
 def catalog_candidates():

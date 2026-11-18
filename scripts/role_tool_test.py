@@ -95,16 +95,16 @@ CASE_KEYS = {
     'package': r'package|^name$|library|module|software|product|pkg',
     'ecosystem': r'ecosystem|registry|^system$|platform',
     'version': r'version',
-    'cve_id': r'cve|^id$|vuln',
-    'query': r'query|^q$|search|keyword|term|topic|text',
+    'cve_id': r'cve|^id$|vuln|query|^q$',
+    'query': r'query|^q$|search|keyword|term|topic|text|^name$|place|server|slug',
     'title': r'title|page|article|topic|term|query|^q$',
-    'name': r'company|^name$|entity|business|legal|org',
-    'domain': r'domain|website|site|url|host',
-    'country': r'country|jurisdiction',
+    'name': r'(?:^|_)company(?:_|$)|^name$|entity|business|legal|org|query|^q$',
+    'domain': r'domain|website|site|url|host|^name$|target|query|^q$',
+    'country': r'country|jurisdiction|iso3|iso2',
     'question': r'question|query|^q$|prompt|ask',
     'limit': r'^(limit|max_results|count|per_page|num_results|top_k)$',
     # 11-14 bc0aabce: country, fx, weather and events tasks
-    'indicator': r'indicator|series|metric|dataset',
+    'indicator': r'indicator|series|metric|dataset|query|^q$',
     'year': r'year',
     'month': r'month',
     'from': r'(?:^|_)(?:from|base|source)(?:_|$)',
@@ -115,11 +115,11 @@ CASE_KEYS = {
     'latitude': r'^lat',
     'longitude': r'^(?:lon|lng)',
     # 11-14 RAG role tasks (role-tasks-rag-v1.jsonl)
-    'code': r'code|iata|icao|airport',
+    'code': r'code|iata|icao|airport|query|^q$',
     'word': r'word|term|query|^q$|lemma',
     'ip': r'^ip|ip_?address|address|query|^q$|target',
-    'repo': r'repo|repository|project|slug|full_name',
-    'address': r'address|query|^q$|location|text|street',
+    'repo': r'repo|repository|project|slug|full_name|^url$',
+    'address': r'address|query|^q$|location|text|street|place',
     'text': r'^text$|query|^q$|input|content|source_text',
     'target': r'target|^to$|lang|language',
     'value': r'value|amount|quantity|number',
@@ -128,6 +128,10 @@ CASE_KEYS = {
     'company': r'company|name|query|^q$',
     'timezone': r'timezone|^tz$|zone',
     'min_magnitude': r'mag',
+    'repository': r'repository|repo_url|github_url|^url$',
+    'unit_type': r'^unit_type$|^category$',
+    'symbol': r'symbols?|ticker|coins?|assets?',
+    'id': r'^ids?$',
 }
 # World Bank codes for members that want an indicator code rather than a word (workflow team, 11-14).
 INDICATOR_CODES = {'population': 'SP.POP.TOTL', 'gdp': 'NY.GDP.MKTP.CD'}
@@ -147,21 +151,37 @@ def case_arguments(tool, case_input):
                                               and not re.search(CASE_KEYS['limit'], name) and not named):
             continue
         used = [k for k, _ in args.values()]
+        def _coerce(v):
+            if spec.get('type') == 'array' and isinstance(v, str) and (spec.get('items') or {}).get('type') in (None, 'string'):
+                return [v]
+            if spec.get('type') == 'string' and isinstance(v, (int, float)) and not isinstance(v, bool):
+                return str(v)
+            return v
+        if flat(name) == 'owner' and 'owner' not in case_input and isinstance(case_input.get('repo'), str) and '/' in case_input['repo']:
+            args[name] = ('_split_owner', case_input['repo'].split('/', 1)[0])
+            continue
         exact = next((k for k in case_input if k not in used and flat(k) == flat(name)), None)
         if exact is not None:
-            args[name] = (exact, case_input[exact])
+            v = case_input[exact]
+            if flat(name) == 'repo' and 'owner' in tool['params'] and isinstance(v, str) and '/' in v:
+                v = v.split('/', 1)[1]
+            args[name] = (exact, _coerce(v))
             continue
         for key, value in case_input.items():
             if key in CASE_KEYS and re.search(CASE_KEYS[key], name, re.I) and key not in used:
                 if key == 'domain' and re.search(r'url', name, re.I):
                     value = 'https://' + str(value)
+                if key == 'repo' and re.search(r'url', name, re.I) and '/' in str(value) and not str(value).startswith('http'):
+                    value = 'https://github.com/' + str(value)
                 if key == 'indicator' and str(value).lower() in INDICATOR_CODES and (
                         re.search(r'code|_id$|^id$', name, re.I) or re.search(r'\bcode\b|SP\.POP|NY\.GDP', str(spec.get('description') or ''))
                         or any('.' in str(e) for e in spec.get('enum') or [])):
                     value = INDICATOR_CODES[str(value).lower()]
                 if spec.get('type') in ('integer', 'number') and not isinstance(value, (int, float)):
                     continue
-                args[name] = (key, value)
+                if spec.get('type') == 'boolean' and not isinstance(value, bool):
+                    continue
+                args[name] = (key, _coerce(value))
                 break
         if name in (tool.get('required') or []) and name not in args:
             missing.append(name)
