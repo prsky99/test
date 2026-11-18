@@ -23,7 +23,7 @@
 | # | 반복 문제 | 횟수 | 장치 | 종류 | 담당 | 상태 |
 |---|---|---|---|---|---|---|
 | A1 | 메시지 머리말 시각이 실제와 다름(앞섬·어림) | PM 14, 팀 다수 | `~/.claude/hooks/message_clock_guard.py`(PreToolUse: SendMessage·send_message, 앞서거나 15분 넘게 뒤처지거나 HH:Mx면 막음) + `clock_context.py`(UserPromptSubmit: 차례마다 이 맥의 시각 한 줄) | 정지형 | PM | 11-19 00:3x 적용·실차단 확인 |
-| A4 | 시험 자리 래퍼 우회(pytest·playwright·화면 감사 직접 실행) | 3+ | `~/.claude/hooks/test_slot_guard.py`(PreToolUse: Bash) | 정지형 | PM | 11-19 00:3x 적용·실차단 확인 |
+| A4 | 시험 자리 래퍼 우회(pytest·playwright·화면 감사 직접 실행) | 3+ (11-18 워크플로우 단일 시험 2회 자진 신고 포함) | `~/.claude/hooks/test_slot_guard.py`(PreToolUse: Bash) | 정지형 | PM | 11-19 00:3x 적용·실차단 확인 |
 | A4b | 위 장치의 빈틈(스크립트 파일·하위 프로세스 안의 pytest) | — | pytest 쪽 이중 잠금: conftest가 래퍼가 준 자리 토큰(env) 없으면 시작하지 않음 | 정지형 | 운영·SRE | 11-19 낮 |
 | A6 | 공개 화면 결함을 사용자가 먼저 발견 | 11-18만 6 | frontend release_gate에 `scripts.ui_quality_audit`(1280·375·light·dark, misaligned·간격 토큰 밖·겹침·넘침 0) | 정지형 | 성장·유통 | 11-19 낮 |
 | B2 | 배포 뒤 AD Coin 데몬이 옛 코드로 돎 | 경고 33 | 배포 완료 조건에 "데몬 코드 해시 = 활성 frontend"; 다르면 배포 실행기가 재설치까지 하고 끝냄 | 정지형 | 운영·SRE + AI AD Coin | 11-19 낮 |
@@ -37,7 +37,10 @@
 | B4 | 지문 측정 밀림 | 9 | 연결 시험 전에 지문 측정을 자동으로 거는 순서 | 자동 처리 | 운영·SRE | 11-19 |
 | C1 | 약관 판정이 팀 브랜치에만 있고 개발 브랜치·작업본(운영)에 안 들어감 | 3(11-18 W4 묶음, 15건 7e25bab9, 3건 510677ff) | `scripts/terms_pending.py`: 로컬 `agent-team/*` 브랜치의 member_terms.json과 개발 끝·작업본을 비교해, 판정이 있는데 운영에 없는 id·브랜치·커밋을 출력. :35 감사가 돌리고, 1건이라도 있으면 에이전트 팀에 넘김 | 검증 | 에이전트 팀 | 11-19 낮 |
 | C2 | 시험을 측정 칸(:55~:10)·남의 무거운 칸에 걸어 거절됨 | 4(11-18 14:55·19:00·20:55 계획, 11-19 00:01) | `scripts/pytest_slot.py --when`: 지금부터 시작 가능한 다음 시각(측정 칸·현황판 칸·부하 상한 반영)만 출력하고 아무것도 실행하지 않음. 예약은 이 출력 시각으로만 건다 | 검증 | 에이전트 팀(운영·SRE와 래퍼 소유 확인) | 11-19 낮 |
-| C3 | zsh가 `$VAR:x`를 경로 수식어로 읽어 명령이 깨짐(`$O:a`, `$C:r`) | 2(11-17, 11-19 00:11) | `~/.claude/hooks`에 PreToolUse(Bash) 검사: 중괄호 없는 `$이름:` + 영문자 패턴이 있으면 막고 `${이름}:`로 고치라고 알림 | 정지형 | 에이전트 팀(hook 설치는 PM) | 11-19 낮 |
+| C3 | zsh가 `$VAR:x`를 경로 수식어로 읽어 명령이 깨짐(`$O:a`, `$C:r`) | 2(11-17, 11-19 00:11) | `~/.claude/hooks`에 PreToolUse(Bash) 검사: 중괄호 없는 `$이름:` + 영문자 패턴이 있으면 막고 `${이름}:`로 고치라고 알림 | 정지형 | 에이전트 팀(hook 설치는 PM) | PM이 11-19 00:4x 설치(`~/.claude/hooks/zsh_modifier_guard.py`, 실차단 확인) |
+| W1 | 예약 작업을 세션 백그라운드나 scratchpad에 둠(세션이 끝나면 같이 죽음) | 2(11-18 108파일 실행기 b3zb1tga6·b8lifk9e5, scratchpad 실행 파일) + 과거 11-11 잠금·11-17 회차 누락 | ① detach.sh가 /private/tmp·scratchpad 경로 명령을 거부, 예약 워크트리는 gateway-data/worktrees/<이름> ② `~/.claude/hooks/detach_guard.py`(PreToolUse: run_in_background로 heavy_slot·timed 스크립트를 부르면 막음) | 정지형 | ① 워크플로우 ② PM | ② 11-19 00:4x 설치·시험 / ① 11-19 낮 |
+| W2 | 모듈을 바꾼 뒤 옛 문구·정의를 비교하는 시험이 넓은 시험에서야 깨짐 | 11-18 20:13 13건, 11-19 00:13 3건, 11-15 1a87d22b, 11-18 ef4703eb | `scripts/changed_tests.py`(바뀐 파일을 import하거나 바뀐 문자열을 담은 tests/ 목록) → pytest_slot·heavy_slot 입력, commit_check(pre-push)가 그 목록이 이 sha에서 통과한 기록 없으면 막음 | 정지형 | 워크플로우(스크립트) + 운영·SRE(pre-push) | 11-19 낮 |
+| W3 | 정답 세트 유효기간 경고 반복(answer_sets) | 점검 반복 | 연결 관문이 읽는 세트만 점검, 쓰이는 tuning 세트에 유효기간 | 자동 처리 | 워크플로우 | 11-19 낮 |
 
 ## 3. 장치가 덮지 못하는 곳
 
