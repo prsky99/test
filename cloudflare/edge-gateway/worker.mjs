@@ -1127,7 +1127,7 @@ export function gatewayFailure(error) {
 }
 function outputSource(path) {
   if(path.startsWith('/api/edge-gateway/v1/outputs/'))return 'admin';
-  if(path==='/chat'||path==='/')return 'chat';if(path==='/a2a'||path==='/a2a/')return 'a2a';if(path==='/mcp')return 'mcp';
+  if(path==='/chat'||path==='/')return 'chat';if(path==='/a2a'||path==='/a2a/')return 'a2a';if(path==='/mcp'||path.startsWith('/mcp/necklace/'))return 'mcp';
   if(path.startsWith('/api/owned-data-agents/'))return 'mcp';
   if(path.includes('workspace')||path.includes('customer-organizations'))return 'workspace';
   if(path.includes('workflow'))return 'workflow';return 'public';
