@@ -75,12 +75,12 @@ def result(lines: list[dict], split: str) -> dict:
             passed.append(case_id)
         else:
             failed.append(case_id)
-    if len(first) < ROUND:
+    if len(failed) >= FAIL_LIMIT:
+        verdict = "fail"            # production system v2 (PM 11-18 19:13): decided even when cases were left unrun
+    elif len(first) < ROUND:
         verdict = "incomplete"                          # stopped or still running: not a verdict (PM 15:10)
     elif len(passed) >= ROUND_PASS:
         verdict = "pass"
-    elif len(failed) >= FAIL_LIMIT:
-        verdict = "fail"
     elif pending:
         verdict = "rerun_due"                           # excluded cases not measured again yet
     else:
@@ -163,7 +163,9 @@ def main(argv=None, now=time.time, runner_fn=rerun_cases) -> int:
     if not body["measured"]:
         print(json.dumps({"error": f"no round lines for {args.slug} v{version} {args.split} on {args.day}"}))
         return 2
-    if args.command == "rerun" and body["rerun_due"]:
+    if args.command == "rerun" and body["rerun_due"] and body["verdict"] == "fail":
+        body["rerun"] = {"not_started": "the round already failed: a rerun cannot change it (PM 11-18 19:13)"}
+    elif args.command == "rerun" and body["rerun_due"]:
         if version != defn["version"]:
             print(json.dumps({"error": f"the round ran v{version}; the definition is now v{defn['version']}"}))
             return 2

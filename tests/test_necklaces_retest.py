@@ -51,7 +51,7 @@ def test_run_set_writes_daily_lines_and_single_baselines(tmp_path):
     # c2 is a clean version, but 367249 lists an advisory for it: a wrong answer since R25 (passed 1 of 2)
     assert out == {"slug": "package-risk-audit", "split": "tuning", "cases": 2, "passed": 1, "excluded": 0, "of": 2,
                    "stopped_by_budget": False, "seconds": out["seconds"], "single_answers_reused": out["single_answers_reused"],
-                   "same_source_passed": 0, "passed_strict": 1}
+                   "same_source_passed": 0, "passed_strict": 1, "stopped_decided": False}
     lines = [json.loads(l) for l in (tmp_path / "retest" / "20270115.jsonl").read_text().splitlines()]
     kinds = {l["type"] for l in lines}
     assert kinds == {"case", "member", "single"}
@@ -594,3 +594,24 @@ def test_a_case_is_left_out_only_when_our_side_refused_every_attempt_of_the_fail
     both = {"ok": False, "slots": {"registry": False, "background": False}}
     assert retest.unmeasured_failure(defn, both, {"registry": [a("our_capacity")], "background": []}) == "our_capacity"
     assert retest.unmeasured_failure(defn, {"ok": True, "slots": {}}, {"registry": [a("our_capacity")]}) is None
+
+
+def test_a_gate_round_stops_once_it_can_no_longer_pass(tmp_path):
+    """Production system v2 (PM 11-18 19:13): with ROUND - ROUND_PASS = 2 failures allowed, the third failure ends
+    the round; the rest of the cases are not run (no provider call). Retests, tuning and drills run every case."""
+    from agent_market.necklaces.gate_rules import ROUND, ROUND_PASS
+    assert retest.gate_fail_limit("gate", "holdout-r5") == ROUND - ROUND_PASS == 2
+    assert retest.gate_fail_limit("gate", "tuning") is None
+    assert retest.gate_fail_limit("necklace_retest", "holdout-r1") is None
+    defn = package_defn()
+    cases = [pkg_case(f"c{i}", []) for i in range(8)]
+    calls = []
+
+    def failing(member, args, timeout):
+        calls.append(member.get("resource_id") or member.get("agent_id"))
+        raise RuntimeError("member down")
+    out = retest.run_set(defn, cases, failing, root=tmp_path, now=lambda: 1_800_000_000, fail_limit=2)
+    assert out["stopped_decided"] and not out["stopped_by_budget"]
+    assert out["cases"] == 3 and out["passed"] == 0 and out["of"] == 8
+    whole = retest.run_set(defn, cases, failing, root=tmp_path / "all", now=lambda: 1_800_000_000)
+    assert whole["cases"] + whole["excluded"] == 8 and not whole["stopped_decided"]

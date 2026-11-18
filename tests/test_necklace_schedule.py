@@ -199,3 +199,29 @@ def test_a_deferred_whole_set_runs_in_a_later_free_hour_and_then_leaves_the_list
     s.run_due()
     assert calls[-1] == (None, True)
     assert json.loads((tmp_path / "data" / "retest" / "deferred.json").read_text()) == {}
+
+
+def test_a_necklace_live_through_the_connection_gate_gets_one_connection_run_a_day(tmp_path):
+    """User decision 11-18 via PM 19:4x: no held-out retest for it; the daily connection run keeps its life."""
+    from agent_market.necklace_schedule import RetestStep, live_hour
+    from agent_market.necklaces import connect_gate, model
+    defn = statused("live-brief", "live")
+    defs = setup(tmp_path, defn)
+    loaded = next(d for d in model.load_valid(defs) if d["slug"] == "live-brief")
+    connect_gate.record(tmp_path / "data", {"slug": "live-brief", "version": loaded["version"],
+                                            "digest": model.digest(loaded), "kind": "gate", "ok": True, "checks": []})
+    calls, connects = [], []
+    now = [at(live_hour("live-brief"), 16)]
+
+    def run(defn, **kw):
+        calls.append(defn["slug"])
+        return {"slug": defn["slug"], "cases": 5, "passed": 5}
+
+    def connect(defn, root):
+        connects.append((defn["slug"], root))
+        return {"slug": defn["slug"], "connect": "daily", "ok": True}
+    s = RetestStep(root=tmp_path / "data", logs=tmp_path / "logs", definitions_dir=defs, clock=lambda: now[0], run=run,
+                   background=False, connect=connect)
+    s.run_due()
+    assert calls == [] and connects == [("live-brief", tmp_path / "data")]
+    assert lines(tmp_path)[-1]["results"] == [{"slug": "live-brief", "connect": "daily", "ok": True}]

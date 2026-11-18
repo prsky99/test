@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import re
 import threading
 import time
@@ -906,11 +907,15 @@ def _write_run_lines(root, day, defn, lines, details):
 def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT, split: str = "tuning",
             singles: bool = False, budget_s: float = BUDGET_SECONDS, watch_state: dict | None = None,
             clock=time.monotonic, now=time.time, pacer: RelayPacer | None = None,
-            shared_cache: SharedMemberCache | None = None, drill: bool = False) -> dict:
+            shared_cache: SharedMemberCache | None = None, drill: bool = False,
+            fail_limit: int | None = None) -> dict:
+    """``fail_limit`` (production system v2, PM 11-18 19:13): once more cases have failed than that, the round can no
+    longer pass, so the remaining cases are not run (the verdict stays the same; only provider calls are saved)."""
     started = clock()
     day = time.strftime("%Y%m%d", time.localtime(now()))
     lines, details = [], []
     done = passed = excluded = reused = same_passed = 0
+    decided = False
     contrast = CONTRAST.get(defn["slug"])
     exclude = TASK_EXCLUDE.get(defn["slug"]) or (lambda c: None)
     try:
@@ -987,12 +992,16 @@ def run_set(defn: dict, cases: list[dict], caller, *, root: Path = DEFAULT_ROOT,
                     reused += reused_now
             done += 1
             passed += bool(verdict["ok"])
+            if fail_limit is not None and done - passed > fail_limit:
+                decided = True              # the round cannot pass any more: the rest is not run
+                break
     finally:
         # source review 11-16: the lines of the cases already run are kept even when a later case raises
         _write_run_lines(root, day, defn, lines, details)
     return {"slug": defn["slug"], "split": split, "cases": done, "passed": passed, "excluded": excluded,
             "of": len(cases),
-            "stopped_by_budget": done + excluded < len(cases), "seconds": round(clock() - started, 1),
+            "stopped_by_budget": done + excluded < len(cases) and not decided, "stopped_decided": decided,
+            "seconds": round(clock() - started, 1),
             "single_answers_reused": reused,
             # PM 11-16: cases that passed with an answer from the answer key's own source, and the pass count without them
             "same_source_passed": same_passed, "passed_strict": passed - same_passed}
@@ -1185,6 +1194,21 @@ def open_engine():
     return runtime_for(storage.store, McpProxy(storage.store)), storage.close
 
 
+def holdout_gate_off(system: str, split: str) -> bool:
+    """User decision 11-18 via PM 19:4x: the necklace gate is the connection test (connect_gate); a gate round on a
+    held-out split no longer runs. Kept, switched off: NECKLACE_HOLDOUT_GATE=1 runs one for an investigation."""
+    return system == "gate" and split.startswith("holdout") and os.environ.get("NECKLACE_HOLDOUT_GATE") != "1"
+
+
+def gate_fail_limit(system: str, split: str) -> int | None:
+    """Failures a gate round on a held-out split may have and still pass (ROUND - ROUND_PASS from gate_rules, numbers
+    unchanged); None for anything else (retests, tuning, drills run every case)."""
+    if system != "gate" or not split.startswith("holdout"):
+        return None
+    from .gate_rules import ROUND, ROUND_PASS
+    return ROUND - ROUND_PASS
+
+
 def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: bool, budget_s: float,
               base: str = BASE, system: str = "necklace_retest", limit: int = 30, path: str = "relay",
               engine=None, sample: tuple[int, int] | None = None, shared_cache: SharedMemberCache | None = None,
@@ -1201,6 +1225,9 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
     watch_state["standing"] = standing_rules.load()
     if drill:
         watch_state = drill_state(defn, watch_state)
+    if holdout_gate_off(system, split):
+        return {"slug": defn["slug"], "split": split, "cases": 0, "passed": 0, "path": path,
+                "not_run": "holdout gate rounds are off; the necklace gate is connect_gate (PM 11-18 19:4x)"}
     from .gold import GoldSetInvalid
     try:
         cases = load_cases(root, defn["slug"], split)[:limit]
@@ -1223,7 +1250,8 @@ def run_daily(defn: dict, *, root: Path = DEFAULT_ROOT, split: str, singles: boo
                         dropped=watch_state.get("drill_dropped"))
         if sample is None:
             return run_set(defn, cases, call, root=root, split=split, singles=singles, budget_s=budget_s,
-                           pacer=pacer, watch_state=watch_state, shared_cache=shared_cache)
+                           pacer=pacer, watch_state=watch_state, shared_cache=shared_cache,
+                           fail_limit=gate_fail_limit(system, split))
         first, count = sample
         part = run_set(defn, cases[first:first + count], call, root=root, split=split, singles=singles,
                        budget_s=budget_s, pacer=pacer, watch_state=watch_state, shared_cache=shared_cache)
@@ -1285,6 +1313,9 @@ def main(argv: list[str] | None = None) -> int:
     known = set((json.loads(manifest.read_text(encoding="utf-8")).get("files") or {})) if manifest.exists() else set()
     if args.split not in known | {"tuning", "holdout-r1", "holdout-r2"}:
         parser.error(f"--split {args.split} is not in {manifest}")
+    if holdout_gate_off(args.system, args.split):
+        print(json.dumps({"not_run": "holdout gate rounds are off; the necklace gate is connect_gate (PM 11-18 19:4x)"}))
+        return 3
     defn = next(d for d in model.load_valid() if d["slug"] == args.slug)
     if args.activate_planned:
         for slot in defn["slots"]:
@@ -1302,7 +1333,7 @@ def main(argv: list[str] | None = None) -> int:
         call = runner.budgeted_caller(gateway_caller(client, args.base, pacer), args.system, provider_url)
         result = run_set(defn, load_cases(args.root, args.slug, args.split)[:args.limit], call,
                          root=args.root, split=args.split, singles=args.singles, pacer=pacer,
-                         watch_state=gate_watch_state(args.root))
+                         watch_state=gate_watch_state(args.root), fail_limit=gate_fail_limit(args.system, args.split))
     print(json.dumps(result, ensure_ascii=False))
     return 0
 

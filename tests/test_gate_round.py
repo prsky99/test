@@ -93,3 +93,11 @@ def test_the_first_line_of_a_case_counts_and_a_short_round_is_incomplete():
     short = G.result(first(20, 0, 0), "holdout-r4-wiki")
     assert (short["verdict"], short["measured"]) == ("incomplete", 20)
     assert G.result(first(25, 0, 3), "holdout-r4-wiki")["verdict"] == "incomplete"
+
+
+def test_three_failures_decide_a_round_even_with_cases_left_and_no_rerun_runs(tmp_path):
+    """Production system v2 (PM 11-18 19:13): once 3 cases failed the round cannot reach 28 of 30, so a round stopped
+    early is a fail (not 'incomplete'), and a rerun of its excluded cases is not started."""
+    assert G.result(first(5, 3, 0), "holdout-r4-wiki")["verdict"] == "fail"
+    assert G.result(first(4, 3, 2), "holdout-r4-wiki")["verdict"] == "fail"
+    assert G.result(first(20, 2, 0), "holdout-r4-wiki")["verdict"] == "incomplete"     # 2 failures: still open

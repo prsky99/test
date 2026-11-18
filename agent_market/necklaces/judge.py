@@ -363,7 +363,12 @@ def load_watch_state(root: Path, now: float) -> tuple[dict, str | None]:
 def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
                 watch_state: dict | None = None, verified: set | None = None,
                 watch_problem: str | None = None, preview_rows: list | None = None,
-                substitute_states: dict | None = None, preview_since: float | None = None) -> dict | None:
+                substitute_states: dict | None = None, preview_since: float | None = None,
+                connect_state: dict | None = None) -> dict | None:
+    """``connect_state`` (connect_gate.state_of, user decisions 11-18 via PM 19:2x): when the definition has connection
+    gate lines, a passing gate line plus the ops approval of the version and digest is its gate pass, and the daily
+    connection run is its lifespan; no accuracy, delta or held-out retest is asked then. Without connection lines the
+    older ops approval and retest rules apply unchanged."""
     status = defn["status"]
     if status not in PUBLIC:
         return None
@@ -408,6 +413,12 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         entry["replaced_by"] = defn.get("replaced_by")
         return entry
     approved, reason = approval_state(defn, approval)
+    connected = connect_state is not None and not previewing
+    if connected:
+        # two keys (PM 19:2x): the connection gate passed for this version and digest, and ops approved it
+        if not connect_state.get("passed_at"):
+            approved, reason = False, "connect_not_passed"
+        entry["connect"] = {k: connect_state.get(k) for k in ("passed_at", "last_at", "last_ok")}
     if previewing:
         # A preview has not passed its gate: no gate time, no value against doing it yourself, its measured rounds only
         from .preview import measured, unmeasured
@@ -440,7 +451,8 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
               or ("members_unqualified" if entry["member_count"] < max(2, defn.get("min_pearls_answered") or 2)
                   else None)
               or summary.get("held_reason")
-              or _quality_hold(entry, now, preview=previewing, since=preview_since))
+              or ((connect_state or {}).get("hold") if connected
+                  else _quality_hold(entry, now, preview=previewing, since=preview_since)))
     if reason:
         entry["status"], entry["held_reason"] = "held", reason
     if previewing:
@@ -546,8 +558,10 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
         else:
             since_map.pop(defn["slug"], None)
         since = _parse_time(since_map.get(defn["slug"])) if defn["status"] == "preview" else None
+        from . import connect_gate
+        connect = connect_gate.state_of(root, defn, now) if connect_gate.history(root, defn) else None
         entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state,
-                            verified, watch_problem, preview_rows, substitute_states, since)
+                            verified, watch_problem, preview_rows, substitute_states, since, connect)
         if entry is not None:
             if entry.get("gate_passed_at"):
                 passed[defn["slug"]] = entry["gate_passed_at"]

@@ -71,7 +71,7 @@ class NecklaceStep:
             line.update(ok=False, definitions_error=type(exc).__name__)
             self.watch().last_hour = int(now // 3600)      # one failure line an hour, not one per loop
         for name, part in (("watch", self._run_watch), ("daily", lambda: self._run_daily(definitions, now)),
-                           ("judge", self._run_judge)):
+                           ("judge", self._run_judge), ("substitute_tasks", lambda: self._run_tasks(definitions, now))):
             if definitions is None:
                 break
             try:
@@ -89,6 +89,12 @@ class NecklaceStep:
 
     def _run_watch(self):
         return self.watch().run()
+
+    def _run_tasks(self, definitions, now):
+        """PM 19:2x (user decision): a fallback that answered a public run opens a substitute task for its role."""
+        from .necklaces.substitute_tasks import open_tasks
+        opened = open_tasks(self.root, definitions, now)
+        return {"opened": [t["role"] for t in opened]} if opened else None
 
     def _run_daily(self, definitions, now):
         local = time.localtime(now)
@@ -144,9 +150,10 @@ def _at(now, hhmm):
 
 class RetestStep:
     def __init__(self, root=Path("gateway-data/necklaces"), logs=Path("logs/ops/necklace-watch"), definitions_dir=None,
-                 clock=time.time, run=None, background=True):
+                 clock=time.time, run=None, background=True, connect=None):
         from .necklaces import model
         self.root, self.logs, self.clock = Path(root), Path(logs), clock
+        self._connect = connect          # the daily connection run (tests pass a fake)
         self.definitions_dir = Path(definitions_dir or model.DEFINITIONS)
         self._run, self.background = run, background
         self.last = {}            # kind -> day already handled by this process
@@ -220,6 +227,12 @@ class RetestStep:
                 results.append({"slug": defn["slug"], "skipped": "no_time"})
                 continue
             try:
+                from .necklaces import connect_gate
+                if kind == "live" and connect_gate.history(self.root, defn):
+                    # user decision 11-18 via PM 19:4x: a necklace that went live through the connection gate keeps
+                    # its life with one connection run a day (no held-out retest, no accuracy grading)
+                    results.append((self._connect or connect_gate.daily_run)(defn, root=self.root))
+                    continue
                 if defn["slug"] in waiting:         # the put-off whole set, when today's share has room for it
                     stamp = time.localtime(started_at)
                     self._defer(defn["slug"], waiting[defn["slug"]]["split"],
