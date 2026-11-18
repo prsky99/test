@@ -127,6 +127,31 @@ def test_a_substitute_is_approved_by_three_runs_of_its_own():
     assert not bad["ok"] and all(not r["ok"] for r in bad["stage2"])
 
 
+def test_a_substitute_not_yet_approved_is_called_by_its_own_gate_and_only_there():
+    """PM 21:2x and the agent team (11-18): tls-certificate's three runs called nobody, because the running chain drops
+    an unapproved (planned) substitute. The gate of that substitute counts it as approved for this run only."""
+    import copy
+    defn = defn3()
+    for slot in defn["slots"]:
+        for m in slot["chain"]:
+            if m["kind"] == "agentcon":
+                m["state"] = "planned"                     # none approved: FRESH has no substitutes
+    watch = copy.deepcopy(FRESH)
+    got = cg.substitute_gate(defn, "papers", "owned", None, INPUTS, watch_state=watch, runner_cls=FakeRunner)
+    assert got["ok"] and [r["ok"] for r in got["stage2"]] == [True, True, True]
+    assert watch == FRESH                                  # the watch state itself is not changed
+    state = cg.with_candidate(defn, watch, "papers", "owned")
+    assert state["substitutes"] == [["owned", "x.v1"]]     # other unapproved substitutes stay out
+    FakeRunner.broken = {"owned"}                          # the candidate itself fails: the step has nobody else
+    assert not cg.substitute_gate(defn, "papers", "owned", None, INPUTS, watch_state=watch, runner_cls=FakeRunner)["ok"]
+    try:
+        cg.with_candidate(defn, watch, "papers", "nobody")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("an agent that is not in the step is refused")
+
+
 def test_inputs_come_from_tuning_only(tmp_path):
     folder = tmp_path / "gold" / "topic-brief"
     folder.mkdir(parents=True)

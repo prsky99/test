@@ -210,13 +210,30 @@ def gate(defn: dict, caller, inputs: list[dict], *, watch_state: dict | None, st
     return body
 
 
+def with_candidate(defn: dict, watch_state: dict | None, slot_name: str, agent_id: str) -> dict:
+    """A copy of the watch state in which the substitute under test counts as approved for its step's role (PM 21:2x,
+    agent team 21:2x, 11-18): the running chain keeps a planned AgentValCon member only once it is approved, so a
+    substitute taking the gate that approves it was dropped and nobody answered its step. Only this run's copy changes;
+    other unapproved substitutes stay out and the watch file is not touched."""
+    slot = next(s for s in defn["slots"] if s["slot"] == slot_name)
+    member = next((m for m in slot.get("chain") or [] if m.get("kind") == "agentcon" and m.get("agent_id") == agent_id),
+                  None)
+    if member is None:
+        raise ValueError(f"{agent_id} is not an AgentValCon member of step {slot_name}")
+    state = copy.deepcopy(watch_state or {})
+    pair = [agent_id, model.member_contract(slot, member)]
+    if pair not in [list(x) for x in state.get("substitutes") or []]:
+        state.setdefault("substitutes", []).append(pair)
+    return state
+
+
 def substitute_gate(defn: dict, slot_name: str, agent_id: str, caller, inputs: list[dict], *,
                     watch_state: dict | None, runner_cls=None) -> dict:
     """A substitute's own gate (PM 19:2x, the agent team uses the same harness): put in its step with every other
     member of the step left out, the whole chain runs on three different inputs and the substitute answers each."""
     from .runner import Runner
     runner_cls = runner_cls or Runner
-    state = leaving_out(defn, watch_state or {}, slot_name, "others", keep=agent_id)
+    state = leaving_out(defn, with_candidate(defn, watch_state, slot_name, agent_id), slot_name, "others", keep=agent_id)
     rows = []
     for i, values in enumerate(inputs[:CONNECT_RUNS]):
         result = runner_cls(caller, watch_state=state).run(defn, values)
