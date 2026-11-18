@@ -259,3 +259,49 @@ def test_explore_topics_keep_the_category_and_client_class_only(tmp_path):
     assert day['explore_topics'] == {'travel_maps_weather|browser': 1, 'travel_maps_weather|script': 1, 'browse|browser': 1}
     text = ''.join(p.read_text() for p in tmp_path.glob('*.json'))
     assert 'Seoul' not in text and '06236' not in text and '203.0.113' not in text and 'Safari' not in text
+
+
+def test_hourly_counts_keep_the_utc_hour_of_external_visits_and_leave_out_ours(tmp_path):
+    """PM 11-18 (deploy and maintenance times): per UTC hour, people's page requests, external asks per surface, real MCP sessions
+    and tool calls, and A2A messages. Internal and probe requests are left out as everywhere else; only names and numbers are kept."""
+    from agent_market.concierge import traffic
+    start = 1_800_000_000.0                       # a whole number of hours is not needed: the hour is read from the clock
+    now = [start]
+    hour = lambda t: format(int(t // 3600) % 24, '02d')
+    rec = traffic.Traffic(tmp_path, clock=lambda: now[0])
+    rpc = lambda method, **extra: json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': method, **extra}).encode()
+    h0 = hour(now[0])
+    # people: a browser page request counts; internal, headless, an error, a POST and a bot do not
+    rec.observe('GET', '/new/en/explore.html', 200, '203.0.113.20', CHROME)
+    rec.observe('GET', '/new/en/explore.html', 200, '203.0.113.21', CHROME, headers={'x-agentcon-qa': '1'})
+    rec.observe('GET', '/new/en/explore.html', 200, '203.0.113.22', 'Mozilla/5.0 HeadlessChrome/150')
+    rec.observe('GET', '/new/en/explore.html', 404, '203.0.113.23', CHROME)
+    rec.observe('POST', '/new/en/explore.html', 200, '203.0.113.24', CHROME)
+    rec.observe('GET', '/', 200, '203.0.113.25', 'Mozilla/5.0 (compatible; ClaudeBot/1.0; +claudebot@anthropic.com)')
+    # an external explore ask counts, ours does not
+    rec.observe('GET', '/api/explore', 200, '203.0.113.30', 'python-httpx/0.28')
+    rec.observe('GET', '/api/explore', 200, '203.0.113.31', 'python-httpx/0.28', headers={'x-agentcon-qa': '1'})
+    # a real MCP session: initialize, then a tool call; a probe-named client and an internal one are left out
+    sid = {'mcp-session-id': 's-real'}
+    rec.observe('POST', '/mcp', 200, '203.0.113.40', 'node', rpc('initialize', params={'clientInfo': {'name': 'my-agent'}}), {}, sid)
+    rec.observe('POST', '/mcp', 200, '203.0.113.40', 'node', rpc('tools/call', params={'name': 'get_something', 'arguments': {}}), sid)
+    rec.observe('POST', '/mcp', 200, '203.0.113.41', 'node', rpc('initialize', params={'clientInfo': {'name': 'x'}}), {'x-agentcon-qa': '1'},
+                {'mcp-session-id': 's-qa'})
+    # an A2A message from outside counts (and is an ask on the a2a surface)
+    rec.observe('POST', '/a2a', 200, '203.0.113.50', 'python-httpx/0.28', rpc('message/send', params={'message': {'parts': [{'text': 'find a weather agent'}]}}))
+    now[0] += 3 * 3600
+    h3 = hour(now[0])
+    rec.observe('GET', '/new/en/chat.html', 200, '203.0.113.60', CHROME)
+    rec.flush()
+    text = next(tmp_path.glob('*.json')).read_text()
+    data = json.loads(text)
+    hourly = data['hourly']
+    assert hourly['page|' + h0] == 1 and hourly['page|' + h3] == 1
+    assert hourly['ask_explore|' + h0] == 1 and hourly.get('ask_explore|' + h3) is None
+    assert hourly['mcp_session|' + h0] == 1 and hourly['mcp_call|' + h0] == 1
+    assert hourly['a2a_message|' + h0] == 1 and hourly['ask_a2a|' + h0] == 1
+    assert all(type(v) is int and len(k.split('|')[1]) == 2 and 0 <= int(k.split('|')[1]) <= 23 for k, v in hourly.items())
+    assert h0 != h3 and sum(hourly.values()) == 7                     # nothing else was counted
+    for secret in ('203.0.113', 'node', 'python-httpx', 'Chrome', 's-real', 'my-agent'):
+        assert secret not in json.dumps(hourly)                       # numbers and metric names only
+    assert traffic.load_day(tmp_path, data['day'])['hourly'] == hourly

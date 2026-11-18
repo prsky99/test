@@ -301,7 +301,15 @@ def load_internal_ips(root=None):
     return ips
 
 
+PAGE_ENTRIES = ('home', 'page', 'chat', 'agent_pages', 'tasks', 'rankings', 'reports', 'connect')
+A2A_MESSAGE_RPC = ('message/send', 'message/stream', 'SendMessage', 'SendStreamingMessage')
+
+
 class Traffic:
+    def _hour(self, metric):
+        """Count one external request under its UTC hour of the day (0-23); a name and a number, never who sent it."""
+        self.hourly[metric + '|' + format(int(self.clock() // 3600) % 24, '02d')] += 1
+
     def __init__(self, root=None, clock=time.time):
         root = root if root is not None else directory()
         self.root, self.clock = (Path(root) if root is not None else None), clock
@@ -336,6 +344,7 @@ class Traffic:
         self.home_accept = Counter()   # "class|accept kind|served kind" for GET / (11-14 PM, search C)
         self.recommended = {}          # salted client digest -> surfaces that recommended to it today (memory only)
         self.explore_topics = Counter()   # "category|client" -> first-page Explore searches (11-15 PM: demand, no text)
+        self.hourly = Counter()        # "metric|HH" -> requests in that UTC hour, external only (11-18 PM: when visitors come; counts only)
 
     def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None, cause=None,
                 gateway=None, source=None, auto_run=None, query=None):
@@ -363,6 +372,8 @@ class Traffic:
                 self.home_accept[client + '|' + accept_kind((headers or {}).get('accept')) + '|'
                                  + served_kind((response_headers or {}).get('content-type'))] += 1
             self.status[key + '|' + (str(status)[0] + 'xx' if isinstance(status, int) else 'other')] += 1
+            if client == 'browser' and entry in PAGE_ENTRIES and method == 'GET' and isinstance(status, int) and status < 400:
+                self._hour('page')
             bucket = self.distinct[key]
             if len(bucket) < 50_000:
                 bucket.add(digest)
@@ -390,6 +401,15 @@ class Traffic:
                 kind = self._kind(entry, client, body, headers, response_headers)
                 if rpc:
                     self.rpc[entry + '|' + rpc + '|' + kind] += 1
+                    sid_h = ((headers or {}).get('mcp-session-id') or '')[:64]
+                    if funnel_class(client, ua, mcp_client_name(body) if entry == 'mcp' else None,
+                                    self.sessions.get(sid_h) if sid_h else None) == 'external' and kind == 'real':
+                        if entry == 'mcp' and rpc == 'initialize':
+                            self._hour('mcp_session')
+                        elif entry == 'mcp' and rpc == 'tools/call':
+                            self._hour('mcp_call')
+                        elif entry == 'a2a' and rpc in A2A_MESSAGE_RPC:
+                            self._hour('a2a_message')
                 if entry == 'mcp' and rpc == 'tools/call':
                     # By client name, so real use can be recounted when the probe list changes (11-13 histor shift).
                     sid = ((headers or {}).get('mcp-session-id') or '')[:64]
@@ -430,6 +450,8 @@ class Traffic:
             from .ask_intent import request_intent
             kind = request_intent(surface, body, query)
             self.funnel['ask|' + surface + '|' + cls + '|' + kind] += 1
+            if cls == 'external':
+                self._hour('ask_' + surface)
             if kind == 'task':
                 asked = self.funnel_sets['recommend_task|' + cls]
                 if len(asked) < 50_000:
@@ -555,7 +577,7 @@ class Traffic:
                 'mcp_call_tools': dict(self.mcp_call_tools.most_common(600)),
                 'mcp_call_inputs': {n: len(v) for n, v in self.mcp_call_inputs.items()},
                 'mcp_call_minutes': {n: len(v) for n, v in self.mcp_call_minutes.items()},
-                'explore_topics': dict(self.explore_topics)}
+                'explore_topics': dict(self.explore_topics), 'hourly': dict(self.hourly)}
 
     def _write_locked(self):
         self.flushed = self.clock()
@@ -619,7 +641,7 @@ def load_day(root, day):
     merged = {'requests': Counter(), 'status': Counter(), 'distinct': Counter(), 'bots': Counter(), 'mcp_clients': Counter(),
               'rpc': Counter(), 'errors': Counter(), 'bot_errors': Counter(), 'mcp_calls': Counter(),
               'mcp_call_tools': Counter(), 'mcp_call_inputs': Counter(), 'mcp_call_minutes': Counter(),
-              'explore_topics': Counter()}
+              'explore_topics': Counter(), 'hourly': Counter()}
     for path in sorted(Path(root).glob(day + '.*.json')):
         try:
             data = json.loads(path.read_text())
