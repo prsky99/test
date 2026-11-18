@@ -63,7 +63,7 @@ def test_judge_rewrites_the_snapshot_and_daily_runs_once_after_0520(tmp_path):
     assert s.run_due() is None                       # 03:50-05:10 window
     now[0] = at(5, 20)
     first = s.run_due()["necklaces"]
-    assert first["retest_targets"] == {"trial": 1, "live": 0} and first["daily"]["necklaces"] == 1
+    assert first["retest_targets"] == {"trial": 1, "live": 0, "preview": 0} and first["daily"]["necklaces"] == 1
     assert (tmp_path / "logs" / "20261120.md").exists()
     now[0] = at(6, 20)
     assert "daily" not in s.run_due()["necklaces"]

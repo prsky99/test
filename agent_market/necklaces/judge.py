@@ -40,7 +40,7 @@ SNAPSHOT_MAX_HOURS = 72    # verified pearls from an older verify snapshot are n
 # 4 and 5 ship without it; the snapshot is then read as before (no age or version check).
 CHECK_PEARL_SNAPSHOT = True
 DEFAULT_ROOT = Path("gateway-data/necklaces")
-PUBLIC = ("live", "held", "retired")
+PUBLIC = ("live", "preview", "held", "retired")      # preview: user 11-18 via PM (necklaces/preview.py)
 
 
 def _iso(ts: float | None) -> str | None:
@@ -301,10 +301,11 @@ def load_watch_state(root: Path, now: float) -> tuple[dict, str | None]:
 
 def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
                 watch_state: dict | None = None, verified: set | None = None,
-                watch_problem: str | None = None) -> dict | None:
+                watch_problem: str | None = None, preview_rows: list | None = None) -> dict | None:
     status = defn["status"]
     if status not in PUBLIC:
         return None
+    previewing = status == "preview"
     from .watch import runtime_definition
     running = runtime_definition(defn, watch_state or {})
     entry = {
@@ -341,6 +342,12 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
         entry["replaced_by"] = defn.get("replaced_by")
         return entry
     approved, reason = approval_state(defn, approval)
+    if previewing:
+        # A preview has not passed its gate: no gate time, no value against doing it yourself, its measured rounds only
+        from .preview import measured
+        approved, approval = False, None
+        entry["preview"] = measured(defn, preview_rows or [])
+        reason = None if entry["preview"] else "preview_unmeasured"
     if approved:
         entry["gate_passed_at"] = _iso(_parse_time(approval.get("at")))
     # plan 3.1 (PM 11-15): measured value only for a necklace that passed the gate, with its cases and dates
@@ -442,8 +449,11 @@ def record_events(entries: list[dict], judge_state: dict, now: float, signing_di
 
 def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, now: float | None = None,
              judge_commit: str | None = None, watch_state: dict | None = None,
-             judge_state: dict | None = None, verified: set | None = None) -> dict:
+             judge_state: dict | None = None, verified: set | None = None, preview_rows: list | None = None) -> dict:
     now = time.time() if now is None else now
+    if preview_rows is None:
+        from . import preview
+        preview_rows = preview.load(root)
     watch_problem = None
     if watch_state is None:
         watch_state, watch_problem = load_watch_state(root, now)
@@ -454,11 +464,11 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
     verified = verified_pearls() if verified is None else verified
     for defn in definitions:
         entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state,
-                            verified, watch_problem)
+                            verified, watch_problem, preview_rows)
         if entry is not None:
             if entry.get("gate_passed_at"):
                 passed[defn["slug"]] = entry["gate_passed_at"]
-            elif passed.get(defn["slug"]):
+            elif passed.get(defn["slug"]) and defn["status"] != "preview":     # a preview never carries a gate time
                 entry["gate_passed_at"] = passed[defn["slug"]]
             entries.append(entry)
     signing_dir = Path(root).parent / "signing"

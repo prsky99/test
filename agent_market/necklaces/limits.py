@@ -27,6 +27,10 @@ TOTAL_PER_MINUTE = 60
 DOMAIN_PER_MINUTE = 10
 DOMAIN_PER_DAY = 300
 CACHE_SECONDS = 600
+# user 11-18 via PM (website-trust preview): a necklace that has not passed its gate runs at most this many times a day
+# per worker, and at most PREVIEW_PER_CLIENT_PER_MINUTE a minute per client
+PREVIEW_PER_DAY = 100
+PREVIEW_PER_CLIENT_PER_MINUTE = 3
 CACHE_ENTRIES = 256
 
 
@@ -57,21 +61,28 @@ class RunLimiter:
         self.windows: dict[tuple, _Window] = {}
         self.lock = threading.Lock()
 
-    def admit(self, slug: str, client: str | None):
-        """Count one run or raise Refused('rate_limited'); a run without a known client counts as one client."""
+    def admit(self, slug: str, client: str | None, preview: bool = False):
+        """Count one run or raise Refused('rate_limited'); a run without a known client counts as one client.
+        A preview necklace (not through its gate yet) also has a day cap and a lower per-client minute cap."""
         now = self.clock()
         keys = [("client", client or "unknown"), ("necklace", slug), ("total", "")]
+        spans, caps = [60, 60, 60], [self.limits[k[0]] for k in keys]
+        if preview:
+            keys += [("preview_client", f"{slug}|{client or 'unknown'}"), ("preview_day", slug)]
+            spans += [60, 86400]
+            caps += [PREVIEW_PER_CLIENT_PER_MINUTE, PREVIEW_PER_DAY]
         with self.lock:
             windows = [self.windows.setdefault(k, _Window()) for k in keys]
-            full = [w for k, w in zip(keys, windows) if w.count(now, 60) >= self.limits[k[0]]]
+            full = [w for w, span, cap in zip(windows, spans, caps) if w.count(now, span) >= cap]
             if full:
                 # PM 11-17 08:5x: tell the caller when a run fits again (the oldest run of the latest-freeing window)
-                wait = max(w.times[0] + 60 - now for w in full)
+                wait = max(w.times[0] + span - now for w, span, cap in zip(windows, spans, caps) if w in full)
                 raise Refused("rate_limited", retry_after=max(1, int(wait + 0.999)))
             for w in windows:
                 w.times.append(now)
             if len(self.windows) > 10_000:          # forget idle clients
-                for key in [k for k, w in self.windows.items() if not w.count(now, 60)]:
+                for key in [k for k, w in self.windows.items()
+                            if not w.count(now, 86400 if k[0] == "preview_day" else 60)]:
                     del self.windows[key]
 
 

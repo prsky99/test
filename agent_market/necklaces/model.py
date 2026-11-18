@@ -41,7 +41,7 @@ CONTRACTS = ROOT / "contracts"
 
 SLUG = re.compile(r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$")
 SLOT_ID = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
-STATUSES = ("candidate", "qualifying", "trial", "live", "held", "retired")
+STATUSES = ("candidate", "qualifying", "trial", "preview", "live", "held", "retired")   # preview: user 11-18 via PM
 KINDS = ("external", "agentcon")
 MEMBER_STATES = ("active", "pending_test", "planned", "removed")
 MAX_AGENTCON = 2
