@@ -3763,6 +3763,59 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             result = {**result, 'structuredContent': {**result['structuredContent'], 'text': text}}
         return {"jsonrpc": "2.0", "id": rid, "result": result}
 
+    @router.get("/mcp/necklace/{slug}", include_in_schema=False)
+    def mcp_necklace_get(slug: str):
+        return JSONResponse({"audience": AUDIENCE, "error": "POST JSON-RPC to this endpoint (no SSE stream)."}, status_code=405)
+
+    @router.post("/mcp/necklace/{slug}", include_in_schema=False)
+    async def mcp_necklace(slug: str, request: Request):
+        """One necklace as its own MCP server (necklace_mcp.py): initialize, ping, tools/list and tools/call for that necklace only."""
+        from . import necklace_mcp, necklace_surface
+        if (r := limited(request)) is not None:
+            return r
+        found = necklace_mcp.entry(slug)
+        if found is None:
+            return JSONResponse({"error": "No open necklace has this name."}, status_code=404)
+        try:
+            req = json.loads(await read_body(request))
+            if not isinstance(req, dict):
+                raise ValueError("object required")
+        except (ValueError, RecursionError):
+            return JSONResponse({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error (batches not supported)"}})
+        rid, method, params = req.get("id"), req.get("method"), req.get("params", {})
+        if not isinstance(params, dict) or not isinstance(method, str):
+            return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "method must be a string and params must be an object."}}
+        base = front.base(request)
+        asked = params.get("protocolVersion")
+        if method == "initialize":
+            sid = uuid.uuid4().hex
+            client = params.get("clientInfo", {})
+            front.mcp_sessions[sid] = {"name": str((client if isinstance(client, dict) else {}).get("name") or "")[:80] or None}
+            while len(front.mcp_sessions) > 2000:
+                front.mcp_sessions.popitem(last=False)
+            return JSONResponse(mcp_result(rid, {
+                "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0], "capabilities": {"tools": {"listChanged": False}},
+                "serverInfo": necklace_mcp.server_info(found, MCP_SERVER_VERSION),
+                "instructions": necklace_mcp.instructions(found, base)}), headers={"Mcp-Session-Id": sid})
+        if method.startswith("notifications/"):
+            return Response(status_code=202)
+        if method == "ping":
+            return mcp_result(rid, {})
+        if method == "tools/list":
+            item = necklace_mcp.tool(slug)
+            return mcp_result(rid, {"tools": [item] if item else []})
+        if method != "tools/call":
+            return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32601, "message": f"Method not found: {method}"}}
+        name, args = params.get("name"), params.get("arguments", {})
+        if name != necklace_surface.tool_name(slug) or not isinstance(args, dict):
+            return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "This endpoint has one tool: " + necklace_surface.tool_name(slug) + "."}}
+        answer = await run_in_threadpool(necklace_surface.call, front, name, args, "mcp", base,
+                                         meta=necklace_surface.request_meta(front, request))
+        if answer is None:
+            return {"jsonrpc": "2.0", "id": rid, "error": {"code": -32602, "message": "Unknown necklace."}}
+        text, structured, failed = answer
+        return mcp_result(rid, {"content": [{"type": "text", "text": text}], "structuredContent": structured, "isError": failed})
+
     @router.get("/mcp", include_in_schema=False)
     def mcp_get():
         return JSONResponse({"audience": AUDIENCE, "error": "POST JSON-RPC to this endpoint (no SSE stream)."}, status_code=405)
