@@ -207,5 +207,10 @@
     "type": "INTJ"
   },
   "notes": "Draft (workflow 11-17, BRIEF reports/personality-fortune-necklace-2026-11-17). Five roles, our offline substitutes in every step (personality-profile and personality-fortune are new, agent team the agent team's 16-type branch e692d846; korean-lunar, western-sign and saju-pillars are shared with daily-fortune-brief, unchanged). Outside members: none yet (search and RAG's survey due 11-18 18:00). Grading: necklaces/mbti_gate.grade_mbti_task (sample in the age range and by the contract's rule, KASI facts of the sample date, the four axes, the notices, a second run equal). Lands after the 11-20 v4 verdict. Trademark: the public text never names a personality-test publisher; the reading says 'Four-letter personality types are used descriptively; not affiliated with any test publisher.' (PM 16:47).",
-  "sample_notice": "The birth date is a sample drawn from your age, not your real birthday."
+  "sample_notice": "The birth date is a sample drawn from your age, not your real birthday.",
+  "own_members": {
+    "label": "Built with AgentValCon agents",
+    "counted": 5,
+    "until": "2026-12-18"
+  }
 }

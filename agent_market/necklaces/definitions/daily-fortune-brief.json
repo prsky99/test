@@ -247,5 +247,10 @@
     "calendar": "solar"
   },
   "notes": "Draft (workflow 11-17, BRIEF reports/fortune-necklace-2026-11-17). Members from search and RAG's candidates.md and the agent team's offline substitutes korean-lunar, western-sign, saju-pillars and fortune-daily (agent-team/fortune f7237c2a); the substitutes lead every slot because no collected calendar tool states Korean (KASI) rules and no outside reading is rule-based. 57935 (totallytarot.net) and 36467 (asternym.com) are out: their terms prohibit our use (agent team, PM 21:4x). The calendar step has our substitute only. 35054 and 405618 (terms allowed) and 167374 (terms silent, reserve only) wait for a read-only test; 263031 (writes a saved chart) and the true-solar-time BaZi tools are left out. Needs before the gate: the four contracts out of contracts_draft, normalizers that stage solar_date, sign, element, day_master, today, today_day_pillar and hour_pillar, and a KASI answer set with boundary cases (Ipchun, jeol terms, leap months, Seollal, sign cusps). Grading: fortune_rules.grade_fortune_task. Lands after the 11-20 v4 verdict. Agent team mapping (reports/fortune-necklace-2026-11-17/external-members-mapping.md): saju outside members get timeZone Asia/Seoul pinned; neither gives today's day pillar, so the saju normalizer fills today_day_pillar offline (fortune_calc.day_pillar); a member whose year pillar does not change at Ipchun in the read-only test (11-20 on) leaves the saju step.",
-  "privacy_notice": "Your birth date may be sent to the listed member agent; we do not store it."
+  "privacy_notice": "Your birth date may be sent to the listed member agent; we do not store it.",
+  "own_members": {
+    "label": "Built with AgentValCon agents",
+    "counted": 4,
+    "until": "2026-12-18"
+  }
 }
