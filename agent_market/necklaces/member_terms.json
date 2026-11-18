@@ -6339,6 +6339,24 @@
       "source": "https://pwned.coffee/",
       "checked_at": "2026-11-18",
       "basis": "No terms page: the front page (incident list, 'Ask your agent', MCP server https://pwned.coffee/mcp, incidents.json) has no terms, legal, licence or privacy text or link, and /terms is 404. The About page was not read (ledger share 2/2 used); recheck it on 11-19. Rule 1 (read 11-18, PM 19:29)"
+    },
+    "47927": {
+      "status": "prohibits",
+      "source": "https://www.youtube.com/static?template=terms",
+      "checked_at": "2026-11-18",
+      "basis": "mcp.inktomd.com convert_youtube: Source terms rule (PM 20:3x): the tool fetches YouTube transcripts, and the YouTube Terms of Service (https://www.youtube.com/static?template=terms) forbid to 'access the Service using any automated means (such as robots, botnets or scrapers)' except public search engines or with YouTube's prior written permission, and to 'access, reproduce, download, distribute ... any Content except ... as expressly authorized by the Service' or with prior written permission. The member's own terms do not lift the source's (read 11-18, Antigravity a9f28345, real_task p15)"
+    },
+    "48722": {
+      "status": "prohibits",
+      "source": "https://www.youtube.com/static?template=terms",
+      "checked_at": "2026-11-18",
+      "basis": "web-data-toolkit.vercel.app youtube_transcript: Source terms rule (PM 20:3x): the tool fetches YouTube transcripts, and the YouTube Terms of Service (https://www.youtube.com/static?template=terms) forbid to 'access the Service using any automated means (such as robots, botnets or scrapers)' except public search engines or with YouTube's prior written permission, and to 'access, reproduce, download, distribute ... any Content except ... as expressly authorized by the Service' or with prior written permission. The member's own terms do not lift the source's (read 11-18, Antigravity a9f28345, real_task p15)"
+    },
+    "127471": {
+      "status": "prohibits",
+      "source": "https://www.youtube.com/static?template=terms",
+      "checked_at": "2026-11-18",
+      "basis": "web-production-0cbb7.up.railway.app youtube_reader: Source terms rule (PM 20:3x): the tool fetches YouTube transcripts, and the YouTube Terms of Service (https://www.youtube.com/static?template=terms) forbid to 'access the Service using any automated means (such as robots, botnets or scrapers)' except public search engines or with YouTube's prior written permission, and to 'access, reproduce, download, distribute ... any Content except ... as expressly authorized by the Service' or with prior written permission. The member's own terms do not lift the source's (read 11-18, Antigravity a9f28345, real_task p15)"
     }
   },
   "changes": [
@@ -15012,6 +15030,30 @@
       "from": "unknown",
       "to": "silent",
       "source": "https://pwned.coffee/",
+      "at": "2026-11-18",
+      "by": "agent team"
+    },
+    {
+      "member": "47927",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://www.youtube.com/static?template=terms",
+      "at": "2026-11-18",
+      "by": "agent team"
+    },
+    {
+      "member": "48722",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://www.youtube.com/static?template=terms",
+      "at": "2026-11-18",
+      "by": "agent team"
+    },
+    {
+      "member": "127471",
+      "from": "unknown",
+      "to": "prohibits",
+      "source": "https://www.youtube.com/static?template=terms",
       "at": "2026-11-18",
       "by": "agent team"
     }
