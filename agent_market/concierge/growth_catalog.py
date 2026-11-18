@@ -645,16 +645,27 @@ def _render_basic(store, rid):
         rows.append(('Quality grade', str(agent['eval_grade'])))
     if agent.get('url'):
         rows.append(('Connection address', str(agent['url'])[:300]))
-    description = (f'{name}: {kind} {noun} listed in AgentValCon. No recorded evidence yet; '
-                   'see its current status and connection address.')
+    # PM 11-18 11:4x: a verified pearl whose agent is not in the evidence snapshot (34 of 60 on 11-18) is shown as a pearl, with
+    # its role task test results as the evidence, never as "no recorded evidence".
+    pearl_badges, pearl_section = pearl_blocks(rid)
+    if pearl_section:
+        description = (f'{name}: {kind} {noun} listed in AgentValCon. It passed our role task tests (results on this page); '
+                       'see its current status and connection address.')
+        note = ('<p class="caption">Evidence: the role task results above. A full evidence page appears once a test report or '
+                'a recent successful check is recorded.</p>')
+    else:
+        description = (f'{name}: {kind} {noun} listed in AgentValCon. No recorded evidence yet; '
+                       'see its current status and connection address.')
+        note = ('<p class="caption">No recorded evidence yet. An evidence page appears once a test report or a recent '
+                'successful check is recorded.</p>')
     from .operated_by import operated
     body = (g.heading(kind + (' · ' + category if category else ''), name, agent.get('description') or description)
+            + ('<div class="row">' + pearl_badges + '</div>' if pearl_badges else '')
             + operator_note(operated(store.resource(rid)) or {})
-            + '<div class="grid two">'
-            '<section class="card stack" aria-labelledby="basic-h"><h2 id="basic-h">Listing</h2>'
+            + '<div class="grid two">' + pearl_section
+            + '<section class="card stack" aria-labelledby="basic-h"><h2 id="basic-h">Listing</h2>'
             + ''.join('<div class="history-row"><span class="caption">'+esc(k)+'</span><span>'+esc(v)+'</span></div>' for k, v in rows)
-            + '<p class="caption">No recorded evidence yet. An evidence page appears once a test report or a recent '
-              'successful check is recorded.</p></section>'
+            + note + '</section>'
             '<section class="card stack" aria-labelledby="use-h"><h2 id="use-h">Use it</h2>'
             '<p>Open the listing in Explore for the connection details, or ask AgentValCon from your MCP client '
             'to compare it with alternatives that already have recorded evidence.</p>'

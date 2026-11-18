@@ -108,3 +108,33 @@ def test_the_explore_card_adds_the_direct_note_for_the_listed_agents():
     from pathlib import Path
     script = (Path(__file__).resolve().parents[1] / 'new/en/assets/pearl-ui.js').read_text(encoding='utf-8')
     assert 'pearlDirect.includes(card.dataset.id)' in script and 'd.direct_note' in script
+
+
+def test_a_pearl_without_an_evidence_page_is_not_shown_as_having_no_evidence(pearls, monkeypatch, tmp_path):
+    """PM 11-18 11:4x: /agent/32931 (a final pearl, 89.7, two days) said "No recorded evidence yet". 34 of the 60 pearl agents
+    are not in the evidence snapshot; their basic page now carries the pearl badge, the role task section and the direct note."""
+    from fastapi.testclient import TestClient
+    from agent_market.concierge import growth_catalog
+    from agent_market.concierge import growth_pages as g
+    from agent_market.concierge.front import create_front_app
+    from tests.test_concierge import populated
+    from tests.test_growth_pages import snapshot
+    monkeypatch.setenv('LOG_DIR', str(tmp_path))
+    (tmp_path / 'public-pages').mkdir()
+    monkeypatch.setattr(g, 'SNAPSHOT', g.Snapshot())
+    write(tmp_path / 'public-pages', snapshot())
+    growth_catalog._basic.clear()
+    world = populated()
+    store = world.app.state.front.store
+    catalog = {int(k) for k in ((g.SNAPSHOT.read() or {}).get('catalog') or {})}
+    plain, pearl_id = [r['id'] for r in store.query('SELECT id FROM resources WHERE active=1 ORDER BY id') if r['id'] not in catalog][:2]
+    site = TestClient(create_front_app(world.app.state.front))
+    pearls([row(resource_id=pearl_id, terms='prohibits')])
+    page = site.get('/agent/%d' % pearl_id, headers={'Accept': 'text/html'}).text
+    assert 'Final pearl, #1 for Exchange rates' in page and 'Passed 3 of 3 role tasks' in page
+    assert 'Connect directly' in page and 'href="/methodology"' in page
+    assert 'No recorded evidence yet' not in page and 'Evidence: the role task results above.' in page
+    assert 'Connection address' in page                                   # the listing card stays
+    other = site.get('/agent/%d' % plain, headers={'Accept': 'text/html'}).text
+    assert 'No recorded evidence yet' in other and 'pearl-badge' not in other   # an agent that is not a pearl is unchanged
+
