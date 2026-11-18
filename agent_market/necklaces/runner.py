@@ -1243,8 +1243,10 @@ class Runner:
         from .members import counted
         need = defn.get("min_pearls_answered")
         pearls_answered = sum(1 for r in results.values() if any(counted(m) for m, _ in r.answers))
-        if need and not failed and pearls_answered < need:
-            failed.append("pearls_answered")
+        # PM 21:35 (11-18) B: a run whose steps all answered is a run, even when fallbacks stood in for pearls; too few
+        # pearls is not a failure for the caller but the run is not counted for value claims (tokens, time,
+        # accuracy). It still counts as an outside run (the paid-switch meter), marked as using fallbacks.
+        value_counted = not (need and not failed and pearls_answered < need)
         output = {name: (merge(states[name]["slot"]["contract"], r.answers) if r.answers else
                          absence_answer(states[name]["slot"], r.attempts) if name in absent_slots else
                          {"not_found": True, "note": NOT_FOUND_NOTE}
@@ -1259,6 +1261,7 @@ class Runner:
             "failed_slot": failed[0] if failed else None,
             "latency_ms": int((self.clock() - started) * 1000),
             "pearls_answered": pearls_answered,
+            "value_counted": value_counted,
             "abandoned_calls": sum(r.abandoned for r in results.values()),
             "pending_at_return": still_running,
             "slots": {name: r.used() for name, r in results.items()},
@@ -1304,7 +1307,10 @@ def run_event(result: dict, source: str, origin: str | None = None, at: float | 
             "outcome": "succeeded" if result["ok"] else "failed", "failed_slot": result["failed_slot"],
             "latency_ms": result["latency_ms"],
             "stages": {name: s["stage"] for name, s in result["slots"].items()},
-            "agentcon_used": any(s["kind"] == "agentcon" for s in result["slots"].values())}
+            "agentcon_used": any(s["kind"] == "agentcon" for s in result["slots"].values()),
+            # PM 21:35 B: whether a fallback answered (stage 2 outside, 3 ours) and whether the run counts for value
+            "fallback_used": any(s.get("stage") in (2, 3) for s in result["slots"].values()),
+            "value_counted": result.get("value_counted", True)}
 
 
 def append_event(root: Path, event: dict):

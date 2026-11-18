@@ -48,6 +48,8 @@ def _stages(defn: dict) -> dict[str, int]:
 
 def measure(defn: dict, inputs: dict, result: dict, correct: bool | None) -> dict:
     """The two paths for one run (correct None = not graded: the value is not counted)."""
+    if result.get("value_counted") is False:
+        correct = None          # PM 21:35 B (11-18): fallbacks stood in for pearls; such a run is not a value claim
     out_chars = len(json.dumps(result.get("output") or {}, ensure_ascii=False, default=str))
     in_chars = len(json.dumps(inputs or {}, ensure_ascii=False, default=str))
     calls, chars, per_slot_ms = 0, 0, {}

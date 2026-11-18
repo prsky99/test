@@ -203,6 +203,9 @@ def test_a_failed_attempt_is_kept_with_its_error_time_and_raw_start():
     assert cg.trace(result) == [{"slot": "registration", "member": 52559, "kind": "external",
                                  "error_class": "timeout", "ms": 4100, "raw": "x" * 200}]
     assert cg._row({"check": "c", "ok": True}, {"attempts": {}}) == {"check": "c", "ok": True}   # nothing failed
+    # PM 21:35 A: the pearl count is recorded, not judged
+    assert cg._row({"check": "c", "ok": True}, {"pearls_answered": 1, "value_counted": False}) == {
+        "check": "c", "ok": True, "pearls_answered": 1, "value_counted": False}
 
 
 def test_a_new_version_moves_into_definitions_only_with_both_keys(tmp_path, monkeypatch):

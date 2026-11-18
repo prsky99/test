@@ -118,6 +118,9 @@ def trace(result: dict) -> list[dict]:
 
 
 def _row(row: dict, result: dict) -> dict:
+    # PM 21:35 A (11-18): a run whose required steps all answered by approved members connects; how many pearls
+    # answered is recorded here, never a reason to fail (the runner marks such a run value_counted false)
+    row = dict(row, **{k: result[k] for k in ("pearls_answered", "value_counted") if k in result})
     failures = trace(result)
     return dict(row, trace=failures) if failures else row
 

@@ -28,9 +28,12 @@ def test_both_paths_are_measured_from_the_same_run():
 
 def test_a_slot_rescued_by_a_fallback_is_wrong_on_the_direct_path():
     defn, result = run_book(lead_fails=True)
-    v = value.measure(defn, {"title": "x"}, result, True)
+    counted = dict(result, value_counted=True)        # a rescue that still had enough pearl steps answered
+    v = value.measure(defn, {"title": "x"}, counted, True)
     assert v["necklace"]["correct"] is True and v["direct"]["correct"] is False
     assert v["direct"]["calls"] == 3                                            # the failed lead counts as a call
+    # PM 21:35 B (11-18): here the fallback stood in for a pearl, too few pearl steps answered: not a value claim
+    assert result["value_counted"] is False and value.measure(defn, {"title": "x"}, result, True)["necklace"]["correct"] is None
 
 
 def test_summary_medians_and_publication_only_after_the_gate():

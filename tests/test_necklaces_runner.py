@@ -476,7 +476,15 @@ def test_a_run_counts_only_when_enough_pearl_steps_answered():
     both = runner.Runner(caller_from({1: "CVE-2020-28500", 3: "listed in CISA KEV"})).run(defn, {"q": "x"})
     assert both["ok"] and both["pearls_answered"] == 2
     one = runner.Runner(caller_from({1: "CVE-2020-28500", 4: "listed in CISA KEV"})).run(defn, {"q": "x"})
-    assert not one["ok"] and one["failed_slot"] == "pearls_answered" and one["pearls_answered"] == 1
+    # PM 21:35 B (11-18): every step answered, a fallback for one pearl: the caller gets its answer (ok), the run is
+    # not counted for value claims, and its event says a fallback ran
+    assert one["ok"] and one["failed_slot"] is None and one["pearls_answered"] == 1 and one["value_counted"] is False
+    assert both["value_counted"] is True
+    event = runner.run_event(one, "external")
+    assert event["outcome"] == "succeeded" and event["fallback_used"] and event["value_counted"] is False
+    assert runner.run_event(both, "external")["fallback_used"] is False
+    from agent_market.necklaces import value
+    assert value.measure(defn, {"q": "x"}, one, True)["necklace"]["correct"] is None    # not a value claim
 
 
 def test_a_later_stage_may_use_what_is_left_of_the_run(monkeypatch):
