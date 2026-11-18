@@ -126,6 +126,20 @@ def isolated_news_bundle(monkeypatch, tmp_path_factory):
     monkeypatch.setattr(tech_news, 'PATH', tmp_path_factory.mktemp('tech-news') / 'tech-news.json')
 
 
+@pytest.fixture(autouse=True)
+def isolated_member_terms(monkeypatch, tmp_path_factory):
+    """The relay block reads the agent team's real verdict file (agent_market/necklaces/member_terms.json) by listing id.
+    A test that happens to use a real id ('prohibits', e.g. 413095) must not change with the day's verdicts: every test
+    sees an empty verdict file unless it points relay_terms at its own (tests/test_relay_terms.py does)."""
+    from agent_market.concierge import relay_terms
+    empty = tmp_path_factory.mktemp('member-terms') / 'member_terms.json'
+    empty.write_text('{"members": {}}')
+    monkeypatch.setattr(relay_terms, '_path', lambda: empty)
+    relay_terms.reset()
+    yield
+    relay_terms.reset()
+
+
 # 11-15 11:01: a watch test ran ops_auto.watch() and wrote today's date into the real once-a-day state files under
 # logs/ops (the 11:05 watch skipped the revenue line and the vector-index hour). Every file the ops watch writes
 # (its board, logs and state) points into a temporary folder for every test that loaded these modules; inputs the

@@ -66,6 +66,14 @@ class ManagedGateway:
                                   error_code='SCHEMA_CHANGED')
         admit(resource,kind,public=True,authorize_charge=resource is not None and resource.get('kind')=='x402')
         if resource['kind'] not in KINDS:raise ExecutionDenied('This protocol is not supported.')
+        # PM 11-18: our gateway calling a provider is our use of it; a provider whose terms prohibit that is never
+        # relayed (managed execution, Run here, /api/gateway). The card gives its direct_endpoint instead.
+        from .relay_terms import CODE as TERMS_CODE,restricted
+        if restricted(rid):
+            from .connections import direct_endpoint
+            direct=direct_endpoint(resource,resource)
+            raise ExecutionDenied("The provider's terms do not allow us to relay calls to this agent; connect from your own client"
+                                  +(f' at {direct}.' if direct else ' through the provider.'),error_code=TERMS_CODE)
         return resource
 
     async def execute(self,rid,*,kind=None,tool='',arguments=None,message='',timeout=8,source='managed',expected_version=None,edge_first=True):

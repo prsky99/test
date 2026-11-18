@@ -85,22 +85,11 @@ def _first_time_today(caller, task):
     return True
 
 
-_terms_cache = {'mtime': None, 'path': None, 'members': {}}
-
-
 def _terms_prohibit(rid):
-    """True when the agent team's terms verdict for RID is prohibits (member_terms.json, cached by modification time).
-    Read in the pool, never on the request path (search-and-RAG 11-17)."""
-    from ..provider_budget import TERMS_PATH
-    try:
-        mtime = TERMS_PATH.stat().st_mtime
-        if _terms_cache['mtime'] != mtime or _terms_cache['path'] != TERMS_PATH:
-            members = json.loads(TERMS_PATH.read_text(encoding='utf-8')).get('members') or {}
-            _terms_cache.update(mtime=mtime, path=TERMS_PATH, members=members if isinstance(members, dict) else {})
-    except (OSError, ValueError, AttributeError):
-        return False
-    row = _terms_cache['members'].get(str(rid))
-    return isinstance(row, dict) and row.get('status') == 'prohibits'
+    """True when the agent team's terms verdict for RID is prohibits: the same reader as the relay refusal
+    (relay_terms, PM 11-18), so a listing we do not relay is not run by the auto-run either."""
+    from .relay_terms import restricted
+    return restricted(rid)
 
 
 def _filled(arguments):

@@ -435,7 +435,10 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     # 11-15 user_slo 00:04 mcp/36513: a listing that requires the provider's own authorization is refused by the
     # gateway for public callers (execution_policy.admit, x402 aside), so it is not connectable through us either.
     needs_provider_auth=value.get('auth_required') in (True,1) and value.get('kind')!='x402'  # 0/1 from the hybrid path
-    available=bool(gateway) and value.get('tool_unlisted') is not True and not needs_provider_auth
+    # PM 11-18: a provider whose terms prohibit our relay stays listed, but is not connectable through us.
+    from .relay_terms import REASON as TERMS_REASON,NOTE as TERMS_NOTE,restricted
+    terms_restricted=restricted(value.get('id'))
+    available=bool(gateway) and value.get('tool_unlisted') is not True and not needs_provider_auth and not terms_restricted
     result['connection_available']=available
     if not available and gateway:
         # PM 11-18 option A: a call we do not relay never goes through us, so the card gives the provider's own public MCP
@@ -458,6 +461,12 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     if pearl:
         result['pearl']={'level':pearl['level'],'roles':pearl['roles'][:5],
                          **({'relayed':False} if pearl.get('relayed') is False else {})}
+    if terms_restricted:
+        # Measured by user_slo direct_connect.guidance (ef4703eb): reason 'terms_restricted', a note naming how to
+        # connect, and the direct_endpoint when the address passes direct_endpoint().
+        result['connection_reason']=TERMS_REASON
+        result['connection_note']=TERMS_NOTE+(DIRECT_NOTE if result.get('direct_endpoint') else ' Connect through the provider.')
+        result.pop('connect_steps',None)   # the gateway steps would only meet our refusal
     # A listing that states a price is never answered as price 0 / free (11-12, price_status.py).
     from .price_status import price_fields
     if 'price_usdc' in value:  # cards built without a price (events, tool specs) stay without one
@@ -467,7 +476,7 @@ def _public_agent(value, resource=None, *, store=None, create_connections=True):
     schemas=[t for t in (result.get('tools_schema') or []) if isinstance(t,dict)]
     note=file_url_note(schemas,value.get('name'),value.get('description'))
     if note:result['input_notes']=[note]
-    if gateway and value.get('kind')=='mcp' and isinstance(result.get('connect_steps'),list):
+    if gateway and value.get('kind')=='mcp' and isinstance(result.get('connect_steps'),list) and not terms_restricted:
         result['connect_steps']=gateway_mcp_steps(gateway,schemas[0].get('name') if schemas else None,
                                                   example_arguments(schemas[0]) if schemas else None)
     registry_ready=None

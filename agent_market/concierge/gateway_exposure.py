@@ -99,14 +99,44 @@ def order_key(item):
 
     PM 11-18 pearl priority: then a final pearl, then a verified pearl, before the selection's recency order; only
     when the card's chosen tool is the tool the listing passed its role tests with, and never for a pearl whose
-    provider terms prohibit our relay (pearls_public.pearl_rank). Without the public pearl list nothing moves."""
+    provider terms prohibit our relay (pearls_public.pearl_rank). Without the public pearl list nothing moves.
+    PM 11-18 terms and L: a listing whose provider terms prohibit our relay counts with the paid or own-account ones
+    (first place: callers cannot run it through us), and a listing that is slow or often fails through our gateway
+    (mean success >= SLOW_MS or failure rate >= SLOW_FAIL_RATE over >= SLOW_MIN_RUNS runs in a week) comes after the
+    others that are not failing. The first two places stay the 'free and not failing' test (search() below)."""
     from ..pearls_public import pearl_rank
-    standing = item.get('task_standing') if isinstance(item, dict) else 0
+    from .relay_terms import restricted
+    d = item if isinstance(item, dict) else {}
+    standing = d.get('task_standing', 0)
     standing = standing if type(standing) is int else 0
-    chosen = (item.get('tools') or [None])[0] if isinstance(item, dict) else None
-    pearl = pearl_rank(item.get('id') if isinstance(item, dict) else None, chosen if isinstance(chosen, str) else '')
-    return (bool(isinstance(item, dict) and item.get('access_note')), standing < 0,
-            bool(isinstance(item, dict) and item.get('region_limited')), standing <= 0, pearl)
+    terms = bool(d.get('terms_restricted')) or restricted(d.get('id'))   # also items that skipped search() (fast Chat)
+    chosen = (d.get('tools') or [None])[0]
+    pearl = pearl_rank(d.get('id'), chosen if isinstance(chosen, str) else '')
+    return (bool(d.get('access_note')) or terms, standing < 0, bool(d.get('slow_member')),
+            bool(d.get('region_limited')), standing <= 0, pearl)
+
+
+# L (PM 11-18 05:4x): the edge Worker stops a provider at 8 s; 424035 answered in 7.3-7.4 s and lost one run to the
+# cap (real task p04 failed on it). Read from the background execution history (selection.EXECUTION_HISTORY).
+SLOW_MS = 6000
+SLOW_FAIL_RATE = 0.3
+SLOW_MIN_RUNS = 3
+
+
+def slow_member(entry):
+    """entry: (succeeded, failed or unknown, mean success ms, callers, ...) from the execution history, or None."""
+    if not entry:
+        return False
+    try:
+        ok, bad = max(0, int(entry[0] or 0)), max(0, int(entry[1] or 0))
+        ms = float(entry[2]) if len(entry) > 2 and entry[2] is not None else None
+    except (TypeError, ValueError):
+        return False
+    if ok + bad < SLOW_MIN_RUNS:   # one slow measurement of ours must not move a listing (PM 11-18: both tests, 3 runs)
+        return False
+    if ms is not None and ms >= SLOW_MS:
+        return True
+    return bad / (ok + bad) >= SLOW_FAIL_RATE
 
 
 # The task asks to take data out of a document; a tool that makes the document does the reverse
@@ -394,7 +424,16 @@ class ExposedFirstRecommender:
             ranked = exposed or items
             from .task_outcomes import recent, standing
             outcomes = recent([item.get('id') for item in ranked if isinstance(item, dict)])
+            from .relay_terms import restricted
+            from .selection import EXECUTION_HISTORY
+            history = EXECUTION_HISTORY.read(self._read_source) or {}
             for item in ranked:
+                if not isinstance(item, dict):
+                    continue
+                if restricted(item.get('id')):
+                    item['terms_restricted'] = True
+                if slow_member(history.get(item.get('id'))):
+                    item['slow_member'] = True
                 texts = self.tool_texts(item)
                 note = access_note(item, texts)
                 chosen = (item.get('tools') or [None])[0]
