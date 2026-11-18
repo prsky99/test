@@ -6327,6 +6327,12 @@
       "source": "https://mcp-first-server.onrender.com/",
       "checked_at": "2026-11-18",
       "basis": "No terms page: the host answers only 'James's MCP server is running.' with no links (a personal server on onrender.com). Rule 1; recheck if terms appear (read 11-18, PM 16:43, Antigravity 9ccadab0)"
+    },
+    "37684": {
+      "status": "silent",
+      "source": "https://epochcalc.com/api",
+      "checked_at": "2026-11-18",
+      "basis": "No terms page: the front page and the API & MCP page (the docs' first page) link only a privacy page. The API page offers 'a free JSON API and a Model Context Protocol server' at https://epochcalc.com/mcp, 'stateless, no auth', for developers and AI agents. Rule 1; recheck if terms appear (read 11-18, PM 19:27, local_time fallback candidate)"
     }
   },
   "changes": [
@@ -14984,6 +14990,14 @@
       "from": "unknown",
       "to": "silent",
       "source": "https://mcp-first-server.onrender.com/",
+      "at": "2026-11-18",
+      "by": "agent team"
+    },
+    {
+      "member": "37684",
+      "from": "unknown",
+      "to": "silent",
+      "source": "https://epochcalc.com/api",
       "at": "2026-11-18",
       "by": "agent team"
     }
