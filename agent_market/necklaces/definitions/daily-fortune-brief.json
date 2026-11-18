@@ -2,8 +2,8 @@
   "slug": "daily-fortune-brief",
   "version": 1,
   "status": "candidate",
-  "name": "Daily fortune brief",
-  "summary": "For entertainment; not advice. From a birth date (solar or Korean lunar), the Korean lunar date, the Western Sun sign with today's Moon, the Four Pillars (saju) with today's day pillar, and one reproducible daily reading that combines them. Your birth date may be sent to the listed member agent; we do not store it.",
+  "name": "Daily fortune",
+  "summary": "Today's fortune from your birth date (Korean saju and Western sun sign). For entertainment; not advice.",
   "input_schema": {
     "type": "object",
     "properties": {
@@ -82,6 +82,24 @@
       ],
       "chain": [
         {
+          "kind": "external",
+          "resource_id": 167374,
+          "tool": "calculate_birth_date_profile",
+          "registrable_domain": "unifiedreading.com",
+          "upstream": [
+            "sun-sign"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "pending_test",
+          "input_map": {
+            "date": "{{slot.calendar.solar_date}}"
+          },
+          "note": "terms silent: a reserve behind western-sign only; no output schema, the normalizer reads the sign name"
+        },
+        {
           "kind": "agentcon",
           "agent_id": "western-sign",
           "resource_id": null,
@@ -99,24 +117,6 @@
             "birth_date": "{{slot.calendar.solar_date}}",
             "today": "{{input.today}}"
           }
-        },
-        {
-          "kind": "external",
-          "resource_id": 167374,
-          "tool": "calculate_birth_date_profile",
-          "registrable_domain": "unifiedreading.com",
-          "upstream": [
-            "sun-sign"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "state": "pending_test",
-          "input_map": {
-            "date": "{{slot.calendar.solar_date}}"
-          },
-          "note": "terms silent: a reserve behind western-sign only; no output schema, the normalizer reads the sign name"
         }
       ]
     },
@@ -129,26 +129,6 @@
         "calendar"
       ],
       "chain": [
-        {
-          "kind": "agentcon",
-          "agent_id": "saju-pillars",
-          "resource_id": null,
-          "tool": "get_saju_pillars",
-          "registrable_domain": "agentconcierge.biz",
-          "upstream": [
-            "kasi-rules"
-          ],
-          "read_only_hint": true,
-          "destructive_hint": false,
-          "idempotent_hint": true,
-          "resend_safe": true,
-          "state": "planned",
-          "input_map": {
-            "birth_date": "{{slot.calendar.solar_date}}",
-            "birth_hour": "{{input.birth_hour}}",
-            "today": "{{input.today}}"
-          }
-        },
         {
           "kind": "external",
           "resource_id": 35054,
@@ -188,6 +168,26 @@
             "timeZone": "Asia/Seoul"
           },
           "note": "terms allowed; Asia/Seoul pinned (its default is Asia/Shanghai); no hour sent; today's day pillar comes from the normalizer offline"
+        },
+        {
+          "kind": "agentcon",
+          "agent_id": "saju-pillars",
+          "resource_id": null,
+          "tool": "get_saju_pillars",
+          "registrable_domain": "agentconcierge.biz",
+          "upstream": [
+            "kasi-rules"
+          ],
+          "read_only_hint": true,
+          "destructive_hint": false,
+          "idempotent_hint": true,
+          "resend_safe": true,
+          "state": "planned",
+          "input_map": {
+            "birth_date": "{{slot.calendar.solar_date}}",
+            "birth_hour": "{{input.birth_hour}}",
+            "today": "{{input.today}}"
+          }
         }
       ]
     },
@@ -241,7 +241,6 @@
     ]
   },
   "answer_set": "daily-fortune-brief-v1",
-  "min_pearls_answered": 0,
   "demand": "A direct user request (11-17). Measured: external asks 0 in 30 days (3,029 asks; Explore queries are not stored as text and cannot be counted), x402 paid calls 63 in 30 days (about 49 payers), 252 related agents in our catalog (growth team, 11-17).",
   "probe_input": {
     "birth_date": "1990-05-15",
