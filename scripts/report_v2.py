@@ -1079,8 +1079,8 @@ def summary(versions, ranked, candidates_a=None, now=None):
         'rules': {'evaluator_version': EVALUATOR_VERSION, 'pass_mark': PASS_MARK, 'confirm_days': CONFIRM_DAYS,
                   'counted': 'the latest version of each (resource, role, tool), scored by the evaluator version above',
                   'excluded': "AgentValCon's own fallback agents (avc: ids) are counted only in own_fallbacks",
-                  'final_pearl': 'rank 1 of a role at the pass mark with successes on two different KST days',
-                  'provisional_pearl': 'rank 1 at the pass mark with one success day so far'},
+                  'final_pearl': 'rank 1 of a role at the pass mark with a success on a KST day (one since 11-18, was two)',
+                  'provisional_pearl': 'rank 1 at the pass mark with fewer success days than confirm_days (none while it is 1)'},
         'candidates_grade_a': candidates_a,
         'reports': len(outside), 'succeeded': ok, 'failed': len(outside) - ok,
         'best_score': max((v['quality']['score'] for v in outside), default=0),
@@ -1104,7 +1104,7 @@ def funnel_line(s):
             f"후보 A {s['candidates_grade_a'] if s['candidates_grade_a'] is not None else '?'} → "
             f"v2 보고서 {s['reports']}(성공 {s['succeeded']}·실패 {s['failed']}, 외부 최고 {s['best_score']:g}점) → "
             f"85점 이상 {s['at_or_above_pass_mark']} → 최종 진주 확정 {s['final_pearls']}·잠정 {s['provisional_pearls']}"
-            f"(역할 {s['final_pearls'] + s['provisional_pearls']}/{s['roles_ranked']}, 확정은 서로 다른 날 2회 성공) · "
+            f"(역할 {s['final_pearls'] + s['provisional_pearls']}/{s['roles_ranked']}, 확정은 85점 이상 하루 1회) · "
             f"검증 확정 {s['verified_pearls']} / 목표 {s['targets']['verified']}, 최종 진주 역할 {s['final_pearls']} / 목표 {s['targets']['roles']} · "
             f"외부 대체 1개 이하(AgentValCon 대체 필요): {', '.join(s['roles_needing_own_fallback']) or '없음'}"
             + (f" · 자체 대체 {own['agents_at_or_above_pass_mark']}개 85점 이상(순위·깔때기 제외)" if own['versions'] else '')
@@ -1279,7 +1279,7 @@ def resource_grades(ids):
 
 def grade_trials(versions, grades, now=None):
     """PM 11-15 14:19 (ga): non-A members are tested but never counted as pearls (the pearl candidate stays active
-    grade A). 85+ marks a grade re-evaluation; 85+ on two different days while still not A is a case where the grade
+    grade A). 85+ marks a grade re-evaluation; 85+ on CONFIRM_DAYS days while still not A is a case where the grade
     misses real quality, listed for the PM."""
     now = now or time.time()
     out = {'rule': 'tested, not counted: a pearl candidate is active grade A; 85+ asks for a grade re-evaluation',
