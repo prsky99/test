@@ -100,10 +100,12 @@ def order_key(item):
     PM 11-18 pearl priority: then a final pearl, then a verified pearl, before the selection's recency order; only
     when the card's chosen tool is the tool the listing passed its role tests with, and never for a pearl whose
     provider terms prohibit our relay (pearls_public.pearl_rank). Without the public pearl list nothing moves.
-    PM 11-18 terms and L: a listing whose provider terms prohibit our relay counts with the paid or own-account ones
-    (first place: callers cannot run it through us), and a listing that is slow or often fails through our gateway
-    (mean success >= SLOW_MS or failure rate >= SLOW_FAIL_RATE over >= SLOW_MIN_RUNS runs in a week) comes after the
-    others that are not failing. The first two places stay the 'free and not failing' test (search() below)."""
+    PM 11-18 terms and L: a listing whose provider terms prohibit our relay comes after the relayable ones (third
+    place: callers cannot run it through us, but it is not hidden: it keeps the card with the direct address, PM
+    11-18 "not relaying is not hiding"), and a listing that is slow or often fails through our gateway (mean success
+    >= SLOW_MS or failure rate >= SLOW_FAIL_RATE over >= SLOW_MIN_RUNS runs in a week) comes after the others that
+    are not failing. The first two places stay the 'free and not failing' test (search() below), so a terms-restricted
+    listing is not dropped when enough free ones exist."""
     from ..pearls_public import pearl_rank
     from .relay_terms import restricted
     d = item if isinstance(item, dict) else {}
@@ -112,7 +114,7 @@ def order_key(item):
     terms = bool(d.get('terms_restricted')) or restricted(d.get('id'))   # also items that skipped search() (fast Chat)
     chosen = (d.get('tools') or [None])[0]
     pearl = pearl_rank(d.get('id'), chosen if isinstance(chosen, str) else '')
-    return (bool(d.get('access_note')) or terms, standing < 0, bool(d.get('slow_member')),
+    return (bool(d.get('access_note')), standing < 0, terms, bool(d.get('slow_member')),
             bool(d.get('region_limited')), standing <= 0, pearl)
 
 

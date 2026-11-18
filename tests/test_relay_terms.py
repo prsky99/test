@@ -79,9 +79,10 @@ def test_order_puts_relayable_first_and_keeps_the_free_test(terms):
     items = [{'id': 143970, 'task_standing': 1}, {'id': 241601, 'task_standing': 0},
              {'id': 5, 'task_standing': 0, 'slow_member': True}, {'id': 6, 'task_standing': 0}]
     assert [i['id'] for i in sorted(items, key=order_key)] == [241601, 6, 5, 143970]
-    # search() keeps an item as 'free' when its first two places are (False, False): a slow one stays, a
-    # terms-restricted one does not.
-    assert order_key(items[2])[:2] == (False, False) and order_key(items[0])[:2] == (True, False)
+    # search() keeps an item as 'free' when its first two places are (False, False): a slow one and a terms-restricted
+    # one both stay (the card is not hidden, PM 11-18); the terms place is the third.
+    assert order_key(items[2])[:2] == (False, False) and order_key(items[0])[:2] == (False, False)
+    assert order_key(items[0])[2] is True and order_key(items[1])[2] is False
 
 
 @pytest.mark.parametrize('entry,slow', [
