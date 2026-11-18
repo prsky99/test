@@ -268,11 +268,18 @@ def own_members(defn: dict, running: dict, states: dict | None, now: float,
     return {"counted": counted, "roles": roles, "until": str(until), "label": OWN_MEMBER_LABEL}, None
 
 
-def _quality_hold(entry: dict, now: float) -> str | None:
+def _quality_hold(entry: dict, now: float, preview: bool = False) -> str | None:
+    """A preview (PM 17:2x) claims no value against doing the task yourself, so it needs no positive delta, and before
+    its first retest it has no test time to go stale; once retested it is held like a live one when the retest is
+    old (and by the retest's own holds, quality_low and the like, through summary held_reason)."""
     quality = entry.get("quality") or {}
     tested = _parse_time(quality.get("tested_at"))
+    if preview and tested is None and not quality.get("cases_7d"):
+        return None
     if tested is None or now - tested > STALE_HOURS * 3600:
         return "stale_retest"
+    if preview:
+        return None
     delta = quality.get("delta_pp")
     if not isinstance(delta, (int, float)) or delta <= 0:
         return "delta_nonpositive"
@@ -398,10 +405,11 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     approved, reason = approval_state(defn, approval)
     if previewing:
         # A preview has not passed its gate: no gate time, no value against doing it yourself, its measured rounds only
-        from .preview import measured
+        from .preview import measured, unmeasured
         approved, approval = False, None
-        entry["preview"] = measured(defn, preview_rows or [])
-        reason = None if entry["preview"] else "preview_unmeasured"
+        # PM 17:2x: with no measured round the preview still shows, with its note only (no count, never a zero)
+        entry["preview"] = measured(defn, preview_rows or []) or unmeasured()
+        reason = None
     if approved:
         entry["gate_passed_at"] = _iso(_parse_time(approval.get("at")))
     # plan 3.1 (PM 11-15): measured value only for a necklace that passed the gate, with its cases and dates
@@ -427,7 +435,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
               or ("members_unqualified" if entry["member_count"] < max(2, defn.get("min_pearls_answered") or 2)
                   else None)
               or summary.get("held_reason")
-              or _quality_hold(entry, now))
+              or _quality_hold(entry, now, preview=previewing))
     if reason:
         entry["status"], entry["held_reason"] = "held", reason
     return entry

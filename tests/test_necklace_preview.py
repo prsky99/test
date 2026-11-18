@@ -39,22 +39,25 @@ def test_preview_entry_shows_measured_rounds_and_never_a_gate_or_value(tmp_path)
     assert build(defn, tmp_path, rows(defn, ("holdout-r3", 26, 30, "08")), appr=approval(defn))["gate_passed_at"] is None
 
 
-def test_preview_without_a_measured_round_of_this_digest_is_held(tmp_path):
+def test_preview_without_a_measured_round_shows_the_note_and_no_number(tmp_path):
+    """PM 17:2x (11-18): the v2 rounds did not run; the preview goes out with its note only, no count, never 0."""
     defn = preview_defn()
     summary(tmp_path, defn["slug"])
-    assert build(defn, tmp_path, [])["held_reason"] == "preview_unmeasured"
     other = dict(defn, slots=defn["slots"][:1])
-    stale = rows(other, ("holdout-r3", 30, 30, "08"))
-    assert build(defn, tmp_path, stale)["held_reason"] == "preview_unmeasured"
-    bad = rows(defn, ("holdout-r3", 31, 30, "08"))
-    assert build(defn, tmp_path, bad)["held_reason"] == "preview_unmeasured"
+    for given in ([], rows(other, ("holdout-r3", 30, 30, "08")), rows(defn, ("holdout-r3", 31, 30, "08"))):
+        got = build(defn, tmp_path, given)
+        assert got["status"] == "preview" and got["held_reason"] is None
+        assert got["preview"] == {"note": "Preview — test runs in progress", "gate_passed": False}
+        assert got["gate_passed_at"] is None and got["value"] is None and got["comparison"] is None
+        text = json.dumps(got["preview"])
+        assert "tests" not in got["preview"] and "rounds" not in got["preview"] and not any(c.isdigit() for c in text)
 
 
 def test_preview_keeps_the_live_holds(tmp_path):
     defn = preview_defn()
     measured = rows(defn, ("holdout-r3", 28, 30, "08"))
-    summary(tmp_path, defn["slug"], quality={"delta_pp": 0, "tested_at": judge._iso(NOW - 3600)})
-    assert build(defn, tmp_path, measured)["held_reason"] == "delta_nonpositive"
+    summary(tmp_path, defn["slug"], quality={"delta_pp": 0, "cases_7d": 5, "tested_at": judge._iso(NOW - 49 * 3600)})
+    assert build(defn, tmp_path, measured)["held_reason"] == "stale_retest"
     fresh = tmp_path / "fresh"
     summary(fresh, defn["slug"])
     watch = {"holds": {defn["slug"]: {"since": judge._iso(NOW - 60), "reason": "member_failing"}}}
@@ -104,3 +107,21 @@ def test_preview_runs_have_a_day_cap_and_a_lower_client_cap(monkeypatch):
     lim.admit("wt", "3.3.3.3")                                   # the live path keeps its own limits
     t[0] += 86400
     lim.admit("wt", "3.3.3.3", preview=True)
+
+
+def test_a_preview_needs_no_delta_and_no_retest_before_its_first_one(tmp_path):
+    """PM 17:2x: no rounds ran, so no retest summary and no singles delta; the preview still shows. A stale retest
+    or the retest's own hold still holds it."""
+    defn = preview_defn()
+    got = judge.build_entry(defn, None, {}, NOW, None, verified=BOTH, preview_rows=[])
+    assert got["status"] == "preview" and got["held_reason"] is None
+    summary(tmp_path, defn["slug"], quality={"delta_pp": None, "cases_7d": 5, "tested_at": judge._iso(NOW - 3600)})
+    assert build(defn, tmp_path, [])["held_reason"] is None                       # no delta needed
+    old = tmp_path / "old"
+    summary(old, defn["slug"], quality={"delta_pp": None, "cases_7d": 5, "tested_at": judge._iso(NOW - 49 * 3600)})
+    assert build(defn, old, [])["held_reason"] == "stale_retest"
+    bad = tmp_path / "bad"
+    summary(bad, defn["slug"], held_reason="quality_low", quality={"cases_7d": 5, "tested_at": judge._iso(NOW - 60)})
+    assert build(defn, bad, [])["held_reason"] == "quality_low"
+    live = dict(defn, status="live")                                               # live keeps its delta rule
+    assert judge.build_entry(live, None, {}, NOW, None, verified=BOTH)["status"] == "held"

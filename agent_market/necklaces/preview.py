@@ -8,7 +8,7 @@ gate, never shows measured value against doing the task yourself, and keeps ever
 The record lives in gateway-data/necklaces/preview.json, one line per round, written by this module only:
     {"rounds": [{"slug", "version", "definition_digest", "split", "passed", "total", "at", "by"}]}
 The definition's status "preview" plus a record for the same version and digest makes the judge write a public entry
-with status "preview"; without such a record the entry is held ("preview_unmeasured"). The rounds are the gate rounds
+with status "preview"; without such a record the entry shows the note only, no count (PM 17:2x). The rounds are the gate rounds
 of that definition as measured (scripts/gate_round.py status), never picked: every round of the version is counted.
 """
 from __future__ import annotations
@@ -53,6 +53,12 @@ def measured(defn: dict, rows: list[dict]) -> dict | None:
     return {"note": NOTE, "gate_passed": False,
             "tests": {"passed": sum(r["passed"] for r in rounds), "total": sum(r["total"] for r in rounds)},
             "rounds": rounds}
+
+
+def unmeasured() -> dict:
+    """The preview field when no round of this version and digest was measured (PM 17:2x, 11-18: the v2 rounds did
+    not run). Only the note: no tests and no rounds keys, so nothing shows a count, and never a zero."""
+    return {"note": NOTE, "gate_passed": False}
 
 
 def record(root: Path, defn: dict, split: str, passed: int, total: int, by: str, now: float | None = None) -> dict:
