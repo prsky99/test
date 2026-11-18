@@ -217,6 +217,33 @@
       text('offers-status', done || (items.length ? '' : '심사할 제안이 없습니다.'));
     } catch (e) { text('offers-status', reason(e.status)); }
   }
+  // PM 11-17 (b): automatic approvals wait here until a person looks (within 24 hours); keep or take the advertiser down.
+  const AUTO_KIND = {campaign: '캠페인', agent_offer: '에이전트 광고 제안'};
+  async function loadAuto(done = '') {
+    text('auto-status', '불러오는 중입니다.');
+    try {
+      const {items} = await get('/auto-approvals');
+      const at = ms => new Date(ms).toLocaleString('ko-KR');
+      $('auto-list').replaceChildren(...items.map(item => {
+        const keep = async (b, okText) => { await post('/auto-approvals/' + item.approval_id + '/checked', {}); await loadAuto(okText); };
+        return row([(AUTO_KIND[item.kind] || item.kind) + ' · ' + (item.overdue ? '확인 시한 지남' : '확인 시한 ' + at(item.check_by_ms)),
+          '자동 승인 ' + at(item.approved_ms) + ' · 대상 ' + item.target_id, '광고주 ID ' + (item.advertiser_id || '—')],
+          [['확인함', true, async (b) => { b.disabled = true;
+              try { await keep(b, '확인함으로 표시했습니다.'); } catch (e) { b.disabled = false; text('auto-status', reason(e.status)); } }],
+           ['광고주 이력 보기', false, () => { if (!item.advertiser_id) return; $('one-id').value = item.advertiser_id;
+              $('one').scrollIntoView({block: 'start'}); loadOne(); }],
+           ['광고 내리기', false, async (b, card) => { const input = reasonField(card, '내리는 사유');
+              if (!item.advertiser_id) { text('auto-status', '광고주를 찾지 못해 내릴 수 없습니다.'); return; }
+              if (input.value.trim().length < 3) { input.focus(); text('auto-status', '내리는 사유를 3자 이상 적으세요.'); return; }
+              b.disabled = true;
+              try { await post('/advertisers/' + item.advertiser_id + '/takedown', {reason: input.value.trim()});
+                await keep(b, '광고주를 내리고 확인함으로 표시했습니다.'); }
+              catch (e) { b.disabled = false; text('auto-status', reason(e.status)); } }]]);
+      }));
+      text('auto-status', done || (items.length ? '' : '확인할 자동 승인이 없습니다.'));
+    } catch (e) { text('auto-status', reason(e.status)); }
+  }
+  $('load-auto').addEventListener('click', () => loadAuto());
   $('load-offers').addEventListener('click', () => loadOffers());
   $('load-paid').addEventListener('click', () => loadPaid());
   $('export-paid').addEventListener('click', () => {

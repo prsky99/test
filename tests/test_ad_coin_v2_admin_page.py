@@ -39,7 +39,8 @@ def test_script_only_reads_and_loads_both_panels_in_parallel():
     # 11-15 R33: agent ad offer decisions, after the operator sees the exact agent line
     # 11-15 PM 12:4x: an operator can take an advertiser down (/advertisers/<id>/takedown) after automatic review
     assert set(_re.findall(r"post\('(/[a-z-]+)/", js)) == {'/applications', '/reviews', '/paid-bookings', '/sponsored-offers',
-                                                            '/advertisers', '/paid-plans'}   # 11-16: plans too
+                                                            '/advertisers', '/paid-plans',   # 11-16: plans too
+                                                            '/auto-approvals'}   # 11-18: a person keeps an automatic approval
     assert "'/takedown'" in js
     assert "'X-CSRF-Token': await siteCsrf()" in js and js.count("method: 'POST'") == 1
     assert 'BigInt' in js  # atoms exceed Number's safe range
@@ -84,3 +85,16 @@ def test_v2_workspace_links_straight_to_the_sign_in_page():
     for name in ('index.html', 'app.js', 'advertise.html', 'admin.html', 'admin.js'):
         assert '/new/en/sign-in.html' not in (root / name).read_text(), name
     assert 'id="sign-in" class="btn primary" href="/customer/sign-in?next=/ad-coin/v2"' in (root / 'index.html').read_text()
+
+
+def test_automatic_approvals_have_a_korean_check_section_that_loads_on_click():
+    """PM 11-17 (b), board item 2: the operator screen lists automatic approvals to look at within 24 hours."""
+    c = client()
+    html = c.get(PATH).text
+    assert 'href="#auto"' in html and 'id="auto"' in html and '자동 승인 확인(24시간 안)' in html
+    assert 'id="load-auto"' in html and 'id="auto-list"' in html and 'id="auto-status"' in html
+    js = c.get(re.search(r'src="([^"]+admin\.[0-9a-f]+\.js)"', html).group(1)).text
+    assert "get('/auto-approvals')" in js and "'/checked'" in js and "addEventListener('click', () => loadAuto())" in js
+    # taking an advertiser down from here uses the same takedown path, then records that a person looked
+    auto = js[js.index('async function loadAuto'):js.index("$('load-auto')")]
+    assert auto.index("'/takedown'") < auto.rindex('await keep(')
