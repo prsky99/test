@@ -109,6 +109,7 @@ SECURITY_HEADERS = {
     "Content-Security-Policy": "default-src 'none'; img-src 'self' data:; script-src 'none'; script-src-attr 'none'; object-src 'none'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
     "Cache-Control": "no-store",  # replies can carry a visitor token
 }
+MCP_SERVER_VERSION = "1.2.0"   # the version the official MCP Registry entry (deploy/mcp-registry/server.json) carries
 MCP_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 A2A_VERSIONS = ("0.3", "0.3.0", "1.0")  # message/send (0.3) and SendMessage (1.0)
 LIVE_TTL = 300
@@ -3789,7 +3790,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
                 "supportedVersions": list(MCP_VERSIONS),
                 "capabilities": {"tools": {"listChanged": False}, "tasks": mcp_tasks.CAPABILITY},
-                "serverInfo": {"name": "agent-concierge", "title": "AgentValCon — Agent Value Gateway", "version": "1.1.0"},
+                "serverInfo": {"name": "agent-concierge", "title": "AgentValCon — Agent Value Gateway", "version": MCP_SERVER_VERSION},
                 "instructions": instructions}))
 
         if method == "initialize":
@@ -3808,7 +3809,7 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             return JSONResponse(mcp_result(rid, {
                 "protocolVersion": asked if asked in MCP_VERSIONS else MCP_VERSIONS[0],
                 "capabilities": {"tools": {"listChanged": False}, "tasks": mcp_tasks.CAPABILITY},
-                "serverInfo": {"name": "agent-concierge", "title": "AgentValCon — Agent Value Gateway", "version": "1.1.0"},
+                "serverInfo": {"name": "agent-concierge", "title": "AgentValCon — Agent Value Gateway", "version": MCP_SERVER_VERSION},
                 "instructions": instructions}), headers={"Mcp-Session-Id": sid})
         if isinstance(method, str) and method.startswith("notifications/"):
             return Response(status_code=202)

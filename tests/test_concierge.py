@@ -258,6 +258,8 @@ def test_mcp_initialize_tools_and_calls(w):
     # Stateless 2026-07-28 revision server/discover
     disc = c.post("/mcp", json={"jsonrpc": "2.0", "id": 5, "method": "server/discover", "params": {}}).json()
     assert disc.get("result", {}).get("serverInfo", {}).get("name") == "agent-concierge"  # identifier kept (11-14 brand AgentValCon)
+    from agent_market.concierge.front import MCP_SERVER_VERSION
+    assert disc["result"]["serverInfo"]["version"] == MCP_SERVER_VERSION == "1.2.0"      # PM 11-18: the Registry entry carries the same version
 
     # Self-Reflection report tool test (success and failure retry)
     rep_ok = c.post("/mcp", json={"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {

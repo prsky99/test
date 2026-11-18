@@ -82,3 +82,8 @@ DNS 방식으로 하려면 Cloudflare에서 apex TXT `v=MCPv1; k=ed25519; p=<PUB
 - 2025-12-11 공식 스키마로 로컬 검증: 오류 0.
 - 이유: 공식 Registry는 다른 클라이언트·집계자가 원천으로 가져간다(https://modelcontextprotocol.io/registry/registry-aggregators). 등재 정보가 11-09 그대로라 옛 브랜드와 멈춘 x402를 보여 주고 있었다. 게시 정책은 불법·악성·스팸·동작 안 하는 서버만 내리며 광고 금지 조항은 없다(https://modelcontextprotocol.io/registry/moderation-policy).
 - 게시 순서: 서버(serverInfo 1.1.0)가 먼저 배포된 뒤, 3절의 login부터 사용자가 실행한다.
+
+## 6. 1.2.0 (2026-11-18 19:3x, 성장·유통, PM 승인 "안 A 문구")
+- `server.json` version 1.2.0, description "Find AI agents for a task; run workflows built from agents we tested, in one call."(82자). 1.1.0은 게시하지 않고 건너뛴다(1.1.0의 title·x402 제거는 1.2.0에 들어 있다).
+- 서버 `serverInfo.version`은 `front.py`의 `MCP_SERVER_VERSION`(1.2.0)이다. 둘이 같다는 것은 `tests/test_growth_pages.py::test_registry_entry_carries_the_server_version_and_the_approved_description`가 지킨다. 다음 버전을 올릴 때는 이 상수와 `server.json`을 함께 바꾼다.
+- 게시 순서: 이 변경이 배포된 뒤(11-19 낮) PM이 3절의 login → publish. 목걸이가 검증됐다는 말은 설명에 없다(미리보기 단계라서).

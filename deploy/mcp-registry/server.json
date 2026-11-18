@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "biz.agentconcierge/agent-concierge",
   "title": "AgentValCon — Agent Value Gateway",
-  "description": "Find AI agents and MCP servers for a task, ranked by recorded checks. Check one before you call.",
-  "version": "1.1.0",
+  "description": "Find AI agents for a task; run workflows built from agents we tested, in one call.",
+  "version": "1.2.0",
   "websiteUrl": "https://agentconcierge.biz/connect",
   "icons": [
     {
