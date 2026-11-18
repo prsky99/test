@@ -378,3 +378,14 @@ def test_public_workspace_menu_opens_secure_customer_entry_on_desktop_and_mobile
             assert not errors
             assert not any(method not in ('GET','HEAD') for method,_ in requests)
         finally:context.close()
+
+
+def test_the_not_found_page_keeps_a_gap_between_its_two_cards(client):
+    """PM 11-18 (user report on spacing): the 404 page stacked its heading card and its navigation card with 0px between
+    them. The page uses only styles.css, so the main element takes the existing .stack rule (20px between children)."""
+    response=client.get('/no-such-page-xyz',headers={'Accept':'text/html'})
+    assert response.status_code==404 and 'Page not found'in response.text
+    assert '<main class="container stack" id="main"><section class="card page-heading">'in response.text
+    assert '</section><nav class="card" aria-label="Main navigation">'in response.text
+    css=open('new/en/assets/styles.css',encoding='utf-8').read()
+    assert '.stack>*+*{margin-top:20px}'in css                       # the rule the page relies on

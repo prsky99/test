@@ -866,7 +866,7 @@ def install(app, front, *, workspace_access_enabled=False, workspace_link_enable
         return HTMLResponse('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1"><title>Page not found | AgentValCon</title>'
             '<meta name="robots" content="noindex"><link rel="stylesheet" href="/new/en/assets/styles.css"></head>'
-            '<body><main class="container" id="main"><section class="card page-heading"><p class="eyebrow">404</p>'
+            '<body><main class="container stack" id="main"><section class="card page-heading"><p class="eyebrow">404</p>'
             '<h1>Find your next connection.</h1><p>This page is unavailable. Continue from Home or explore the agent catalog.</p>'
             '<div class="actions"><a class="btn primary" href="/">Home</a>'
             '<a class="btn" href="/new/en/explore.html">Explore agents</a></div></section>'
