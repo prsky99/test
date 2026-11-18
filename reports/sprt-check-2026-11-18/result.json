@@ -1,0 +1,382 @@
+{
+ "params": {
+  "p0": 0.9,
+  "p1": 0.98,
+  "alpha": 0.05,
+  "beta": 0.1,
+  "A": 2.8903717578961645,
+  "B": -2.251291798606495,
+  "llr_success": 0.08515780834030677,
+  "llr_fail": -1.6094379124340992,
+  "successes_to_pass_with_0_fails": 34,
+  "extra_successes_per_fail": 18.8994755008546
+ },
+ "current (all 60)": {
+  "0.8": {
+   "pass": 0.0008,
+   "mean_cases": 60.0
+  },
+  "0.85": {
+   "pass": 0.0122,
+   "mean_cases": 60.0
+  },
+  "0.9": {
+   "pass": 0.1174,
+   "mean_cases": 60.0
+  },
+  "0.93": {
+   "pass": 0.3428,
+   "mean_cases": 60.0
+  },
+  "0.95": {
+   "pass": 0.5927,
+   "mean_cases": 60.0
+  },
+  "0.96": {
+   "pass": 0.7306,
+   "mean_cases": 60.0
+  },
+  "0.97": {
+   "pass": 0.8556,
+   "mean_cases": 60.0
+  },
+  "0.98": {
+   "pass": 0.9473,
+   "mean_cases": 60.0
+  },
+  "0.99": {
+   "pass": 0.9923,
+   "mean_cases": 60.0
+  },
+  "1.0": {
+   "pass": 1.0,
+   "mean_cases": 60.0
+  }
+ },
+ "current + stop when decided": {
+  "0.8": {
+   "pass": 0.0008,
+   "mean_cases": 15.21
+  },
+  "0.85": {
+   "pass": 0.0122,
+   "mean_cases": 20.85
+  },
+  "0.9": {
+   "pass": 0.1174,
+   "mean_cases": 31.95
+  },
+  "0.93": {
+   "pass": 0.3428,
+   "mean_cases": 42.38
+  },
+  "0.95": {
+   "pass": 0.5927,
+   "mean_cases": 49.98
+  },
+  "0.96": {
+   "pass": 0.7306,
+   "mean_cases": 53.32
+  },
+  "0.97": {
+   "pass": 0.8556,
+   "mean_cases": 55.95
+  },
+  "0.98": {
+   "pass": 0.9473,
+   "mean_cases": 57.59
+  },
+  "0.99": {
+   "pass": 0.9923,
+   "mean_cases": 58.16
+  },
+  "1.0": {
+   "pass": 1.0,
+   "mean_cases": 58.0
+  }
+ },
+ "SPRT, max 60, undecided=fail": {
+  "0.8": {
+   "pass": 0.0006,
+   "mean_cases": 11.28
+  },
+  "0.85": {
+   "pass": 0.0049,
+   "mean_cases": 16.47
+  },
+  "0.9": {
+   "pass": 0.0406,
+   "mean_cases": 26.91
+  },
+  "0.93": {
+   "pass": 0.1356,
+   "mean_cases": 36.33
+  },
+  "0.95": {
+   "pass": 0.287,
+   "mean_cases": 42.28
+  },
+  "0.96": {
+   "pass": 0.4059,
+   "mean_cases": 44.22
+  },
+  "0.97": {
+   "pass": 0.558,
+   "mean_cases": 44.79
+  },
+  "0.98": {
+   "pass": 0.7362,
+   "mean_cases": 43.46
+  },
+  "0.99": {
+   "pass": 0.9101,
+   "mean_cases": 39.86
+  },
+  "1.0": {
+   "pass": 1.0,
+   "mean_cases": 34.0
+  }
+ },
+ "SPRT, max 60, undecided=current rule": {
+  "0.8": {
+   "pass": 0.0012,
+   "mean_cases": 11.28
+  },
+  "0.85": {
+   "pass": 0.0141,
+   "mean_cases": 16.47
+  },
+  "0.9": {
+   "pass": 0.121,
+   "mean_cases": 26.91
+  },
+  "0.93": {
+   "pass": 0.3417,
+   "mean_cases": 36.33
+  },
+  "0.95": {
+   "pass": 0.5842,
+   "mean_cases": 42.28
+  },
+  "0.96": {
+   "pass": 0.7186,
+   "mean_cases": 44.22
+  },
+  "0.97": {
+   "pass": 0.8423,
+   "mean_cases": 44.79
+  },
+  "0.98": {
+   "pass": 0.9364,
+   "mean_cases": 43.46
+  },
+  "0.99": {
+   "pass": 0.9876,
+   "mean_cases": 39.86
+  },
+  "1.0": {
+   "pass": 1.0,
+   "mean_cases": 34.0
+  }
+ },
+ "SPRT, rounds, >=10 per round, undecided=current": {
+  "0.8": {
+   "pass": 0.0008,
+   "mean_cases": 11.28
+  },
+  "0.85": {
+   "pass": 0.012,
+   "mean_cases": 16.53
+  },
+  "0.9": {
+   "pass": 0.1124,
+   "mean_cases": 27.3
+  },
+  "0.93": {
+   "pass": 0.328,
+   "mean_cases": 37.35
+  },
+  "0.95": {
+   "pass": 0.5703,
+   "mean_cases": 44.12
+  },
+  "0.96": {
+   "pass": 0.7068,
+   "mean_cases": 46.62
+  },
+  "0.97": {
+   "pass": 0.834,
+   "mean_cases": 47.88
+  },
+  "0.98": {
+   "pass": 0.9323,
+   "mean_cases": 47.38
+  },
+  "0.99": {
+   "pass": 0.9867,
+   "mean_cases": 44.74
+  },
+  "1.0": {
+   "pass": 1.0,
+   "mean_cases": 40.0
+  }
+ },
+ "SPRT, rounds, >=15 per round, undecided=current": {
+  "0.8": {
+   "pass": 0.0008,
+   "mean_cases": 11.28
+  },
+  "0.85": {
+   "pass": 0.0114,
+   "mean_cases": 16.55
+  },
+  "0.9": {
+   "pass": 0.1095,
+   "mean_cases": 27.44
+  },
+  "0.93": {
+   "pass": 0.3227,
+   "mean_cases": 37.83
+  },
+  "0.95": {
+   "pass": 0.5647,
+   "mean_cases": 45.1
+  },
+  "0.96": {
+   "pass": 0.7019,
+   "mean_cases": 48.0
+  },
+  "0.97": {
+   "pass": 0.8306,
+   "mean_cases": 49.81
+  },
+  "0.98": {
+   "pass": 0.9306,
+   "mean_cases": 50.05
+  },
+  "0.99": {
+   "pass": 0.9864,
+   "mean_cases": 48.4
+  },
+  "1.0": {
+   "pass": 1.0,
+   "mean_cases": 45.0
+  }
+ },
+ "SPRT, rounds, >=10 per round, undecided=fail": {
+  "0.8": {
+   "pass": 0.0002,
+   "mean_cases": 11.28
+  },
+  "0.85": {
+   "pass": 0.0026,
+   "mean_cases": 16.53
+  },
+  "0.9": {
+   "pass": 0.0298,
+   "mean_cases": 27.3
+  },
+  "0.93": {
+   "pass": 0.1147,
+   "mean_cases": 37.35
+  },
+  "0.95": {
+   "pass": 0.2605,
+   "mean_cases": 44.12
+  },
+  "0.96": {
+   "pass": 0.3792,
+   "mean_cases": 46.62
+  },
+  "0.97": {
+   "pass": 0.5345,
+   "mean_cases": 47.88
+  },
+  "0.98": {
+   "pass": 0.7199,
+   "mean_cases": 47.38
+  },
+  "0.99": {
+   "pass": 0.9038,
+   "mean_cases": 44.74
+  },
+  "1.0": {
+   "pass": 1.0,
+   "mean_cases": 40.0
+  }
+ },
+ "monte_carlo_check": {
+  "current + stop when decided @ 0.9": {
+   "mc_pass": 0.1176,
+   "mc_mean": 31.99,
+   "exact": {
+    "pass": 0.1174,
+    "mean_cases": 31.95
+   }
+  },
+  "current + stop when decided @ 0.95": {
+   "mc_pass": 0.5929,
+   "mc_mean": 49.99,
+   "exact": {
+    "pass": 0.5927,
+    "mean_cases": 49.98
+   }
+  },
+  "current + stop when decided @ 0.98": {
+   "mc_pass": 0.9471,
+   "mc_mean": 57.59,
+   "exact": {
+    "pass": 0.9473,
+    "mean_cases": 57.59
+   }
+  },
+  "SPRT, max 60, undecided=fail @ 0.9": {
+   "mc_pass": 0.0407,
+   "mc_mean": 26.92,
+   "exact": {
+    "pass": 0.0406,
+    "mean_cases": 26.91
+   }
+  },
+  "SPRT, max 60, undecided=fail @ 0.95": {
+   "mc_pass": 0.286,
+   "mc_mean": 42.31,
+   "exact": {
+    "pass": 0.287,
+    "mean_cases": 42.28
+   }
+  },
+  "SPRT, max 60, undecided=fail @ 0.98": {
+   "mc_pass": 0.7362,
+   "mc_mean": 43.45,
+   "exact": {
+    "pass": 0.7362,
+    "mean_cases": 43.46
+   }
+  },
+  "SPRT, rounds, >=10 per round, undecided=current @ 0.9": {
+   "mc_pass": 0.1134,
+   "mc_mean": 27.31,
+   "exact": {
+    "pass": 0.1124,
+    "mean_cases": 27.3
+   }
+  },
+  "SPRT, rounds, >=10 per round, undecided=current @ 0.95": {
+   "mc_pass": 0.5702,
+   "mc_mean": 44.15,
+   "exact": {
+    "pass": 0.5703,
+    "mean_cases": 44.12
+   }
+  },
+  "SPRT, rounds, >=10 per round, undecided=current @ 0.98": {
+   "mc_pass": 0.9321,
+   "mc_mean": 47.36,
+   "exact": {
+    "pass": 0.9323,
+    "mean_cases": 47.38
+   }
+  }
+ }
+}
