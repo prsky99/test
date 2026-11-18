@@ -5,7 +5,7 @@
 Writes gateway-data/necklaces/gold/personality-fortune-brief/<split>.jsonl from the fixed cases below (no network call).
 Every truth is computed here from a public definition or the written contract, not from our agents:
 - The 16 type codes and their four letters (Wikipedia "Myers-Briggs Type Indicator"); case and an -A/-T suffix are
-  ignored by the contract (persona.mbti_profile.v1 input pattern).
+  ignored by the contract (persona.personality_profile.v1 input pattern).
 - Keirsey's four temperaments from the letters: S+J = SJ, S+P = SP, N+F = NF, N+T = NT (Wikipedia "Keirsey
   Temperament Sorter").
 - The age range: a person is exactly AGE ('man' age, the international count) on TODAY when born after the day
@@ -32,7 +32,7 @@ SLUG = "personality-fortune-brief"
 TYPES = {"name": "Myers-Briggs Type Indicator (the 16 types)", "url": "https://en.wikipedia.org/wiki/Myers%E2%80%93Briggs_Type_Indicator"}
 KEIRSEY = {"name": "Keirsey Temperament Sorter (SJ, SP, NF, NT)", "url": "https://en.wikipedia.org/wiki/Keirsey_Temperament_Sorter"}
 AGE = {"name": "International ('man') age count", "url": "https://en.wikipedia.org/wiki/East_Asian_age_reckoning"}
-RULE = {"name": "persona.mbti_profile.v1 sample_rule (sha256 draw inside the age range)",
+RULE = {"name": "persona.personality_profile.v1 sample_rule (sha256 draw inside the age range)",
         "url": "https://en.wikipedia.org/wiki/SHA-2"}
 READING = {"name": "personality-fortune-brief gate rules (necklaces/mbti_gate.py, fortune_rules.py)",
            "url": "https://en.wikipedia.org/wiki/Myers%E2%80%93Briggs_Type_Indicator"}
@@ -64,12 +64,12 @@ def profile_truth(mbti: str, age: int, today: str) -> dict:
 def profile(cid, mbti, age, today):
     truth = profile_truth(mbti, age, today)
     sources = [AGE] if truth.get("refused") else [TYPES, KEIRSEY, AGE, RULE]
-    return {"case_id": f"mbti:{cid}", "agent": "mbti-profile", "input": {"mbti": mbti, "age": age, "today": today},
+    return {"case_id": f"personality:{cid}", "agent": "personality-profile", "input": {"type": mbti, "age": age, "today": today},
             "task_type": "substitute", "truth": truth, "truth_sources": sources}
 
 
 def reading(cid, inp):
-    return {"case_id": f"mbti:{cid}", "agent": "mbti-fortune", "input": inp, "task_type": "substitute",
+    return {"case_id": f"personality:{cid}", "agent": "personality-fortune", "input": inp, "task_type": "substitute",
             "truth": {"type": inp["type"]}, "truth_sources": [READING]}
 
 

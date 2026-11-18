@@ -49,7 +49,7 @@ def test_the_sample_matches_the_gate_rule_computed_apart():
 
 def test_profile_and_reading_chain(tmp_path):
     a = FallbackAgents(data_dir=tmp_path)
-    p = a.execute("mbti-profile", {"mbti": "enfp-t", "age": 25, "today": "2026-11-18"})["result"]
+    p = a.execute("personality-profile", {"type": "enfp-t", "age": 25, "today": "2026-11-18"})["result"]
     assert (p["type"], p["temperament"], p["axes"]) == ("ENFP", "NF", {"energy": "E", "information": "N",
                                                                         "decisions": "F", "structure": "P"})
     assert full_years(date.fromisoformat(p["sample_birth_date"]), date(2026, 11, 18)) == 25
@@ -58,12 +58,12 @@ def test_profile_and_reading_chain(tmp_path):
     s = a.execute("saju-pillars", {"birth_date": p["sample_birth_date"], "today": "2026-11-18"})["result"]
     args = {"type": p["type"], "sign": w["sign"], "element": w["element"], "day_master": s["day_master"],
             "today_day_pillar": s["today_day_pillar"], "today": "2026-11-18", "sample_birth_date": p["sample_birth_date"]}
-    one, two = a.execute("mbti-fortune", args)["result"], a.execute("mbti-fortune", dict(args))["result"]
+    one, two = a.execute("personality-fortune", args)["result"], a.execute("personality-fortune", dict(args))["result"]
     assert one == two and one["answer"].startswith("For entertainment; not advice.")
     assert G.check_mbti_synthesis(one, "ENFP") == []                       # the gate's own check (workflow 5599a2b0)
     assert [one["axes"][k]["letter"] for k in ("energy", "information", "decisions", "structure")] == list("ENFP")
     with pytest.raises(FallbackUnavailable) as err:
-        a.execute("mbti-profile", {"mbti": "XXXX", "age": 25})
+        a.execute("personality-profile", {"type": "XXXX", "age": 25})
     assert err.value.code == "invalid_input"
 
 

@@ -56,7 +56,7 @@ SLUG = {"gleif-lei": "company-due-diligence", "sec-edgar": "company-due-diligenc
         "saju-pillars": "daily-fortune-brief", "fortune-daily": "daily-fortune-brief",     # (PM 11-17; holdout by ops)    # split record-r1 (scripts/gold_agent_record.py, agent team 11-17)
         "tls-certificate": "website-trust-brief",    # split tls-r1 (scripts/gold_site_checks.py --kind tls, 11-17)
         "site-reachability": "website-trust-brief",  # split reach-r1 (scripts/gold_site_checks.py --kind reach, 11-17)
-        "mbti-profile": "personality-fortune-brief", "mbti-fortune": "personality-fortune-brief"}   # scripts/gold_mbti_tuning.py (PM 11-18)
+        "personality-profile": "personality-fortune-brief", "personality-fortune": "personality-fortune-brief"}   # scripts/gold_mbti_tuning.py (PM 11-18)
 BANDS = (0.01, 0.1, 0.5)
 
 
@@ -109,7 +109,7 @@ def judge_fortune(agent_id: str, case: dict, result: dict | None, error: str | N
     return {"pass": not wrong, "wrong": wrong}
 
 
-MBTI_AGENTS = ("mbti-profile", "mbti-fortune")
+MBTI_AGENTS = ("personality-profile", "personality-fortune")
 
 
 def judge_mbti(agent_id: str, case: dict, result: dict | None, error: str | None) -> dict:
@@ -121,7 +121,7 @@ def judge_mbti(agent_id: str, case: dict, result: dict | None, error: str | None
         return {"pass": result is None and error == truth["refused"], "got": error or "answered", "want": truth["refused"]}
     if result is None:
         return {"pass": False, "got": error}
-    if agent_id == "mbti-fortune":
+    if agent_id == "personality-fortune":
         from ..necklaces.mbti_gate import check_mbti_synthesis
         problems = check_mbti_synthesis(result, truth["type"])
         return {"pass": not problems, "problems": problems}

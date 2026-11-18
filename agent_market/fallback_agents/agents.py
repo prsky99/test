@@ -71,7 +71,7 @@ MAX_AGE = {"nvd-cve": 6 * 3600, "cve-org": 24 * 3600, "cisa-kev": 24 * 3600, "gi
            "dns-spf-dmarc": 86400, "package-readme": 86400, "agent-record": 2 * 86400,
            "ofac-sdn": 3 * 86400, "korean-lunar": 10 * 365 * 86400, "western-sign": 10 * 365 * 86400,
            "saju-pillars": 10 * 365 * 86400, "fortune-daily": 10 * 365 * 86400,
-           "mbti-profile": 10 * 365 * 86400, "mbti-fortune": 10 * 365 * 86400}   # the daily list index; served up to three days if a refresh fails  # rules age from the library release; update the pin at least yearly
+           "personality-profile": 10 * 365 * 86400, "personality-fortune": 10 * 365 * 86400}   # the daily list index; served up to three days if a refresh fails  # rules age from the library release; update the pin at least yearly
 TTL = {"nvd-cve": (6 * 3600, 6 * 3600), "cve-org": (6 * 3600, 24 * 3600), "github-advisory": (3600, 6 * 3600),
        "epss": (6 * 3600, 48 * 3600), "package-registry": (3600, 6 * 3600), "depsdev-package": (6 * 3600, 24 * 3600),
        "gleif-lei": (6 * 3600, 24 * 3600), "sec-edgar": (6 * 3600, 24 * 3600), "sec-tickers": (6 * 3600, 24 * 3600),
@@ -1784,12 +1784,12 @@ class FallbackAgents:
             raise FallbackUnavailable("invalid_output", "The reading did not pass its own checks.")
         return out, {"status": "computed", "age_seconds": 0}, False, {"rule table": None}
 
-    # ---------------------------------------------------------------- mbti-fortune-brief (PM 11-17, user request)
-    def _mbti_profile(self, args, remaining):
-        """persona.mbti_profile.v1: the type checked and a reproducible sample birth date from the age (mbti.py)."""
+    # ---------------------------------------------------------------- personality-fortune-brief (PM 11-17, user request; renamed PM 11-18 16:47)
+    def _personality_profile(self, args, remaining):
+        """persona.personality_profile.v1: the type checked and a reproducible sample birth date from the age (mbti.py)."""
         from .mbti import SAMPLE_NOTE, normalize_type, sample_birthday, sample_range, temperament
         try:
-            code = normalize_type(args.get("mbti"))
+            code = normalize_type(args.get("type"))
             today = self._fortune_today(args)
             born = sample_birthday(code, args.get("age"), today)
         except ValueError as exc:
@@ -1805,8 +1805,8 @@ class FallbackAgents:
                  "sample_notice": SAMPLE_NOTE},
                 {"status": "computed", "age_seconds": 0}, False, {"sample draw": None})
 
-    def _mbti_fortune(self, args, remaining):
-        """fortune.mbti_daily.v1: the four letters fused with the day master's ten god and today's Moon element by the
+    def _personality_fortune(self, args, remaining):
+        """fortune.personality_daily.v1: the four letters fused with the day master's ten god and today's Moon element by the
         fixed tables in mbti.py; checked on every answer by necklaces.mbti_gate.check_mbti_synthesis (which runs the
         fortune gate's check_synthesis and the 16-type notices and axes)."""
         from ..necklaces.mbti_gate import check_mbti_synthesis

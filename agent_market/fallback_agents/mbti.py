@@ -8,7 +8,7 @@ Sample birthday (PM decision): the date lies in (today - (age + 1) years, today 
 on today is exactly AGE; the day is drawn by a reproducible pseudo-random number seeded with
 sha256("mbti-fortune|v1|" + TYPE + "|" + age + "|" + today). The same type, age and day give the same date; another
 day gives another date. February 29 and leap-month dates can be drawn like any other day. A date before 1912 (outside
-the almanac) is refused, never redrawn (persona.mbti_profile.v1 sample_rule; necklaces.mbti_gate checks it apart).
+the almanac) is refused, never redrawn (persona.personality_profile.v1 sample_rule; necklaces.mbti_gate checks it apart).
 """
 from __future__ import annotations
 
@@ -18,10 +18,10 @@ from datetime import date, timedelta
 
 TYPES = frozenset(a + b + c + d for a in "EI" for b in "SN" for c in "TF" for d in "JP")
 SEED_PREFIX = "mbti-fortune|v1|"
-RULES_VERSION = "mbti-fortune-rules-v1"
+RULES_VERSION = "personality-fortune-rules-v1"
 SAMPLE_NOTE = "The birth date is a sample drawn from your age, not your real birthday."
 MAPPING_NOTE = "The 16-type part is our own mapping for fun."
-TRADEMARK_NOTE = "MBTI is a trademark of The Myers-Briggs Company; not affiliated."
+from ..necklaces.mbti_gate import TRADEMARK as TRADEMARK_NOTE   # the gate's closing sentence (PM 11-18 16:47: no trademark name)
 
 
 def normalize_type(text) -> str:
@@ -51,7 +51,7 @@ def sample_range(age: int, today: date) -> tuple[date, date]:
 
 
 def sample_birthday(code: str, age: int, today: date) -> date:
-    """persona.mbti_profile.v1 sample_rule (workflow 11-17): the range's dates in ascending order at index
+    """persona.personality_profile.v1 sample_rule (workflow 11-17): the range's dates in ascending order at index
     int(sha256(...).hexdigest(), 16) mod the range's length; a range outside 1912-2100 is refused, never redrawn."""
     first, last = sample_range(age, today)
     if first < FIRST_DAY or last > LAST_DAY:
