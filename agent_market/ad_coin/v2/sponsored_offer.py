@@ -146,12 +146,24 @@ def facts_block(facts):
                                                        "note": "Measured by AgentValCon; advertising cannot change it."}
 
 
+def card_line(text, limit=LINE_LIMIT):
+    """The reviewed card text as one agent line: whitespace folded, cut at a word boundary within LIMIT."""
+    text = " ".join(str(text or "").split())
+    if len(text) <= limit:
+        return text
+    cut = text[:limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:-")
+    return (cut or text[:limit - 1]) + "\u2026"
+
+
 def agent_block(card, offer, *, category, region, facts=None, paid_by=None):
-    """The `sponsored` object for agent-facing responses, built from a booked card and its approved offer."""
-    return {"label": "Sponsored", "text": PREFIX + offer["line"], "advertiser": card["advertiser"],
+    """The `sponsored` object for agent-facing responses, built from a booked card and, when there is one, its approved
+    offer. PM 11-18 19:28 (A): without an approved offer the line is the card's own reviewed text and `offer` is null,
+    so a booked advertiser appears in necklace, MCP and A2A answers too; the offer only adds the tool to call."""
+    line = offer["line"] if offer else card_line(card.get("text"))
+    return {"label": "Sponsored", "text": PREFIX + line, "advertiser": card["advertiser"],
             "paid_by": paid_by or card["advertiser"], "why_shown": why_shown(category, region),
             "disclosure_url": DISCLOSURE_URL,
-            "offer": {k: offer.get(k, "") for k in ("tool", "endpoint", "price", "free_trial", "sla")},
+            "offer": {k: offer.get(k, "") for k in ("tool", "endpoint", "price", "free_trial", "sla")} if offer else None,
             "facts": facts_block(facts)}
 
 

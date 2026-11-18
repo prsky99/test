@@ -257,3 +257,11 @@ def test_an_a2a_advertise_message_answers_how_to_buy_and_runs_nothing_else(clien
     for other in ('advertisement agencies with an API', 'find an agent that can advertise', 'research sources',
                   'advertise tools for my shop', 'advertise', 'how do I buy a sponsored placement for my client?'):
         assert ad_slot.a2a_advertise(other) is None
+
+
+def test_the_fortune_necklaces_sit_in_the_creative_slot():
+    """PM 11-18 19:28 (B): daily and personality fortune answers match the creative slot (social -> creative)."""
+    from agent_market.ad_coin.v2.sponsored import SITE_CATEGORIES
+    for slug in ('daily-fortune-brief', 'personality-fortune-brief'):
+        ctx = ad_slot.necklace_context('mcp', slug)
+        assert ctx['category'] == 'social' and SITE_CATEGORIES[ctx['category']] == 'creative' and ctx['necklace'] == slug

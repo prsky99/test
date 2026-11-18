@@ -254,9 +254,12 @@ def test_an_offer_whose_endpoint_turns_private_drops_out_at_the_next_refresh(p1_
     provider = AgentOfferProvider(slots_for(p1_suite), clock=lambda: NOW / 1000, url_check=lambda u: verdict['public'])
     ctx = dict(surface='a2a', category='web_search', region='US', counted=False)
     provider.refresh()
-    assert provider(ctx) is not None
+    assert provider(ctx)['offer']['endpoint']
     verdict['public'] = False
-    assert provider.refresh() == 0 and provider(ctx) is None
+    # PM 11-18 19:28 (A): the booked card still shows as its own reviewed line, but the private endpoint is gone
+    assert provider.refresh() == 0
+    shown = provider(ctx)
+    assert shown['offer'] is None and 'mcp.example.org' not in str(shown)
 
 
 def test_ads_library_lists_placements_with_their_offer(p1_suite):  # noqa: F811
@@ -516,3 +519,35 @@ def test_clicks_count_once_per_address_and_minute_and_resolve_no_dns(p1_suite, m
     offer = client.get('/api/ad-coin/v2/sponsored/offer', params={'category': 'web_search'},
                        headers={'CF-IPCountry': 'US', 'Prefer': 'ads=none'}).json()
     assert offer['sponsored']['advertiser'] and 'reason' not in offer             # Prefer: ads=none is ignored
+
+
+def test_a_booked_card_without_an_approved_offer_still_reaches_agent_answers(p1_suite):  # noqa: F811
+    """PM 11-18 19:28 (A): necklace, MCP and A2A answers carry the booked card's reviewed text when no offer is
+    approved; the advertiser name screen (R33) and the sensitive-topic rule still apply; a necklace answer is counted."""
+    from agent_market.ad_coin.v2.sponsored_agent import AgentOfferProvider
+    from scripts.ad_coin_v2_migrate import migrate_agent_ads, migrate_impressions
+    from tests.test_ad_coin_v2_p1 import _activate_campaign
+    from tests.test_ad_coin_v2_sponsored import NOW, book_today, slots_for
+    store = p1_suite.service.store
+    migrate_impressions(store)
+    migrate_agent_ads(store)
+    book_today(p1_suite, _activate_campaign(p1_suite))               # booked and reviewed, no agent offer submitted
+    provider = AgentOfferProvider(slots_for(p1_suite), clock=lambda: NOW / 1000, url_check=lambda u: True)
+    assert provider.refresh() == 0                                   # no offer approved at all
+    for surface in ('mcp', 'a2a'):
+        shown = provider(dict(surface=surface, category='web_search', region='US', counted=False))
+        assert shown and shown['label'] == 'Sponsored' and shown['text'].startswith('Sponsored: ')
+        assert shown['offer'] is None and shown['advertiser'] and len(shown['text']) <= len('Sponsored: ') + 120
+    assert provider(dict(surface='mcp', category='web_search', region='US', counted=False,
+                         task='diagnose my chest pain')) is None                      # sensitive topic: no ad
+    assert provider(dict(surface='rest', category='web_search', region='US', counted=False)) is None
+    provider(dict(surface='mcp', category='web_search', region='US', counted=True, tool='necklace',
+                  necklace='topic-evidence-brief'))
+    assert sum(provider._necklace_served.values()) == 1
+
+
+def test_card_line_keeps_whole_words_within_the_limit():
+    assert so.card_line('  Searches   papers\nby topic. ') == 'Searches papers by topic.'
+    long = 'word ' * 60
+    cut = so.card_line(long)
+    assert len(cut) <= 120 and cut.endswith('\u2026') and not cut[:-1].endswith(' ')

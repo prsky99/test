@@ -22,8 +22,8 @@ from threading import Event, Lock, Thread
 import time
 
 from .sponsored import DAY_MS, SITE_CATEGORIES
-from .sponsored_offer import (AGENT_PLACEMENTS, OfferError, advertiser_name_ok, agent_block, public_endpoint, sensitive,
-                              validate_offer)
+from .sponsored_offer import (AGENT_PLACEMENTS, OfferError, advertiser_name_ok, agent_block, card_line, public_endpoint,
+                              sensitive, validate_offer)
 
 logger = logging.getLogger(__name__)
 REFRESH_SECONDS = 30
@@ -211,11 +211,13 @@ class AgentOfferProvider:
             return None                                  # medical, legal and financial advice topics carry no ad
         category = SITE_CATEGORIES.get(site, site)
         region = str(ctx.get("region") or "").upper()[:2]
-        if category not in self.slots.taxonomy or region not in self.slots.regions or not self._offers:
+        if category not in self.slots.taxonomy or region not in self.slots.regions:
             return None
         for card in self.slots.cards(category, region, rebuild=False):
+            # PM 11-18 19:28 (A): a booked card shows with or without an approved agent offer; the offer only adds
+            # the tool to call. The card text passed campaign review (ad_rules: no steering or imperative wording).
             offer = self._offers.get(card["id"])
-            if offer is None or not advertiser_name_ok(card["advertiser"]):
+            if not advertiser_name_ok(card["advertiser"]) or not (offer or card_line(card.get("text"))):
                 continue                                 # R33: a name that fails the screen never reaches agents
             block = agent_block(card, offer, category=category, region=region)
             block["click_url"] = "/api/ad-coin/v2/sponsored/click/%s?surface=%s&category=%s" % (card["id"], surface, site)

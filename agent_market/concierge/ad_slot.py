@@ -170,6 +170,10 @@ NECKLACE_CATEGORY = {
     'holidays-at-address': 'travel_maps_weather',
     'quakes-near-address': 'travel_maps_weather',
     'quakes-near-airport': 'travel_maps_weather',
+    # PM 11-18 19:28 (B): the two fortune necklaces sit in the creative slot (social -> creative); the sensitive-topic
+    # rule still keeps health, money and gambling ads out of them, as for every answer
+    'daily-fortune-brief': 'social',
+    'personality-fortune-brief': 'social',
 }
 
 
