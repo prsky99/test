@@ -21,7 +21,7 @@ ROLES = {
     # company.profile.v1 (PM 11-16, 53a620cc): one company's filing-based profile, input 'company'; profile names leave
     # company.registry.v1 so one member is not queued under both roles
     'company.profile.v1': {'tools': r'^(?:\w*company_profile|get_company_overview|company_overview|sec_company\w*)$'},
-    'web.grounding.v1': {'tools': r'^(?:ask\w*grounded|grounded_answer|answer_question|web_answer|search_and_answer|ask_web|\w+_web_grounding|\w+_grounding)$'},
+    'web.grounding.v1': {'tools': r'^(?:ask\w*grounded|grounded_answer|web_answer|search_and_answer|ask_web|\w+_web_grounding|\w+_grounding)$'},
     'country.indicator.v1': {'tools': r'^(?:\w*country_indicator\w*|get_indicator|world_bank\w*|worldbank\w*|get_gdp|country_stats|get_country_data|get_country_stats|get_indicators|search_indicators|get_economic_indicators)$'},
     'fx.rate.v1': {'tools': r'^(?:convert|convert_currency|currency_convert\w*|fx_get_rate|get_exchange_rates?|get_rates?|exchange_rate|get_fx_rate|fx_rate)$'},
     'weather.forecast.v1': {'tools': r'^(?:get_forecast|weather_forecast|get_weather|forecast|weather|current_weather|get_weather_forecast)$'},

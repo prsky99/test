@@ -60,9 +60,11 @@ def test_terms_order_within_a_role_and_prohibited_members_never_queued():
 
 def test_grounding_tool_names_reach_the_web_role():
     import role_catalog
-    for name in ('agent_clean_web_grounding', 'aitwire_grounding', 'ask_pipeworx_grounded', 'answer_question'):
+    for name in ('agent_clean_web_grounding', 'aitwire_grounding', 'ask_pipeworx_grounded'):
         assert 'web.grounding.v1' in role_catalog.roles_for_tool(name), name
     assert 'web.grounding.v1' not in role_catalog.roles_for_tool('grounding')
+    # PM 11-18 (Antigravity W1 §15): every answer_question tool was one brand's or one person's FAQ bot, not web grounding
+    assert 'web.grounding.v1' not in role_catalog.roles_for_tool('answer_question')
 
 
 def test_grade_b_trials_are_listed_not_counted(monkeypatch):
