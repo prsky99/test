@@ -269,3 +269,30 @@ def test_an_own_agent_is_shown_by_its_role_never_by_its_internal_id():
     text, _ = ns.details('topic-evidence-brief', snapshot={'necklaces': [entry]}, now=NOW)
     assert 'mbti' not in text and 'avc:' not in text and '- profile: AgentValCon agent, alternates' in text
     assert 'mbti' not in json.dumps(item) and 'avc:' not in json.dumps(item)
+
+
+def test_a_time_limited_own_agent_exception_counts_members_and_shows_its_label_only():
+    """PM 11-18 16:55 (workflow team): entry['own_members'] = {counted, roles, until, label} adds approved own substitutes to the
+    member count until its last day (Asia/Seoul). It never makes a pearl, shows the label on the page and in the API item,
+    and is ignored when it is malformed or past its day."""
+    one = pearl(140112, 'weather')
+    block = {'counted': 1, 'roles': ['a.b.v1'], 'until': '2026-12-18', 'label': 'Built with AgentValCon agents'}
+    entry = necklace('daily-fortune-brief', pearls=[one])                   # one member alone is below the two-member rule
+    assert not ns.offered(entry, NOW)
+    entry['own_members'] = dict(block)
+    assert ns.offered(entry, NOW) and ns.own_members(entry, NOW) == (1, 'Built with AgentValCon agents', '2026-12-18')
+    item = ns.public_item(entry, now=NOW)
+    assert item['own_members'] == {'counted': 1, 'label': 'Built with AgentValCon agents', 'until': '2026-12-18'}
+    assert [p['verified_pearl'] for p in item['pearls']] == [True] and ns.live_count({'necklaces': [entry]}, NOW) == 1
+    status, page = ns.page('daily-fortune-brief', snapshot={'necklaces': [entry]}, now=NOW)
+    assert status == 200 and '<p class="muted necklace-built">Built with AgentValCon agents</p>' in page
+    assert 'verified pearls' not in page.split('necklace-built')[1][:200]        # the label is not a pearl claim
+    # the day is inclusive (Asia/Seoul): 2026-12-18 23:59 KST still counts, 2026-12-19 00:00 KST does not
+    kst = timezone(timedelta(hours=9))
+    assert ns.own_members(entry, datetime(2026, 12, 18, 23, 59, tzinfo=kst))
+    assert ns.own_members(entry, datetime(2026, 12, 19, 0, 0, tzinfo=kst)) is None
+    assert not ns.offered(entry, datetime(2026, 12, 19, 0, 1, tzinfo=kst))
+    for bad in ({'counted': 0}, {'counted': True}, {'counted': 11}, {'label': ''}, {'label': 'x' * 81}, {'until': 'soon'}, {'until': None}):
+        broken = dict(entry, own_members={**block, **bad})
+        assert ns.own_members(broken, NOW) is None and not ns.offered(broken, NOW) and 'own_members' not in ns.public_item(broken, now=NOW)
+    assert 'own_members' not in ns.public_item(necklace('topic-evidence-brief'), now=NOW)

@@ -105,6 +105,23 @@ def preview_tests(entry):
     return None
 
 
+def own_members(entry, now=None):
+    """(counted, label, until) of the time-limited exception for necklaces built with our own agents (PM 11-18 16:55,
+    entry['own_members'] from the judge), or None: a whole number of members 1..10, a label, and a last day (Asia/Seoul)
+    that has not passed. The exception adds to the member count only; it never makes a member a pearl."""
+    block = entry.get('own_members') if isinstance(entry, dict) and isinstance(entry.get('own_members'), dict) else None
+    if not block:
+        return None
+    counted, label, until = block.get('counted'), block.get('label'), block.get('until')
+    if type(counted) is not int or not 1 <= counted <= 10 or type(label) is not str or not 0 < len(label.strip()) <= 80:
+        return None
+    try:
+        last = datetime.strptime(str(until), '%Y-%m-%d').replace(tzinfo=timezone(timedelta(hours=9))) + timedelta(days=1)
+    except ValueError:
+        return None
+    return (counted, label.strip(), str(until)) if (now or datetime.now(timezone.utc)) < last else None
+
+
 def opened(entry):
     """True once the necklace was ever shown as open: it passed the gate, or it runs as a preview (never both claims)."""
     return bool(_time(entry.get('gate_passed_at'))) or (entry.get('status') in ('preview', 'held') and preview_tests(entry) is not None)
@@ -121,7 +138,7 @@ def offered(entry, now=None):
     delta = quality.get('delta_pp')
     # PM 16:03 (user instruction d4670360): two members that answer, verified pearls or provisional ones, as the judge
     # marks them (standing); two verified pearls is the aim, not the condition. The answer gate below is unchanged.
-    members = sum(1 for p in pearls if member_status(p) in MEMBER_LABELS)
+    members = sum(1 for p in pearls if member_status(p) in MEMBER_LABELS) + (own_members(entry, now) or (0,))[0]
     # a preview necklace runs without the gate; it needs recorded test runs instead and never carries a gate claim
     cleared = (bool(_time(entry.get('gate_passed_at'))) if entry.get('status') == 'live' else preview_tests(entry) is not None)
     return (cleared and members >= 2 and all(map(_alternates_ok, pearls))
@@ -478,6 +495,8 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
             'completion': {k: completion.get(k) for k in ('runs', 'completed', 'completed_external_only', 'since', 'retested_at')
                            if completion.get(k) is not None},
             'cost': {k: cost.get(k) for k in ('usdc_per_run', 'p50_ms', 'p95_ms') if cost.get(k) is not None}}
+    if own_members(entry, now):
+        item['own_members'] = dict(zip(('counted', 'label', 'until'), own_members(entry, now)))
     if entry.get('status') == 'preview' or preview_tests(entry):
         item['preview'] = {'note': PREVIEW_NOTE, 'gate_passed': False,
                            **({'tests': {'passed': preview_tests(entry)[0], 'total': preview_tests(entry)[1]}} if preview_tests(entry) else {})}
@@ -1000,6 +1019,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
                                           for l in att['links']) + '.' if att['links'] else '') + '</p>' if att else '')
              +
              '<p class="muted necklace-standing">' + esc(standing_line(entry, now)) + '</p>'
+             + ('<p class="muted necklace-built">' + esc(own_members(entry, now)[1]) + '</p>' if own_members(entry, now) else '')
              + ('<p class="necklace-scope"><strong>Scope:</strong> ' + esc(scope_notice(entry)) + '</p>' if scope_notice(entry) else '')
              + ('<p class="muted necklace-fallback">' + esc(fallback_line(entry)) + '</p>' if fallback_line(entry) else '')
              + ('<p class="necklace-free">' + esc(FREE_NOW) + '</p>' if free_now(entry) and offered(entry, now) else '')
