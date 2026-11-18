@@ -191,3 +191,24 @@ def test_a_preview_necklace_prints_no_accuracy_speed_or_comparison_figure_anywhe
         assert text not in skill['description'], text
     assert 'website-trust' not in ns.llms_section(snapshot=snap, now=now)          # not promoted in the guide text
     assert ns.live(snap, now) == [] and [e['slug'] for e in ns.available(snap, now)] == ['website-trust']
+
+
+def test_a_preview_runs_without_a_delta_or_a_retest_but_not_with_a_stale_one():
+    """Workflow team 17:2x: the judge's preview has quality null (or only tested_at) before the first retest and no positive delta
+    is asked of it. The surface must offer it then; a recorded retest older than the freshness window still stops it; live is unchanged."""
+    from datetime import datetime, timedelta, timezone
+    from tests.test_necklace_surface import necklace
+    now = datetime.now(timezone.utc)
+    block = {'note': 'Preview — test runs in progress', 'gate_passed': False}
+    entry = necklace('website-trust', status='preview', gate_passed_at=None, preview=dict(block), quality=None)
+    assert ns.offered(entry, now) and [e['slug'] for e in ns.available({'necklaces': [entry]}, now)] == ['website-trust']
+    assert ns.live({'necklaces': [entry]}, now) == []
+    fresh = dict(entry, quality={'tested_at': (now - timedelta(hours=3)).isoformat()})
+    stale = dict(entry, quality={'tested_at': (now - timedelta(hours=ns.FRESH_HOURS + 1)).isoformat()})
+    assert ns.offered(fresh, now) and not ns.offered(stale, now)
+    assert not ns.offered(dict(entry, status='held'), now)
+    # live keeps both conditions: a positive delta and a retest inside the window
+    live_entry = necklace('topic-evidence-brief')
+    assert ns.offered(live_entry, now)
+    assert not ns.offered(dict(live_entry, quality={'tested_at': (now - timedelta(hours=3)).isoformat()}), now)
+    assert not ns.offered(dict(live_entry, quality=None), now)

@@ -159,6 +159,12 @@ def offered(entry, now=None):
     members = sum(1 for p in pearls if member_status(p) in MEMBER_LABELS) + (own_members(entry, now) or (0,))[0]
     # a preview necklace runs without the gate; the judge's preview block (gate_passed false) stands in for it and never carries a gate claim
     cleared = (bool(_time(entry.get('gate_passed_at'))) if entry.get('status') == 'live' else has_preview(entry))
+    if entry.get('status') == 'preview':
+        # PM 17:3x (workflow team): the judge does not ask a preview for a positive delta and leaves quality empty before the first
+        # retest (it holds a preview itself after 72 hours without one and when the retest goes stale), so the surface only
+        # refuses a preview whose recorded retest is older than the freshness window.
+        recent = tested is None or now - tested <= timedelta(hours=FRESH_HOURS)
+        return cleared and members >= 2 and all(map(_alternates_ok, pearls)) and recent
     return (cleared and members >= 2 and all(map(_alternates_ok, pearls))
             and isinstance(delta, (int, float)) and delta > 0
             and tested is not None and now - tested <= timedelta(hours=FRESH_HOURS))
