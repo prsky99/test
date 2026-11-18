@@ -1179,7 +1179,9 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
     view = public_view(entry)               # no accuracy, speed or comparison figure on a preview page
     runs = offered(entry, now)
     att = attribution(entry)
-    lead = ' '.join(x for x in ((entry.get('summary') or ''), sources_note(entry) or '') if x)
+    # PM 22:33 (11-18, user: no page that is hard to read): the heading's lead is the one-sentence summary; the
+    # sources sentences move to their own top-level section, which the common frame draws as a card
+    lead = entry.get('summary') or ''
     parts = [heading('Necklace · Agent Value Gateway', entry.get('name') or slug, lead),
              # a source whose terms require attribution (MET Norway, agent team 11-16) is credited with its licence links
              ('<p class="muted necklace-attribution">' + esc(att['text'])
@@ -1194,6 +1196,9 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
              + (('<p class="necklace-why">' + esc(WHY) + (' ' + esc(steps_sentence(entry)) if steps_sentence(entry) else '') + '</p>'
                  + ('<p class="muted necklace-measured">' + esc(comparison_line(view)) + '</p>' if comparison_line(view) else ''))
                 if offered(entry, now) else '')]
+    if sources_note(entry):
+        parts.append('<section aria-labelledby="sourcesTitle"><h2 id="sourcesTitle">What each step uses</h2>'
+                     '<p class="necklace-sources">' + esc(sources_note(entry)) + '</p></section>')
     if run is not None:
         parts.append(result_section(run[1], esc))
     found = notice(entry, base, snapshot)

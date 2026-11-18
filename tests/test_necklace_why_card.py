@@ -98,6 +98,10 @@ def test_the_sources_sentence_follows_the_summary_where_one_is_kept(snapshot, mo
     assert ns.shown_summary(entry) == (entry.get('summary') or '') + ' What each step uses: Wikipedia only.'
     status, page = ns.page(entry['slug'], snapshot=snapshot, now=NOW)
     assert 'What each step uses: Wikipedia only.' in page
+    # PM 22:33: the heading's lead is the summary alone; the sources sentence has its own top-level section
+    import re
+    assert 'What each step uses' not in re.search(r'<p class="lead">(.*?)</p>', page).group(1)
+    assert '<h2 id="sourcesTitle">What each step uses</h2><p class="necklace-sources">What each step uses: Wikipedia only.</p>' in page
     assert 'What each step uses: Wikipedia only.' in ns.llms_section(snapshot=snapshot, now=NOW)
     assert ns.public_item(entry, now=NOW)['sources'] == 'What each step uses: Wikipedia only.'
     other = {**entry, 'slug': 'no-note'}
