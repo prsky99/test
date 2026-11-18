@@ -1,7 +1,7 @@
 {
   "slug": "website-trust-brief",
   "version": 2,
-  "status": "candidate",
+  "status": "preview",
   "name": "Website trust brief",
   "summary": "A trust brief on one domain: when it was registered, its SPF and DMARC mail records, its TLS certificate, and (optional) whether AI crawlers may read it.",
   "input_schema": {
