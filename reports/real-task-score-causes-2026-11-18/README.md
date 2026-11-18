@@ -20,7 +20,7 @@ PM 지시: 과제마다 실패 원인과 맡을 팀을 한 표로(11-19 09:00까
 | p09 requests 최신 버전 | 35565 Vigía(mcp) `find_compatible_version` | call_failed | `INVALID_INPUT`(ecosystem·name만 넣음, 필수 칸 부족) | **통과**(package_status) | **새 실패.** 추천 도구가 바뀌어 채울 수 없는 필수 칸이 있는 도구를 골랐다 | 에이전트 팀 | 승인된 수정 ae86e206("채울 수 없는 도구는 양보")이 개발 브랜치에 없다. 올리도록 에이전트 팀에 요청함(20:2x) |
 | p11 에펠탑 좌표 | 214764 Faceabot Geocoding(mcp) | terms_prohibits | 약관 판정 `prohibits`(11-16, "상업 이용 불명확"), 후보 2번 241601은 **최종 진주·silent** | **통과**(호출함) | 채점 방식 변경 + 순위: 호출 금지 멤버가 1순위 | 검색과 RAG(순위), 에이전트 팀(판정) | 같은 과제에 허용된 진주가 있으면 prohibits 멤버보다 앞에 둔다. 판정이 "애매→prohibits" 규칙이라, Faceabot 약관을 사용자가 허용 쪽으로 보면 판정만 바꾸면 해결 |
 | p13 뉴욕·서울 현재 시각 | 87169 ArgonautWorks Bounty Signal(a2a) `Find Meeting Overlap` | paid_or_auth_required | 응답이 유료 플랜·키·로그인을 요구. 시각 질문과 도구 이름도 안 맞음 | 같음 | 주제 불일치 + 인증 요구 | 검색과 RAG | 인증 요구가 확인된 멤버를 내리고 시각·시간대 도구를 가진 후보로. 후보 67762·451740 확인 필요 |
-| p15 YouTube 자막 API | 100769 MnogoReels(mcp) | listing_only | 호출 안 함: 유료·키 필요한 출처(free_check false). 후보가 1개뿐 | 같음 | 무료로 풀 수 있는 후보가 없음 | PM 결정 | 이 과제를 점수에서 "풀 수 없음"으로 빼거나(근거 필요), 무료 대안을 수집. 임의로 빼지 않는다 |
+| p15 YouTube 자막 API | 100769 MnogoReels(mcp) | listing_only | 호출 안 함: 유료·키 필요한 출처(free_check false). 후보가 1개뿐 | 같음 | **free_candidate_missing**(무료 후보 없음) | PM 결정(11-18 20:2x): 점수에서 빼지 않는다, 안티그래비티 씨앗 우선순위에 무료 후보 찾기 | 원인 칸에 `free_candidate_missing`으로 따로 표시. 사용자가 실제로 묻는 일이라 빼면 점수를 꾸미는 것 |
 | a01 PDF→텍스트 | 45424 convertfilefast(mcp) | bad_answer | 응답 "Conversion '03762-to-txt' is not supported": 주소 `…/pdf/1706.03762`를 제공자가 `.03762` 확장자로 읽음 | 같음 | 인자 모양: 주소 끝이 확장자처럼 해석된 것으로 보임(추정, 제공자 응답 문구에서 읽음) | 에이전트 팀(채점기 인자 채움) | 파일 주소가 `.pdf`로 끝나게 채우는지 확인. 후보 287230·287292는 아직 안 쓰임 |
 | a06 arXiv 초록 | 325037 Scigantic(mcp) `lookup_paper` | call_failed | `tool_changed`(제공자가 도구를 바꿈, 재시도 불가) | **통과** | **새 실패.** 제공자 쪽 변경 + 우리 도구 목록이 낡음 | 운영·SRE(재조사), 검색과 RAG(순위) | 해당 멤버를 다시 조사해 도구 정의를 갱신. 후보 2번 241601은 최종 진주(silent)라 1순위 후보로 가능 |
 | a07 티커·시세 | 58199 Chain of Title(mcp) `search_ticker_or_name` | call_failed | `INVALID_INPUT`, 인자가 `{"kind":"ticker"}`뿐(검색어 칸 비어 있음) | 같음 | 인자 채움 실패 | 에이전트 팀(채점기 인자 채움, ae86e206 계열) | 회사명을 검색어 칸에 채우는 규칙. 채울 수 없으면 양보 |
@@ -36,5 +36,8 @@ PM 지시: 과제마다 실패 원인과 맡을 팀을 한 표로(11-19 09:00까
 - 이 표의 "할 일"은 원인을 가린 것이지 고친 것이 아니다. 새 호출로 재현한 것도 아니다.
 
 ## 3. 21:10 약관 중계 차단 뒤 비교 (다음 회차 뒤 채움)
+- **다음 회차:** real_task_score는 하루 두 번(밤 04~05시, 오후 15~17시) `ops_auto watch`가 heavy_slot으로 시작한다(reports/real-task-score/README.md, 11-12 PM). 21:10 배포 뒤 첫 회차는 **11-19 04~05시(KST)**이고, 그 파일(`2026-11-19-04xx.json`)로 이 절을 채운다. 채점기는 그 전에 `42b6aea0`(= ae86e206, p09 채울 수 없는 도구는 양보)이 올라가면 그 변경 뒤 결과가 된다(에이전트 팀이 21:11 시험 뒤 푸시 예정).
+- PM 예상: p11·a10(prohibits 1순위)은 약관 중계 차단 325a5bec(prohibits를 뒤로 미는 순위)으로 풀릴 가능성이 크다. 다음 회차에서 확인한다.
+- 공통 순위 규칙 제안은 검색과 RAG로 넘김(selection.py는 정책 해시 파일이라 밤 창이나 예외 인자로만 배포).
 - 배포 전 기준은 15:12(18/30, terms_prohibits 3). 다음 회차 파일이 나오면 같은 표로 과제별 변화를 이 절에 적는다. 약관 중계 차단으로 terms_prohibits가 늘 수 있는 과제는 추천 1순위가 `prohibits`·미판정인 과제(p11, a05, a10와 같은 Faceabot 계열, 그리고 판정이 없는 p04·p09·a07 등의 1순위 멤버)다.
 - 비교할 것: 점수, 원인 분포, 1순위 멤버가 바뀐 과제, terms_prohibits가 된 과제 목록.
