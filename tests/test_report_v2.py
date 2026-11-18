@@ -304,6 +304,7 @@ def test_our_own_error_on_one_candidate_never_stops_the_run(tmp_path, monkeypatc
     import role_tool_test as RT
     monkeypatch.setattr(PB, 'STATE_DIR', tmp_path / 'state')
     monkeypatch.setattr(V, 'quiet_now', lambda: True)
+    monkeypatch.setattr(V, 'loaded', lambda: False)
     monkeypatch.setattr(RT, 'resources', lambda ids: {})
     calls = []
 

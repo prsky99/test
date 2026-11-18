@@ -91,6 +91,7 @@ def test_each_window_gets_its_own_120_and_the_day_stops_at_360(monkeypatch):
     monkeypatch.setitem(sys.modules, 'role_tool_test', types.SimpleNamespace(
         resources=lambda ids: {}, test_one=lambda http, c, r, p: calls.append(c['id']) or {'outcome': 'failed'}))
     monkeypatch.setattr(V, 'quiet_now', lambda: True)
+    monkeypatch.setattr(V, 'loaded', lambda: False)
     monkeypatch.setattr(V, 'save_once_more', lambda result: True)
     monkeypatch.setattr(V, 'case_for', lambda role: None)
     monkeypatch.setattr(V, 'window_number', lambda now=None: 3)
@@ -265,3 +266,111 @@ def test_the_final_pearl_is_the_best_verified_member_and_a_first_day_leader_is_p
     days.update({37811: 0, 436744: 0})                      # no qualifying day: the best confirmed member below it
     role = V.rank([confirmed, fresh, second])['website.ai_readiness.v1']
     assert role['final_pearl'] == 132732 and role['provisional_pearl'] is None
+
+
+def test_a_window_waits_while_the_load_is_high_and_then_runs(monkeypatch):
+    # PM 11-18 21:25: eight windows a day; at load 9.0 or more a window waits (it is not skipped)
+    FakePacer.state = {'role_tests': 0, 'new_tests': 0, 'retests': 0, 'refusals': 0}
+    calls, loads, slept = [], [True, True, False], []
+    monkeypatch.setitem(sys.modules, 'pearl_batch', types.SimpleNamespace(Pacer=FakePacer, STATE_DIR=None))
+    monkeypatch.setitem(sys.modules, 'role_tool_test', types.SimpleNamespace(
+        resources=lambda ids: {}, test_one=lambda http, c, r, p: calls.append(c['id']) or {'outcome': 'failed'}))
+    monkeypatch.setattr(V, 'quiet_now', lambda: True)
+    monkeypatch.setattr(V, 'loaded', lambda: loads.pop(0) if loads else False)
+    monkeypatch.setattr(V.time, 'sleep', lambda s: slept.append(s))
+    monkeypatch.setattr(V, 'save_once_more', lambda result: True)
+    monkeypatch.setattr(V, 'case_for', lambda role: None)
+    monkeypatch.setattr(V, 'window_number', lambda now=None: 8)
+    V.run([{'role': 'fx.rate.v1', 'id': 1, 'tool': 't', 'kind': 'new'}])
+    assert calls == [1] and slept == [30, 30]
+
+
+def test_loaded_reads_the_one_minute_load(monkeypatch):
+    import os
+    monkeypatch.setattr(os, 'getloadavg', lambda: (9.0, 1.0, 1.0))
+    assert V.loaded()
+    monkeypatch.setattr(os, 'getloadavg', lambda: (8.99, 12.0, 12.0))
+    assert not V.loaded()
+
+
+def test_after_15_minutes_of_load_a_window_runs_with_40_new_and_its_retests(monkeypatch, capsys):
+    # PM 11-18 21:28: no endless wait; at load 9.0 or more past 15 minutes the window cuts its new candidates to 40
+    FakePacer.state = {'role_tests': 0, 'new_tests': 0, 'retests': 0, 'refusals': 0}
+    calls, slept = [], []
+    monkeypatch.setitem(sys.modules, 'pearl_batch', types.SimpleNamespace(Pacer=FakePacer, STATE_DIR=None))
+    monkeypatch.setitem(sys.modules, 'role_tool_test', types.SimpleNamespace(
+        resources=lambda ids: {}, test_one=lambda http, c, r, p: calls.append(c['id']) or {'outcome': 'failed'}))
+    monkeypatch.setattr(V, 'quiet_now', lambda: True)
+    monkeypatch.setattr(V, 'loaded', lambda: True)                 # the load never comes down
+    monkeypatch.setattr(V.time, 'sleep', lambda s: slept.append(s))
+    monkeypatch.setattr(V, 'save_once_more', lambda result: True)
+    monkeypatch.setattr(V, 'case_for', lambda role: None)
+    monkeypatch.setattr(V, 'window_number', lambda now=None: 8)
+    queue = [{'role': 'fx.rate.v1', 'id': i, 'tool': 't', 'kind': 'retest' if i < 30 else 'new'} for i in range(200)]
+    errors = V.run(queue)
+    assert sum(slept) == V.LOAD_WAIT_MAX                           # 15 minutes, then no more waiting
+    assert len([i for i in calls if i < 30]) == V.RETEST_A_DAY      # retests unchanged
+    assert len([i for i in calls if i >= 30]) == V.LOAD_NEW_CAP     # new candidates cut to 40
+    assert errors['load_reduced'] is not None and FakePacer.state['windows']['8']['load_reduced'] == errors['load_reduced']
+    assert 'this window runs with 40 new candidates' in capsys.readouterr().err
+
+
+def test_queued_seeds_come_from_their_day_on_and_only_when_eligible(tmp_path):
+    # PM 11-18 20:55: Antigravity's eligible seeds reach the queue (23:12 queued 71 of 100 new from the old seed file only)
+    import json
+    rows = [{'role': 'tls.certificate.v1', 'resource_id': 1, 'tool': 't', 'host': 'a.com', 'terms': 'allowed', 'fit': 'yes', 'queue_day': '11-19'},
+            {'role': 'tls.certificate.v1', 'resource_id': 2, 'tool': 't', 'host': 'b.com', 'terms': 'silent', 'fit': 'yes', 'queue_day': '11-20'},
+            {'role': 'tls.certificate.v1', 'resource_id': 3, 'tool': 't', 'host': 'c.com', 'terms': 'unknown', 'fit': 'yes', 'queue_day': '11-19'},
+            {'role': 'tls.certificate.v1', 'resource_id': 4, 'tool': 't', 'host': 'd.com', 'terms': 'allowed', 'fit': 'unclear', 'queue_day': '11-19'},
+            {'role': 'tls.certificate.v1', 'resource_id': 5, 'tool': 't', 'host': 'e.com', 'terms': 'allowed', 'fit': 'yes'}]
+    path = tmp_path / 'seed_queue.json'
+    path.write_text(json.dumps({'seeds': rows}))
+    on_19 = time.mktime((2026, 11, 19, 7, 12, 0, 0, 0, -1))
+    # PM 23:16: every eligible seed now (allowed or silent, fit yes); queue_day pacing only when asked
+    assert [s['id'] for s in V.queued_seeds(path, now=on_19)] == [1, 2, 5]
+    assert V.queued_seeds(path, now=on_19)[0] == {'role': 'tls.certificate.v1', 'id': 1, 'tool': 't', 'host': 'a.com', 'priority': 9}
+    assert [s['id'] for s in V.queued_seeds(path, now=on_19, by_day=True)] == [1, 5]
+    assert [s['id'] for s in V.queued_seeds(path, now=on_19 + V.DAY, by_day=True)] == [1, 2, 5]
+    assert V.queued_seeds(tmp_path / 'missing.json') == []
+
+
+def test_a_seed_whose_role_has_no_task_waits(tmp_path):
+    import json
+    rows = [{'role': 'tls.certificate.v1', 'resource_id': 1, 'tool': 't', 'terms': 'allowed', 'fit': 'yes', 'queue_day': '11-19'},
+            {'role': 'no.such.role.v1', 'resource_id': 2, 'tool': 't', 'terms': 'allowed', 'fit': 'yes', 'queue_day': '11-19'}]
+    path = tmp_path / 'seed_queue.json'
+    path.write_text(json.dumps({'seeds': rows}))
+    assert [s['id'] for s in V.queued_seeds(path, now=time.mktime((2026, 11, 19, 7, 12, 0, 0, 0, -1)))] == [1]
+
+
+def test_seeds_fill_the_new_slots_first_in_priority_order(monkeypatch):
+    # PM 11-18 23:16: Antigravity's eligible seeds first (PRIORITY_ROLES order), then A-grade catalog candidates; a seed
+    # already tested, tested today or prohibited is left out, and the same member is never queued twice
+    monkeypatch.setattr(V, 'latest_versions', lambda: [version(9, 'news.search.v1')])
+    monkeypatch.setattr(V, 'retest_queue', lambda vs, **_: [])
+    monkeypatch.setattr(V, 'rejudge_queue', lambda *a, **k: [])
+    monkeypatch.setattr(V, 'rank', lambda vs: {})
+    monkeypatch.setattr(V, 'member_terms', lambda: {8: 'prohibits'})
+    monkeypatch.setattr(V, 'first_picks', lambda *a, **k: [])
+    monkeypatch.setattr(V, 'catalog_candidates', lambda: [('weather.forecast.v1', 100 + n, 't', f'w{n}.example') for n in range(3)]
+                        + [('news.search.v1', 7, 't', 's7.example')])
+    monkeypatch.setattr(V, 'queued_seeds', lambda: [
+        {'role': 'news.search.v1', 'id': 7, 'tool': 't', 'host': 's7.example', 'priority': 1},   # P1, also a catalog candidate
+        {'role': 'company.profile.v1', 'id': 6, 'tool': 't', 'host': 's6.example', 'priority': 2},  # P2 though first in PRIORITY_ROLES
+        {'role': 'company.profile.v1', 'id': 5, 'tool': 't', 'host': 's5.example', 'priority': 1},  # P1 and first role
+        {'role': 'news.search.v1', 'id': 9, 'tool': 't', 'host': 's9.example'},          # tested already
+        {'role': 'news.search.v1', 'id': 8, 'tool': 't', 'host': 's8.example'}])         # prohibited
+    q = V.build_queue(seed_file='/nonexistent.json', budget_dir=None)
+    new = [(x['id'], x.get('seed')) for x in q if x['kind'] == 'new']
+    assert new[:3] == [(5, 'antigravity'), (7, 'antigravity'), (6, 'antigravity')]   # P1 (role order within), then P2
+    assert [i for i, _ in new].count(7) == 1 and 9 not in [i for i, _ in new] and 8 not in [i for i, _ in new]
+    assert {100, 101, 102} <= {i for i, _ in new[3:]}
+
+
+def test_queued_seeds_put_antigravity_priority_1_first(tmp_path):
+    import json
+    rows = [{'role': 'tls.certificate.v1', 'resource_id': i, 'tool': 't', 'terms': 'allowed', 'fit': 'yes', 'priority': p}
+            for i, p in ((1, 3), (2, 1), (3, 2), (4, 1))]
+    path = tmp_path / 'seed_queue.json'
+    path.write_text(json.dumps({'seeds': rows}))
+    assert [s['id'] for s in V.queued_seeds(path)] == [2, 4, 3, 1]

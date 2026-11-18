@@ -144,6 +144,7 @@ def test_r08_our_side_skips_are_not_stored_and_failures_come_back(monkeypatch, t
     import role_tool_test as RT
     monkeypatch.setattr(PB, 'STATE_DIR', tmp_path / 'state')
     monkeypatch.setattr(V, 'quiet_now', lambda: True)
+    monkeypatch.setattr(V, 'loaded', lambda: False)
     monkeypatch.setattr(RT, 'resources', lambda ids: {})
     monkeypatch.setattr(RT, 'test_one', lambda http, c, r, p: {**c, 'host': 'fx.example', 'outcome': 'skipped',
                                                               'reason': 'provider limit for today', 'started': time.time()})
@@ -164,6 +165,7 @@ def test_r15_one_storage_error_never_stops_the_run(monkeypatch, tmp_path):
     import role_tool_test as RT
     monkeypatch.setattr(PB, 'STATE_DIR', tmp_path / 'state')
     monkeypatch.setattr(V, 'quiet_now', lambda: True)
+    monkeypatch.setattr(V, 'loaded', lambda: False)
     monkeypatch.setattr(V.time, 'sleep', lambda seconds: None)
     monkeypatch.setattr(RT, 'resources', lambda ids: {})
     monkeypatch.setattr(RT, 'test_one', lambda http, c, r, p: {**c, 'tool': 'convert', 'host': 'fx.example',

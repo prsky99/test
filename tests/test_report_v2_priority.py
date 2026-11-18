@@ -93,6 +93,7 @@ def test_build_queue_never_retests_a_member_whose_terms_prohibit(monkeypatch):
                                                               {'role': 'web.grounding.v1', 'id': 7, 'kind': 'retest'}])
     monkeypatch.setattr(V, 'catalog_candidates', lambda: [])
     monkeypatch.setattr(V, 'member_terms', lambda: {50972: 'prohibits'})
+    monkeypatch.setattr(V, 'queued_seeds', lambda: [])              # the repo's Antigravity seed queue is not under test
     q = V.build_queue(seed_file='/nonexistent.json')
     assert [x['id'] for x in q] == [7]
 
@@ -184,6 +185,7 @@ def test_old_verdicts_are_rejudged_from_the_new_budget_in_demand_order(monkeypat
     monkeypatch.setattr(V, 'rank', lambda vs: {})          # these short records carry no ranking fields
     monkeypatch.setattr(V, 'catalog_candidates', lambda: [('news.search.v1', 100 + n, 't', f'n{n}.example') for n in range(90)])
     monkeypatch.setattr(V, 'member_terms', lambda: {})
+    monkeypatch.setattr(V, 'queued_seeds', lambda: [])              # the repo's Antigravity seed queue is not under test
     q = V.build_queue(seed_file='/nonexistent.json')
     assert sum(x['kind'] == 'rejudge' for x in q) == 5 and sum(x['kind'] == 'new' for x in q) <= V.NEW_A_DAY * V.STANDBY // 2 - 5   # run() stops at the cap; the rest stand by
 

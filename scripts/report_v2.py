@@ -150,6 +150,21 @@ def quiet_now(now=None):
     return not (t.tm_min >= 55 or t.tm_min < 10 or 230 <= minutes < 310)
 
 
+LOAD_LIMIT = 9.0   # PM 11-18 21:25: a window waits while the 1-minute load is at or above this (the test wrappers' day mark)
+LOAD_WAIT_MAX = 900   # PM 11-18 21:28: at most 15 minutes of load waiting a window (no endless wait, 11-17 rule) ...
+LOAD_NEW_CAP = 40     # ... then the window runs with 40 new candidates (retests unchanged) and says so
+
+
+def loaded():
+    """True while the Mac's 1-minute load is at or above LOAD_LIMIT: the public site needs the CPU (eight windows a day
+    from 11-18 21:00, some next to the night tests or a regeneration). The window waits; it is not skipped."""
+    import os
+    try:
+        return os.getloadavg()[0] >= LOAD_LIMIT
+    except OSError:
+        return False
+
+
 def role_tasks_rag():
     from agent_market.necklaces import role_tasks
     return role_tasks.load(RAG_TASKS) if RAG_TASKS.exists() else []
@@ -1614,6 +1629,31 @@ def new_queue(versions, candidates, seeds=(), limit=NEW_A_DAY, per_host=3, prior
     return out
 
 
+SEED_QUEUE = ROOT / 'reports/pearl-scout-2026-11-17/seed_queue.json'
+
+
+def queued_seeds(path=None, now=None, by_day=False):
+    """(PM 11-18 20:55 and 23:16, user: confirm the pearl candidates fast) Antigravity's eligible seeds: fit yes and terms
+    allowed or silent only, as {role, id, tool, host, priority}, Antigravity's priority 1 first. All of them from now on (eight windows test 800 new a day); BY_DAY
+    keeps Antigravity's queue_day pacing (a seed from its MM-DD on, one without a day at once). The 23:12 window queued 71 new of
+    100 because only the 11-15 seed file was read; these come first in their roles. A seed whose role has no role task
+    yet (fortune, crypto.price, ... on 11-19) waits until it has one."""
+    try:
+        rows = json.loads(Path(path or SEED_QUEUE).read_text()).get('seeds') or []
+    except (OSError, ValueError, AttributeError):
+        return []
+    today = time.strftime('%m-%d', time.localtime(now))
+    out = []
+    for r in rows:
+        day, rid = r.get('queue_day'), r.get('resource_id', r.get('id'))
+        if (isinstance(r, dict) and r.get('fit') == 'yes' and r.get('terms') in ('allowed', 'silent') and type(rid) is int
+                and (day is None or (isinstance(day, str) and day <= today) or not by_day) and r.get('role') and r.get('tool')
+                and case_for(r['role'], day=0) is not None):       # a role without a task cannot be judged: not called
+            priority = r.get('priority') if isinstance(r.get('priority'), int) and not isinstance(r.get('priority'), bool) else 9
+            out.append({'role': r['role'], 'id': rid, 'tool': r['tool'], 'host': r.get('host'), 'priority': priority})
+    return sorted(out, key=lambda x: x['priority'])          # stable: Antigravity's P1 first, its own order within
+
+
 def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115.json', budget_dir=None):
     versions = latest_versions()
     try:
@@ -1633,14 +1673,26 @@ def build_queue(seed_file=ROOT / 'reports/pearls-2026-11-14/role_candidates_1115
     rejudge = rejudge_queue(versions, {(x['id'], canonical(x['role'])) for x in retests} | today, terms, ranks=ranks,
                             limit=10 ** 6)
     new = new_queue(versions, candidates, seeds, limit=10 ** 6, terms=terms, priority=queue_priority(versions, ranked, terms=terms))
-    new = first_picks(candidates, terms, today, tested={(v['resource_id'], canonical(v['role'])) for v in versions}) + new
+    tested = {(v['resource_id'], canonical(v['role'])) for v in versions}
+    # PM 11-18 23:16 and 23:18 (user: confirm the found candidates fast): Antigravity's eligible seeds fill the new slots
+    # first, its priority 1 before 2 (PRIORITY_ROLES order within one), then the A-grade catalog candidates; the provider
+    # protections (one domain a window,
+    # the ledger shares) still apply in fit_budget.
+    order = {r: i for i, r in enumerate(PRIORITY_ROLES)}
+    seeded = [{'role': canonical(x['role']), 'id': x['id'], 'tool': x['tool'], 'kind': 'new', 'seed': 'antigravity'}
+              for x in sorted(queued_seeds(), key=lambda x: (x.get('priority', 9), order.get(canonical(x['role']), len(order))))
+              if (x['id'], canonical(x['role'])) not in tested | today and terms.get(x['id']) != 'prohibits']
+    seen = set()
+    seeded = [x for x in seeded if (x['id'], x['role']) not in seen and not seen.add((x['id'], x['role']))]
+    new = first_picks(candidates, terms, today, tested=tested) + seeded + \
+        [x for x in new if (x['id'], canonical(x['role'])) not in seen]
     # PM 11-16 20:2x: a first pick already tested comes back first among the retests (84607's second day)
     picked = pick_ids()
     retests = [x for x in retests if (x['id'], canonical(x['role'])) in picked] + \
         [x for x in retests if (x['id'], canonical(x['role'])) not in picked]
     hosts = {(v['resource_id'], v['tool']): v.get('host') for v in versions}
     hosts.update({(rid, tool): host for _, rid, tool, host in candidates})
-    hosts.update({(s_['id'], s_['tool']): s_.get('host') for s_ in seeds if s_.get('host')})
+    hosts.update({(s_['id'], s_['tool']): s_.get('host') for s_ in seeds + queued_seeds() if s_.get('host')})
     return fit_budget(retests, rejudge, new, hosts, budget_dir)
 
 
@@ -1788,6 +1840,7 @@ def run(queue):
     pacer.save()
     found = resources({c['id'] for c in queue})
     errors = {'our_errors': 0, 'save_errors': 0}
+    load_waited, reduced = 0, None   # seconds waited for the load; the load when the window cut its new candidates
     with httpx.Client(follow_redirects=False) as http:
         for candidate in queue:
             tests = pacer.state['role_tests']
@@ -1796,10 +1849,33 @@ def run(queue):
                 break
             kind = 'retests' if candidate.get('kind') == 'retest' else 'new_tests'
             cap = RETEST_A_DAY if kind == 'retests' else NEW_A_DAY
-            if pacer.state[kind] - start[kind] >= cap or pacer.state[kind] >= cap * WINDOWS_A_DAY:
+
+            def full():
+                window_cap = min(cap, LOAD_NEW_CAP) if kind == 'new_tests' and reduced is not None else cap
+                return pacer.state[kind] - start[kind] >= window_cap or pacer.state[kind] >= cap * WINDOWS_A_DAY
+            if full():
                 continue
-            while not quiet_now():
+            waited = False
+            while True:                         # measurement windows, then the load (at most LOAD_WAIT_MAX a window)
+                busy = reduced is None and loaded()
+                if busy and load_waited >= LOAD_WAIT_MAX:
+                    import os
+                    reduced = round(os.getloadavg()[0], 1)
+                    errors['load_reduced'] = reduced
+                    pacer.state['windows'][window]['load_reduced'] = reduced
+                    pacer.save()
+                    print(f'role tests: load {reduced} after {LOAD_WAIT_MAX // 60} minutes of waiting; this window runs with '
+                          f'{LOAD_NEW_CAP} new candidates (retests unchanged)', file=sys.stderr)
+                    busy = False
+                if quiet_now() and not busy:
+                    break
+                if busy and not waited:
+                    print(f'role tests wait: load at or above {LOAD_LIMIT}', file=sys.stderr)
+                    waited = True
                 time.sleep(30)
+                load_waited += 30 if busy else 0
+            if full():                          # the window cut its new candidates while this one waited
+                continue
             candidate = {**candidate, 'role': short(canonical(candidate['role'])) if canonical(candidate['role']) in SHORT else
                          canonical(candidate['role']), 'case': case_for(candidate['role'])}
             try:
