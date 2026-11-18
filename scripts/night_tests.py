@@ -47,7 +47,7 @@ ROOT = repo_root()
 OUT = ROOT / 'logs/ops/night-tests'
 LOG = ROOT / 'logs/ops/night-tests.jsonl'
 STATE = ROOT / 'logs/ops/night-tests-state.json'
-TIMEOUT_S = 90 * 60     # PM 11-17 night: 50 min timed out three nights running (11-15..11-17), no result at all
+TIMEOUT_S = 75 * 60     # PM 11-17 night: 50 min timed out three nights running; 90 min then 75 (PM 11-18: start 22:40, end 23:55)
 INTERRUPT_GRACE_S = 120 # after the limit pytest gets SIGINT and this long to write the partial JUnit XML
 STALE_DAYS = 2
 TEST_NICE = 15
@@ -193,6 +193,27 @@ def pin_worktree(root, sha):
     return folder / 'tree'
 
 
+def keep_test_records(root, tree):
+    """The pinned checkout has its own gateway-data/test-report-out (the redirect log, the outside-network log with its
+    report-mode attempts): append the logs to the shared tree's folder and copy other files that are not there yet,
+    before the checkout goes (PM 11-18: tonight's first outside-network records must survive)."""
+    source = Path(tree) / 'gateway-data' / 'test-report-out'
+    if not source.is_dir():
+        return
+    target = Path(root) / 'gateway-data' / 'test-report-out'
+    target.mkdir(parents=True, exist_ok=True)
+    for path in sorted(source.rglob('*')):
+        if not path.is_file():
+            continue
+        destination = target / path.relative_to(source)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        if path.suffix == '.log':
+            with destination.open('a', encoding='utf-8') as out:
+                out.write(path.read_text(encoding='utf-8', errors='replace'))
+        elif not destination.exists():
+            destination.write_bytes(path.read_bytes())
+
+
 def drop_worktree(root, tree):
     """Remove the pinned checkout and its folder (also when the run failed)."""
     if tree is None:
@@ -222,21 +243,27 @@ def run(now=None) -> int:
     started = time.time()
     before = machine()
     partial = False
-    proc = subprocess.Popen(cmd, cwd=tree, env=clean_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                            preexec_fn=at_test_nice)
     try:
-        stdout, _ = proc.communicate(timeout=TIMEOUT_S)
-    except subprocess.TimeoutExpired:
-        # PM 11-17: on the limit, interrupt like Ctrl-C so pytest still writes the JUnit XML and the durations of what
-        # ran; the record is marked partial. A pytest that does not stop within the grace period is killed.
-        partial = True
-        proc.send_signal(signal.SIGINT)
+        proc = subprocess.Popen(cmd, cwd=tree, env=clean_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, preexec_fn=at_test_nice)
         try:
-            stdout, _ = proc.communicate(timeout=INTERRUPT_GRACE_S)
+            stdout, _ = proc.communicate(timeout=TIMEOUT_S)
         except subprocess.TimeoutExpired:
-            proc.kill()
-            stdout, _ = proc.communicate()
-    drop_worktree(ROOT, tree)
+            # PM 11-17: on the limit, interrupt like Ctrl-C so pytest still writes the JUnit XML and the durations of
+            # what ran; the record is marked partial. A pytest that does not stop within the grace period is killed.
+            partial = True
+            proc.send_signal(signal.SIGINT)
+            try:
+                stdout, _ = proc.communicate(timeout=INTERRUPT_GRACE_S)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                stdout, _ = proc.communicate()
+    finally:
+        # any exception (a failed Popen, a signal) still removes the worktree and its /private/tmp folder (PM 11-18)
+        try:
+            keep_test_records(ROOT, tree)
+        finally:
+            drop_worktree(ROOT, tree)
     lines = (stdout or '').strip().splitlines()
     tail = ['timeout'] if partial and not xml.is_file() else (lines[-1:] or [''])
     slowest = slowest_tests(lines)

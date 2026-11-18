@@ -97,9 +97,9 @@ def test_it_runs_the_working_tree_also_from_the_pinned_code_folder(tmp_path):
     assert nt.repo_root(pinned) == repo.resolve()
 
 
-def test_the_limit_is_90_minutes_and_the_slowest_table_is_read():
+def test_the_limit_is_75_minutes_and_the_slowest_table_is_read():
     """PM 11-17 night: 50 min timed out three nights running; --durations=30 shows what takes the time."""
-    assert nt.TIMEOUT_S == 90 * 60 and nt.INTERRUPT_GRACE_S == 120
+    assert nt.TIMEOUT_S == 75 * 60 and nt.INTERRUPT_GRACE_S == 120
     lines = ['.....', '============================= slowest 30 durations =============================',
              '12.31s call     tests/test_a.py::test_x', '3.02s setup    tests/test_b.py::test_y', '',
              '(28 durations < 0.005s hidden.  Use -vv to show these durations.)', '=== 5 passed in 20s ===']
@@ -151,3 +151,46 @@ def test_the_night_run_is_pinned_to_the_head_it_started_from_in_its_own_worktree
     assert not tree.exists() and not tree.parent.exists()
     assert str(tree) not in git('worktree', 'list')
     assert nt.pin_worktree(repo, 'no-such-revision') is None     # no worktree, no fallback to the shared tree
+
+
+def test_test_records_of_the_pinned_tree_are_appended_to_the_shared_tree_before_it_goes(tmp_path):
+    """PM 11-18: the outside-network log (report mode, first nights) is written inside the temporary worktree; it must
+    reach the shared tree's gateway-data/test-report-out (appended, never overwritten) before the worktree is removed."""
+    root, tree = tmp_path / 'root', tmp_path / 'tree'
+    (root / 'gateway-data' / 'test-report-out').mkdir(parents=True)
+    (tree / 'gateway-data' / 'test-report-out' / 'sub').mkdir(parents=True)
+    (root / 'gateway-data' / 'test-report-out' / 'outside-network.log').write_text('old\tline\n')
+    (tree / 'gateway-data' / 'test-report-out' / 'outside-network.log').write_text('new\tline\tchild\n')
+    (tree / 'gateway-data' / 'test-report-out' / 'sub' / 'one.json').write_text('{}')
+    nt.keep_test_records(root, tree)
+    nt.keep_test_records(root, tmp_path / 'no-such-tree')           # nothing to keep: no error
+    out = root / 'gateway-data' / 'test-report-out'
+    assert (out / 'outside-network.log').read_text() == 'old\tline\nnew\tline\tchild\n'
+    assert (out / 'sub' / 'one.json').read_text() == '{}'
+
+
+def test_the_worktree_is_removed_when_the_run_raises(tmp_path, monkeypatch):
+    """PM 11-18: an unexpected exception from Popen or communicate must not leave the worktree behind."""
+    import subprocess
+    repo = tmp_path / 'repo'
+    repo.mkdir()
+    git = lambda *a: subprocess.run(['git', *a], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+    git('init', '-q'); git('config', 'user.email', 't@example.com'); git('config', 'user.name', 't')
+    (repo / 'tests').mkdir()
+    (repo / 'tests' / 'x.py').write_text('')
+    git('add', '.'); git('commit', '-q', '-m', 'one')
+    monkeypatch.setattr(nt, 'ROOT', repo)
+    monkeypatch.setattr(nt, 'OUT', tmp_path / 'out')
+    monkeypatch.setattr(nt, 'LOG', tmp_path / 'log.jsonl')
+    import pytest
+    import types
+
+    def refuse(*a, **k):
+        raise RuntimeError('boom')
+    # the night module sees a subprocess whose Popen fails; run() (git) and TimeoutExpired stay real
+    monkeypatch.setattr(nt, 'subprocess', types.SimpleNamespace(run=subprocess.run, Popen=refuse,
+                                                                 TimeoutExpired=subprocess.TimeoutExpired,
+                                                                 PIPE=subprocess.PIPE))
+    with pytest.raises(RuntimeError):
+        nt.run()
+    assert 'night-tests-' not in git('worktree', 'list')    # removed although Popen raised
