@@ -51,7 +51,8 @@ def test_agentvalcon_lead_has_no_catalog_card(snapshot):  # noqa: F811
            'standing': 'provisional', 'kind': 'agentcon', 'alternates': []}
     entry['pearls'] = [entry['pearls'][0], own]
     item = ns.public_item(entry, now=NOW)
-    assert item['pearls'][1]['card'] is None and item['pearls'][1]['agent_id'] == 'own-geocode'
+    # PM 11-18: our own agent shows by its role, never by its internal id
+    assert item['pearls'][1]['card'] is None and item['pearls'][1]['agent_id'] == 'AgentValCon agent (location)'
     assert item['pearls'][1]['kind'] == 'agentcon'
     snap = {**snapshot, 'necklaces': [entry] + snapshot['necklaces'][1:]}
     status, page = ns.page(entry['slug'], snapshot=snap, now=NOW)

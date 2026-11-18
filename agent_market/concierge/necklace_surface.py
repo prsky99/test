@@ -440,6 +440,15 @@ def members_phrase(entry):
     return ' and '.join(parts) or 'no member passing our tests now'
 
 
+def public_member_id(member):
+    """What a public answer shows as the member's id: the catalog id of an outside agent, and for one of our own agents
+    ('agentcon') only "AgentValCon agent (<role>)", never its internal id (PM 11-18: internal names such as the
+    personality fortune members stay inside the definition)."""
+    if member.get('kind') == 'agentcon':
+        return 'AgentValCon agent (' + str(member.get('role') or 'step') + ')'
+    return member.get('resource_id') if member.get('resource_id') is not None else member.get('agent_id')
+
+
 def public_item(entry, base='https://agentconcierge.biz', now=None):
     """The /api/necklaces entry: what a person or an agent needs to choose and run it; no internal fields."""
     quality, cost, completion = entry.get('quality') or {}, entry.get('cost') or {}, entry.get('completion') or {}
@@ -449,7 +458,7 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
             'status': entry.get('status'), 'offered': offered(entry, now),
             'url': base + '/necklaces/' + entry['slug'], 'mcp_tool': tool_name(entry['slug']),
             'a2a_skill': skill_id(entry['slug']), 'input_schema': entry.get('input_schema'),
-            'pearls': [{'agent_id': p.get('resource_id') if p.get('resource_id') is not None else p.get('agent_id'),
+            'pearls': [{'agent_id': public_member_id(p),
                         'role': p.get('role'), 'tool': p.get('tool'), 'kind': p.get('kind') or 'external',
                         'verified_pearl': member_status(p) == 'verified_pearl', 'standing': member_status(p),
                         # an AgentValCon lead (kind agentcon) has no catalog resource, so no catalog card
@@ -1191,9 +1200,10 @@ def details(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
     if 'notice' in item:
         lines.append(item['notice']['text'])
     for p in item['pearls']:
-        lines.append('- ' + (p.get('role') or 'step') + ': ' + ('verified pearl ' if p.get('verified_pearl') else 'agent ')
-                     + str(p['agent_id']) + ('' if p.get('verified_pearl') else ' (under verification)' if p.get('standing') else ' (not passing our member tests now)')
-                     + ' (' + (p['card'] or 'AgentValCon agent') + '), alternates '
+        own = p.get('kind') == 'agentcon'     # our own agent: no id and no card, only its role (public_member_id)
+        lines.append('- ' + (p.get('role') or 'step') + ': ' + ('AgentValCon agent' if own else ('verified pearl ' if p.get('verified_pearl') else 'agent ') + str(p['agent_id']))
+                     + ('' if p.get('verified_pearl') else ' (under verification)' if p.get('standing') else ' (not passing our member tests now)')
+                     + ('' if own else ' (' + (p['card'] or 'AgentValCon agent') + ')') + ', alternates '
                      + str(p['alternates']['external']) + ' external + ' + str(p['alternates']['agentcon']) + ' AgentValCon'
                      + ('; ' + EXTERNAL_PENDING[0].lower() + EXTERNAL_PENDING[1:-1] if p.get('external_pending') else ''))
     return '\n'.join(lines), item

@@ -254,3 +254,18 @@ def test_parse_reads_only_the_run_necklace_command():
     assert ns.parse_a2a('run necklace trip-brief {"city": "Paris"}') == ('trip-brief', {'city': 'Paris'})
     assert ns.parse_a2a('Run Necklace trip-brief') == ('trip-brief', None)
     assert ns.parse_a2a('run 1 {"city": "Paris"}') is None and ns.parse_a2a('find a necklace') is None
+
+
+def test_an_own_agent_is_shown_by_its_role_never_by_its_internal_id():
+    """PM 11-18: the internal ids of our own agents (for example the personality fortune members) stay out of the public
+    API and the necklace_details text; they show as "AgentValCon agent (<role>)". Outside agents keep their catalog id."""
+    own = pearl(133020, 'profile')
+    own.update(kind='agentcon', agent_id='mbti-profile', resource_id='avc:mbti-profile')
+    entry = necklace('topic-evidence-brief', pearls=[own, pearl(140112, 'weather'), pearl(58183, 'papers')])
+    item = ns.public_item(entry, now=NOW)
+    mine = [p for p in item['pearls'] if p['kind'] == 'agentcon'][0]
+    assert mine['agent_id'] == 'AgentValCon agent (profile)' and mine['card'] is None
+    assert [p['agent_id'] for p in item['pearls'] if p['kind'] != 'agentcon'] == [140112, 58183]
+    text, _ = ns.details('topic-evidence-brief', snapshot={'necklaces': [entry]}, now=NOW)
+    assert 'mbti' not in text and 'avc:' not in text and '- profile: AgentValCon agent, alternates' in text
+    assert 'mbti' not in json.dumps(item) and 'avc:' not in json.dumps(item)
