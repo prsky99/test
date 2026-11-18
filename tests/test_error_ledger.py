@@ -51,6 +51,10 @@ def test_ops_auto_runs_once_then_hands_off_unexplained(tmp_path, monkeypatch):
     monkeypatch.setattr(ops_auto, 'LEDGER_STATE', tmp_path / 'state.json')
     monkeypatch.setattr(ops_auto, 'LEDGER_DIR', tmp_path)
     monkeypatch.setattr(ops_auto, 'ACTIONS', tmp_path / 'actions.log')
+    # the start opens ROOT/logs/ops/error-ledger.out: keep that file in this test's own folder (a clean checkout has no logs/ops,
+    # and the test must not write into the real one)
+    monkeypatch.setattr(ops_auto, 'ROOT', tmp_path)
+    (tmp_path / 'logs/ops').mkdir(parents=True)
     handed = []
     monkeypatch.setattr(ops_auto, 'board_handoff', lambda kind, text: handed.append((kind, text)))
     launched = []
