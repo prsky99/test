@@ -50,6 +50,7 @@ MESSAGES = {
     'UPSTREAM_TOOL_ERROR': 'The agent could not complete the requested task.',
     'PENDING_RESULT': 'The agent has no completed output. This connection does not support task polling.',
     'CAPACITY_EXCEEDED': 'Agent execution is busy. Please try again shortly.',
+    'TERMS_RESTRICTED': "The provider's terms do not allow us to relay calls to this agent.",
     'EXECUTION_FAILED': 'The agent execution failed. Review its connection and registered tool.',
 }
 # What the caller can do next, per code (growth plan 7 item 4, PM 11-14): returned after a failed first run so a
@@ -69,6 +70,7 @@ FIXES = {
     'UPSTREAM_TOOL_ERROR': 'The provider\'s tool reported an error. Check the argument values, then try once more or choose another recommendation.',
     'PENDING_RESULT': 'The provider returned no finished output. Choose another recommendation.',
     'CAPACITY_EXCEEDED': 'Wait a few seconds and send it again.',
+    'TERMS_RESTRICTED': 'Connect from your own client at the provider\'s direct_endpoint (in the recommendation card), or choose another recommendation.',
     'EXECUTION_FAILED': 'Ask for agents again, or choose another recommendation.',
 }
 _REFERENCE = re.compile(r'ex_[0-9a-f]{24}\Z')

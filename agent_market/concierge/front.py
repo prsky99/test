@@ -137,6 +137,38 @@ def _timing(response, **parts) -> None:
     response.headers['Server-Timing'] = f'{earlier}, {value}' if earlier else value
 
 
+# R1 (PM 11-18 06:40; 05:19 full check: a ReadTimeout and 3.9-5.0 s pages that no origin-side record could explain):
+# a request the origin itself took more than SLOW_REQUEST_S for leaves one INFO line with the route shape and the
+# time, one per route shape per SLOW_LOG_EVERY_S, so a slow long-tail page can be told apart from a slow path to
+# the edge. The check is one comparison on every reply; the dictionary is touched only when a request is slow.
+SLOW_REQUEST_S = 1.0
+SLOW_LOG_EVERY_S = 600.0
+_slow_logged: dict = {}
+_ID_PART = re.compile(r'(?:[0-9a-f]{8,}|\d+)(?:-vs-(?:[0-9a-f]{8,}|\d+))?')
+
+
+def _slow_shape(path: str) -> str:
+    """The path with every id segment (a number, a long hex token, or an 'a-vs-b' pair of them) folded to {id}."""
+    parts = [('{id}' if _ID_PART.fullmatch(part) else part) for part in (path or '/').split('/')]
+    return '/'.join(parts)[:80]
+
+
+def _note_slow(request, response, seconds: float, now=None) -> bool:
+    """Log (and return True) when SECONDS exceeds SLOW_REQUEST_S and this route shape was not logged recently."""
+    if seconds < SLOW_REQUEST_S:
+        return False
+    shape = request.method + ' ' + _slow_shape(request.url.path)
+    now = time.monotonic() if now is None else now
+    if now - _slow_logged.get(shape, -SLOW_LOG_EVERY_S) < SLOW_LOG_EVERY_S:
+        return False
+    if len(_slow_logged) > 500:
+        _slow_logged.clear()
+    _slow_logged[shape] = now
+    logging.getLogger(__name__).info('Slow origin request: %s %.2fs status %s (origin time, not the path to the edge)',
+                                     shape, seconds, getattr(response, 'status_code', '?'))
+    return True
+
+
 def _ours(request, ip) -> bool:
     """Our own measurement: the X-Agentcon-QA header or our own server's public address (traffic internal-ips.txt).
     Loopback is left out here: test clients and requests without an edge address resolve to it."""
@@ -2406,7 +2438,9 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
             response = JSONResponse({"audience": AUDIENCE, "error": "Too many new visitors from your address. Reuse your "
                                      "visitor token (X-Visitor-Token) or try again later.", "retry_after": exc.retry_after},
                                     status_code=429, headers={"Retry-After": str(exc.retry_after), "Cache-Control": "no-store"})
-        _timing(response, secq=began - queued, sec=ended - began, app=time.perf_counter() - checked, **gc_part())
+        app_s = time.perf_counter() - checked
+        _timing(response, secq=began - queued, sec=ended - began, app=app_s, **gc_part())
+        _note_slow(request, response, app_s)
         return response
 
     def precheck(request: Request, client_ip: str):

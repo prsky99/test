@@ -801,10 +801,13 @@ class FastConcierge(Concierge):
                 'x402':item.get('method') or 'GET'}[kind]
         lines = [f"{display_label(name, 'Recommended agent')} [{kind.upper()}]", 'Endpoint: '+(item.get('usage_endpoint') or item['url']),
                  'Call: '+call]
-        if item.get('tool_unlisted') is True and isinstance(item.get('connection_note'), str):
+        from .relay_terms import restricted, NOTE as TERMS_NOTE
+        terms_restricted = restricted(item.get('id'))   # PM 11-18: the provider's terms forbid our relay
+        if terms_restricted or item.get('tool_unlisted') is True and isinstance(item.get('connection_note'), str):
             # 11-12 PM: not relayed by our gateway. PM 11-17 06:3x: the answer says so first and gives no call
             # sequence for a tool the gateway will not run (the endpoint stays: it lists the provider's relayed tools).
-            lines[1:3] = ['Connection: '+item['connection_note'][:600], lines[1]]
+            note = TERMS_NOTE if terms_restricted else item['connection_note'][:600]
+            lines[1:3] = ['Connection: '+note, lines[1]]
             # PM 11-18 option A: the provider's own public MCP address for the call we do not relay
             from .connections import direct_endpoint, DIRECT_NOTE
             direct = direct_endpoint(item)
@@ -824,7 +827,7 @@ class FastConcierge(Concierge):
             gateway = gateway_agent_url(item.get('id'), 'mcp')
             if gateway:
                 lines.append('MCP config: ' + json.dumps(mcp_config(name, gateway), separators=(',', ':')))
-        if kind == 'mcp' and item.get('tool_unlisted') is not True and '/api/gateway/mcp/' in str(item.get('usage_endpoint') or ''):
+        if kind == 'mcp' and item.get('tool_unlisted') is not True and not terms_restricted and '/api/gateway/mcp/' in str(item.get('usage_endpoint') or ''):
             # PM 11-17 10:3x (plan 2): our gateway answers each JSON-RPC request on its own (connections.gateway_mcp_steps),
             # so the call is one POST with the arguments already filled where the task made them certain.
             from .connections import example_arguments

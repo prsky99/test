@@ -231,6 +231,11 @@ def install(app, front):
             # First-party handlers execute locally through the original public
             # gateway, retaining its input, authority and schema checks.
             return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
+        from ..concierge.relay_terms import restricted
+        if restricted(value['resource_id']):
+            # PM 11-18: a provider whose terms prohibit our relay is never run by the Worker either; the Origin
+            # gateway refuses it with TERMS_RESTRICTED and the provider's direct address.
+            return JSONResponse({'backend': 'origin'}, headers={'Cache-Control': 'private, no-store'})
         from .state import transaction
         def preferred():
             with transaction(current.store, readonly=True) as db:
