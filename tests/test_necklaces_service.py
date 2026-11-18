@@ -196,3 +196,32 @@ def test_only_web_input_is_converted(tmp_path):
     assert web["ok"]
     mcp = service.run_for_surface(None, entry, {"q": "y", "n": "2"}, "mcp", None, **kw)
     assert mcp["error_code"] == "invalid_input"                                    # agents send JSON types
+
+
+def test_public_output_names_our_own_members_without_their_internal_ids():
+    """growth 11-18: an AgentValCon member's agent id or avc: id never reaches a public run answer."""
+    raw = {"profile": {"answers": [{"type": "INTJ"}], "sources": ["agentcon:avc:personality-profile"]},
+           "news": {"answers": [], "sources": ["external:58662", "agentcon:gdelt-news"]},
+           "web": {"not_found": True, "note": "n"}}
+    out = service.public_output(raw)
+    assert out["profile"]["sources"] == [service.OWN_SOURCE]
+    assert out["news"]["sources"] == ["external:58662", service.OWN_SOURCE]
+    assert out["web"] == raw["web"] and raw["profile"]["sources"] == ["agentcon:avc:personality-profile"]  # not changed
+    assert "personality-profile" not in json.dumps(out) and "gdelt-news" not in json.dumps(out)
+
+
+@pytest.mark.parametrize("source", ["web", "mcp", "a2a"])
+def test_every_surface_and_the_cached_answer_go_through_public_output(tmp_path, monkeypatch, source):
+    if source not in service.SOURCES:
+        pytest.skip(f"{source} is not a run source here")
+    seen = []
+    real = service.public_output
+    monkeypatch.setattr(service, "public_output", lambda o: seen.append(o) or real(o))
+    defs, entry = setup(tmp_path)
+    args = {"q": "lodash", **({"necklace_notice": service.NOTICE} if source == "web" else {})}
+    kw = dict(root=tmp_path, definitions_dir=defs, sensitive=lambda v: False,
+              caller=caller_from({1: "CVE-2020-28500", 3: "listed in CISA KEV"}), limiter=limits.RunLimiter(),
+              cache=limits.ResultCache(), domains=limits.DomainCap())
+    first = service.run_for_surface(None, entry, dict(args), source, None, **kw)
+    again = service.run_for_surface(None, entry, dict(args), source, None, **kw)
+    assert first["ok"] and again["cached"] and len(seen) == 2 and first["output"] == again["output"]

@@ -153,6 +153,24 @@ def note_refusal(root, slug, code: str, surface: str):
         pass   # counting never changes the answer
 
 
+OWN_SOURCE = "agentcon:AgentValCon agent"
+
+
+def public_output(output):
+    """The run output as the public sees it (growth 11-18): our own members are named "AgentValCon agent", never by
+    their internal agent id or avc: resource id; outside members keep their catalog id. Graders and round records read
+    the runner's result, not this."""
+    if not isinstance(output, dict):
+        return output
+    out = {}
+    for name, slot in output.items():
+        if isinstance(slot, dict) and isinstance(slot.get("sources"), list):
+            slot = dict(slot, sources=[OWN_SOURCE if isinstance(s, str) and s.startswith("agentcon:") else s
+                                       for s in slot["sources"]])
+        out[name] = slot
+    return out
+
+
 def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | None = None, *,
                     root: Path | None = None, definitions_dir: Path | None = None,
                     caller=None, sensitive=None, limiter=None, cache=None, domains=None, quota_budget=None) -> dict:
@@ -237,7 +255,7 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
     error_code = None if result["ok"] else "slot_failed:" + str(result["failed_slot"])
     if not result["ok"] and capacity_failure(result):
         error_code = OUR_CAPACITY           # our side was full; not the members' failure (PM 11-15 11:22)
-    return {"ok": result["ok"], "output": result["output"],
+    return {"ok": result["ok"], "output": public_output(result["output"]),
             "stages": {name: s["stage"] for name, s in result["slots"].items()},
             "statuses": {name: s["status"] for name, s in result["slots"].items()},
             "cached": bool(result.get("cached")),
