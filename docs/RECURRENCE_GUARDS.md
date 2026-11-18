@@ -41,6 +41,7 @@
 | W1 | 예약 작업을 세션 백그라운드나 scratchpad에 둠(세션이 끝나면 같이 죽음) | 2(11-18 108파일 실행기 b3zb1tga6·b8lifk9e5, scratchpad 실행 파일) + 과거 11-11 잠금·11-17 회차 누락 | ① detach.sh가 /private/tmp·scratchpad 경로 명령을 거부, 예약 워크트리는 gateway-data/worktrees/<이름> ② `~/.claude/hooks/detach_guard.py`(PreToolUse: run_in_background로 heavy_slot·timed 스크립트를 부르면 막음) | 정지형 | ① 워크플로우 ② PM | ② 11-19 00:4x 설치·시험 / ① 11-19 낮 |
 | W2 | 모듈을 바꾼 뒤 옛 문구·정의를 비교하는 시험이 넓은 시험에서야 깨짐 | 11-18 20:13 13건, 11-19 00:13 3건, 11-15 1a87d22b, 11-18 ef4703eb | `scripts/changed_tests.py`(바뀐 파일을 import하거나 바뀐 문자열을 담은 tests/ 목록) → pytest_slot·heavy_slot 입력, commit_check(pre-push)가 그 목록이 이 sha에서 통과한 기록 없으면 막음 | 정지형 | 워크플로우(스크립트) + 운영·SRE(pre-push) | 11-19 낮 |
 | W3 | 정답 세트 유효기간 경고 반복(answer_sets) | 점검 반복 | 연결 관문이 읽는 세트만 점검, 쓰이는 tuning 세트에 유효기간 | 자동 처리 | 워크플로우 | 11-19 낮 |
+| S1 | 배포 직후 연결 시험이 in-flight 자리 부족(COMPLETION_MISSING 4건·자리 부족 만료 5건, 엣지 9건 11-19 01:28:59~01:29:09, r20 배포 2분 뒤) | 1(11-19) + 11-18 A·B·O1 계열의 같은 모양 | 후보: ① 배포 완료 뒤 몇 분 기다린 다음에 연결 시험 시작 ② 연결 시험 동시 실행 상한. 원인 조사는 사용량 초기화(11-23) 뒤 | 정지 | 운영·SRE(워크플로우와 함께) | 11-23 뒤 |
 
 ## 3. 장치가 덮지 못하는 곳
 
