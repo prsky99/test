@@ -34,3 +34,5 @@
   - 나중에 MBTI 해석을 계산형으로 주는 도구가 수집되면 다시 본다.
 - **calendar, western, saju 자리**: 오늘의 운세 목걸이 표(`reports/fortune-necklace-2026-11-17/candidates.md`)와 같다.
   - BRIEF대로 자체 에이전트(korean-lunar, western-sign, saju-pillars)를 그대로 다시 쓴다.
+
+- **재조사(11-18 14:56, PM 지시)**: 11-17 00:00 뒤 새로 모은 A2A·MCP 8,233개를 운영 DB 읽기 전용으로 찾았다(외부 호출 없음, x402 제외). MBTI·Myers-Briggs·16 personalities·personality type/test·enneagram·big five·INTJ/ENFP·궁합·성격 낱말에 걸린 목록 **0개, 자체 대체로 간다.** 범위를 넓히자 점성술 목록 1개(452764 MCP B "Asteria: Astrology & Tarot", 출생 차트·별자리·타로)가 걸렸다. MBTI 자리와는 맞지 않고, 오늘의 운세 목걸이 western 자리의 외부 예비 후보로만 참고한다(약관 미판정).
