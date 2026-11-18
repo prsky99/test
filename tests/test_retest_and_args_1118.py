@@ -48,3 +48,26 @@ def test_a_search_word_never_fills_an_id():
     # review 11-18: 'query' -> '^id$' was left out of the W2 diff; a name is no record id
     args, missing = case_arguments(tool(['id'], {'id': {'type': 'string'}}), {'query': 'Lazarus Group'})
     assert 'id' not in args and missing == ['id']
+
+
+def _case(case_id):
+    import json
+    for name in ('role-tasks-v1.jsonl', 'role-tasks-rag-v1.jsonl'):
+        path = Path(__file__).resolve().parents[1] / 'agent_market' / 'necklaces' / 'role_tasks' / name
+        for line in path.read_text().splitlines():
+            case = json.loads(line)
+            if case['case_id'] == case_id:
+                return case
+    raise KeyError(case_id)
+
+
+def test_a_search_box_takes_the_company_name_not_its_domain():
+    # PM 11-18 15:4x: company-apple and company-microsoft list domain before name
+    search = tool(['query'], {'query': {'type': 'string'}})
+    for case_id in ('company-apple', 'company-microsoft'):
+        case = _case(case_id)
+        args, _ = case_arguments(search, case['input'])
+        assert args['query'] == case['input']['name'], (case_id, args)
+    # a domain parameter still takes the domain
+    args, _ = case_arguments(tool(['domain'], {'domain': {'type': 'string'}}), _case('company-apple')['input'])
+    assert args['domain'] == _case('company-apple')['input']['domain']

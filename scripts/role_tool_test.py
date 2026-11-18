@@ -167,7 +167,13 @@ def case_arguments(tool, case_input):
                 v = v.split('/', 1)[1]
             args[name] = (exact, _coerce(v))
             continue
-        for key, value in case_input.items():
+        items = list(case_input.items())
+        if re.search(r'^(?:query|q|search|keyword|term)$', name, re.I):
+            # PM 11-18 15:4x: a search box takes the subject's name first; company-apple's input lists domain before
+            # name, and "apple.com" went into query instead of "Apple Inc."
+            items.sort(key=lambda kv: 0 if kv[0] in ('query', 'name', 'company', 'title', 'word') else
+                       2 if kv[0] in ('domain', 'ip', 'address', 'code') else 1)
+        for key, value in items:
             if key in CASE_KEYS and re.search(CASE_KEYS[key], name, re.I) and key not in used:
                 if key == 'domain' and re.search(r'url', name, re.I):
                     value = 'https://' + str(value)
