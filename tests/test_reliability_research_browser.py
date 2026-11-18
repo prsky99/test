@@ -11,8 +11,8 @@ from tests.test_reliability_research import research_world, controls, private_ap
 
 
 @pytest.fixture
-def research_page(research_world, browser):
-    w = research_world
+def research_page(research_world, browser, request):
+    w = research_world; w.exchange = []; failed_before = request.session.testsfailed
     context = browser.new_context(viewport={'width': 1280, 'height': 900}, reduced_motion='reduce')
     context.set_offline(True); page = context.new_page(); w.page = page
     w.errors, w.unexpected, w.browser_writes = [], [], []
@@ -28,6 +28,7 @@ def research_page(research_world, browser):
             route.fulfill(status=200, body=script, headers={'Content-Type': 'application/javascript'}); return
         if request.method != 'GET': w.browser_writes.append(url.path)
         result = w.control_api.request(request.method, url.path, headers=request.headers, content=request.post_data)
+        w.exchange.append('%s %s -> %s %s' % (request.method, url.path, result.status_code, result.content[:300]))   # night test 11-18: kept for a failure
         route.fulfill(status=result.status_code, body=result.content, headers={key: value for key, value in result.headers.items() if key not in ('content-length', 'content-encoding', 'transfer-encoding')})
     context.route('**/*', serve); page.on('pageerror', lambda error: w.errors.append(str(error)))
     page.goto('https://private.test/admin/research-component')
@@ -36,6 +37,8 @@ def research_page(research_world, browser):
     try:
         yield w
     finally:
+        if request.session.testsfailed > failed_before:      # this test failed: leave the server's answers (status and the start of each body)
+            print('RESEARCH EXCHANGE (status and first 300 bytes of each reply):'); print('\n'.join(w.exchange[-12:]))
         context.close()
 
 
