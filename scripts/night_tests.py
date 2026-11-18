@@ -178,6 +178,29 @@ def slowest_tests(lines: list[str]) -> list[str]:
     return out[:30]
 
 
+def pin_worktree(root, sha):
+    """WORKTREE (PM 11-18): the night suite runs a clean checkout of the HEAD it started from, in a temporary
+    `git worktree`, not the shared working tree. 11-18 05:05: the run imported modules at 03:35 (b210709f) and f8cccfb5
+    changed scripts/service_deploy.py in the shared tree at 03:38, so three test_service_deploy_shared_env tests read
+    the wrong function. Returns the folder, or None when git cannot make it (the caller records no result)."""
+    import tempfile
+    folder = Path(tempfile.mkdtemp(prefix='night-tests-', dir='/private/tmp'))
+    done = subprocess.run(['git', 'worktree', 'add', '--detach', str(folder / 'tree'), sha], cwd=root,
+                          capture_output=True, text=True)
+    if done.returncode != 0:
+        subprocess.run(['rm', '-rf', str(folder)])
+        return None
+    return folder / 'tree'
+
+
+def drop_worktree(root, tree):
+    """Remove the pinned checkout and its folder (also when the run failed)."""
+    if tree is None:
+        return
+    subprocess.run(['git', 'worktree', 'remove', '--force', str(tree)], cwd=root, capture_output=True, text=True)
+    subprocess.run(['rm', '-rf', str(Path(tree).parent)])
+
+
 def run(now=None) -> int:
     from scripts.pytest_env import clean_environment
     now = now or time.time()
@@ -186,12 +209,20 @@ def run(now=None) -> int:
     xml = OUT / f'{day}.xml'
     dirty = len(subprocess.run(['git', 'status', '--porcelain'], cwd=ROOT, capture_output=True, text=True).stdout.splitlines())
     head = subprocess.run(['git', 'rev-parse', '--short', 'HEAD'], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    tree = pin_worktree(ROOT, head)      # the HEAD at the start, in its own checkout; removed at the end
+    if tree is None:
+        line = {'at': time.strftime('%Y-%m-%d %H:%M'), 'day': day, 'ok': False, 'error': 'worktree', 'seconds': 0,
+                'head': head}
+        with LOG.open('a') as out:
+            out.write(json.dumps(line, ensure_ascii=False) + '\n')
+        no_result(line)
+        return 1
     cmd = [str(ROOT / '.venv-tests/bin/python'), '-m', 'pytest', '-q', '-p', 'no:cacheprovider',
            '--durations=30', f'--junitxml={xml}', 'tests']
     started = time.time()
     before = machine()
     partial = False
-    proc = subprocess.Popen(cmd, cwd=ROOT, env=clean_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+    proc = subprocess.Popen(cmd, cwd=tree, env=clean_environment(), stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
                             preexec_fn=at_test_nice)
     try:
         stdout, _ = proc.communicate(timeout=TIMEOUT_S)
@@ -205,6 +236,7 @@ def run(now=None) -> int:
         except subprocess.TimeoutExpired:
             proc.kill()
             stdout, _ = proc.communicate()
+    drop_worktree(ROOT, tree)
     lines = (stdout or '').strip().splitlines()
     tail = ['timeout'] if partial and not xml.is_file() else (lines[-1:] or [''])
     slowest = slowest_tests(lines)
@@ -221,7 +253,7 @@ def run(now=None) -> int:
     teams_before = state.get('teams') or []
     state = update_state(failing, day, state)
     record = {'at': time.strftime('%Y-%m-%d %H:%M'), 'day': day, 'ok': not partial, 'partial': partial, 'head': head,
-              'dirty_files': dirty, 'tests': total, 'failed': len(failing), 'failing': failing, 'seconds': seconds,
+              'dirty_files': dirty, 'worktree_head': head, 'tests': total, 'failed': len(failing), 'failing': failing, 'seconds': seconds,
               'summary': tail[0][:200], 'slowest': slowest,
               'teams_before': teams_before, 'machine_before': before, 'machine_after': after}
     result = report(record, state)

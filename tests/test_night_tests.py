@@ -126,3 +126,28 @@ def test_the_pytest_child_is_raised_to_nice_15_never_past_it(monkeypatch):
         monkeypatch.setattr(os, 'getpriority', lambda *a: 0)
         monkeypatch.setattr(os, 'setpriority', refuse)
         helper()   # no exception: the child keeps the caller's niceness
+
+
+def test_the_night_run_is_pinned_to_the_head_it_started_from_in_its_own_worktree(tmp_path):
+    """PM 11-18 (WORKTREE): a change committed or written in the shared tree while the suite runs must not reach it."""
+    import subprocess
+    repo = tmp_path / 'repo'
+    repo.mkdir()
+    git = lambda *a: subprocess.run(['git', *a], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
+    git('init', '-q')
+    git('config', 'user.email', 't@example.com')
+    git('config', 'user.name', 't')
+    (repo / 'mod.py').write_text('VALUE = 1\n')
+    git('add', 'mod.py')
+    git('commit', '-q', '-m', 'one')
+    head = git('rev-parse', 'HEAD')
+    tree = nt.pin_worktree(repo, head)
+    try:
+        assert tree is not None and (tree / 'mod.py').read_text() == 'VALUE = 1\n'
+        (repo / 'mod.py').write_text('VALUE = 2\n')        # the shared tree changes mid-run (11-18 03:38)
+        assert (tree / 'mod.py').read_text() == 'VALUE = 1\n'
+    finally:
+        nt.drop_worktree(repo, tree)
+    assert not tree.exists() and not tree.parent.exists()
+    assert str(tree) not in git('worktree', 'list')
+    assert nt.pin_worktree(repo, 'no-such-revision') is None     # no worktree, no fallback to the shared tree
