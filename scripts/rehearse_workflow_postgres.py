@@ -83,7 +83,7 @@ def rehearse(path):
     sql,expected=export_state(path)
     with tempfile.TemporaryDirectory(prefix='r05-pg-',dir='/tmp') as directory:
         root=Path(directory);socket=root/'socket';socket.mkdir(mode=0o700);data=root/'data'
-        env={k:v for k,v in os.environ.items() if not k.startswith('PG')};env.update(PGPASSFILE=str(root/'no-password-file'),PGSERVICEFILE=str(root/'no-service-file'))
+        env={k:v for k,v in os.environ.items() if not k.startswith('PG')};env.update(PGPASSFILE=str(root/'no-password-file'),PGSERVICEFILE=str(root/'no-service-file'),REDIS_DB='15')
         # macOS postmaster refuses to start without a valid locale ("became multithreaded during startup").
         env.update(LC_ALL='C',LANG='C')
         def run(args,*,input=None):

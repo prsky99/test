@@ -55,6 +55,7 @@ def native_cli(tmp_path):
     # or provider credential is inherited from the person running the tests.
     env = {key: os.environ[key] for key in ('PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL')
            if key in os.environ}
+    env['REDIS_DB'] = '15'   # 11-18: a child started with a picked environment never reaches the production Redis (db 0)
     env.update({'PYTHON_BIN': str(wrapper), 'AGENTCON_STRICT_PID': '1',
                 'AGENTCON_PID_FILE': str(tmp_path / 'synthetic.pid'),
                 'AGENTCON_LOG_FILE': str(tmp_path / 'synthetic.log'),

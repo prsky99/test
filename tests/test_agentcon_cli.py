@@ -63,6 +63,7 @@ def test_agentcon_start_status_restart_stop(tmp_path: Path):
 
     env = {key: os.environ[key] for key in ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL")
            if key in os.environ}
+    env["REDIS_DB"] = "15"   # 11-18: a child started with a picked environment never reaches the production Redis (db 0)
     env.update(
         {
             "PORT": str(admin_port),

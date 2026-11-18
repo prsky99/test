@@ -67,7 +67,11 @@ def _environment(root):
             # 11-18 (운영·SRE): a child's DataAgents refreshed the technology-news bundle into the shared
             # gateway-data/owned-data-agents/tech-news.json that production reads (fake test articles, 11-17 02:05,
             # 11-18 04:33, 06:28). Children of a private cluster keep it inside the cluster's own folder.
-            'OWNED_NEWS_BUNDLE': str(root / 'tech-news.json')}
+            'OWNED_NEWS_BUNDLE': str(root / 'tech-news.json'),
+            # 11-18 (검색과 RAG, night tests): with no REDIS_DB a child's RedisHub took 127.0.0.1:6379 database 0, the
+            # production Redis, and read production task outcomes (listing ids 1, 2, 3 ... collide with real ones); the
+            # synthetic selection then came back empty at night. Children use the tests' own database number.
+            'REDIS_DB': '15'}
 
 
 def _run(args, env, *, timeout=30, input=None):
