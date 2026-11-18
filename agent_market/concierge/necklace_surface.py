@@ -1105,7 +1105,8 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
     if 'retested_at' in completion:
         guarantee.append(('Last retest', completion['retested_at'][:16].replace('T', ' ') + ' UTC'))
     if guarantee:
-        parts.append('<section aria-labelledby="completionTitle"><h2 id="completionTitle">Completion</h2>'
+        parts.append('<section aria-labelledby="completionTitle"><h2 id="completionTitle">'
+                     + ('Fallbacks by step' if entry.get('status') == 'preview' else 'Completion') + '</h2>'
                      '<p class="muted">Each step has alternates that are tried in order when an agent fails.</p><dl class="evidence-list">'
                      + ''.join('<dt>' + esc(k) + '</dt><dd>' + esc(v) + '</dd>' for k, v in guarantee) + '</dl></section>')
     if item['pearls']:

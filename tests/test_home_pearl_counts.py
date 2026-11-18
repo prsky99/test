@@ -182,6 +182,7 @@ def test_a_preview_necklace_prints_no_accuracy_speed_or_comparison_figure_anywhe
     assert item['cost'] == {} and item['completion'] == {}
     status, page = ns.page('website-trust', snapshot=snap, now=now)
     assert status == 200 and note in page
+    assert '>Completion<' not in page and '>Fallbacks by step<' in page      # no completion frame on a preview, only the step fallbacks
     for text in ('Typical time', 'Recent test success', 'Against its best single member', 'Recent completion', 'Without AgentValCon fallbacks', 'Last retest', '1200', '90%', '3.2 s', 'Verified 95%'):   # the entry's own figures never appear
         assert text not in page, text
     tool = [t for t in ns.tools(snap, now) if t['name'] == 'necklace_website_trust'][0]        # the preview runs from the tool list
