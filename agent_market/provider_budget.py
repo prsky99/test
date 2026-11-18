@@ -104,7 +104,11 @@ ONE_DAY_TOTAL = {'20261118': {'openalex.org': 80, 'crossref.org': 220, 'npmjs.or
                  # silent, it runs on the Cloudflare workers.dev free tier; 11-19 only: trial 5 + rounds 30+30 + 10 spare
                  '20261119': {'cwei59969.workers.dev': 75}}
 # Exact one-day shares, not scaled by the day total (PM 11-17: Crossref 220 on 11-18, the answer-set builder keeps 72).
-ONE_DAY_SHARE = {'20261118': {('reference_checks', 'crossref.org'): 72}}
+# 11-19 (PM 11-18, ops): Crossref reference_checks 40 for one day, inside its day total of 60. Read at the source 11-18: the REST API
+# documents a public pool (rate 5, concurrency 1) and a polite pool (rate 10, concurrency 3) and states no daily cap
+# (crossref.org documentation access-and-authentication, last updated 2025-10-16; tips-for-using-the-crossref-rest-api, 2025-10-24).
+ONE_DAY_SHARE = {'20261118': {('reference_checks', 'crossref.org'): 72},
+                 '20261119': {('reference_checks', 'crossref.org'): 40}}
 # Domains no path of ours may call: their day total is 0 and the ledger refuses every reserve.
 CLOSED_DOMAINS = {
     # PM 11-16 18:0x: Nager.Date (date.nager.at, now nagerholidays.com) asks commercial users for sponsorship

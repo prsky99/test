@@ -541,6 +541,9 @@ def test_openalex_and_crossref_day_totals_on_11_18_only(tmp_path):
     assert pb.domain_total('openalex.org', day='20261118') == 80
     assert pb.domain_total('crossref.org', day='20261118') == 220 and pb.domain_total('crossref.org', day='20261119') == 60
     assert pb.share_limit('reference_checks', 'crossref.org', day='20261118') == 72
+    # 11-19: an exact 40 inside the day total of 60; the day after falls back to the scaled default
+    assert pb.share_limit('reference_checks', 'crossref.org', day='20261119') == 40
+    assert pb.share_limit('reference_checks', 'crossref.org', day='20261120') != 40
     # PM 11-17 22:5x: 241601's host gets 75 on 11-19 only (topic v2 trial + two rounds), 60 the day after
     assert pb.domain_total('cwei59969.workers.dev', day='20261119') == 75
     assert pb.domain_total('cwei59969.workers.dev', day='20261120') == 60
