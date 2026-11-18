@@ -189,19 +189,23 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
         structured['dateModified'] = latest['date']
     return shell(title='Verification method ' + version + ' | AgentValCon',
                  description='How AgentValCon tests AI agents, scores them out of 100, picks pearls and gates necklaces.',
-                 canonical=base + '/methodology', body='<div class="pearl-page">' + ''.join(parts) + '</div>',
+                 canonical=base + '/methodology', body='<div class="pearl-page stack-page">' + ''.join(parts) + '</div>',
                  structured=structured)
 
 
 def changelog_html(base='https://agentconcierge.biz', log=None):
     from .growth_pages import shell, heading
     log = log if log is not None else changelog()
-    items = ''.join('<li><h2>' + esc(e['version']) + (' · ' + esc(e['date']) if e.get('date') else '') + '</h2><ul>'
-                    + ''.join('<li>' + esc(c) + '</li>' for c in e.get('changes') or []) + '</ul></li>' for e in log)
+    def head(e):
+        version = str(e['version'])
+        return ('' if version.lower().startswith('v') else 'v') + version + (' · ' + str(e['date']) if e.get('date') else '')
+    # one card per version (the same list look as the method page), no numbering (PM 11-18)
+    items = ''.join('<section aria-labelledby="cl' + str(i) + '"><h2 id="cl' + str(i) + '">' + esc(head(e)) + '</h2><ul>'
+                    + ''.join('<li>' + esc(c) + '</li>' for c in e.get('changes') or []) + '</ul></section>' for i, e in enumerate(log))
     return shell(title='Verification method changelog | AgentValCon', description='Changes to the AgentValCon verification method.',
                  canonical=base + '/methodology/changelog',
-                 body='<div class="pearl-page">' + heading('Method', 'Changelog', 'Every change to how agents are tested and scored.')
-                 + ('<ol class="changelog">' + items + '</ol>' if items else '<p>No changes yet.</p>')
+                 body='<div class="pearl-page stack-page">' + heading('Method', 'Changelog', 'Every change to how agents are tested and scored.')
+                 + (items or '<p>No changes yet.</p>')
                  + '<p><a href="/methodology">Back to the method</a></p></div>',
                  structured={'@context': 'https://schema.org', '@type': 'WebPage', 'url': base + '/methodology/changelog'})
 

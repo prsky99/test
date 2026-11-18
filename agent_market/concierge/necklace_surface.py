@@ -1584,13 +1584,45 @@ def necklace_router(front=None):
     def api_list():
         return JSONResponse(listing(), headers={'Cache-Control': 'public, max-age=60'})
 
+    names = {'key': None, 'rows': []}
+
+    @router.get('/api/pearls/list', include_in_schema=False)
+    def api_pearl_list():
+        # PM 11-18 (user): the pearl number opens Explore with the pearls themselves. One row per agent and role pair, drawn from the
+        # public pearl list (the file behind the counts), never from the search index. Names are read once per file version.
+        from . import pearl_badge
+        pairs = pearl_badge.pairs()
+        key = (pearl_badge._cache['key'], len(pairs))
+        if names['key'] != key:
+            store = getattr(front, 'store', None)
+            found = {}
+            for agent_id, _ in pairs:
+                if agent_id not in found:
+                    try:
+                        found[agent_id] = ((store.resource(agent_id) or {}).get('name') or '').strip() if store else ''
+                    except Exception:
+                        found[agent_id] = ''
+            names.update(key=key, rows=[
+                {'id': agent_id, 'name': found.get(agent_id) or 'Agent #%d' % agent_id, 'role': row['role'],
+                 'job': pearl_badge.role_name(row), 'level': row['level'], 'badge': pearl_badge.badge_text(row),
+                 'measured': pearl_badge.measured_line(row), 'direct': row['direct']} for agent_id, row in pairs])
+        return JSONResponse({'schema': 'agentcon-pearl-list-v1', 'count': len(names['rows']), 'rows': names['rows'],
+                             'direct_note': pearl_badge.DIRECT_NOTE, 'method': pearl_badge.METHOD_URL},
+                            headers={'Cache-Control': 'public, max-age=60'})
+
     @router.get('/api/pearls/public', include_in_schema=False)
     def api_pearls():
         # PM 11-18: the verified pearls (final, verified) for the Explore card badge; one small list, no visitor data
         from . import pearl_badge
+        testing = getattr(pearl_badge, 'in_testing', lambda: None)()          # None (no file, broken, no value): the card shows a dash, never 0
+        count = globals().get('verifying_count')                              # workflow team: candidates in connection test; None when the snapshot has no such field
+        verifying = count(load()) if count else None
         return JSONResponse({'schema': 'agentcon-pearl-levels-v1', 'levels': pearl_badge.public_levels(),
                              'direct': pearl_badge.direct_ids(), 'direct_note': pearl_badge.DIRECT_NOTE,
-                             'counts': pearl_badge.counts(), 'necklaces_live': live_count(), 'necklaces_preview': preview_count(),
+                             'counts': pearl_badge.counts(),
+                             **({'pearls_testing': testing} if testing is not None else {}),
+                             **({'necklaces_verifying': verifying} if verifying is not None else {}),
+                             'necklaces_live': live_count(), 'necklaces_preview': preview_count(),
                              'method': pearl_badge.METHOD_URL}, headers={'Cache-Control': 'public, max-age=60'})
 
     @router.get('/api/feed/necklaces.json', include_in_schema=False)

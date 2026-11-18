@@ -275,3 +275,44 @@ html body .pearl-sponsored-disclosure{margin:12px 0 0}
 html body :is(.metric-value,[data-metric],.execution-totals strong,.arrival-total,.outcome-grid dd,.home-protocols strong,.protocol-card dd,.reachable-list dd strong){white-space:nowrap;font-variant-numeric:tabular-nums}
 html body .execution-totals p{flex-wrap:wrap;min-width:0;align-items:baseline;column-gap:12px;row-gap:2px}
 @media(max-width:1100px){html body .outcome-grid dd{font-size:clamp(20px,3.2vw,30px)}}
+:root{--layout-field-gap:8px;--layout-action-gap:12px;--layout-badge-gap:12px;--layout-list-gap:14px;--layout-group-gap:24px;--layout-page-gap:32px}
+/* shared spacing (PM 11-18, one design system with the AD Coin screens): page sections 32px apart, a pair of metric cards 2 columns wide */
+.stack-page>section+section{margin-top:var(--layout-page-gap)}
+@media(min-width:951px){.metric-grid.metrics-pair{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-grid.metrics-pair:has(>[hidden]){grid-template-columns:minmax(0,1fr)}}
+
+/* PM 11-18 (user): the pearl number card opens Explore's pearl view. The heading link covers the whole card; "How we test" stays its own link. */
+.metric-card:has(.metric-link){position:relative}
+.metric-card .metric-link{color:inherit;text-decoration:none}
+.metric-card .metric-link::after{content:"";position:absolute;inset:0;border-radius:inherit}
+.metric-card .metric-link:focus-visible{outline:none}
+.metric-card .metric-link:focus-visible::after{outline:2px solid currentColor;outline-offset:2px}
+.metric-card .reference-text-link{position:relative;z-index:1}
+.pearl-result{display:flex;flex-direction:column;gap:var(--layout-field-gap,8px)}
+.pearl-result h3{margin:0}
+.pearl-result .pearl-direct{display:block}
+.pearl-view-note{grid-column:1/-1}
+/* PM 11-18: methodology tables never cut a word (contract ids, "reference", "internet"); a narrow screen scrolls the table inside its box */
+.stack-page .table-wrap{max-width:100%;overflow-x:auto}
+.stack-page table th,.stack-page table td{overflow-wrap:normal;word-break:normal;hyphens:manual}
+.stack-page table td:first-child,.stack-page table th:first-child{white-space:nowrap}
+.stack-page table td:nth-child(2),.stack-page table th:nth-child(2){min-width:9ch}
+/* PM 11-18 (user: /registry, /methodology): the shared body text scale of pages drawn by the growth shell, same tokens as the app screens */
+.stack-page h2{font-size:clamp(24px,2.4vw,30px);line-height:1.25;margin:0 0 var(--layout-action-gap,12px)}
+.stack-page h3{margin:var(--layout-group-gap,24px) 0 var(--layout-action-gap,12px)}
+.stack-page p:not(.eyebrow):not(.caption):not(.lead){font-size:15px;line-height:1.6;margin:0 0 var(--layout-list-gap,14px)}
+.stack-page ul,.stack-page ol{margin:0 0 var(--layout-list-gap,14px);padding-left:22px;font-size:15px;line-height:1.6}
+.stack-page li+li{margin-top:6px}
+.stack-page code{overflow-wrap:anywhere}
+.stack-page .page-heading p.lead{font-size:18px}
+/* PM 11-18: cards and card grids on growth-shell pages (rankings, task pages, badges) are 24 apart, never touching */
+.growth-shell .grid+*,.growth-shell .card+.card{margin-top:var(--layout-group-gap,24px)}
+/* PM 11-18 (user): pages drawn by the growth shell wear the About page's pearl design: a pearl thread in the heading, sections as cards */
+.growth-shell .pearl-page-heading{position:relative}
+.heading-pearls{display:none}
+@media(min-width:951px){.growth-shell .pearl-page-heading .heading-pearls{display:flex;align-items:center;gap:18px;position:absolute;right:0;top:56px;rotate:-8deg}
+.growth-shell .pearl-page-heading .heading-pearls::before{content:"";position:absolute;left:8px;right:8px;top:50%;height:1px;background:var(--gold)}
+.growth-shell .pearl-page-heading .heading-pearls .pearl{position:relative;width:38px;height:38px}
+.growth-shell .pearl-page-heading .heading-pearls .pearl:nth-child(2){width:58px;height:58px}}
+.stack-page>section{border:1px solid var(--line);border-radius:var(--radius);background:linear-gradient(120deg,#ffffff44,transparent),var(--surface);padding:26px;box-shadow:var(--shadow);min-width:0}
+@media(max-width:700px){.stack-page>section{padding:21px}}
+.growth-shell .grid>.card+.card{margin-top:0}

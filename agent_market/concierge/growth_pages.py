@@ -245,6 +245,7 @@ FOOTER = [('Connect a client', '/connect'), ('Task pages', '/agents/tasks'), ('R
 # stylesheets became one immutable bundle, and app.js gets ?v= so repeat visits keep it. Same files, same order.
 SHELL_ASSETS = ('<link rel="stylesheet" href="/new/en/assets/operating.css"><link rel="stylesheet" href="/new/en/assets/styles.css">'
                 '<link rel="stylesheet" href="/new/en/assets/necklace.css"><link rel="stylesheet" href="/new/en/assets/pearl-live.css">'
+                '<link rel="stylesheet" href="/new/en/assets/experience.css">'     # the same sheets as About (PM 11-18, user: pearl design everywhere)
                 '<script src="/new/en/assets/app.js" defer></script>')
 _shell_assets = {'at': 0.0, 'value': None}
 
@@ -270,10 +271,28 @@ def shell_preload():
     found = _re.search(r'href="(/new/en/assets/bundle\.css\?[^"]+)"', shell_assets())
     return '<' + found.group(1).replace('&amp;', '&') + '>; rel=preload; as=style' if found else ''
 
+_footer = {}
+
+
+def footer_html():
+    """The shared public footer (pearl_footer.html: the pearl-footer block of the About page, one copy) for every page this shell draws."""
+    if 'value' not in _footer:
+        try:
+            _footer['value'] = Path(__file__).with_name('pearl_footer.html').read_text(encoding='utf-8')
+        except OSError:
+            _footer['value'] = ''
+    return _footer['value']
+
+
 def shell(*, title, description, canonical, body, structured=None, index=True, follow=True):
     data = json.dumps(structured or {}, ensure_ascii=True).replace('<', '\\u003c')
+    # every page of this shell that wraps its body in pearl-page gets the shared page rhythm (sections 32 apart, one text scale), PM 11-18
+    body = body.replace('<div class="pearl-page">', '<div class="pearl-page stack-page">', 1)
     nav = ''.join('<a class="nav-tab" href="'+esc(href)+'">'+esc(label)+'</a>' for label, href in NAV)
-    links = ''.join('<a class="footer-link-btn" href="'+esc(href)+'">'+esc(label)+'</a>' for label, href in FOOTER)
+    # the pages' own discovery links stay as a quiet line under the content (they were the old footer's links); the footer itself is the
+    # shared pearl footer every other public page carries (PM 11-18 21:2x, user report on /methodology)
+    browse = ('<section class="section"><p class="caption">Browse: ' + ' \u00b7 '.join('<a href="' + esc(href) + '">' + esc(label) + '</a>'
+                                                                                  for label, href in FOOTER[:9]) + '</p></section>')
     return ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
             '<meta name="viewport" content="width=device-width,initial-scale=1">'
             '<title>'+esc(title)+'</title><meta name="description" content="'+esc(description)+'">'
@@ -290,21 +309,21 @@ def shell(*, title, description, canonical, body, structured=None, index=True, f
             '<link rel="agent-card" href="/.well-known/agent-card.json"><link rel="alternate" type="text/markdown" href="/llms.txt">'
             + shell_assets() +
             '<script type="application/ld+json">'+data+'</script></head>'
-            '<body><a href="#mainContent" class="skip-link">Skip to main content</a>'
+            '<body data-pearl-entry="growth"><a href="#mainContent" class="skip-link">Skip to main content</a>'
             '<header class="top-nav pearl-header"><a href="/" class="brand-box" aria-label="AgentValCon Home">'
             '<span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>AgentValCon</a>'
             '<nav class="nav-tabs" aria-label="Main navigation">'+nav+'</nav>'
             '<div class="pearl-header-actions"><button class="theme-toggle" type="button" data-action="theme" '
             'aria-label="Toggle dark theme" aria-pressed="false"></button></div></header>'
-            '<main id="mainContent" class="main-wrap" tabindex="-1">'+body+'</main>'
-            '<footer class="global-footer"><div class="footer-wrap"><p class="footer-name">AgentValCon</p>'
-            '<p class="footer-tagline">Purposeful connections. Inspectable evidence.</p>'
-            '<nav class="footer-links" aria-label="Site links">'+links+'</nav></div></footer></body></html>')
+            '<main id="mainContent" class="main-wrap growth-shell" tabindex="-1">'+body+browse+'</main>'
+            + footer_html() + '</body></html>')
 
 
 def heading(eyebrow, h1, lead):
     return ('<div class="page-heading pearl-page-heading"><p class="eyebrow">'+esc(eyebrow)+'</p><h1>'+esc(h1)+'</h1>'
-            '<p class="lead">'+esc(lead)+'</p></div>')
+            '<p class="lead">'+esc(lead)+'</p>'
+            # the About page's pearls on a thread, small (PM 11-18: the same pearl design on every page the shell draws)
+            '<div class="heading-pearls" aria-hidden="true"><span class="pearl"></span><span class="pearl"></span><span class="pearl"></span></div></div>')
 
 
 # ---------------------------------------------------------------- connect page

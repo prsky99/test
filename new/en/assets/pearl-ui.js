@@ -7,7 +7,7 @@
   let status = null, pending = null, lastRefresh = 0;
   const notice = q('#pearlConnectionNotice');
   if (location.protocol === 'file:' && notice) notice.hidden = false;
-  function text(selector, value, root=document) { all(selector, root).forEach(node => { node.textContent = value; }); }
+  function text(selector, value, root=document) { all(selector, root).forEach(node => { if (node.textContent !== value) node.textContent = value; }); }   /* only a real change: a rewrite of the same text would wake the card watcher again and again */
   let pearlRequest=null;
   /* One small public list, read once per page, for the Explore badges and the Home / Agent Status counts (PM 11-18). */
   function pearlList(){if(!pearlRequest)pearlRequest=fetch('/api/pearls/public',{credentials:'omit'}).then(r=>r.ok?r.json():{}).catch(()=>({}));return pearlRequest;}
@@ -18,10 +18,13 @@
     if(!homeData||!card)return;
     const counts=homeData.counts||{},final=Number(counts.final)||0,verified=Number(counts.verified)||0,total=final+verified;
     if(total>0){text('[data-metric="pearls"]',format(total));text('[data-metric="pearls"] ~ p',format(final)+' final · '+format(verified)+' verified'+(Number(counts.jobs)>0?' across '+format(Number(counts.jobs))+' jobs':''));}
-    const live=Number(homeData.necklaces_live)||0,preview=Number(homeData.necklaces_preview)||0,shown=live+preview;
-    all('[data-necklace-metric]').forEach(node=>{node.hidden=shown<1;});
-    if(shown>=1)text('[data-metric="necklaces"]',format(shown));
-    if(preview>=1)text('[data-metric="necklaces"] ~ p',(live>=1?format(live)+' open · ':'')+format(preview)+' preview');   // a preview is not counted as open (PM 11-18)
+    const known=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;      // a missing field is shown as "—", never as 0 (PM 11-18)
+    const put=(name,value)=>{if(known(value))text('[data-metric="'+name+'"]',format(value));};
+    put('pearls_testing',homeData.pearls_testing);
+    const live=Number(homeData.necklaces_live)||0,preview=Number(homeData.necklaces_preview)||0;
+    text('[data-metric="necklaces"]',format(live+preview));          // the public number: open plus preview (workflow team, PM 11-18)
+    text('[data-metric="necklaces"] ~ p',live+preview>0?(live>=1?format(live)+' open · ':'')+format(preview)+' preview':'Tested agents joined into one call');
+    put('necklaces_testing',homeData.necklaces_verifying);           // candidates in their connection test, never the previews
   }
   function homeCounts(){
     if(!/(^\/$|\/index\.html$|\/agent-status\.html$)/.test(location.pathname))return;   // Home and Agent Status only: the other pages load no API on open (UI policy 11-01)
@@ -132,6 +135,60 @@
     pearlList().then(d=>{pearlDirect=Array.isArray(d&&d.direct)?d.direct.map(String):[];pearlDirectNote=typeof(d&&d.direct_note)==='string'?d.direct_note:'';pearlLevels=d&&typeof d.levels==='object'&&d.levels?d.levels:{};apply(pearlLevels);}).catch(()=>{pearlLevels={};});
   }
   renderExplore = function(...args){oldExplore(...args);all('#xResults .acard').forEach(card=>{/* 11-11: the card holds its own buttons (compare, feedback), so it is not a button itself (axe nested-interactive); "View details" is the keyboard and screen-reader target, the whole card stays clickable by pointer. */const actions=document.createElement('div');actions.className='pearl-result-actions';const label=document.createElement('button');label.type='button';label.className='link-button pearl-view-details';label.textContent='Details →';label.setAttribute('aria-label','View '+(q('.t',card)?.textContent||'agent')+' details');actions.append(label);const row=q('.explore-feedback',card);if(row){row.classList.add('pearl-card-actions');row.append(label);}else card.append(actions);card.addEventListener('click',()=>previewAgent(EXPLORE_AGENT_MAP.get(card.dataset.id)));});markPearls();previewAgent(args[0]?.[0]);};
+  /* PM 11-18 (user): "Pearls only". The checkbox, ?view=pearls, ?pearls=1 and #explore?pearls=1 show the public pearl list itself (/api/pearls/list, the file behind the counts), not the search index: with no words every pearl, with words only those whose agent name, job or level match. */
+  const pearlBox=q('#xPearls');
+  let pearlListRequest=null,pearlViewTimer=null;
+  function pearlViewRows(){if(!pearlListRequest)pearlListRequest=fetch('/api/pearls/list',{credentials:'omit'}).then(r=>r.ok?r.json():Promise.reject(new Error('list'))).then(d=>d&&Array.isArray(d.rows)?d:Promise.reject(new Error('list'))).catch(error=>{pearlListRequest=null;throw error;});return pearlListRequest;}
+  const pearlViewOn=()=>!!(pearlBox&&pearlBox.checked);
+  function pearlViewNote(text){const p=document.createElement('p');p.className='caption pearl-view-note';p.dataset.pearlView='1';p.setAttribute('role','status');p.textContent=text;return p;}
+  function pearlViewUrl(){const params=new URLSearchParams();if(pearlViewOn())params.set('pearls','1');const word=(q('#xQ').value||'').trim();if(pearlViewOn()&&word)params.set('q',word);const tail=params.size?'?'+params:'';try{history.replaceState(null,'',location.pathname+tail+'#explore'+tail);}catch{}}   /* the state is kept in the query and the hash: the search box's own address handling rewrites the hash */
+  function renderPearlView(){
+    const box=q('#xResults');if(!box||!pearlViewOn())return;
+    const title=q('#xTitle'),status=q('#uxExploreStatus'),more=q('#xLoadMoreWrap'),word=(q('#xQ').value||'').trim();
+    if(more)more.style.display='none';
+    if(title)title.textContent=word?'Pearls matching “'+word+'”':'Verified pearls';
+    box.setAttribute('aria-busy','true');
+    box.replaceChildren(pearlViewNote('Loading pearls…'));
+    pearlViewRows().then(data=>{
+      if(!pearlViewOn())return;
+      const terms=word.toLowerCase().split(/\s+/).filter(Boolean);
+      const rows=data.rows.filter(row=>{const hay=[row.name,row.role,row.job,row.badge].join(' ').toLowerCase();return terms.every(t=>hay.includes(t));});
+      const total=data.rows.length;
+      const line=word?format(rows.length)+' of '+format(total)+' pearls match “'+word+'”':format(total)+' pearls · '+format(new Set(data.rows.map(r=>r.id)).size)+' agents · '+format(new Set(data.rows.map(r=>r.role)).size)+' jobs';
+      if(status)status.textContent=line;
+      if(title){const sub=document.createElement('span');sub.className='sub';sub.textContent=line;title.append(' ',sub);}
+      if(!rows.length){box.replaceChildren(pearlViewNote('No pearls match “'+word+'”. Clear the search, or uncheck Pearls only to search all agents.'));box.setAttribute('aria-busy','false');return;}
+      box.replaceChildren(...rows.map(row=>{
+        const card=document.createElement('article');card.className='card stack pearl-result';card.dataset.pearlView='1';
+        const meta=document.createElement('div');meta.className='m';
+        const chip=document.createElement('span');chip.className='badge success pearl-chip';chip.textContent=row.level==='final'?'Final pearl':'Verified pearl';meta.append(chip);
+        const heading=document.createElement('h3');heading.textContent=row.name;
+        const job=document.createElement('p');job.textContent='Job: '+row.job;
+        const measured=document.createElement('p');measured.className='caption';measured.textContent=row.measured;
+        card.append(meta,heading,job,measured);
+        if(row.direct){const note=document.createElement('span');note.className='caption pearl-direct';note.textContent=data.direct_note||'';card.append(note);}
+        const link=document.createElement('a');link.className='btn';link.href='/agent/'+encodeURIComponent(row.id);link.textContent='View agent page';link.setAttribute('aria-label','View agent page for '+row.name+', '+row.job);card.append(link);
+        return card;}));
+      box.setAttribute('aria-busy','false');
+    }).catch(()=>{if(pearlViewOn()){box.replaceChildren(pearlViewNote('The pearl list could not be loaded. Try again in a moment.'));box.setAttribute('aria-busy','false');}});
+  }
+  function syncPearlView(){
+    for(const id of ['xKind','xCategory','xVerified','xNoAuth','xHasReport']){const el=q('#'+id);if(el)el.disabled=pearlViewOn();}
+    pearlViewUrl();
+  }
+  if(pearlBox){
+    const params=new URLSearchParams(location.search),hash=new URLSearchParams((location.hash.split('?')[1])||'');
+    if(params.get('view')==='pearls'||params.get('pearls')==='1'||hash.get('pearls')==='1'){pearlBox.checked=true;const w=params.get('q')||hash.get('q');if(w&&q('#xQ'))q('#xQ').value=w;}
+    const stop=event=>{event.preventDefault();event.stopImmediatePropagation();};
+    document.addEventListener('click',event=>{if(pearlViewOn()&&event.target.closest('#xGo')){stop(event);pearlViewUrl();renderPearlView();}},true);
+    document.addEventListener('keydown',event=>{if(pearlViewOn()&&event.key==='Enter'&&event.target.id==='xQ'){stop(event);pearlViewUrl();renderPearlView();}},true);
+    document.addEventListener('input',event=>{if(pearlViewOn()&&event.target.id==='xQ'){event.stopImmediatePropagation();clearTimeout(pearlViewTimer);pearlViewTimer=setTimeout(()=>{pearlViewUrl();renderPearlView();},200);}},true);
+    pearlBox.addEventListener('change',()=>{syncPearlView();if(pearlViewOn())renderPearlView();else q('#xGo')?.click();});
+    /* the normal search also answers (first load, a late response): when its cards replace ours, ours are drawn again */
+    const results=q('#xResults');
+    if(results)new MutationObserver(()=>{const first=results.firstElementChild;if(pearlViewOn()&&first&&!first.hasAttribute('data-pearl-view'))renderPearlView();}).observe(results,{childList:true});
+    if(pearlViewOn()){syncPearlView();renderPearlView();}
+  }
   function workflowChoices() {
     const group=q('#pearlWorkflowChoices');if(!group)return;
     const ordered=frontTemplatesCache.filter(t=>t?.id&&!String(t.name||'').startsWith('[')&&!String(t.tags||'').toLowerCase().includes('test'));

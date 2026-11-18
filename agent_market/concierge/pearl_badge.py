@@ -22,7 +22,7 @@ METHOD_URL = '/methodology'
 DIRECT_NOTE = "Connect directly — we don't relay this agent (provider terms)"  # fixed wording (PM 11-18)
 MAX_BYTES = 8 * 1024 * 1024
 MAX_ROLES = 3
-_cache = {'key': None, 'value': {}, 'counts': {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}, 'in_testing': None}
+_cache = {'key': None, 'value': {}, 'counts': {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}, 'pairs': [], 'in_testing': None}
 
 
 def path():
@@ -59,7 +59,7 @@ def load():
     key = (str(file), stat.st_mtime_ns, stat.st_size)
     if _cache['key'] == key:
         return _cache['value']
-    value, counts, jobs, agents = {}, {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}, set(), set()
+    value, counts, jobs, agents, pairs = {}, {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}, set(), set(), []
     testing = None
     if stat.st_size <= MAX_BYTES:
         try:
@@ -76,6 +76,7 @@ def load():
             row = _row(raw)
             if row and isinstance(agent_id, int) and not isinstance(agent_id, bool) and agent_id > 0:
                 value.setdefault(agent_id, []).append(row)
+                pairs.append((agent_id, row))
                 counts[row['level']] += 1
                 jobs.add(row['role'])
                 agents.add(agent_id)
@@ -83,7 +84,8 @@ def load():
             found.sort(key=lambda r: (r['level'] != 'final', r['role']))
             value[agent_id] = found[:MAX_ROLES]
     counts.update(jobs=len(jobs), agents=len(agents))
-    _cache.update(key=key, value=value, counts=counts, in_testing=testing)
+    pairs.sort(key=lambda p: (p[1]['level'] != 'final', role_name(p[1]).lower(), p[0]))
+    _cache.update(key=key, value=value, counts=counts, pairs=pairs, in_testing=testing)
     return value
 
 
@@ -106,6 +108,13 @@ def counts():
     if load() == {}:
         return {'final': 0, 'verified': 0, 'jobs': 0, 'agents': 0}
     return dict(_cache['counts'])
+
+
+def pairs():
+    """[(agent id, row)] for every agent and role pair of the public list, final first: the same rows counts() adds up
+    (the per-agent cap of load() does not apply here), so a list of them is as long as final + verified."""
+    load()
+    return list(_cache['pairs'])
 
 
 def rows(agent_id):

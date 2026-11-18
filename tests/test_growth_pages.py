@@ -109,10 +109,10 @@ def test_pages_use_the_shared_design_system_and_english_only(client, path):
     write(folder, snapshot())
     text = c.get(path).text
     bundle = re.search(r'/new/en/assets/bundle\.css\?f=([a-z,-]+)&amp;v=[0-9a-f]{16}', text)
-    assert bundle and bundle.group(1) == 'operating,styles,necklace,pearl-live'   # one stylesheet, same files and order
+    assert bundle and bundle.group(1) == 'operating,styles,necklace,pearl-live,experience'   # one stylesheet, same files and order
     assert re.search(r'/new/en/assets/app\.js\?v=[0-9a-f]{16}', text)
     assert text.count('rel="stylesheet"') == 1
-    assert 'pearl-header' in text and 'main-wrap' in text and 'global-footer' in text
+    assert 'pearl-header' in text and 'main-wrap' in text and 'pearl-footer' in text
     assert '<style' not in text and ' style=' not in text  # no page-only styles
     assert not re.search(r'[ㄱ-힣]', text)  # public pages are English only
     assert '<link rel="canonical" href="https://agentconcierge.biz'+path+'">' in text

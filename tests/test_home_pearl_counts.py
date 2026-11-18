@@ -70,18 +70,21 @@ def test_a_necklace_in_testing_or_stopped_is_not_counted(tmp_path, monkeypatch):
 
 
 @pytest.mark.parametrize('page', ['index.html', 'agent-status.html'])
-def test_the_pearl_card_is_fixed_html_and_the_necklace_card_starts_hidden(page):
+def test_the_four_cards_are_fixed_html_with_no_number_in_the_bytes(page):
     html = (PAGES / page).read_text(encoding='utf-8')
-    assert 'data-metric="pearls"' in html and '<h2>Verified pearls</h2>' in html
+    assert 'data-metric="pearls"' in html and '>Verified pearls</a></h2>' in html
     assert 'href="https://agentconcierge.biz/methodology">How we test</a>' in html
-    assert '<div class="metric-card" data-necklace-metric hidden>' in html and 'data-metric="necklaces"' in html
+    for metric in ('pearls_testing', 'necklaces', 'necklaces_testing'):                       # one row of four cards (PM 11-18): none is hidden, a missing value stays a dash
+        assert '<strong class="metric-value" data-metric="%s">—</strong>' % metric in html, metric
+    assert 'data-necklace-metric' not in html and 'hidden>' not in html[html.index('data-metric="pearls"'):html.index('data-metric="necklaces_testing"')]
     assert '<strong class="metric-value" data-metric="pearls">—</strong>' in html        # no number in the bytes
 
 
 def test_the_script_fills_the_numbers_once_and_shows_the_necklace_card_from_one_on():
     script = (PAGES / 'assets/pearl-ui.js').read_text(encoding='utf-8')
     assert script.count("fetch('/api/pearls/public'") == 1                                  # one request for Explore and Home
-    assert "all('[data-necklace-metric]').forEach(node=>{node.hidden=shown<1;});" in script   # open plus preview (PM 11-18)
+    assert "text('[data-metric=\"necklaces\"]',format(live+preview))" in script and "put('necklaces_testing',homeData.necklaces_verifying)" in script   # public = open + preview; testing = connection-test candidates only
+    assert "put('pearls_testing',homeData.pearls_testing)" in script and 'never as 0' in script             # a missing field is a dash
     assert "text('[data-metric=\"pearls\"]',format(total))" in script and script.count('homeCounts();') == 1
     assert "' across '+format(Number(counts.jobs))+' jobs'" in script                         # the line names the jobs, from the API
     assert 'MutationObserver' in script and "card.textContent==='—'" in script                 # the panels arrive after the script

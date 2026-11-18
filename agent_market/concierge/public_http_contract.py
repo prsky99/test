@@ -59,7 +59,7 @@ SNAPSHOT_CACHE = 'public, max-age=300, stale-while-revalidate=300'
 AGENT_DETAIL_CACHE = 'public, max-age=300, stale-while-revalidate=300'
 FEED_READS = frozenset(('/api/feed/verified.json',
     # 11-14: necklace list and feed, Check-and-Route reads (snapshot files only; 1.2-6 s from Korea while no-store)
-    '/api/necklaces', '/api/feed/necklaces.json', '/api/verify', '/api/roles', '/api/pearls/public',  # 11-18: pearl badge list
+    '/api/necklaces', '/api/feed/necklaces.json', '/api/verify', '/api/roles', '/api/pearls/public', '/api/pearls/list',  # 11-18: pearl badge list
     # 11-15 R78: catalog status (the origin keeps it 15 s), service status and the workspace link switch
     '/status.json', '/api/pearl/status', '/api/pearl/access'))
 FEED_CACHE = 'public, max-age=60, stale-while-revalidate=60'
