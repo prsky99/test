@@ -292,3 +292,49 @@ def test_offer_verifier_judges_each_surface():
     assert not moved['checks']['organic_same_with_and_without_ad']
     other = judge('rest', rest_parts({'sponsored': {**ad, 'advertiser': 'Someone'}}), rest_parts({'sponsored': ad}), 'AgentValCon')
     assert not other['checks']['advertiser']
+
+
+def test_a_second_category_on_a_topped_up_day_gets_its_own_top_up(store):  # noqa: F811
+    """11-18 19:33 (PM run): research had topped up day D for its regions; booking technology for the same day and
+    regions replayed that grant (same key, no category) and failed insufficient_balance. Now each category has its
+    own top-up, research keeps its key, and a shortfall stops before any booking."""
+    commercial = _commercial(store)
+    commercial.regions = frozenset({'US', 'KR', 'JP', 'GB', 'DE'})
+    commercial.taxonomy = frozenset(set(commercial.taxonomy) | {'technology'})
+    now_ms = int(time.time() * 1000)
+    tomorrow = time.strftime('%Y-%m-%d', time.gmtime((now_ms - now_ms % DAY_MS + DAY_MS) / 1000))
+    house.run(commercial, month=time.strftime('%Y-%m', time.gmtime()), issue_atoms=10_000 * points.ATOMS_PER_COIN,
+              day=tomorrow, now_ms=now_ms)
+    regions = ['KR', 'JP', 'GB', 'DE']
+    research = house.book_regions(commercial, day=tomorrow, regions=regions, now_ms=now_ms)
+    assert research['written'] and len(research['bookings']) == 4
+    plan = house.book_regions(commercial, day=tomorrow, regions=regions, category='technology', check=True, now_ms=now_ms)
+    assert [p['state'] for p in plan['plan']] == ['to_book'] * 4 and int(plan['top_up_atoms']) == 4 * 50 * points.ATOMS_PER_COIN
+    tech = house.book_regions(commercial, day=tomorrow, regions=regions, category='technology', now_ms=now_ms)
+    assert tech['written'] and [b['state'] for b in tech['bookings']] == ['booked'] * 4
+    assert tech['top_up'] and tech['top_up'] != research.get('top_up')
+    again = house.book_regions(commercial, day=tomorrow, regions=regions, category='technology', now_ms=now_ms)
+    assert not again['written'] and [p['state'] for p in again['plan']] == ['booked'] * 4
+    from scripts.ad_coin_daily_ledger_check import check
+    assert check(store)['ok']
+
+
+def test_a_short_house_account_stops_before_booking(store, monkeypatch):  # noqa: F811
+    commercial = _commercial(store)
+    commercial.regions = frozenset({'US', 'KR', 'JP'})
+    now_ms = int(time.time() * 1000)
+    tomorrow = time.strftime('%Y-%m-%d', time.gmtime((now_ms - now_ms % DAY_MS + DAY_MS) / 1000))
+    house.run(commercial, month=time.strftime('%Y-%m', time.gmtime()), issue_atoms=10_000 * points.ATOMS_PER_COIN,
+              day=tomorrow, now_ms=now_ms)
+    house.book_regions(commercial, day=tomorrow, regions=['KR'], now_ms=now_ms)   # exact top-up: less than a day left
+    from agent_market.ad_coin.v2.sponsored_booking import PRICE_ATOMS
+    _, row, _ = house._house(store)
+    with store.atomic():
+        assert int(store.one('account_get', (row['available_account'],))['balance_atoms']) < PRICE_ATOMS
+    from agent_market.ad_coin.v2 import economy
+    monkeypatch.setattr(economy.CoinEconomy, 'operator_grant', lambda self, *a, **k: {'replayed': True})   # adds nothing
+    import pytest
+    with pytest.raises(RuntimeError, match='nothing booked'):
+        house.book_regions(commercial, day=tomorrow, regions=['JP'], now_ms=now_ms)
+    with store.atomic():
+        assert int(store.one('sponsored_booking_day_count', (now_ms - now_ms % DAY_MS + DAY_MS, 'research', 'JP'))['n']) == 0

@@ -227,10 +227,21 @@ def book_regions(commercial, *, day, regions, category="research", check=False, 
         return out
     me = _principal()
     if shortfall:
+        # 11-18 19:33 (PM run, technology): the top-up key had no category, so a second category on a day and regions
+        # the research run had already topped up replayed that earlier grant and added nothing; the booking then
+        # failed insufficient_balance. Research keeps its old key (its daily runs stay idempotent); others add theirs.
+        key = "house-topup/" + day + "/" + ",".join(to_book) + ("" if category == "research" else "/" + category)
         out["top_up"] = CoinEconomy(store, commercial.ledger, access).operator_grant(
             me, account_id=row["available_account"], amount_atoms=shortfall,
-            reason="house ad Sponsored days " + day + " " + ",".join(to_book),
-            request_id=uuid5(NAMESPACE_URL, BASE + "house-topup/" + day + "/" + ",".join(to_book)).hex)
+            reason="house ad Sponsored days " + day + " " + ",".join(to_book)
+                   + ("" if category == "research" else " " + category),
+            request_id=uuid5(NAMESPACE_URL, BASE + key).hex)
+    with store.atomic():
+        now_balance = int(store.one("account_get", (row["available_account"],))["balance_atoms"])
+    if now_balance < len(to_book) * PRICE_ATOMS:
+        # stop before any booking instead of failing halfway (nothing is booked; the top-up, if any, stays recorded)
+        raise RuntimeError("house account holds %d atoms after the top-up, %d needed for %s; nothing booked"
+                           % (now_balance, len(to_book) * PRICE_ATOMS, ",".join(to_book)))
     bookings = SponsoredBookings(store, commercial.ledger, taxonomy=commercial.taxonomy, regions=commercial.regions,
                                  access=access)
     out["bookings"] = []
