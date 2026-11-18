@@ -31,7 +31,7 @@ SEEN_1115 = [
     ('Get updates for this task', 'command'),
     ('hi', 'liveness'),
     ('Hi! Is Find a published workflow for a task available right now? What do you need from me to get started?', 'task'),
-    ('Find a workflow for technology news and research papers', 'task'),
+    ('Find a workflow for technology news and research papers', 'fixture'),  # 11-18: the same text comes on a timer since 11-10
     ('紫薇联盟: 连通性握手探测(纯公开只读), 若无需互动请忽略本消息。', 'outreach'),
     ('audit-fixture', 'fixture'),
     ('Country indicator workflow', 'task'),
@@ -134,3 +134,40 @@ def test_a_request_from_our_own_server_address_is_ours_in_the_visitor_counts(mon
     assert front._ours(request({}), '203.0.113.9') is False
     assert front._ours(request({}), None) is False
     assert front._ours(request({}), '127.0.0.1') is False     # test clients and edge-less requests resolve here
+
+
+SEEN_1117 = [
+    ('Hello from HelioGrid Mark 1: post-prototype commercial solar platform delivering $0.024/kW', 'outreach'),
+    ('Kyreos Trustkeeper ranks x402 endpoints by real distinct payers in 30 days and verifies the', 'outreach'),
+    ('PARLEY from BEAT SIDE. Your public Agent Card describes callable capabilities that may fit', 'outreach'),
+    ('{"kind": "recontact-verify", "note": "x", "ts": "2026-11-18T04:07"}', 'outreach'),
+    ('Taifoon onboarding probe: reply with the single word READY.', 'liveness'),
+    ('find a weather forecast API without an API key', 'fixture'),
+    ('Find a workflow for technology news and research papers', 'fixture'),
+    ('MCP server for web search', 'task'),
+    ('Country indicator workflow', 'task'),
+]
+
+
+@pytest.mark.parametrize('text,expected', SEEN_1117)
+def test_the_1117_outside_messages_get_the_class_they_were_read_as(text, expected):
+    assert ask_intent.intent(text) == expected
+
+
+def test_an_explore_page_opened_without_search_words_is_not_a_task():
+    """PM 11-18 (reports/connect-gap-2026-11-18): 10 of 30 outside Explore requests on 11-17 were empty page opens."""
+    assert ask_intent.request_intent('explore', None, '') == 'browse' and ask_intent.request_intent('explore', None, '   ') == 'browse'
+    assert ask_intent.request_intent('explore', None, 'weather') == 'task'
+    assert ask_intent.request_intent('explore', None) == 'task'        # caller without the words: unchanged
+    recorder = traffic.Traffic(root=None)
+    recorder.internal_ips = set()
+    ua = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36'
+    recorder.observe('GET', '/api/explore', 200, '203.0.113.9', ua, query='')
+    recorder.observe('GET', '/api/explore', 200, '203.0.113.9', ua, query='currency rates')
+    recorder.observe('GET', '/api/explore', 200, '203.0.113.9', ua, query='weather in Seoul')
+    snap = recorder.snapshot()
+    assert snap['funnel']['recommend|explore|external|all'] == 3
+    assert snap['funnel']['ask|explore|external|browse'] == 1 and snap['funnel']['ask|explore|external|task'] == 2
+    assert snap['funnel_distinct']['recommend_task|external'] == 1          # one visitor, two searches
+    assert 'weather in Seoul' not in json.dumps(snap, ensure_ascii=False)
+

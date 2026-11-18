@@ -2352,7 +2352,8 @@ def create_front_app(front: Front, *, workspace_access_enabled: bool = False,
                                request.headers.get('user-agent', ''), getattr(request, '_body', None),
                                request.headers, response.headers,
                                cause=request.scope.get('traffic_cause'), gateway=request.scope.get('traffic_gateway'),
-                               source=request.query_params.get('from'), auto_run=request.scope.get('traffic_auto_run'))
+                               source=request.query_params.get('from'), auto_run=request.scope.get('traffic_auto_run'),
+                               query=request.query_params.get('q', '') if request.url.path == '/api/explore' else None)
             if request.url.path == '/api/explore' and response.status_code == 200:
                 recorder().explore_topic(request.query_params.get('q', ''), client_ip, request.headers.get('user-agent', ''),
                                          request.headers.get('x-agentcon-qa'), request.query_params.get('offset'))

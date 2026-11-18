@@ -13,6 +13,8 @@ intent(text) -> one of
 - 'fixture'   the fixed texts monitors send on a timer ("Structured discovery request", "audit-fixture")
 - 'command'   our own follow-up words sent without a task ("what's new", "details 1", "get updates for this task")
 - 'empty'     no text
+- 'browse'    an Explore page opened with no search words (PM 11-18: not a task; one visitor typing several searches is
+              still several requests, so the north star counts the clients that sent a task beside the requests)
 The phrase lists live in traffic_classes.json (ask_* keys) so they change without code. Only the class is kept;
 the text is read in memory and never stored.
 """
@@ -22,7 +24,7 @@ import re
 from .traffic import _classes
 
 MAX_TEXT = 2000
-INTENTS = ('task', 'liveness', 'outreach', 'security', 'fixture', 'command', 'empty')
+INTENTS = ('task', 'liveness', 'outreach', 'security', 'fixture', 'command', 'empty', 'browse')
 _SPACE = re.compile(r'\s+')
 _EDGE = re.compile(r'^[\s"\'`.!?¡¿,;:()\[\]-]+|[\s"\'`.!?,;:()\[\]-]+$')
 
@@ -92,7 +94,8 @@ def request_text(surface, body):
     return None
 
 
-def request_intent(surface, body):
+def request_intent(surface, body, query=None):
+    """query: the Explore search words (None when the caller does not know them: then an Explore request is a task)."""
     if surface == 'explore':
-        return 'task'
+        return 'browse' if query is not None and not str(query).strip() else 'task'
     return intent(request_text(surface, body))

@@ -338,7 +338,7 @@ class Traffic:
         self.explore_topics = Counter()   # "category|client" -> first-page Explore searches (11-15 PM: demand, no text)
 
     def observe(self, method, path, status, ip, ua, body=None, headers=None, response_headers=None, cause=None,
-                gateway=None, source=None, auto_run=None):
+                gateway=None, source=None, auto_run=None, query=None):
         entry = entry_of(method, path)
         if entry is None:
             return
@@ -407,11 +407,11 @@ class Traffic:
                     # cause (11-10): our own security blocks (blocked_ip, policy_denied) are counted apart
                     # from protocol failures so a block window does not read as a client problem.
                     self.errors[entry + '|' + str(status) + (':' + cause if cause else '') + '|' + request_shape(method, path, headers) + '|' + (rpc or '-')] += 1
-            self._funnel_locked(entry, method, status, ua, client, body, digest, gateway, headers, auto_run)
+            self._funnel_locked(entry, method, status, ua, client, body, digest, gateway, headers, auto_run, query)
             if self.clock() - self.flushed >= FLUSH_SECONDS:
                 self._write_locked()
 
-    def _funnel_locked(self, entry, method, status, ua, client, body, digest, gateway, headers=None, auto_run=None):
+    def _funnel_locked(self, entry, method, status, ua, client, body, digest, gateway, headers=None, auto_run=None, query=None):
         """North star funnel (11-12 PM): recommendation requests, gateway connections and successful executions.
 
         GATEWAY is what the gateway handler decided: {'step': 'connect'|'execute', 'ok': bool, 'rid': int}. Pairs
@@ -428,7 +428,7 @@ class Traffic:
                 self.funnel['recommend|' + surface + '|' + cls + '|ok'] += 1
             # PM 11-16 08:2x: what the request was for (task, liveness, outreach, ...); only the class is kept.
             from .ask_intent import request_intent
-            kind = request_intent(surface, body)
+            kind = request_intent(surface, body, query)
             self.funnel['ask|' + surface + '|' + cls + '|' + kind] += 1
             if kind == 'task':
                 asked = self.funnel_sets['recommend_task|' + cls]
