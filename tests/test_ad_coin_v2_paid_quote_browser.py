@@ -159,10 +159,23 @@ def world(p1_suite, request):  # noqa: F811
         stop()
 
 
-def _focused(page):
-    """'' when focus is on the page itself, else the element's id (or its tag when it has none)."""
-    return page.evaluate("document.activeElement===document.body||!document.activeElement?'':"
-                         "(document.activeElement.id||document.activeElement.tagName)")
+UNSETTLED = ("", "review-title", "confirm-review")  # the page itself or the review card that just closed
+
+
+def _focused(page, want=None, timeout=5.0):
+    """'' when focus is on the page itself, else the element's id (or its tag when it has none).
+
+    With ``want`` (an id, or a test on the value) it reads again every 50 ms until the value fits or ``timeout``
+    passes, and returns the last value. The page moves focus only after its follow-up request ends, so a single read
+    right after the notice appears can land before the move when the machine is busy (gate r14c, 11-18)."""
+    deadline = time.monotonic() + timeout
+    while True:
+        now = page.evaluate("document.activeElement===document.body||!document.activeElement?'':"
+                            "(document.activeElement.id||document.activeElement.tagName)")
+        fits = want is None or (want(now) if callable(want) else now == want)
+        if fits or time.monotonic() > deadline:
+            return now
+        page.wait_for_timeout(50)
 
 
 @pytest.mark.parametrize("width", [1280, 375])
@@ -190,7 +203,7 @@ def test_new_advertiser_reaches_quote_and_confirming_by_keyboard(world, width):
             page.get_by_role("button", name="Review application", exact=True).click()
             page.get_by_role("button", name="Confirm", exact=True).press("Enter")
             expect(page.locator("#notice")).to_contain_text("Your advertising account is open")
-            assert _focused(page) not in ("", "review-title", "confirm-review")     # never the page or the closed card
+            assert _focused(page, lambda f: f not in UNSETTLED) not in UNSETTLED     # never the page or the closed card
             assert built.approve_applications() == []                               # approved at once, nobody waits
             expect(page.locator("#apply-form")).to_be_hidden()                      # f: folded into one line
             expect(page.locator("#apply-summary")).to_contain_text("Paper Finder Test")
@@ -212,19 +225,19 @@ def test_new_advertiser_reaches_quote_and_confirming_by_keyboard(world, width):
             page.get_by_role("button", name="Review and start", exact=True).click()
             page.get_by_role("button", name="Confirm", exact=True).press("Enter")
             expect(page.locator("#notice")).to_contain_text("Campaign started")
-            assert _focused(page) == "notice"          # the start button is re-rendered, so the result line
+            assert _focused(page, "notice") == "notice"          # the start button is re-rendered, so the result line
 
             page.get_by_role("button", name="Book a Sponsored day", exact=True).press("Enter")
-            assert _focused(page) == "booking-day"
+            assert _focused(page, "booking-day") == "booking-day"
             page.wait_for_load_state("networkidle")
             expect(page.locator("#open-plan")).to_be_hidden()          # no plan tables yet: single days only
             for _ in range(4):                         # day, category, region, Book with coins, Pay 5 USDC
                 page.keyboard.press("Tab")
-            assert _focused(page) == "pay-usdc"
+            assert _focused(page, "pay-usdc") == "pay-usdc"
             with page.expect_response(lambda r: r.url.endswith("/paid-bookings") and r.request.method == "POST") as made:
                 page.keyboard.press("Enter")
             quote = made.value.json()
-            assert _focused(page) == "pay-title"       # the quote card is announced and scrolled into view
+            assert _focused(page, "pay-title") == "pay-title"       # the quote card is announced and scrolled into view
             amount = page.locator("#pay-amount").inner_text()
             assert amount == quote["amount_usdc"] and not amount.endswith("000000")   # the unique tail
             assert page.locator("#pay-to").inner_text().lower() == PAY_TO
@@ -234,7 +247,7 @@ def test_new_advertiser_reaches_quote_and_confirming_by_keyboard(world, width):
 
             for _ in range(3):                         # Copy amount, Copy address, Transaction hash
                 page.keyboard.press("Tab")
-            assert _focused(page) == "pay-tx"
+            assert _focused(page, "pay-tx") == "pay-tx"
             page.keyboard.type(built.pay(quote["id"]))
             page.keyboard.press("Enter")
             expect(page.locator("#pay-status")).to_contain_text("Press Confirm payment again to check")
@@ -293,7 +306,7 @@ def test_a_budget_becomes_plans_and_one_payment_books_them(world):
             page.get_by_role("button", name="Book a Sponsored day", exact=True).click()
             expect(page.locator("#open-plan")).to_be_visible()
             page.locator("#open-plan").press("Enter")
-            assert _focused(page) == "plan-budget"
+            assert _focused(page, "plan-budget") == "plan-budget"
             page.keyboard.type("12")                               # two placements; 2 USDC left over is not charged
             page.get_by_role("button", name="Show plans", exact=True).press("Enter")
             first = page.locator("#plan-options button").first
@@ -303,7 +316,7 @@ def test_a_budget_becomes_plans_and_one_payment_books_them(world):
             with page.expect_response(lambda r: r.url.endswith("/paid-plans") and r.request.method == "POST") as made:
                 first.press("Enter")
             plan = made.value.json()
-            assert plan["placements"] == 2 and _focused(page) == "pay-title"
+            assert plan["placements"] == 2 and _focused(page, "pay-title") == "pay-title"
             assert page.locator("#pay-amount").inner_text() == plan["amount_usdc"] and plan["amount_usdc"].startswith("10.00")
             page.locator("#pay-tx").fill(built.pay_plan(plan["id"]))
             page.get_by_role("button", name="Confirm payment", exact=True).click()
