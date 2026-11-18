@@ -54,7 +54,7 @@ def test_no_sec_registration_is_a_normal_filings_answer():
     assert merged["no_us_sec_filings"] is True and merged["note"].startswith("No US SEC filings")
     filed = runner.normalize("sec.filings.v1", {"answer": "Matched SEC filer: Microsoft Corp (SEC CIK 789019); 10-K"}, {})
     assert "no_us_sec_filings" not in filed
-    defn = model.load("agent_market/necklaces/definitions/company-due-diligence.json")
+    defn = model.load("tests/data/necklaces/company-due-diligence.v3.json")     # v3: sec-filings answers once 58997 is dropped
     filings = next(s for s in defn["slots"] if s["slot"] == "filings")
     seen = {}
 

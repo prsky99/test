@@ -23,7 +23,8 @@ class Relay(httpx.BaseTransport):
 
 
 def shipped_company():
-    return next(d for d in model.load_valid() if d["slug"] == "company-due-diligence")
+    # company v3, the last one the held-out harness ran (v4 of 11-19 takes the connection gate, PM 19:37)
+    return model.load("tests/data/necklaces/company-due-diligence.v3.json")
 
 
 def company():

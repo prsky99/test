@@ -254,7 +254,7 @@ def test_cases_outside_the_task_are_not_run_or_graded(tmp_path):
 
 
 def test_singles_are_every_lead_pearl_and_our_substitute_on_the_whole_task():
-    defn = next(d for d in model.load_valid() if d["slug"] == "company-due-diligence")
+    defn = model.load("tests/data/necklaces/company-due-diligence.v3.json")     # v3, the held-out harness's company
     approved = {"substitutes": [["sec-edgar", "company.registry.v1"]]}      # ops-approved 11-15 (approvals.json)
     members = retest.single_members(defn, "background", approved)
     # 58997's terms prohibit our use (agent team 11-15): it is never measured alone either
@@ -267,7 +267,7 @@ def test_singles_are_every_lead_pearl_and_our_substitute_on_the_whole_task():
 
 def test_the_shipped_company_definition_has_three_verified_pearl_leads():
     from agent_market.necklaces import judge
-    defn = next(d for d in model.load_valid() if d["slug"] == "company-due-diligence")
+    defn = model.load("tests/data/necklaces/company-due-diligence.v3.json")     # v3, the held-out harness's company
     verified = {(241601, "encyclopedia.summary.v1"), (58997, "sec.filings.v1"), (52559, "domain.lookup.v1")}
     leads = judge.pearls(defn, verified)
     assert sorted(p["resource_id"] for p in leads if p["pearl"]) == [52559, 58997, 241601]

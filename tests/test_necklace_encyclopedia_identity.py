@@ -3,7 +3,7 @@ kept only when they are about the registry's company; otherwise the next member 
 article about it the step answers 'No encyclopedia article found' (not_found, never another company)."""
 from agent_market.necklaces import model, runner
 
-DEFN = "agent_market/necklaces/definitions/company-due-diligence.json"
+DEFN = "tests/data/necklaces/company-due-diligence.v3.json"     # v3's title members (v4 of 11-19 keeps 47189 and adds our substitutes)
 STATE = {"substitutes": [["sec-edgar", "company.registry.v1"], ["sec-filings", "sec.filings.v1"],
                          ["wikipedia-summary", "encyclopedia.summary.v1"]]}
 

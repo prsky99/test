@@ -12,18 +12,18 @@ from tests.test_pearl_frontend import client  # noqa: F401 - fixture
 
 def test_the_page_shows_the_generated_numbers_and_no_promise_words():
     data = mp.method()
-    assert data and data['version'] == 'v1.3'   # 11-16: re-judged results and unreachable task inputs (v1.2: provisional members)
+    assert data and data['version'] == 'v1.4'   # 11-18: the necklace gate is the connection test (v1.3: re-judged results)
     value = mp.page_html(data=data)
     text = re.sub(r'<[^>]+>', ' ', value)
     for expected in ('scores 85 or more on 2 different days', 'Score (out of 100)', 'Tests per day', '120',
                      'up to 1000 ms: 10 points', 'Roles (' + str(len(data['roles'])) + ')', 'airport.lookup.v1',
-                     'necklace · pass total', 'necklace · held out cases', 'report v2 · musts', 'Changelog',
+                     'necklace · gate', 'connection test', 'necklace · stage 2 connection runs', 'report v2 · musts', 'Changelog',
                      'Machine-readable (JSON)'):
         assert expected in text or expected in value, expected
     for word in ('guaranteed', 'Guaranteed', '#1', ' best '):
         assert word not in text, word
     ld = json.loads(re.search(r'application/ld\+json">(.*?)</script>', value, re.S)[1])
-    assert ld['@type'] == 'TechArticle' and ld['version'] == 'v1.3' and ld['encoding']['contentUrl'].endswith('/methodology.json')
+    assert ld['@type'] == 'TechArticle' and ld['version'] == 'v1.4' and ld['encoding']['contentUrl'].endswith('/methodology.json')
 
 
 def test_routes_sitemap_and_llms(client):  # noqa: F811
@@ -74,7 +74,9 @@ def test_gate_section_tells_rules_from_what_has_run(tmp_path, monkeypatch):
     page = mp.page_html(data=data, log=[])
     text = re.sub(r'<[^>]+>', ' ', page)
     assert 'immediate hold' not in text and 'keeps passing its retests' not in text
-    assert 'retest · hold below at next daily check' in text and 'retest · pass rate' not in text
+    assert 'after opening · connection runs a day' in text and 'retest · pass rate' not in text
+    assert 'runs three times on different inputs' in text and 'older than 48 hours' in text
+    assert 'held out' not in text and '57/60' not in text and 'delta' not in text.lower()
     assert 'No necklace is offered yet' in text
     assert "each server's tool" not in page and 'records what changed' in page
 

@@ -7,7 +7,8 @@ def test_address_x_quakes_stamps_the_shipped_definition_members():
     shipped = model.load("agent_market/necklaces/definitions/quakes-near-address.json")
     assert stamped["slug"] == shipped["slug"] and model.validate(stamped) == []
     ids = lambda d: [[(m.get("resource_id"), m["tool"]) for m in s["chain"]] for s in d["slots"]]
-    assert ids(stamped) == ids(shipped)
+    # v2 (11-19) adds a local_time step after the hub and the consumer: the stamp gives those two
+    assert ids(stamped) == ids(shipped)[:len(stamped["slots"])] and len(stamped["slots"]) == 2
     assert len(stamped["slots"]) <= model.MAX_REQUIRED_SLOTS
 
 
