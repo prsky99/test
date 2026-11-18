@@ -103,7 +103,9 @@ def phases(marks, start):
 
 # R2 (PM 11-18): a failed check names the time it was recorded and the cf-ray of the last response this process read, in
 # full ('<id>-<airport>'), so Cloudflare and the origin log can be matched to the sample. It is the last response seen
-# before the check was judged, not necessarily the one the check is about.
+# before the check was judged, not necessarily the one the check is about. The HTTP parts send their requests one after
+# another (GAP apart, no threads), so it is not another thread's ray; the browser part (Chromium) does not go through
+# timed() and leaves it unchanged.
 _LAST = {'ray': ''}
 
 
