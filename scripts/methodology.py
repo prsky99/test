@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 OUT = ROOT / 'docs/methodology/methodology.json'
-VERSION = 'v1.4'  # 11-18 (user decisions via PM 19:2x): the necklace gate is a connection test; v1.3 11-16 (PM): re-judged results under a new evaluator, a task input that reaches no parameter is skipped; v1.2: provisional necklace members (user instruction d4670360); v1.1: retest rules say what runs
+VERSION = 'v1.5'  # 11-19 (PM 21:02): one-day pearl check and 8 test windows (search and RAG) with the connection gate of v1.4 (user decisions via PM 19:2x); v1.3 11-16 (PM): re-judged results under a new evaluator, a task input that reaches no parameter is skipped; v1.2: provisional necklace members (user instruction d4670360); v1.1: retest rules say what runs
 
 
 def _gate():
@@ -80,7 +80,13 @@ def build():
         'candidates': {'grade_minimum': 'A', 'grade_thresholds': {g: t for t, g in evaluation.GRADES},
                        'also_required': ['active', 'healthy in the last 7 days', 'not quarantined or under security review']},
         'role_test': {'calls_per_test': 1, 'read_only_tools_only': True, 'no_credentials_or_payment': True,
-                      'tests_per_day': V.ROLE_DAILY_LIMIT, 'new_candidates_per_day': V.NEW_A_DAY, 'retests_per_day': V.RETEST_A_DAY,
+                      # PM 21:02 (search and RAG 21:03): the report_v2 limits are per window; a day is that times
+                      # WINDOWS_A_DAY. Rules (upper limits), not counts of what ran.
+                      'windows_per_day': V.WINDOWS_A_DAY, 'tests_per_window': V.ROLE_DAILY_LIMIT,
+                      'tests_per_window_when_refusals_pass_5_percent': V.FALLBACK_LIMIT,
+                      'tests_per_day': V.ROLE_DAILY_LIMIT * V.WINDOWS_A_DAY,
+                      'new_candidates_per_day': V.NEW_A_DAY * V.WINDOWS_A_DAY,
+                      'retests_per_day': V.RETEST_A_DAY * V.WINDOWS_A_DAY,
                       'per_registrable_domain_per_day': provider_budget.SHARE['role_tests'],
                       'stop_domain_for_the_day_on': 429, 'answer_judged_up_to_bytes': 20000, 'excerpt_kept_chars': 1000,
                       'answer_hash': 'sha256',
@@ -104,8 +110,10 @@ def build():
                                     'named zone); retrieval times and unlabelled dates do not',
                   'evaluator_version': V.EVALUATOR_VERSION},
         'verified_pearl': {'min_score': V.PASS_MARK, 'successes_on_different_days': V.CONFIRM_DAYS,
-                           'days_count_when': 'accurate and clean, on different KST days, under the same tool, endpoint, '
-                                              'tool definition, evaluator version and answer set',
+                           'days_count_when': ('accurate and clean on a KST day' if V.CONFIRM_DAYS == 1 else
+                                               'accurate and clean, on different KST days')
+                                              + ', under the same tool, endpoint, tool definition, evaluator version and '
+                                                'answer set',
                            # PM 11-16 10:5x (A): what report_v2.rescore already does (R11)
                            'when_the_evaluator_changes': 'a result whose whole answer was kept at test time is judged again '
                                                          'by the new evaluator and counts under it; a result without its whole '

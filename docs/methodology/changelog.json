@@ -1,13 +1,15 @@
 [
  {
-  "version": "v1.4",
+  "version": "v1.5",
   "date": "2026-11-19",
   "changes": [
    "The necklace gate is a connection test. The agents in a necklace were tested already as pearls, so the gate checks that the chain connects and keeps answering, not their accuracy again.",
    "Stage 1 joins the steps one at a time, runs the whole chain, and runs each step once with its representative member left out to see a fallback answer. Stage 2 runs the whole chain three more times on different task inputs; all three must pass.",
    "Every required step has a representative pearl and at least one outside fallback. A step with no outside fallback in the market uses our own agent, approved by its own connection runs.",
    "After opening, one connection run a day keeps a necklace open; it is held when that run fails or is older than 48 hours. When a fallback answers a public run, a task opens to build our own agent for that role.",
-   "The earlier held-out answer rounds (57 of 60) are no longer the necklace gate."
+   "The earlier held-out answer rounds (57 of 60) are no longer the necklace gate.",
+   "A verified pearl needs one KST day on which it scores 85 or more on its role task, accurate and clean, instead of two different days.",
+   "Role tests run in 8 windows a day. Each window allows at most 100 new candidates and 20 retests (120 tests; 60 when refusals pass 5%), so a day allows at most 800 new candidates and 160 retests. These are limits, not counts of tests run."
   ]
  },
  {

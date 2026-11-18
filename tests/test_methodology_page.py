@@ -12,10 +12,13 @@ from tests.test_pearl_frontend import client  # noqa: F401 - fixture
 
 def test_the_page_shows_the_generated_numbers_and_no_promise_words():
     data = mp.method()
-    assert data and data['version'] == 'v1.4'   # 11-18: the necklace gate is the connection test (v1.3: re-judged results)
+    assert data and data['version'] == 'v1.5'   # 11-19: one-day pearl check, 8 windows (v1.4: connection gate)
+    days = data['verified_pearl']['successes_on_different_days']
+    pearl_rule = 'scores 85 or more on its role task' if days == 1 else f'scores 85 or more on {days} different days'
     value = mp.page_html(data=data)
     text = re.sub(r'<[^>]+>', ' ', value)
-    for expected in ('scores 85 or more on 2 different days', 'Score (out of 100)', 'Tests per day', '120',
+    for expected in (pearl_rule, 'Score (out of 100)', 'Tests per day, at most', 'Test windows per day',
+                     str(data['role_test']['tests_per_window']),
                      'up to 1000 ms: 10 points', 'Roles (' + str(len(data['roles'])) + ')', 'airport.lookup.v1',
                      'necklace · gate', 'connection test', 'necklace · stage 2 connection runs', 'report v2 · musts', 'Changelog',
                      'Machine-readable (JSON)'):
@@ -23,7 +26,7 @@ def test_the_page_shows_the_generated_numbers_and_no_promise_words():
     for word in ('guaranteed', 'Guaranteed', '#1', ' best '):
         assert word not in text, word
     ld = json.loads(re.search(r'application/ld\+json">(.*?)</script>', value, re.S)[1])
-    assert ld['@type'] == 'TechArticle' and ld['version'] == 'v1.4' and ld['encoding']['contentUrl'].endswith('/methodology.json')
+    assert ld['@type'] == 'TechArticle' and ld['version'] == 'v1.5' and ld['encoding']['contentUrl'].endswith('/methodology.json')
 
 
 def test_routes_sitemap_and_llms(client):  # noqa: F811

@@ -102,8 +102,12 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
                    'the source its data comes from.</p></section>')
     rt = data.get('role_test') or {}
     labels = [('calls_per_test', 'Calls per test'), ('read_only_tools_only', 'Read-only tools only'),
-              ('no_credentials_or_payment', 'No credentials or payment sent'), ('tests_per_day', 'Tests per day'),
-              ('new_candidates_per_day', 'New candidates per day'), ('retests_per_day', 'Retests per day'),
+              ('no_credentials_or_payment', 'No credentials or payment sent'),
+              # PM 21:02 (11-19, method v1.5): these are limits, so the labels say "at most"
+              ('windows_per_day', 'Test windows per day'), ('tests_per_window', 'Tests per window, at most'),
+              ('tests_per_window_when_refusals_pass_5_percent', 'Tests per window when refusals pass 5%, at most'),
+              ('tests_per_day', 'Tests per day, at most'),
+              ('new_candidates_per_day', 'New candidates per day, at most'), ('retests_per_day', 'Retests per day, at most'),
               ('per_registrable_domain_per_day', 'Tests per domain per day'),
               ('stop_domain_for_the_day_on', 'A domain pauses for the day on HTTP'),
               ('answer_judged_up_to_bytes', 'Answer bytes judged'), ('excerpt_kept_chars', 'Answer characters kept'),

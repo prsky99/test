@@ -1,6 +1,6 @@
 {
  "name": "AgentValCon Verification Method",
- "version": "v1.4",
+ "version": "v1.5",
  "candidates": {
   "grade_minimum": "A",
   "grade_thresholds": {
@@ -20,9 +20,12 @@
   "calls_per_test": 1,
   "read_only_tools_only": true,
   "no_credentials_or_payment": true,
-  "tests_per_day": 120,
-  "new_candidates_per_day": 80,
-  "retests_per_day": 40,
+  "windows_per_day": 8,
+  "tests_per_window": 120,
+  "tests_per_window_when_refusals_pass_5_percent": 60,
+  "tests_per_day": 960,
+  "new_candidates_per_day": 800,
+  "retests_per_day": 160,
   "per_registrable_domain_per_day": 5,
   "stop_domain_for_the_day_on": 429,
   "answer_judged_up_to_bytes": 20000,
@@ -81,8 +84,8 @@
  },
  "verified_pearl": {
   "min_score": 85,
-  "successes_on_different_days": 2,
-  "days_count_when": "accurate and clean, on different KST days, under the same tool, endpoint, tool definition, evaluator version and answer set",
+  "successes_on_different_days": 1,
+  "days_count_when": "accurate and clean on a KST day, under the same tool, endpoint, tool definition, evaluator version and answer set",
   "when_the_evaluator_changes": "a result whose whole answer was kept at test time is judged again by the new evaluator and counts under it; a result without its whole answer keeps its earlier verdict and label and never counts together with the new evaluator’s successes"
  },
  "final_pearl": {
