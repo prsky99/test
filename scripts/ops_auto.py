@@ -1073,7 +1073,7 @@ CLOSE_WHEN_CLEAR = ('fingerprints', 'backup', 'necklace_checks', 'launchd_jobs',
 
 
 NIGHT_TESTS_STATE = ROOT / 'logs/ops/night-tests-start.json'
-NIGHT_TESTS_FROM, NIGHT_TESTS_UNTIL = 130, 142   # PM 11-18 21:42: 01:30 (two watch rounds), after the 00:30 third deploy of 11-18 (was 22:40, PM 11-15 16:59)
+NIGHT_TESTS_FROM, NIGHT_TESTS_UNTIL = 350, 402   # PM 11-18 22:11: 03:50 (two watch rounds), after the 01:15 third deploy and the 03:12-03:47 RAG run (was 01:30 at 21:42, 22:40 before, PM 11-15 16:59)
 
 
 def night_tests(clock=time.time, launch=None):
