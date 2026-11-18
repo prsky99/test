@@ -25,7 +25,7 @@ from pathlib import Path
 from . import model
 from ..collector.usage import _DENY
 
-WATCHED = ("qualifying", "trial", "live", "held")
+WATCHED = ("qualifying", "trial", "preview", "live", "held")
 DEMOTE_AFTER = 2       # hours in a row unhealthy before a lead member is demoted
 RESTORE_AFTER = 6      # hours in a row healthy before a demoted member returns
 # PM decision 11-14: an ordinary definition change (dynamic descriptions excluded by

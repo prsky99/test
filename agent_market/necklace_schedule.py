@@ -64,7 +64,8 @@ class NecklaceStep:
             statuses = [d["status"] for d in definitions]
             line["definitions"] = len(definitions)
             line["by_status"] = {s: statuses.count(s) for s in sorted(set(statuses))}
-            line["retest_targets"] = {"trial": statuses.count("trial"), "live": statuses.count("live")}
+            line["retest_targets"] = {"trial": statuses.count("trial"), "live": statuses.count("live"),
+                                     "preview": statuses.count("preview")}
         except Exception as exc:
             definitions = None
             line.update(ok=False, definitions_error=type(exc).__name__)
@@ -121,6 +122,7 @@ MIN_LEFT_S = 60
 # :50, so the :55-:10 measurement window and 03:50-05:10 stay free; our relay calls keep to 2 edge slots
 # (retest.RELAY_CONCURRENCY). Its 5 sample cases a day (decision 1) fit in that hour.
 LIVE_HOURS = tuple(range(6, 23))
+RUNS_PUBLIC = ("live", "preview")    # user 11-18 via PM: a preview necklace is retested like a live one
 LIVE_START, LIVE_LAST, LIVE_END = 15, 25, 50
 
 
@@ -168,10 +170,10 @@ class RetestStep:
             started = self._started(day)
             if kind == "live":
                 every = model.load_valid(self.definitions_dir)
-                targets = [d for d in every if d["status"] == "live"
+                targets = [d for d in every if d["status"] in RUNS_PUBLIC
                            and d["slug"] not in started and (force_kind or live_hour(d["slug"]) == local.tm_hour)]
                 waiting = self._deferred()          # whole-set reruns put off for want of provider share
-                targets += [d for d in every if d["status"] == "live" and d["slug"] in waiting
+                targets += [d for d in every if d["status"] in RUNS_PUBLIC and d["slug"] in waiting
                             and d not in targets and waiting[d["slug"]].get("tried") != f"{day}-{local.tm_hour}"]
             else:
                 targets = [d for d in model.load_valid(self.definitions_dir)

@@ -240,7 +240,7 @@ def run(definitions: list[dict], root: Path, logs: Path, now: float | None = Non
         stage_state = {}
     stamp = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     for defn in definitions:
-        if defn.get("status") not in ("qualifying", "trial", "live", "held"):
+        if defn.get("status") not in ("qualifying", "trial", "preview", "live", "held"):
             continue
         slug = defn["slug"]
         summary = summarize(slug, today, window, singles, runs, pair_cases)
@@ -288,7 +288,7 @@ def run(definitions: list[dict], root: Path, logs: Path, now: float | None = Non
         write_atomic(root / "results" / slug / "summary.json", summary)
         # plan 3.4: a week without a drill shows, counted from the first day this necklace was seen in trial or live
         # (a necklace that has not reached its first drill day is not missing one)
-        watched = stage_state.setdefault("drill:" + slug, {"since": stamp}) if defn.get("status") in ("trial", "live") \
+        watched = stage_state.setdefault("drill:" + slug, {"since": stamp}) if defn.get("status") in ("trial", "preview", "live") \
             else stage_state.pop("drill:" + slug, None)
         watched_since = (watched or {}).get("since") or stamp
         due = watched_since <= (datetime.fromtimestamp(now, timezone.utc) - timedelta(days=8)).strftime("%Y-%m-%dT%H:%M:%SZ")

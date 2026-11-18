@@ -183,7 +183,10 @@ def run_for_surface(front, entry: dict, arguments, source: str, meta: dict | Non
         if sensitive(values) or TOKEN.search(json.dumps(values, ensure_ascii=False)):
             raise Refused("sensitive_input")
         # PM R21: per client, per necklace and total run limits before anything is sent
-        (limits.LIMITER if limiter is None else limiter).admit(defn["slug"], (meta or {}).get("ip"))
+        if defn.get("status") == "preview":         # user 11-18 via PM: a preview runs under lower caps
+            (limits.LIMITER if limiter is None else limiter).admit(defn["slug"], (meta or {}).get("ip"), preview=True)
+        else:
+            (limits.LIMITER if limiter is None else limiter).admit(defn["slug"], (meta or {}).get("ip"))
     except (Refused, limits.Refused) as exc:
         wait = getattr(exc, "retry_after", None)
         if exc.code == "rate_limited":
