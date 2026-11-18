@@ -246,3 +246,14 @@ def test_a_fallback_that_answered_a_public_run_opens_one_substitute_task_per_rol
     assert [(t["role"], t["runs"]) for t in opened] == [("x.v1", 2)]          # z.v1 has a substitute already
     assert open_tasks(tmp_path, [defn], NOW) == []                           # once per role
     assert len((tmp_path / "substitute-tasks.jsonl").read_text().splitlines()) == 1
+
+
+def test_the_methodology_gate_says_connection_test_and_no_held_out_number():
+    """PM 19:5x: the methodology page shows the connection gate (stages, fallbacks, the daily run), no 57 of 60."""
+    from agent_market.necklaces import gate_rules
+    gate = gate_rules.summary()
+    assert gate["necklace"]["gate"] == "connection test" and gate["necklace"]["stage_2_connection_runs"] == cg.CONNECT_RUNS
+    assert gate["after_opening"]["connection_runs_a_day"] == 1 and gate["substitute"]["gate"] == "connection test"
+    text = json.dumps(gate)
+    assert "held_out" not in text and "57" not in text and "pass_total" not in text
+    assert gate["necklace"]["accuracy_regraded_at_this_stage"] is False

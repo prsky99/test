@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'scripts'))
 
 OUT = ROOT / 'docs/methodology/methodology.json'
-VERSION = 'v1.3'  # 11-16 (PM): re-judged results under a new evaluator, a task input that reaches no parameter is skipped; v1.2: provisional necklace members (user instruction d4670360); v1.1: retest rules say what runs
+VERSION = 'v1.4'  # 11-18 (user decisions via PM 19:2x): the necklace gate is a connection test; v1.3 11-16 (PM): re-judged results under a new evaluator, a task input that reaches no parameter is skipped; v1.2: provisional necklace members (user instruction d4670360); v1.1: retest rules say what runs
 
 
 def _gate():

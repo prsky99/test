@@ -1,6 +1,6 @@
 {
  "name": "AgentValCon Verification Method",
- "version": "v1.3",
+ "version": "v1.4",
  "candidates": {
   "grade_minimum": "A",
   "grade_thresholds": {
@@ -95,25 +95,28 @@
  },
  "necklace_gate": {
   "necklace": {
-   "held_out_cases": 60,
-   "pass_total": 57,
-   "rounds": 2,
-   "cases_per_round": 30,
-   "pass_per_round": 28,
-   "round_gap_hours": 4,
-   "completion": 0.95,
-   "p95_ms": 5000,
-   "delta": "> 0"
+   "gate": "connection test",
+   "stage_1": [
+    "steps joined one at a time, each run for real before the next is added",
+    "the whole chain runs within its time budget",
+    "each required step with its representative member left out: a fallback answers"
+   ],
+   "stage_2_connection_runs": 3,
+   "stage_2": "the whole chain on that many different task inputs, all passing; one failure sends the step back to stage 1 and stage 2 starts over",
+   "every_required_step": "a representative pearl and at least one outside fallback",
+   "step_without_an_outside_fallback_in_the_market": "our own agent, approved by its own connection runs; then outside pearls lead 2 or more steps",
+   "terms": "allowed or silent",
+   "opens": "when both stages pass and operations approve",
+   "accuracy_regraded_at_this_stage": false
   },
-  "retest": {
-   "hold_below_at_next_daily_check": 0.8,
-   "hold_when_older_than_hours": 48,
-   "hold_when_delta": "<= 0",
-   "checked": "daily"
+  "after_opening": {
+   "connection_runs_a_day": 1,
+   "held_when": "the daily run fails or is older than 48 hours",
+   "when_a_fallback_answers_a_public_run": "a task opens to build our own agent for that role"
   },
   "substitute": {
-   "held_out_cases": 30,
-   "pass": 29
+   "gate": "connection test",
+   "connection_runs": 3
   },
   "report_v2": {
    "score": 85,
@@ -191,6 +194,19 @@
    "freshness": "fixed facts (not time-bound)"
   },
   {
+   "role": "court.case.v1",
+   "field": "other",
+   "example_input": {
+    "citation": "384 U.S. 436",
+    "query": "Miranda v. Arizona"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
    "role": "crypto.price.v1",
    "field": "finance",
    "example_input": {
@@ -204,6 +220,19 @@
     "same-time public reference within 2%"
    ],
    "freshness": "data time within 2 days"
+  },
+  {
+   "role": "cve.epss.v1",
+   "field": "other",
+   "example_input": {
+    "cve": "CVE-2021-44228",
+    "cve_id": "CVE-2021-44228"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
   },
   {
    "role": "cve.exploited.v1",
@@ -281,6 +310,19 @@
     "same-time public reference: usgs_places"
    ],
    "freshness": "data time within 30 days"
+  },
+  {
+   "role": "email.deliverability.v1",
+   "field": "other",
+   "example_input": {
+    "domain": "gmail.com",
+    "host": "gmail.com"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
   },
   {
    "role": "encyclopedia.summary.v1",
@@ -375,6 +417,20 @@
    "freshness": "fixed facts (not time-bound)"
   },
   {
+   "role": "http.headers.v1",
+   "field": "other",
+   "example_input": {
+    "domain": "github.com",
+    "host": "github.com",
+    "url": "https://github.com"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
    "role": "ip.lookup.v1",
    "field": "internet",
    "example_input": {
@@ -390,7 +446,6 @@
    "role": "mcp.registry.lookup.v1",
    "field": "developer",
    "example_input": {
-    "name": "biz.agentconcierge/agent-concierge",
     "query": "agent concierge"
    },
    "answer_source": "answer set (withheld)",
@@ -485,6 +540,20 @@
    "field": "travel",
    "example_input": {
     "query": "Eiffel Tower"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "sanctions.screen.v1",
+   "field": "other",
+   "example_input": {
+    "entity": "Lazarus Group",
+    "name": "Lazarus Group",
+    "query": "Lazarus Group"
    },
    "answer_source": "answer set (withheld)",
    "checks": [
@@ -626,6 +695,20 @@
    "checks": [
     "expected facts appear in the answer",
     "same-time public reference: site_files"
+   ],
+   "freshness": "fixed facts (not time-bound)"
+  },
+  {
+   "role": "wikidata.entity.v1",
+   "field": "other",
+   "example_input": {
+    "entity": "Q42",
+    "id": "Q42",
+    "query": "Douglas Adams"
+   },
+   "answer_source": "answer set (withheld)",
+   "checks": [
+    "expected facts appear in the answer"
    ],
    "freshness": "fixed facts (not time-bound)"
   }

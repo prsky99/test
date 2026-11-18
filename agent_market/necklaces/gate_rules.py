@@ -48,10 +48,25 @@ def _retest_rules() -> dict:
 
 
 def summary():
-    """The public, numeric part of the gate (for the methodology page)."""
-    return {'necklace': {'held_out_cases': TOTAL, 'pass_total': TOTAL_PASS, 'rounds': TOTAL // ROUND,
-                         'cases_per_round': ROUND, 'pass_per_round': ROUND_PASS, 'round_gap_hours': ROUND_GAP_HOURS,
-                         'completion': COMPLETION, 'p95_ms': P95_MS, 'delta': DELTA},
-            'retest': _retest_rules(),
-            'substitute': {'held_out_cases': SUBSTITUTE_CASES, 'pass': SUBSTITUTE_PASS},
+    """The public part of the gate (for the methodology page). User decisions 11-18 via PM 19:2x: the necklace gate is
+    the connection test (agent_market/necklaces/connect_gate.py); the held-out numbers above are kept for the switched
+    off rounds and are not shown. Rules only, no measured figure."""
+    from .connect_gate import CONNECT_RUNS, DAILY_STALE_HOURS, MIN_OUTSIDE_PEARL_STEPS
+    return {'necklace': {'gate': 'connection test',
+                         'stage_1': ['steps joined one at a time, each run for real before the next is added',
+                                     'the whole chain runs within its time budget',
+                                     'each required step with its representative member left out: a fallback answers'],
+                         'stage_2_connection_runs': CONNECT_RUNS,
+                         'stage_2': 'the whole chain on that many different task inputs, all passing; one failure sends '
+                                    'the step back to stage 1 and stage 2 starts over',
+                         'every_required_step': 'a representative pearl and at least one outside fallback',
+                         'step_without_an_outside_fallback_in_the_market': 'our own agent, approved by its own '
+                                                                           'connection runs; then outside pearls lead '
+                                                                           f'{MIN_OUTSIDE_PEARL_STEPS} or more steps',
+                         'terms': 'allowed or silent', 'opens': 'when both stages pass and operations approve',
+                         'accuracy_regraded_at_this_stage': False},
+            'after_opening': {'connection_runs_a_day': 1,
+                              'held_when': f'the daily run fails or is older than {DAILY_STALE_HOURS} hours',
+                              'when_a_fallback_answers_a_public_run': 'a task opens to build our own agent for that role'},
+            'substitute': {'gate': 'connection test', 'connection_runs': CONNECT_RUNS},
             'report_v2': {'score': REPORT_SCORE, 'musts': ['accuracy_check', 'clean_answer']}}
