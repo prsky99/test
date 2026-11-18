@@ -541,3 +541,15 @@ def test_the_runner_records_connection_empty_and_moves_on():
     out = r.Runner(caller, watch_state={"tool_required": {"7|get_holidays": ["countryCode"]}}).run(defn, {"q": "Tokyo"})
     assert called == [1] and not out["ok"]
     assert [a["error_class"] for a in out["attempts"]["holidays"]] == ["connection_empty"]
+
+
+def test_a_member_that_needs_an_argument_is_not_called_without_it():
+    """11-18 (connection gate): a time tool takes the zone as optional and would answer in UTC; with needs it waits for
+    the place's zone, and without it the attempt is our connection's (connection_empty), not the member's failure."""
+    member = {"kind": "external", "resource_id": 84607, "tool": "current_time",
+              "input_map": {"timezone": "{{slot.location.timezone}}"}, "needs": ["timezone"]}
+    state = {"tool_required": {"84607|current_time": []}}                   # optional in the tool's schema
+    assert runner.connection_empty(member, {}, state)
+    assert not runner.connection_empty(member, {"timezone": "Asia/Tokyo"}, state)
+    plain = {k: v for k, v in member.items() if k != "needs"}
+    assert not runner.connection_empty(plain, {}, state)                     # before: called with UTC

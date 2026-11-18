@@ -136,6 +136,10 @@ def connection_empty(member: dict, args: dict, watch_state: dict | None) -> bool
     missing = [k for k in from_slots if k not in args]
     if not missing:
         return False
+    # 11-18 (connection gate): a member may name arguments it cannot answer without, though its tool takes them as
+    # optional (a time tool would answer in UTC without the place's zone); one of them empty: not called
+    if any(k in missing for k in member.get("needs") or ()):
+        return True
     required = None
     if member.get("kind") == "external":
         required = ((watch_state or {}).get("tool_required") or {}).get(f"{member.get('resource_id')}|{member.get('tool')}")
