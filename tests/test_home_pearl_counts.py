@@ -81,7 +81,7 @@ def test_the_pearl_card_is_fixed_html_and_the_necklace_card_starts_hidden(page):
 def test_the_script_fills_the_numbers_once_and_shows_the_necklace_card_from_one_on():
     script = (PAGES / 'assets/pearl-ui.js').read_text(encoding='utf-8')
     assert script.count("fetch('/api/pearls/public'") == 1                                  # one request for Explore and Home
-    assert "all('[data-necklace-metric]').forEach(node=>{node.hidden=live<1;});" in script
+    assert "all('[data-necklace-metric]').forEach(node=>{node.hidden=shown<1;});" in script   # open plus preview (PM 11-18)
     assert "text('[data-metric=\"pearls\"]',format(total))" in script and script.count('homeCounts();') == 1
     assert "' across '+format(Number(counts.jobs))+' jobs'" in script                         # the line names the jobs, from the API
     assert 'MutationObserver' in script and "card.textContent==='—'" in script                 # the panels arrive after the script
