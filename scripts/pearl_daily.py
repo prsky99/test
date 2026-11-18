@@ -1,7 +1,7 @@
-"""Daily pearl role tests (PM 11-14, charter 0), run by launchd biz.agentconcierge.opsauto.pearltests at 09:12,
-and since PM 11-16 17:5x also at 15:12 (or 18:12) and 20:12: three windows, each with its own 80 + 40.
+"""Daily pearl role tests (PM 11-14, charter 0), run by launchd biz.agentconcierge.opsauto.pearltests at 07:12, 09:12,
+11:12, 13:12, 15:12, 17:12, 20:12 and 23:12 (PM 11-18 21:00, was three windows): each window has its own 100 + 20.
 
-Builds the day's queue (40 retests + 80 new candidates), runs it within the limits (120 a day, 60 after provider
+Builds the window's queue (retests + new candidates), runs it within the limits (120 a window, 60 after provider
 refusals pass 5%, per-provider 3 a day / 60 s / stop after 429), then writes the ranking, role_groups.json and
 the board line. A window runs once (exports/pearls/done-YYYY-MM-DD for the first, done-YYYY-MM-DD-wN for window N);
 nothing is written to any database.
@@ -25,7 +25,7 @@ RETRY_WAIT = 60        # seconds before the one retry of a failed stage (R15)
 
 
 def window_suffix(window):
-    """'' for the first window (the name the 09:12 run has always used), '-wN' for the later ones."""
+    """'' for window 1, '-wN' for the others (0 is a run before 07:00, PM 11-18 21:00)."""
     return '' if window == 1 else f'-w{window}'
 
 

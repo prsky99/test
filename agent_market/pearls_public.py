@@ -11,7 +11,7 @@ that file through load().
   load    the document, cached by modification time; {"pearls": [], "by_resource": {}} when missing or malformed
 
 Levels (charter 0, the same counts as summary.json): final = the role's rank-1 verified pearl; verified = 85+ with
-successes on two different days; provisional = the role's provisional pearl (85+ on one day, ranked ahead). Badges and filters use final and verified only. Every number is from our test reports:
+successes on CONFIRM_DAYS days (one since 11-18, was two); provisional = the role's provisional pearl (85+ on one day, ranked ahead). Badges and filters use final and verified only. Every number is from our test reports:
 passed/of = recent role-task passes and tests, days = different days with a success, score = the latest score.
 Our own fallback agents are not listed. Nothing about a visitor is read or written.
 """
@@ -65,7 +65,7 @@ def build(summary, role_groups, terms=None, generated=None, methodology=None, ro
     a role id to its tool-name pattern (scripts.role_catalog), written into each pearl's words."""
     rules = (summary or {}).get('rules') or {}
     pass_mark = rules.get('pass_mark', 85)
-    confirm_days = rules.get('confirm_days', 2)
+    confirm_days = rules.get('confirm_days', 1)   # user 11-18: one day confirms
     terms = terms or {}
     pearls = []
     for role, entry in sorted(((role_groups or {}).get('roles') or {}).items()):

@@ -66,14 +66,17 @@ def rank_rule():
             f'ranked by the pass rate of the last {RECENT_DAYS} days\' role tasks; '
             f'#1 at {PASS_MARK}+ with at least {int(PEARL_PASS_RATE * 100)}% of them passed is the final pearl, '
             f'#2-#3 are external fallbacks')
-CONFIRM_DAYS = 2            # PM 11-14: a final pearl needs successes on two different days; before that it is provisional
+CONFIRM_DAYS = 1            # user 11-18 (via PM 19:2x, logs/ops/decisions.jsonl): one day of 85+ confirms a pearl (was two different days, PM 11-14)
+REPEAT_DAYS = 2             # the repeat evidence points still scale over two success days, so scores (and the 85 mark) do not move with CONFIRM_DAYS
 DAY = 86400
-ROLE_DAILY_LIMIT = 120      # PM 11-14 (charter 0): 80 new candidates + 40 retests a window; 60 when refusals pass 5%
-NEW_A_DAY, RETEST_A_DAY, FALLBACK_LIMIT = 80, 40, 60
-# PM 11-16 17:5x: three windows a day (09:12, 15:12 or 18:12, 20:12), each up to the limits above, 360 a day in all.
+ROLE_DAILY_LIMIT = 120      # PM 11-14 (charter 0): tests a window (new + retests); 60 when refusals pass 5%
+# PM 11-18 21:00 (user: confirm pearls faster): 100 new + 20 retests a window (was 80 + 40; one confirming day leaves no
+# second-day retests). Raise new to 180 from 11-20 only if 11-19 keeps refusals under 5% and the load under 9.0.
+NEW_A_DAY, RETEST_A_DAY, FALLBACK_LIMIT = 100, 20, 60
+# PM 11-18 21:00: eight windows a day at :12 (was three, PM 11-16 17:5x), each up to the limits above, 960 a day in all.
 # The limits are per window; the day's totals are the window limits times WINDOWS_A_DAY.
-WINDOWS_A_DAY = 3
-WINDOW_STARTS = (15, 20)    # hour a window number goes up: before 15 is window 1, 15-19 window 2, 20 on window 3
+WINDOW_HOURS = (7, 9, 11, 13, 15, 17, 20, 23)   # window N starts at WINDOW_HOURS[N-1]; before 07:00 is window 0
+WINDOWS_A_DAY = len(WINDOW_HOURS)
 # Our role names -> the workflow team's role task contracts (agent_market/necklaces/role_tasks, v1 11-14).
 CASE_ROLE = {'papers.search': 'papers.search.v1', 'encyclopedia.summary': 'encyclopedia.summary.v1',
              'news.search': 'news.search.v1', 'package.advisories': 'package.advisories.v1',
@@ -398,7 +401,7 @@ def quality(r, success_days):
         data = {k: dq.get(k, {}).get('points', 0) for k in ('accuracy', 'freshness', 'completeness', 'clean', 'consistency')}
         full = DQ.EVIDENCE_WEIGHTS
         evidence = {'arguments': 0 if not args else (full['arguments'] / 2 if r.get('source') == 'collector message' else full['arguments']),
-                    'repeat': min(full['repeat'], full['repeat'] / CONFIRM_DAYS * success_days), 'latency': DQ.latency_points(r.get('latency_ms'))}
+                    'repeat': min(full['repeat'], full['repeat'] / REPEAT_DAYS * success_days), 'latency': DQ.latency_points(r.get('latency_ms'))}
     else:
         data = {k: 0 for k in ('accuracy', 'freshness', 'completeness', 'clean', 'consistency')}
         evidence = {'arguments': 0 if not args else DQ.EVIDENCE_WEIGHTS['arguments'], 'repeat': 0, 'latency': 0}
@@ -730,7 +733,7 @@ def signing_key(now=None):
 
 
 def version_status(r):
-    """provisional / verified / none at signing time (charter 0): accuracy compared, 85+, and two different days."""
+    """provisional / verified / none at signing time (charter 0): accuracy compared, 85+, and CONFIRM_DAYS success days."""
     acc = ((r.get('data_quality') or {}).get('accuracy') or {}).get('points')
     if r['outcome'] != 'succeeded' or not acc or r['quality']['score'] < PASS_MARK:
         return 'none'
@@ -1114,7 +1117,7 @@ def funnel(versions, ranked, candidates_a=None):
 
 
 def verified(versions):
-    """Verified pearls (charter 0): latest version at 85+ with successes on two different days, any rank."""
+    """Verified pearls (charter 0): latest version at 85+ with successes on CONFIRM_DAYS days (one since 11-18), any rank."""
     now = time.time()
     return sum(1 for v in versions if v['quality']['score'] >= PASS_MARK
                and success_days(v['resource_id'], v['role'], v['tool'], now) >= CONFIRM_DAYS)
@@ -1417,7 +1420,11 @@ def retest_queue(versions, day=None, limit=RETEST_A_DAY, now=None, skip=frozense
                 continue
             c = {'role': role, 'id': m['resource_id'], 'tool': m['tool'], 'kind': 'retest', 'rank': m['rank']}
             days = m.get('success_days') or 0
-            if days >= CONFIRM_DAYS:
+            best = m.get('best_recent_score') or m.get('score') or 0
+            # PM 11-18 19:4x: success_days counts any accurate success, so with one confirming day a member at 80-84.9
+            # has days >= CONFIRM_DAYS without being a pearl; only an 85+ member goes to the twice-a-week group, the rest
+            # fall through to the near group (best score first) and come back the next day.
+            if days >= CONFIRM_DAYS and best >= PASS_MARK:
                 number = m['resource_id'] if isinstance(m['resource_id'], int) else zlib.crc32(str(m['resource_id']).encode())
                 if (day + number) % 7 in CONFIRMED_RETEST_DAYS:
                     confirmed.append(c)
@@ -1487,12 +1494,16 @@ def catalog_candidates():
 # PM 11-16 06:5x, today only (undo 11-17 morning): the three necklace steps with no outside member go first so the
 # 09:12 run tests their seeds (272753, 34792, 56136, 267005); rejudge 30 and the daily 80 stay. website.ai_readiness
 # too (PM 06:5x): package.health first had used augur-trade.com's three host places before robots_check (178541).
-PRIORITY_ROLES = ('sec.filings.v1', 'cve.exploited.v1', 'package.health.v1', 'website.ai_readiness.v1',  # 0 empty steps (11-16)
-                  'web.grounding.v1', 'papers.search.v1', 'news.search.v1',                             # 1 topic brief
-                  'weather.forecast.v1', 'fx.rate.v1', 'translate.text.v1',                             # 2 asked most
-                  'dns.mail_auth.v1', 'domain.lookup.v1', 'tls.certificate.v1',                           # 3 site/domain
-                  'company.registry.v1', 'encyclopedia.summary.v1',                                       # 4 outside only
-                  'cve.record.v1', 'package.advisories.v1',
+# PM 11-18 19:27 (user: a necklace opens with pearls and outside fallbacks only, own substitutes come later): the
+# necklace seats with fewer than two usable outside pearls (85+ on a day, terms allowed or silent: role_groups at 19:2x,
+# member_terms plus the agent team's 17 verdicts of 19:3x) go first, those with no usable pearl ahead of those with one;
+# then the rest. Prohibited pearls do not count (39368 and 40070 tls, 214656 grounding, 37789 airport, 124629 mail auth).
+PRIORITY_ROLES = ('company.profile.v1', 'software.incident.v1', 'web.grounding.v1',                     # no usable pearl
+                  'company.registry.v1', 'tls.certificate.v1', 'airport.lookup.v1', 'book.search.v1',   # one, no fallback
+                  'encyclopedia.summary.v1', 'dns.mail_auth.v1', 'papers.search.v1',
+                  'timezone.time.v1', 'website.ai_readiness.v1', 'cve.record.v1', 'package.advisories.v1',  # two
+                  'sec.filings.v1', 'news.search.v1', 'package.health.v1', 'domain.lookup.v1',
+                  'cve.exploited.v1', 'weather.forecast.v1', 'fx.rate.v1', 'translate.text.v1',
                   'github.repo.v1', 'package.risk.v1', 'package.releases.v1', 'github.releases.v1',
                   'mcp.registry.lookup.v1')
 PRIORITY_PICKS = 4
@@ -1755,14 +1766,14 @@ def current_evaluator_share(versions):
 
 
 def window_number(now=None):
-    """1, 2 or 3: today's test window by the local hour (PM 11-16 17:5x)."""
+    """Today's test window by the local hour: N from WINDOW_HOURS[N-1] on, 0 before the first (PM 11-18 21:00)."""
     hour = time.localtime(now).tm_hour
-    return 1 + sum(hour >= h for h in WINDOW_STARTS)
+    return sum(hour >= h for h in WINDOW_HOURS)
 
 
 def run(queue):
-    """Role tests for QUEUE within this window's limits: 80 new + 40 retests, 120 in all, 60 after refusals pass 5%;
-    at most three windows a day.
+    """Role tests for QUEUE within this window's limits: NEW_A_DAY new + RETEST_A_DAY retests, 120 in all, 60 after
+    refusals pass 5%; at most WINDOWS_A_DAY windows a day.
     Returns today's own errors: tests our code could not run and results it could not store (R15)."""
     import httpx
     import pearl_batch as PB

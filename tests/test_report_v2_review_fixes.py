@@ -308,7 +308,8 @@ def test_r18_second_day_candidates_are_retested_first_whatever_their_rank(monkey
     monkeypatch.setattr(V, 'failure_due', lambda v, now: False)
     queue = V.retest_queue([], day=0, now=NOW)
     ids = [c['id'] for c in queue]
-    assert ids[:2] == [4, 3] and 2 in ids                      # second-day candidates first, best score first
+    # one confirming day (user 11-18): 3 and 4 (85+, one day) are pearls, retested twice a week; the near member 2 first
+    assert ids[:2] == [2, 3] and 4 not in ids                  # day 0: 3 is on its weekday, 4 is not
     weekly = [d for d in range(7) if 1 in [c['id'] for c in V.retest_queue([], day=d, now=NOW)]]
     assert len(weekly) == 2                                     # a confirmed pearl twice a week
 

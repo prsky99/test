@@ -60,7 +60,7 @@ def test_rank_final_pearl_and_failure_domains(accurate):
     ranked = V.rank(V.latest_versions())[V.canonical('fx.rate')]
     places = {m['resource_id']: m['rank'] for m in ranked['members']}
     assert places[1] == 1 and places[2] is None and places[3] == 2 and places[4] is None
-    assert ranked['provisional_pearl'] == 1 and ranked['final_pearl'] is None      # one day only
+    assert ranked['final_pearl'] == 1 and ranked['provisional_pearl'] is None      # one day confirms (user 11-18)
     assert ranked['fallbacks'] == [3] and ranked['domain'] == 'finance'
 
 
@@ -101,10 +101,11 @@ def test_measurement_windows():
     assert not V.quiet_now(at(4, 30)) and V.quiet_now(at(5, 12))
 
 
-def test_one_day_is_provisional_two_days_confirm(accurate):
+def test_one_day_confirms(accurate):
+    # user 11-18 (PM 19:2x): one day of 85+ confirms; a second day changes nothing about the verdict
     V.save_version(result(rid=11, latency=200))
     ranked = V.rank(V.latest_versions())[V.canonical('fx.rate')]
-    assert ranked['final_pearl'] is None and ranked['provisional_pearl'] == 11
+    assert ranked['final_pearl'] == 11 and ranked['provisional_pearl'] is None
     V.save_version(result(rid=11, latency=200, started=time.time() - V.DAY))
     ranked = V.rank(V.latest_versions())[V.canonical('fx.rate')]
     assert ranked['final_pearl'] == 11 and ranked['provisional_pearl'] is None

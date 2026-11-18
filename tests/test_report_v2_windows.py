@@ -19,7 +19,8 @@ def at(hour, minute=12):
 
 
 def test_window_number_by_hour():
-    assert [V.window_number(at(h)) for h in (9, 14, 15, 18, 19, 20, 23)] == [1, 1, 2, 2, 2, 3, 3]
+    # PM 11-18 21:00: eight windows at 07, 09, 11, 13, 15, 17, 20 and 23; before 07:00 is window 0
+    assert [V.window_number(at(h)) for h in (0, 6, 7, 9, 10, 14, 15, 18, 19, 20, 23)] == [0, 0, 1, 2, 2, 4, 5, 6, 6, 7, 8]
 
 
 def version(rid, role, score=90.0, outcome='succeeded', tested=None, evaluator='old'):
@@ -53,7 +54,7 @@ def test_rejudge_takes_85_plus_and_top_three_first():
     versions = [version(1, 'fx.rate.v1', 60), version(2, 'fx.rate.v1', 88), version(3, 'book.search.v1', 50),
                 version(4, 'fx.rate.v1', 70)]
     out = V.rejudge_queue(versions, terms={}, ranks={(3, 'book.search.v1'): 2})
-    assert [x['id'] for x in out][:2] == [2, 3] and {x['id'] for x in out[2:]} == {1, 4}
+    assert {x['id'] for x in out[:2]} == {2, 3} and {x['id'] for x in out[2:]} == {1, 4}   # role order from PRIORITY_ROLES
 
 
 def test_members_tested_today_are_left_out():
@@ -68,8 +69,9 @@ def test_near_members_come_after_the_second_day_and_skip_is_applied_before_the_l
                {'resource_id': 3, 'tool': 't', 'rank': 3, 'success_days': 1, 'best_recent_score': 82},
                {'resource_id': 4, 'tool': 't', 'rank': 4, 'success_days': 0, 'best_recent_score': 40}]
     monkeypatch.setattr(V, 'rank', lambda versions: {'fx.rate.v1': {'members': members}})
-    assert [c['id'] for c in V.retest_queue([], day=0)][:3] == [1, 3, 2]
-    assert [c['id'] for c in V.retest_queue([], day=0, limit=2, skip={(1, 'fx.rate.v1')})] == [3, 2]
+    # one confirming day (user 11-18): 1 (90, one day) is a pearl, retested twice a week (not on day 0); 82 before 78
+    assert [c['id'] for c in V.retest_queue([], day=0)][:2] == [3, 2] and 1 not in [c['id'] for c in V.retest_queue([], day=0)]
+    assert [c['id'] for c in V.retest_queue([], day=0, limit=1, skip={(3, 'fx.rate.v1')})] == [2]
 
 
 class FakePacer:
@@ -96,7 +98,7 @@ def test_each_window_gets_its_own_120_and_the_day_stops_at_360(monkeypatch):
     V.run(queue)
     state = FakePacer.state
     assert state['windows']['3'] == {'role_tests': 90, 'new_tests': 55, 'retests': 35}
-    assert (state['retests'], state['new_tests'], state['role_tests']) == (75, 135, 210)   # 40 + 80 in this window
+    assert (state['retests'], state['new_tests'], state['role_tests']) == (55, 155, 210)   # 20 + 100 in this window
     V.run(queue)                                       # a second start in the same window gets nothing more
     assert state['role_tests'] == 210 and len(calls) == 120
 
@@ -105,12 +107,12 @@ def test_later_windows_have_their_own_done_file_and_launchd_starts_all_three():
     import plistlib
     from pathlib import Path
     from scripts import pearl_daily
-    assert [pearl_daily.window_suffix(n) for n in (1, 2, 3)] == ['', '-w2', '-w3']
+    assert [pearl_daily.window_suffix(n) for n in (0, 1, 2, 8)] == ['-w0', '', '-w2', '-w8']
     root = Path(__file__).resolve().parents[1] / 'deploy/launchd'
     for folder in ('ops', 'ops-pinned'):
         plist = plistlib.loads((root / folder / 'biz.agentconcierge.opsauto.pearltests.plist').read_bytes())
         starts = [(x['Hour'], x['Minute']) for x in plist['StartCalendarInterval']]
-        assert starts == [(9, 12), (15, 12), (20, 12)]
+        assert starts == [(h, 12) for h in V.WINDOW_HOURS]
         assert all(V.window_number(at(h, m)) == n for n, (h, m) in enumerate(starts, 1))
 
 
@@ -258,10 +260,8 @@ def test_the_final_pearl_is_the_best_verified_member_and_a_first_day_leader_is_p
     monkeypatch.setattr(V, 'stale_answer', lambda xs: False)
     role = V.rank([confirmed, fresh, second])['website.ai_readiness.v1']
     assert [m['resource_id'] for m in role['members'] if m['rank'] == 1] == [37811]     # the rank order is unchanged
-    assert role['final_pearl'] == 132732 and role['provisional_pearl'] == 37811
-    days[37811] = 2                                         # confirmed on a second day: it takes the final place
-    role = V.rank([confirmed, fresh, second])['website.ai_readiness.v1']
+    # one confirming day (user 11-18): the first-day leader at 85+ is confirmed and takes the final place
     assert role['final_pearl'] == 37811 and role['provisional_pearl'] is None
-    days.update({132732: 1, 37811: 1})                      # no verified member: the first-day leader is provisional
+    days.update({37811: 0, 436744: 0})                      # no qualifying day: the best confirmed member below it
     role = V.rank([confirmed, fresh, second])['website.ai_readiness.v1']
-    assert role['final_pearl'] is None and role['provisional_pearl'] == 37811
+    assert role['final_pearl'] == 132732 and role['provisional_pearl'] is None

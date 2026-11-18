@@ -25,7 +25,8 @@ def test_snapshot_marks_verified_final_and_alternatives(monkeypatch):
     for rid in (1, 2):
         save(rid, days_ago=1)
         save(rid)
-    save(3)                                                    # one day only: not verified
+    V.save_version({'id': 3, 'role': 'fx.rate', 'tool': 'convert', 'outcome': 'failed', 'excerpt': '',   # not verified
+                    'host': 'h3.p3.com', 'latency_ms': 200, 'arguments': {'from': 'USD', 'to': 'EUR'}, 'started': time.time()})
     necklaces = {'fx.rate.v1': [{'necklace': 'trip-brief', 'status': 'draft', 'slot': 'fx', 'members': [1, 3]}]}
     facts = {1: {'name': 'A', 'kind': 'mcp', 'grade': 'A', 'tool_fingerprint': 'h1'}}
     data = S.build(facts=facts, necklaces=necklaces)
