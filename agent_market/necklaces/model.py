@@ -34,6 +34,25 @@ from ..collector.usage import _DENY
 # The collector's action pattern reads "book" as booking; a read verb followed by the noun "books" is a book lookup
 # (38608 search_books, a verified pearl). Kept to this one noun; the member still needs readOnlyHint=true.
 READ_NOUNS = re.compile(r"^(search|find|get|list|lookup)_books?$")
+# PM 21:44 (11-18): tools whose names trip _DENY ("email") but only read DNS for a domain. One pair per entry, bound to
+# the tool definition's fingerprint (agent_market.tool_fingerprint.tool_fp of name, description and inputSchema, read
+# from the catalog record, no call): when the provider changes the tool, the connection gate's fingerprint check
+# no longer matches and the member is blocked again. readOnlyHint alone (the provider's own label) is not the reason.
+READ_ONLY_EXCEPTIONS = {
+    (37141, "email_auth_check"): {
+        "tool_fp": "9805e0916c4d30e8be0c458dac98f29b513726e483718cb0a5c9797dd2b282c8",
+        "schema": "domain (required, a domain name) and an optional dkim_selector, which we never send",
+        "reason": "looks up a domain's SPF, DMARC, DKIM, MX and MTA-STS records; no address, no mail server contact"},
+    (216429, "check_email_deliverability"): {
+        "tool_fp": "4634392ebb978354bf0da9017e1ac00e89026aa845e6776fb8e1e455486ac70a",
+        "schema": "domain only (required)",
+        "reason": "reads the domain's public DNS (SPF, DKIM selectors, DMARC, MX) and DNS blocklists; says it sends "
+                  "no email; no SMTP session or recipient probe"},
+}
+
+
+def read_only_exception(member: dict) -> dict | None:
+    return READ_ONLY_EXCEPTIONS.get((member.get("resource_id"), member.get("tool")))
 
 ROOT = Path(__file__).resolve().parent
 DEFINITIONS = ROOT / "definitions"
@@ -126,7 +145,7 @@ def _member_errors(slot_id: str, idx: int, m: dict) -> list[str]:
     tool = m.get("tool")
     if not isinstance(tool, str) or not tool:
         errors.append(f"{where}: tool is required")
-    elif _DENY.search(tool) and not READ_NOUNS.match(tool):
+    elif _DENY.search(tool) and not READ_NOUNS.match(tool) and not read_only_exception(m):
         errors.append(f"{where}: tool {tool!r} looks like an action, write or payment tool")
     if kind == "external":
         if not isinstance(m.get("resource_id"), int):

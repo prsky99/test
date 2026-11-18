@@ -176,6 +176,12 @@ def static_checks(defn: dict, running: dict, states: dict | None, watch_state: d
         checks.append({"check": f"members:{name}", "ok": ok, "why": why})
         if prints is not None:
             seen = {m.get("resource_id"): fingerprint_status(prints, m.get("resource_id"), now) for m in outside}
+            for m in outside:       # PM 21:44: a read-only name exception holds only for the tool it was read from
+                rule = model.read_only_exception(m)
+                if rule and seen.get(m.get("resource_id")) in FINGERPRINT_OK:
+                    tools = ((prints.get("resources") or {}).get(str(m.get("resource_id"))) or {}).get("tools")
+                    if not isinstance(tools, dict) or tools.get(m.get("tool")) != rule["tool_fp"]:
+                        seen[m.get("resource_id")] = "exception_fingerprint_changed"
             measure = [f"{r} {s}" for r, s in seen.items() if s in ("unknown", "stale")]
             review = [f"{r} {s}" for r, s in seen.items() if s not in FINGERPRINT_OK + ("unknown", "stale")]
             why = "; ".join(([f"ask ops to measure before the runs: {', '.join(measure)}"] if measure else [])

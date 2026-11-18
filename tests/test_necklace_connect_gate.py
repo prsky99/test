@@ -312,3 +312,23 @@ def test_the_methodology_gate_says_connection_test_and_no_held_out_number():
     text = json.dumps(gate)
     assert "held_out" not in text and "57" not in text and "pass_total" not in text
     assert gate["necklace"]["accuracy_regraded_at_this_stage"] is False
+
+
+def test_a_read_only_email_name_exception_is_one_pair_bound_to_its_tool_fingerprint():
+    """PM 21:44 (11-18): _DENY stays; (resource_id, tool) pairs read as domain-only DNS lookups are allowed, and the
+    connection gate blocks one again when the measured tool fingerprint is not the one it was read from."""
+    member = ext(37141, "contrastcyber.com", tool="email_auth_check", terms=dict(SILENT))
+    assert not [e for e in model._member_errors("m", 0, member) if "looks like an action" in e]
+    for other in (ext(37141, "contrastcyber.com", tool="send_email"), ext(99, "x.com", tool="email_auth_check")):
+        assert any("looks like an action" in e for e in model._member_errors("m", 0, other))      # only the pair
+    rule = model.READ_ONLY_EXCEPTIONS[(37141, "email_auth_check")]
+    assert len(rule["tool_fp"]) == 64 and rule["reason"] and rule["schema"]
+    defn = defn3()
+    defn["slots"][1]["chain"].insert(1, member)
+    fresh = {"baseline": "h", "current": "h", "measured_at": judge._iso(NOW - 60)}
+    prints = {"resources": {str(r): dict(fresh) for r in (1, 2, 3, 4, 5, 6)}}
+    prints["resources"]["37141"] = dict(fresh, tools={"email_auth_check": rule["tool_fp"]})
+    assert "fingerprints:news" not in failed(run_gate(defn, prints=prints, now=NOW))
+    prints["resources"]["37141"]["tools"] = {"email_auth_check": "0" * 64}        # the provider changed the tool
+    got = run_gate(defn, prints=prints, now=NOW)
+    assert "fingerprints:news" in failed(got) and "37141 exception_fingerprint_changed" in str(got["static"])
