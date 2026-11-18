@@ -24,7 +24,7 @@ import os
 import subprocess
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from . import model
@@ -40,7 +40,14 @@ SNAPSHOT_MAX_HOURS = 72    # verified pearls from an older verify snapshot are n
 # 4 and 5 ship without it; the snapshot is then read as before (no age or version check).
 CHECK_PEARL_SNAPSHOT = True
 DEFAULT_ROOT = Path("gateway-data/necklaces")
-PUBLIC = ("live", "preview", "held", "retired")      # preview: user 11-18 via PM (necklaces/preview.py)
+PUBLIC = ("live", "preview", "held", "retired")
+# PM 16:55 and 17:0x (11-18, final): the two fortune necklaces are built from our own substitutes; until the outside
+# members have role reports, each substitute that passed its gate with an approved fingerprint counts as a member, one
+# per role. The definition declares it (own_members {label, counted, until}, the field the surface reads too); this
+# list caps which slugs may and until when (Asia/Seoul), so a definition cannot widen it and the rule ends by itself.
+OWN_MEMBER_EXCEPTION = {"daily-fortune-brief": "2026-12-18", "personality-fortune-brief": "2026-12-18"}
+OWN_MEMBER_LABEL = "Built with AgentValCon agents"
+      # preview: user 11-18 via PM (necklaces/preview.py)
 
 
 def _iso(ts: float | None) -> str | None:
@@ -219,6 +226,48 @@ def pearls(defn: dict, verified: set | None = None) -> list[dict]:
     return out
 
 
+def approved_own_roles(running: dict, states: dict | None) -> list[str]:
+    """Contracts of the steps an approved substitute leads: no outside member leads the step, its first live
+    AgentValCon member is "approved" for the step's contract in approvals.json (a provisional or unapproved one is
+    not), and each contract counts once (different roles)."""
+    roles = []
+    for slot in running.get("slots") or []:
+        if model.live_members(slot, "external")[: slot.get("fanout", 1)]:
+            continue
+        own = model.live_members(slot, "agentcon")
+        contract = slot.get("contract")
+        if own and contract not in roles and (states or {}).get(f"{own[0].get('agent_id')}|{contract}") == "approved":
+            roles.append(contract)
+    return roles
+
+
+def own_members(defn: dict, running: dict, states: dict | None, now: float,
+                exceptions: dict | None = None) -> tuple[dict | None, str | None]:
+    """(own_members for the entry, hold reason). Nothing (None, None) when the definition declares no own_members,
+    its slug is not on the list or the day has passed. Held when the declaration is not the agreed one (label, an
+    until later than the list's) or declares more members than judge counts itself (PM 17:0x: the declared number
+    is never used above the counted one)."""
+    declared = defn.get("own_members")
+    cap = (OWN_MEMBER_EXCEPTION if exceptions is None else exceptions).get(defn["slug"])
+    if not isinstance(declared, dict) or not cap:
+        return None, None
+    until = declared.get("until")
+    from zoneinfo import ZoneInfo
+    try:
+        end = datetime.fromisoformat(str(until)).replace(tzinfo=ZoneInfo("Asia/Seoul")) + timedelta(days=1)
+    except ValueError:
+        return None, "own_members_invalid"
+    if now >= end.timestamp():
+        return None, None                                   # the exception ended by itself
+    counted = declared.get("counted")
+    if (str(until) > cap or declared.get("label") != OWN_MEMBER_LABEL or type(counted) is not int or counted < 1):
+        return None, "own_members_invalid"
+    roles = approved_own_roles(running, states)
+    if counted > len(roles):
+        return None, "own_members_unapproved"
+    return {"counted": counted, "roles": roles, "until": str(until), "label": OWN_MEMBER_LABEL}, None
+
+
 def _quality_hold(entry: dict, now: float) -> str | None:
     quality = entry.get("quality") or {}
     tested = _parse_time(quality.get("tested_at"))
@@ -301,7 +350,8 @@ def load_watch_state(root: Path, now: float) -> tuple[dict, str | None]:
 
 def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
                 watch_state: dict | None = None, verified: set | None = None,
-                watch_problem: str | None = None, preview_rows: list | None = None) -> dict | None:
+                watch_problem: str | None = None, preview_rows: list | None = None,
+                substitute_states: dict | None = None) -> dict | None:
     status = defn["status"]
     if status not in PUBLIC:
         return None
@@ -335,6 +385,10 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     entry["pearl_count"] = sum(1 for p in entry["pearls"] if p["pearl"])
     from .members import COUNTED
     entry["member_count"] = sum(1 for p in entry["pearls"] if p.get("standing") in COUNTED)   # pearls + provisional
+    own, own_hold = own_members(defn, running, substitute_states, now)
+    if own:                         # PM 16:55: never in pearl_count, never called verified; the card shows the label
+        entry["member_count"] += own["counted"]
+        entry["own_members"] = own
     entry["fallback"] = fallback_depth(running)
     from .capacity import capacity                   # PM 17:24: runs a day the providers allow, and the bottleneck
     entry["capacity"] = capacity(running)
@@ -362,6 +416,7 @@ def build_entry(defn: dict, approval: dict | None, summary: dict, now: float,
     # The surface contract needs at least two pearls; summary holds come from the
     # daily retest (security, completion_low, quality_low and the like).
     reason = (reason
+              or own_hold
               or terms_hold(defn, running)
               or watch_problem
               or watch_hold(defn["slug"], watch_state, approval)
@@ -454,6 +509,7 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
     if preview_rows is None:
         from . import preview
         preview_rows = preview.load(root)
+    substitute_states = load_substitute_states(Path(root) / "approvals.json")
     watch_problem = None
     if watch_state is None:
         watch_state, watch_problem = load_watch_state(root, now)
@@ -464,7 +520,7 @@ def snapshot(definitions: list[dict], approvals: dict[str, dict], root: Path, no
     verified = verified_pearls() if verified is None else verified
     for defn in definitions:
         entry = build_entry(defn, approvals.get(defn["slug"]), load_summary(root, defn["slug"]), now, watch_state,
-                            verified, watch_problem, preview_rows)
+                            verified, watch_problem, preview_rows, substitute_states)
         if entry is not None:
             if entry.get("gate_passed_at"):
                 passed[defn["slug"]] = entry["gate_passed_at"]

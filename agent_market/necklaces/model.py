@@ -60,7 +60,8 @@ MIN_REQUIRED_ROLES = 3        # fewer is a warning, not an error (the 2-slot nec
 NO_FALLBACK_ROLES = ("crypto.price.v1", "ip.lookup.v1", "stock.quote.v1")
 # Fields that describe where a definition is in its lifecycle. They do not change
 # what runs, so they are left out of the digest that the ops approval binds to.
-NON_MATERIAL = ("status", "notes", "replaced_by", "demand")    # demand: why we build it, not what runs
+NON_MATERIAL = ("status", "notes", "replaced_by", "demand", "own_members")    # demand: why we build it, not what runs;
+# own_members (PM 16:55): how the page counts our substitutes, not what runs
 
 
 class DefinitionError(ValueError):
