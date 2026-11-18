@@ -18,9 +18,10 @@
     if(!homeData||!card)return;
     const counts=homeData.counts||{},final=Number(counts.final)||0,verified=Number(counts.verified)||0,total=final+verified;
     if(total>0){text('[data-metric="pearls"]',format(total));text('[data-metric="pearls"] ~ p',format(final)+' final · '+format(verified)+' verified'+(Number(counts.jobs)>0?' across '+format(Number(counts.jobs))+' jobs':''));}
-    const live=Number(homeData.necklaces_live)||0;
-    all('[data-necklace-metric]').forEach(node=>{node.hidden=live<1;});
-    if(live>=1)text('[data-metric="necklaces"]',format(live));
+    const live=Number(homeData.necklaces_live)||0,preview=Number(homeData.necklaces_preview)||0,shown=live+preview;
+    all('[data-necklace-metric]').forEach(node=>{node.hidden=shown<1;});
+    if(shown>=1)text('[data-metric="necklaces"]',format(shown));
+    if(preview>=1)text('[data-metric="necklaces"] ~ p',(live>=1?format(live)+' open · ':'')+format(preview)+' preview');   // a preview is not counted as open (PM 11-18)
   }
   function homeCounts(){
     if(!/(^\/$|\/index\.html$|\/agent-status\.html$)/.test(location.pathname))return;   // Home and Agent Status only: the other pages load no API on open (UI policy 11-01)

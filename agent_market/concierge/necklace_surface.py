@@ -92,10 +92,28 @@ def _alternates_ok(pearl):
             and all(i >= len(kinds) - len(agentcon) for i in agentcon))
 
 
+PREVIEW_NOTE = 'Preview — test runs in progress'
+
+
+def preview_tests(entry):
+    """(passed, total) of a preview necklace's test runs, or None (workflow team contract 11-18: entry['preview']['tests'])."""
+    block = entry.get('preview') if isinstance(entry, dict) and isinstance(entry.get('preview'), dict) else {}
+    tests = block.get('tests') if isinstance(block.get('tests'), dict) else {}
+    passed, total = tests.get('passed'), tests.get('total')
+    if all(type(v) is int and v >= 0 for v in (passed, total)) and passed <= total and total > 0:
+        return passed, total
+    return None
+
+
+def opened(entry):
+    """True once the necklace was ever shown as open: it passed the gate, or it runs as a preview (never both claims)."""
+    return bool(_time(entry.get('gate_passed_at'))) or (entry.get('status') in ('preview', 'held') and preview_tests(entry) is not None)
+
+
 def offered(entry, now=None):
     """True when the necklace may run and be promoted (contract section 3, plus the 95% gate)."""
     now = now or datetime.now(timezone.utc)
-    if not isinstance(entry, dict) or entry.get('status') != 'live' or not SLUG.fullmatch(entry.get('slug') or ''):
+    if not isinstance(entry, dict) or entry.get('status') not in ('live', 'preview') or not SLUG.fullmatch(entry.get('slug') or ''):
         return False
     pearls = [p for p in entry.get('pearls') or [] if isinstance(p, dict)]
     quality = entry.get('quality') or {}
@@ -104,7 +122,9 @@ def offered(entry, now=None):
     # PM 16:03 (user instruction d4670360): two members that answer, verified pearls or provisional ones, as the judge
     # marks them (standing); two verified pearls is the aim, not the condition. The answer gate below is unchanged.
     members = sum(1 for p in pearls if member_status(p) in MEMBER_LABELS)
-    return (bool(_time(entry.get('gate_passed_at'))) and members >= 2 and all(map(_alternates_ok, pearls))
+    # a preview necklace runs without the gate; it needs recorded test runs instead and never carries a gate claim
+    cleared = (bool(_time(entry.get('gate_passed_at'))) if entry.get('status') == 'live' else preview_tests(entry) is not None)
+    return (cleared and members >= 2 and all(map(_alternates_ok, pearls))
             and isinstance(delta, (int, float)) and delta > 0
             and tested is not None and now - tested <= timedelta(hours=FRESH_HOURS))
 
@@ -117,7 +137,8 @@ def by_slug(slug, snapshot=None):
 
 
 def live(snapshot=None, now=None):
-    return [e for e in (snapshot or load()).get('necklaces') or [] if offered(e, now)]
+    """Open necklaces that passed the gate; a preview is not promoted in recommendation answers."""
+    return [e for e in (snapshot or load()).get('necklaces') or [] if isinstance(e, dict) and e.get('status') == 'live' and offered(e, now)]
 
 
 def tool_name(slug):
@@ -448,6 +469,9 @@ def public_item(entry, base='https://agentconcierge.biz', now=None):
             'completion': {k: completion.get(k) for k in ('runs', 'completed', 'completed_external_only', 'since', 'retested_at')
                            if completion.get(k) is not None},
             'cost': {k: cost.get(k) for k in ('usdc_per_run', 'p50_ms', 'p95_ms') if cost.get(k) is not None}}
+    if entry.get('status') == 'preview' or preview_tests(entry):
+        item['preview'] = {'note': PREVIEW_NOTE, 'gate_passed': False,
+                           **({'tests': {'passed': preview_tests(entry)[0], 'total': preview_tests(entry)[1]}} if preview_tests(entry) else {})}
     if fallback(entry):
         item['fallback'] = fallback(entry)
     if scope_notice(entry):
@@ -478,12 +502,20 @@ def testing_item(entry):
 
 
 def live_count(snapshot=None, now=None):
-    """How many necklaces are offered now (judged snapshot only; none in testing, none held or retired)."""
+    """How many necklaces are open now, past the gate (judged snapshot only; none in testing, preview, held or retired)."""
     snapshot = snapshot or load()
     now = now or datetime.now(timezone.utc)
     return sum(1 for entry in snapshot.get('necklaces') or []
                if isinstance(entry, dict) and SLUG.fullmatch(entry.get('slug') or '') and entry.get('status') != 'testing'
-               and offered(entry, now))
+               and entry.get('status') == 'live' and offered(entry, now))
+
+
+def preview_count(snapshot=None, now=None):
+    """How many necklaces run as a preview now (status preview, offered; never counted with the open ones)."""
+    snapshot = snapshot or load()
+    now = now or datetime.now(timezone.utc)
+    return sum(1 for entry in snapshot.get('necklaces') or []
+               if isinstance(entry, dict) and entry.get('status') == 'preview' and offered(entry, now))
 
 
 def listing(base='https://agentconcierge.biz', snapshot=None, now=None):
@@ -710,6 +742,11 @@ def result_section(structured, esc):
 def standing_line(entry, now=None):
     """F17 (PM 11-15): live, paused or stopped, and whether the Verified 95% claim is reached yet."""
     status = entry.get('status')
+    if status == 'preview':
+        if not offered(entry, now):
+            return 'Standing: preview, not running now (waiting for its next retest).'
+        tests = preview_tests(entry)
+        return ('Standing: ' + PREVIEW_NOTE + (' (' + str(tests[0]) + ' of ' + str(tests[1]) + ' test runs passed so far)' if tests else '') + '.')
     if status != 'live':
         return 'Standing: paused.' if status == 'held' else 'Standing: stopped.'
     if not offered(entry, now):
@@ -937,7 +974,7 @@ def page(slug, base='https://agentconcierge.biz', snapshot=None, now=None, run=N
     snapshot = snapshot or load()
     now = now or datetime.now(timezone.utc)
     entry = by_slug(slug, snapshot) if SLUG.fullmatch(slug or '') else None
-    if not entry or entry.get('status') not in ('live', 'held', 'retired') or not _time(entry.get('gate_passed_at')):
+    if not entry or entry.get('status') not in ('live', 'preview', 'held', 'retired') or not opened(entry):
         return 404, None
     at = stopped_at(entry)
     if entry.get('status') == 'retired' and entry.get('replaced_by') and at and now - at > timedelta(days=NOTICE_DAYS):
@@ -1147,7 +1184,7 @@ def entry_for_tool(name, snapshot=None):
 def details(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
     """(text, structured) for necklace_details, or None for an unknown or never-approved necklace."""
     entry = by_slug(slug, snapshot) if SLUG.fullmatch(slug or '') else None
-    if not entry or not _time(entry.get('gate_passed_at')):
+    if not entry or not opened(entry):
         return None
     item = public_item(entry, base, now)
     lines = [item['name'] + ': ' + (item['summary'] or '') + (' ' + item['sources'] if item.get('sources') else '')]
@@ -1165,7 +1202,7 @@ def details(slug, base='https://agentconcierge.biz', snapshot=None, now=None):
 def call(front, name, arguments, source='mcp', base='https://agentconcierge.biz', snapshot=None, now=None, meta=None):
     """(text, structured, is_error) for a necklace tool call; runs nothing unless the necklace is offered and RUN is wired."""
     entry = entry_for_tool(name, snapshot)
-    if entry is None or not _time(entry.get('gate_passed_at')):
+    if entry is None or not opened(entry):
         return None
     if not offered(entry, now):
         line = agent_line(entry, base, snapshot) or ('Necklace ' + entry['slug'] + ' is not running now.')
@@ -1246,7 +1283,7 @@ def a2a_answer(front, text, base='https://agentconcierge.biz', snapshot=None, no
         return None
     slug, arguments = wanted
     entry = by_slug(slug, snapshot) if SLUG.fullmatch(slug) else None
-    if entry is None or not _time(entry.get('gate_passed_at')):
+    if entry is None or not opened(entry):
         return 'There is no necklace named ' + slug + '. See ' + base + '/api/necklaces', {'intent': 'necklace', 'ok': False,
                                                                                               'error_code': 'unknown_necklace'}
     if arguments is None and offered(entry, now):
@@ -1334,7 +1371,7 @@ def necklace_router(front=None):
         from . import pearl_badge
         return JSONResponse({'schema': 'agentcon-pearl-levels-v1', 'levels': pearl_badge.public_levels(),
                              'direct': pearl_badge.direct_ids(), 'direct_note': pearl_badge.DIRECT_NOTE,
-                             'counts': pearl_badge.counts(), 'necklaces_live': live_count(),
+                             'counts': pearl_badge.counts(), 'necklaces_live': live_count(), 'necklaces_preview': preview_count(),
                              'method': pearl_badge.METHOD_URL}, headers={'Cache-Control': 'public, max-age=60'})
 
     @router.get('/api/feed/necklaces.json', include_in_schema=False)

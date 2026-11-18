@@ -113,3 +113,31 @@ def test_home_stays_the_same_bytes_for_every_visitor(client):  # noqa: F811
     first = site.get('/new/en/index.html', headers={'Accept': 'text/html'})
     second = site.get('/new/en/index.html', headers={'Accept': 'text/html', 'User-Agent': 'another visitor'})
     assert first.status_code == 200 and first.content == second.content
+
+
+def test_a_preview_necklace_is_counted_apart_from_the_open_ones(tmp_path, monkeypatch):
+    """PM 11-18 (user decision): website-trust opens as "Preview — test runs in progress" when it misses the gate. It runs and
+    shows on its page, the API counts it apart (necklaces_preview), the card says "N open · M preview" and no gate claim is made."""
+    from datetime import datetime, timedelta, timezone
+    from tests.test_necklace_surface import necklace
+    now = datetime.now(timezone.utc)
+    preview = necklace('website-trust', status='preview', gate_passed_at=None,
+                       preview={'note': 'Preview \u2014 test runs in progress', 'gate_passed': False, 'tests': {'passed': 41, 'total': 60}})
+    live = necklace('topic-evidence-brief', gate_passed_at=iso(now - timedelta(hours=2)))
+    assert ns.offered(preview, now) and ns.live_count({'necklaces': [preview]}, now) == 0
+    assert ns.preview_count({'necklaces': [preview, live]}, now) == 1 and ns.live_count({'necklaces': [preview, live]}, now) == 1
+    # without recorded test runs a preview is not offered, and a stopped preview is not counted
+    bare = necklace('website-trust', status='preview', gate_passed_at=None)
+    assert not ns.offered(bare, now) and ns.preview_count({'necklaces': [bare]}, now) == 0
+    assert ns.preview_count({'necklaces': [dict(preview, status='held')]}, now) == 0
+    item = ns.public_item(preview, now=now)
+    assert item['status'] == 'preview' and item['offered'] is True
+    assert item['preview'] == {'note': 'Preview \u2014 test runs in progress', 'gate_passed': False, 'tests': {'passed': 41, 'total': 60}}
+    assert 'Preview \u2014 test runs in progress (41 of 60 test runs passed so far)' in ns.standing_line(preview, now)
+    status, page = ns.page('website-trust', snapshot={'necklaces': [preview]}, now=now)
+    assert status == 200 and 'Preview \u2014 test runs in progress' in page and 'passed our gate' not in page
+    assert ns.details('website-trust', snapshot={'necklaces': [preview]}, now=now) is not None
+    assert ns.live({'necklaces': [preview, live]}, now) == [live]       # a preview is not promoted in answers
+    script = open('new/en/assets/pearl-ui.js', encoding='utf-8').read()
+    assert 'necklaces_preview' in script and "' open \u00b7 '" in script and "' preview'" in script
+
