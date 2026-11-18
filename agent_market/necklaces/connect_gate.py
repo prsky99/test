@@ -102,7 +102,10 @@ def step_ok(result: dict, slot_name: str, kinds: tuple = ("external", "agentcon"
 def run_ok(defn: dict, result: dict) -> tuple[bool, str | None]:
     if not result.get("completed"):
         return False, f"not completed (failed step {result.get('failed_slot')})"
-    if result.get("latency_ms", 0) > defn["budget_ms"]["total"]:
+    total = (defn.get("budget_ms") or {}).get("total")
+    if not total:
+        return False, "no time budget in definition"            # closed (PM 21:28)
+    if result.get("latency_ms", 0) > total:
         return False, f"over the time budget ({result.get('latency_ms')} ms)"
     for name in required(defn):
         ok, why = step_ok(result, name)
@@ -234,13 +237,25 @@ def substitute_gate(defn: dict, slot_name: str, agent_id: str, caller, inputs: l
     from .runner import Runner
     runner_cls = runner_cls or Runner
     state = leaving_out(defn, with_candidate(defn, watch_state, slot_name, agent_id), slot_name, "others", keep=agent_id)
+    slot_budget = (defn.get("budget_ms") or {}).get("slot") or (defn.get("budget_ms") or {}).get("total")
     rows = []
     for i, values in enumerate(inputs[:CONNECT_RUNS]):
         result = runner_cls(caller, watch_state=state).run(defn, values)
+        # user decision 11-18 (CLAUDE.md): a substitute is approved when, put at the end of its step's chain, it gives
+        # an answer in the contract's form within the time budget on three different inputs; its accuracy is not
+        # graded. So only its own step is judged here: the other steps' results (a flaky pearl elsewhere, the pearl
+        # count of the run) are recorded in "chain" and never fail the substitute (agent team 21:2x, 11-18).
         ok, why = step_ok(result, slot_name, ("agentcon",))
-        if ok:
-            ok, why = run_ok(defn, result)
-        rows.append({"check": f"substitute:{i + 1}", "ok": ok, "why": why})
+        ms = next((a.get("ms") for a in (result.get("attempts") or {}).get(slot_name) or []
+                   if a.get("ok") and a.get("kind") == "agentcon"), None)
+        if ok and not slot_budget:
+            ok, why = False, "no step budget in definition"       # closed (PM 21:28): nothing to hold the time to
+        elif ok and ms is None:
+            ok, why = False, f"{slot_name}: no timing for the substitute's answer"
+        elif ok and ms > slot_budget:
+            ok, why = False, f"{slot_name}: {ms} ms over the step budget {slot_budget} ms"
+        rows.append({"check": f"substitute:{i + 1}", "ok": ok, "why": why, "ms": ms,
+                     "chain": run_ok(defn, result)[1]})
     contract = next(s["contract"] for s in defn["slots"] if s["slot"] == slot_name)
     return {"slug": defn["slug"], "version": defn["version"], "digest": model.digest(defn), "kind": "substitute",
             "agent_id": agent_id, "slot": slot_name, "contract": contract, "stage2": rows,

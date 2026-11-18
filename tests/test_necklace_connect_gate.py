@@ -30,7 +30,7 @@ def defn3():
 
 class FakeRunner:
     """Each step is answered by its first member the run's state does not leave out and that is not broken."""
-    broken, slow, seen = set(), 0, []
+    broken, slow, seen, step_ms = set(), 0, [], {}
 
     def __init__(self, caller, watch_state=None):
         self.state = watch_state or {}
@@ -50,12 +50,14 @@ class FakeRunner:
                 completed, failed = False, failed or slot["slot"]
             else:
                 slots[slot["slot"]] = {"failed": False, "kind": used["kind"], "status": "answered"}
+        attempts = {name: [{"kind": used["kind"], "ok": True, "ms": FakeRunner.step_ms.get(name, 300)}]
+                    for name, used in slots.items() if not used["failed"]}
         return {"completed": completed, "failed_slot": failed, "latency_ms": FakeRunner.slow or 900, "slots": slots,
-                "output": {}}
+                "attempts": attempts, "output": {}}
 
 
 def setup_function(_):
-    FakeRunner.broken, FakeRunner.slow, FakeRunner.seen = set(), 0, []
+    FakeRunner.broken, FakeRunner.slow, FakeRunner.seen, FakeRunner.step_ms = set(), 0, [], {}
 
 
 def run_gate(defn, inputs=INPUTS, **kw):
@@ -150,6 +152,24 @@ def test_a_substitute_not_yet_approved_is_called_by_its_own_gate_and_only_there(
         pass
     else:
         raise AssertionError("an agent that is not in the step is refused")
+
+
+def test_a_substitute_is_judged_on_its_own_step_only():
+    """User decision 11-18 and the agent team (21:2x): tls-certificate answered every run but failed on a flaky pearl
+    elsewhere (registration) and the run's pearl count. Those are recorded, not held against the substitute; its own
+    answer must come within the step budget (base(): 3500 ms)."""
+    FakeRunner.broken = {1, 2, "owned"}                    # another step fails: the chain does not complete
+    got = cg.substitute_gate(defn3(), "extra", "own-z", None, INPUTS, watch_state=FRESH, runner_cls=FakeRunner)
+    assert got["ok"] and all(r["chain"] == "not completed (failed step papers)" for r in got["stage2"])
+    FakeRunner.step_ms = {"extra": 4000}                   # the substitute itself is too slow
+    slow = cg.substitute_gate(defn3(), "extra", "own-z", None, INPUTS, watch_state=FRESH, runner_cls=FakeRunner)
+    assert not slow["ok"] and slow["stage2"][0]["why"].startswith("extra: 4000 ms over the step budget")
+    FakeRunner.step_ms, FakeRunner.broken = {}, set()
+    no_budget = defn3()
+    no_budget.pop("budget_ms")                             # PM 21:28: no budget fails closed, never a TypeError
+    got = cg.substitute_gate(no_budget, "extra", "own-z", None, INPUTS, watch_state=FRESH, runner_cls=FakeRunner)
+    assert not got["ok"] and {r["why"] for r in got["stage2"]} == {"no step budget in definition"}
+    assert {r["chain"] for r in got["stage2"]} == {"no time budget in definition"}
 
 
 def test_inputs_come_from_tuning_only(tmp_path):
