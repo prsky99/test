@@ -101,6 +101,12 @@ def phases(marks, start):
     return out
 
 
+# R2 (PM 11-18): a failed check names the time it was recorded and the cf-ray of the last response this process read, in
+# full ('<id>-<airport>'), so Cloudflare and the origin log can be matched to the sample. It is the last response seen
+# before the check was judged, not necessarily the one the check is about.
+_LAST = {'ray': ''}
+
+
 def timed(c, method, url, **kw):
     time.sleep(GAP)
     marks = []
@@ -111,6 +117,7 @@ def timed(c, method, url, **kw):
     except Exception as e:  # noqa: BLE001 - any failure is a finding
         return round(time.time() - t, 2), None, f'{type(e).__name__}'
     took = round(time.time() - t, 2)
+    _LAST['ray'] = r.headers.get('cf-ray', '')[:80]
     if marks:   # kept on the response itself, so split() of this sample reads this sample's steps
         r.phases = phases(marks, t)
     return took, r, None
@@ -139,7 +146,8 @@ class Run:
     def ok(self, part, name, cond, detail='', took=None, ref=None):
         self.checks += 1
         if not cond:
-            row = {'part': part, 'team': OWNER[part], 'check': name, 'detail': str(detail)[:240], 's': took}
+            row = {'part': part, 'team': OWNER[part], 'check': name, 'detail': str(detail)[:240], 's': took,
+                   'at': time.strftime('%H:%M:%S'), 'last_ray': _LAST['ray']}
             if ref:
                 row['ref'] = ref  # reference only: never changes the verdict (PM 11-12 01시)
             self.failures.append(row)

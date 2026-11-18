@@ -181,3 +181,29 @@ def test_ping_reads_loss_and_round_trip(monkeypatch):
                   'round-trip min/avg/max/stddev = 3.4/3.52/3.6/0.05 ms\n')
     monkeypatch.setattr(pfc.subprocess, 'run', lambda *a, **k: Done())
     assert pfc.ping('1.1.1.1') == {'host': '1.1.1.1', 'loss_pct': 5.0, 'avg_ms': 3.52}
+
+
+def test_a_failed_check_names_its_time_and_the_full_cf_ray_of_the_last_response(monkeypatch):
+    """R2 (PM 11-18): so a failure can be matched to Cloudflare and origin logs. The ray is the full '<id>-<airport>'
+    of the last response this process read; before any response it is empty."""
+    class Headers(dict):
+        def get(self, key, default=''):
+            return super().get(key, default)
+
+    class Fake:
+        status_code, text = 200, ''
+        headers = Headers({'cf-ray': '9f1a2b3c4d5e6f70-ICN'})
+
+    class Client:
+        def request(self, method, url, **kw):
+            return Fake()
+    monkeypatch.setattr(pfc, 'GAP', 0)
+    monkeypatch.setitem(pfc._LAST, 'ray', '')
+    run = pfc.Run()
+    run.ok('pages', 'first', False, 'before any response')
+    pfc.timed(Client(), 'GET', 'https://agentconcierge.biz/')
+    run.ok('pages', 'second', False, 'after a response')
+    run.ok('pages', 'fine', True)
+    first, second = run.failures
+    assert first['last_ray'] == '' and second['last_ray'] == '9f1a2b3c4d5e6f70-ICN'
+    assert len(first['at']) == 8 and first['at'][2] == ':' and second['at'][5] == ':'
