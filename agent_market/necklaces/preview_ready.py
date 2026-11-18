@@ -31,7 +31,8 @@ def roles(defn: dict) -> list[str]:
 
 
 def check(defn: dict, *, states: dict | None, watch_state: dict | None, watch_problem: str | None,
-          connect: dict | None = None, verified: set | None = None) -> dict:
+          connect: dict | None = None, verified: set | None = None, prints: dict | None = None,
+          now: float | None = None) -> dict:
     """{"slug", "status", "ready", "blocked", "roles", "connect"} for one definition."""
     from .connect_gate import static_checks
     from .watch import runtime_definition
@@ -40,7 +41,7 @@ def check(defn: dict, *, states: dict | None, watch_state: dict | None, watch_pr
     found = roles(defn)
     if len(found) < MIN_ROLES:
         blocked.append(f"roles {len(found)} < {MIN_ROLES}")
-    for c in static_checks(defn, running, states, watch_state, watch_problem, verified):
+    for c in static_checks(defn, running, states, watch_state, watch_problem, verified, prints, now):
         if not c["ok"]:
             blocked.append(f"{c['check']}: {c['why']}")
     return {"slug": defn["slug"], "version": defn["version"], "status": defn["status"], "ready": not blocked,
@@ -54,11 +55,12 @@ def run(root: Path, definitions_dir: Path = model.DEFINITIONS, now: float | None
     watch_state = retest.gate_watch_state(root)
     states = judge.load_substitute_states(Path(root) / "approvals.json")
     verified = judge.verified_pearls()
+    prints = connect_gate.load_prints()
     out = []
     for defn in model.load_valid(definitions_dir):
         connect = connect_gate.state_of(root, defn, now) if connect_gate.history(root, defn) else None
         out.append(check(defn, states=states, watch_state=watch_state, watch_problem=watch_problem, connect=connect,
-                         verified=verified))
+                         verified=verified, prints=prints, now=now))
     return out
 
 

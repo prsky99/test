@@ -4,6 +4,8 @@ A substitute is approved by three runs of its own. Fake runner only: no network,
 import json
 import time
 
+import pytest
+
 from agent_market.necklaces import connect_gate as cg, judge, model
 from tests.test_necklaces_judge import BOTH, approval, summary
 from tests.test_necklaces_model import base, ext, own
@@ -97,6 +99,7 @@ def test_a_fallback_must_be_outside_unless_the_step_is_own_fallback():
     assert got["ok"], failed(got)
 
 
+@pytest.mark.real_terms          # a member whose terms were never read must stay unknown here (conftest C14)
 def test_static_rules_name_what_is_missing():
     defn = defn3()
     defn["slots"][2]["chain"] = [ext(5, "e.com", terms=dict(SILENT)), own("avc:z", agent_id="own-z")]
@@ -111,14 +114,33 @@ def test_static_rules_name_what_is_missing():
     bad_terms["slots"][1]["chain"][1]["terms"]["status"] = "prohibits"
     assert "members:news" in failed(run_gate(bad_terms))      # the runtime chain drops it: the step lost its fallback
     unknown = defn3()
-    unknown["slots"][1]["chain"][1].pop("terms")                # terms never read: not usable for the gate
-    assert "terms:news" in failed(run_gate(unknown))
+    unknown["slots"][1]["chain"][1].pop("terms")     # terms never read: the runtime chain drops it too (C14)
+    assert failed(run_gate(unknown)) == ["members:news"]
     held = run_gate(defn3(), watch_state={"updated": judge._iso(NOW), "holds": {
         "topic-brief": {"since": judge._iso(NOW - 60), "reason": "member_failing"}}})
     assert "watch" in failed(held)
     assert "inputs" in failed(run_gate(defn3(), inputs=INPUTS[:2]))
     FakeRunner.slow = 6000                                                    # over base()'s 5000 ms budget
     assert failed(run_gate(defn3())) == ["whole"]
+
+
+def test_every_outside_member_needs_a_fingerprint_of_the_last_24_hours():
+    """PM 20:03 (11-18): a member without a fresh ops reading is named, so ops measures it before the runs."""
+    fresh = {"baseline": "h", "current": "h", "measured_at": judge._iso(NOW - 3600)}
+    prints = {"resources": {str(r): dict(fresh) for r in (1, 2, 3, 4, 5, 6)}}
+    assert failed(run_gate(defn3(), prints=prints, now=NOW)) == []
+    calls = len(FakeRunner.seen)
+    prints["resources"].pop("4")
+    prints["resources"]["6"]["measured_at"] = judge._iso(NOW - 25 * 3600)
+    got = run_gate(defn3(), prints=prints, now=NOW)
+    assert failed(got) == ["fingerprints:news", "fingerprints:extra"] and got["stage1"] == []
+    assert len(FakeRunner.seen) == calls and got["stage2"] == []          # a gate that cannot pass calls nobody
+    why = [c["why"] for c in got["static"] if not c["ok"]]
+    assert why == ["ask ops to measure before the runs: 4 unknown", "ask ops to measure before the runs: 6 stale"]
+    prints["resources"]["6"].update(measured_at=judge._iso(NOW), current="other")
+    assert [c["why"] for c in run_gate(defn3(), prints=prints, now=NOW)["static"] if c["check"] == "fingerprints:extra"] \
+        == ["tool definitions changed, ops to review: 6 changed"]
+    assert "fingerprints:papers" not in failed(run_gate(defn3()))            # no file passed: the old callers
 
 
 def test_a_substitute_is_approved_by_three_runs_of_its_own():

@@ -44,6 +44,8 @@ USABLE_TERMS = ("allowed", "silent")
 ANSWERED = ("answered", "partial")
 PEARL = ("verified_pearl", "provisional")      # standing of an outside member that counts (necklaces.members)
 MIN_OUTSIDE_PEARL_STEPS = 2                    # with own_fallback steps (PM 19:2x)
+FINGERPRINTS = Path("gateway-data/fingerprints/pearls.json")   # ops measures every member's tools/list (6 h)
+FINGERPRINT_OK = ("same", "dynamic")           # watch.fingerprint_status; unknown and stale (older than 24 h) hold
 
 
 def tuning_inputs(root: Path, slug: str, n: int = CONNECT_RUNS) -> list[dict]:
@@ -140,9 +142,13 @@ def _pearl(m: dict, contract: str, verified: set | None) -> bool:
 
 
 def static_checks(defn: dict, running: dict, states: dict | None, watch_state: dict | None,
-                  watch_problem: str | None, verified: set | None = None) -> list[dict]:
-    """The step rules, terms and watch (no call)."""
+                  watch_problem: str | None, verified: set | None = None, prints: dict | None = None,
+                  now: float | None = None) -> list[dict]:
+    """The step rules, terms, fingerprints and watch (no call). ``prints`` is the ops fingerprint file; with it,
+    every outside member of a required step needs a reading of the last 24 hours (PM 20:03, 11-18: otherwise the watch
+    holds the necklace right after it opens), and a missing one is named so ops can measure it before the runs."""
     from .judge import watch_hold
+    from .watch import fingerprint_status
     checks, pearl_steps, own_steps = [], 0, 0
     for slot in running["slots"]:
         if not slot.get("required", True):
@@ -165,6 +171,13 @@ def static_checks(defn: dict, running: dict, states: dict | None, watch_state: d
             ok = bool(pearls) and len(outside) >= 2
             why = None if ok else ("no representative pearl" if not pearls else "no outside fallback member")
         checks.append({"check": f"members:{name}", "ok": ok, "why": why})
+        if prints is not None:
+            seen = {m.get("resource_id"): fingerprint_status(prints, m.get("resource_id"), now) for m in outside}
+            measure = [f"{r} {s}" for r, s in seen.items() if s in ("unknown", "stale")]
+            review = [f"{r} {s}" for r, s in seen.items() if s not in FINGERPRINT_OK + ("unknown", "stale")]
+            why = "; ".join(([f"ask ops to measure before the runs: {', '.join(measure)}"] if measure else [])
+                            + ([f"tool definitions changed, ops to review: {', '.join(review)}"] if review else []))
+            checks.append({"check": f"fingerprints:{name}", "ok": not why, "why": why or None})
     if own_steps:
         checks.append({"check": "outside_pearls", "ok": pearl_steps >= MIN_OUTSIDE_PEARL_STEPS,
                        "why": None if pearl_steps >= MIN_OUTSIDE_PEARL_STEPS else
@@ -213,7 +226,7 @@ def stage2(defn: dict, caller, inputs: list[dict], watch_state: dict | None, run
 
 def gate(defn: dict, caller, inputs: list[dict], *, watch_state: dict | None, states: dict | None,
          watch_problem: str | None = None, verified: set | None = None, daily: bool = False,
-         runner_cls=None) -> dict:
+         runner_cls=None, prints: dict | None = None, now: float | None = None) -> dict:
     from .runner import Runner
     from .watch import runtime_definition
     runner_cls = runner_cls or Runner
@@ -224,10 +237,11 @@ def gate(defn: dict, caller, inputs: list[dict], *, watch_state: dict | None, st
         body["ok"] = bool(inputs) and all(r["ok"] for r in body["stage2"])
         return body
     running = runtime_definition(defn, watch_state or {})
-    body["static"] = static_checks(defn, running, states, watch_state, watch_problem, verified)
+    body["static"] = static_checks(defn, running, states, watch_state, watch_problem, verified, prints, now)
     if len(inputs) < CONNECT_RUNS:
         body["static"].append({"check": "inputs", "ok": False, "why": f"{len(inputs)} tuning inputs (needs {CONNECT_RUNS})"})
-    body["stage1"] = stage1(defn, caller, inputs[0], watch_state, runner_cls) if inputs else []
+    static_ok = all(c["ok"] for c in body["static"])   # a gate that cannot pass calls nobody (fail decided: stop)
+    body["stage1"] = stage1(defn, caller, inputs[0], watch_state, runner_cls) if inputs and static_ok else []
     passed1 = bool(body["stage1"]) and all(r["ok"] for r in body["stage1"])
     body["stage2"] = stage2(defn, caller, inputs, watch_state, runner_cls) if passed1 else []
     body["ok"] = (all(c["ok"] for c in body["static"]) and passed1 and len(body["stage2"]) == CONNECT_RUNS
@@ -325,6 +339,15 @@ def state_of(root: Path, defn: dict, now: float) -> dict:
             "last_ok": last.get("ok") if last else None, "hold": hold}
 
 
+def load_prints(path: Path = FINGERPRINTS) -> dict:
+    """The ops fingerprint file; unreadable reads as empty (every member then unknown: nothing passes unmeasured)."""
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def relay_run(defn: dict, root: Path, *, daily: bool = False, substitute: tuple | None = None,
               base: str | None = None) -> dict:
     """The gate, one daily run or a substitute gate through the public relay, recorded; outside calls on "gate"."""
@@ -343,7 +366,8 @@ def relay_run(defn: dict, root: Path, *, daily: bool = False, substitute: tuple 
         else:
             body = gate(defn, call, inputs, watch_state=watch_state,
                         states=judge.load_substitute_states(Path(root) / "approvals.json"),
-                        watch_problem=watch_problem, verified=judge.verified_pearls(), daily=daily)
+                        watch_problem=watch_problem, verified=judge.verified_pearls(), daily=daily,
+                        prints=load_prints(), now=now)
     return record(root, body)
 
 
