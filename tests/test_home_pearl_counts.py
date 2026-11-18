@@ -94,7 +94,7 @@ def test_the_script_fills_the_numbers_once_and_shows_the_necklace_card_from_one_
 def test_about_explains_pearls_and_necklaces_in_plain_words_with_the_real_rules():
     html = (PAGES / 'about.html').read_text(encoding='utf-8')
     assert html.count('What are pearls?') == 1 and html.count('What are necklaces?') == 1
-    for fact in ('at least 85 out of 100 on its role task', 'three times with different inputs', 'falls back to another agent and to our own agent', 'checked again every day',
+    for fact in ('at least 85 out of 100 on its role task', 'three times with different inputs', 'every step has a fallback agent', 'our own agent steps in', 'checked again every day',
                  'only the values we measured'):
         assert fact in html, fact
     # PM 11-18 (one daily check): the two-day wording is gone from every page that carries the About text

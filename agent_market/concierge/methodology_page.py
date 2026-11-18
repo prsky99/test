@@ -154,7 +154,7 @@ def page_html(base='https://agentconcierge.biz', data=None, log=None):
         offered_now, members = None, None
     parts.append('<section aria-labelledby="mGate"><h2 id="mGate">5. Necklace gate</h2>'
                  '<p>A necklace opens only after its connection test: its steps are joined one at a time and run, every step '
-                 'falls back to another agent, and the whole chain then runs three times on different inputs. After it opens, '
+                 'has a fallback agent (our own agent where no other provider exists), and the whole chain then runs three times on different inputs. After it opens, '
                  'one connection run a day keeps it open; it is held when that run fails or is older than 48 hours. Its page '
                  'shows its own recent results.</p>'
                  + ('<p class="necklace-member-rules">' + members + '</p>' if members else '')

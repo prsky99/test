@@ -91,7 +91,7 @@ def test_the_necklace_gate_paragraph_describes_the_connection_test_and_no_retest
     """PM 11-18 19:5x (workflow team, methodology v1.4): section 5 says what the connection test is; the old retest-score and delta
     sentence and its numbers are gone."""
     text = re.sub(r'<[^>]+>', ' ', mp.page_html(data=mp.method()))
-    for expected in ('opens only after its connection test', 'every step falls back to another agent',
+    for expected in ('opens only after its connection test', 'every step has a fallback agent (our own agent where no other provider exists)',
                      'runs three times on different inputs', 'one connection run a day keeps it open'):
         assert ' '.join(expected.split()) in ' '.join(text.split()), expected
     for gone in ('retest success below 0.8', 'a delta of 0 or less', '57 of 60'):
